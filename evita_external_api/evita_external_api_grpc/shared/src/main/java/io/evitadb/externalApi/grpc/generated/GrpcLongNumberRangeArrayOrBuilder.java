@@ -33,7 +33,7 @@ public interface GrpcLongNumberRangeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a LongNumberRange array.
+   * The individual LongNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcLongNumberRangeArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a LongNumberRange array.
+   * The individual LongNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcLongNumberRangeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a LongNumberRange array.
+   * The individual LongNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcLongNumberRangeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a LongNumberRange array.
+   * The individual LongNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcLongNumberRangeArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a LongNumberRange array.
+   * The individual LongNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange value = 1;</code>

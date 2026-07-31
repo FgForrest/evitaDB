@@ -72,7 +72,10 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object valueString_ = "";
   /**
    * <pre>
-   * The string serialized value.
+   * The decimal value serialized as a string in the canonical form produced by
+   * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+   * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+   * exactly.
    * </pre>
    *
    * <code>string valueString = 1;</code>
@@ -93,7 +96,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string serialized value.
+   * The decimal value serialized as a string in the canonical form produced by
+   * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+   * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+   * exactly.
    * </pre>
    *
    * <code>string valueString = 1;</code>
@@ -447,7 +453,10 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object valueString_ = "";
     /**
      * <pre>
-     * The string serialized value.
+     * The decimal value serialized as a string in the canonical form produced by
+     * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+     * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+     * exactly.
      * </pre>
      *
      * <code>string valueString = 1;</code>
@@ -467,7 +476,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string serialized value.
+     * The decimal value serialized as a string in the canonical form produced by
+     * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+     * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+     * exactly.
      * </pre>
      *
      * <code>string valueString = 1;</code>
@@ -488,7 +500,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string serialized value.
+     * The decimal value serialized as a string in the canonical form produced by
+     * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+     * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+     * exactly.
      * </pre>
      *
      * <code>string valueString = 1;</code>
@@ -505,7 +520,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string serialized value.
+     * The decimal value serialized as a string in the canonical form produced by
+     * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+     * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+     * exactly.
      * </pre>
      *
      * <code>string valueString = 1;</code>
@@ -519,7 +537,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string serialized value.
+     * The decimal value serialized as a string in the canonical form produced by
+     * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+     * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+     * exactly.
      * </pre>
      *
      * <code>string valueString = 1;</code>

@@ -33,7 +33,8 @@ public interface GrpcQueryResponseOrBuilder extends
 
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcQueryResponseOrBuilder extends
   boolean hasRecordPage();
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcQueryResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDataChunk getRecordPage();
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -60,7 +63,9 @@ public interface GrpcQueryResponseOrBuilder extends
 
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -69,7 +74,9 @@ public interface GrpcQueryResponseOrBuilder extends
   boolean hasExtraResults();
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -78,7 +85,9 @@ public interface GrpcQueryResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcExtraResults getExtraResults();
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>

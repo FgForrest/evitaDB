@@ -33,7 +33,7 @@ public interface GrpcUpdateAndFetchEntitySchemaResponseOrBuilder extends
 
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcUpdateAndFetchEntitySchemaResponseOrBuilder extends
   boolean hasEntitySchema();
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcUpdateAndFetchEntitySchemaResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchema getEntitySchema();
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>

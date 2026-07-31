@@ -112,7 +112,8 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 									Set<Integer> assignedSet = new HashSet<>();
 									for (int j = 0; j < newRecId.length; j++) {
 										do {
-											newRecId[j] = random.nextInt(initialCount << 1);
+											// primary keys start at 1 - zero is reserved by evitaDB and rejected by the array
+											newRecId[j] = 1 + random.nextInt(initialCount << 1);
 										} while (transactionalArray.contains(newRecId[j]) || assignedSet.contains(newRecId[j]));
 										assignedSet.add(newRecId[j]);
 									}
@@ -132,7 +133,8 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 									// insert new item
 									int newRecId;
 									do {
-										newRecId = random.nextInt(initialCount << 1);
+										// primary keys start at 1 - zero is reserved by evitaDB and rejected by the array
+										newRecId = 1 + random.nextInt(initialCount << 1);
 									} while (transactionalArray.contains(newRecId));
 
 									try {
@@ -200,7 +202,8 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 		for (int i = 0; i < count; i++) {
 			boolean added;
 			do {
-				final int recId = rnd.nextInt(count << 1);
+				// primary keys start at 1 - zero is reserved by evitaDB and rejected by the array
+				final int recId = 1 + rnd.nextInt(count << 1);
 				added = uniqueSet.add(recId);
 				if (added) {
 					initialArray[i] = recId;

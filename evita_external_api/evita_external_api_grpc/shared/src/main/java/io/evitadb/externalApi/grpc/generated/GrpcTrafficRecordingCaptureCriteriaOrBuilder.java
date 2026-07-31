@@ -33,7 +33,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * content determines whether only basic information about the traffic recording is returned or the actual content
+   * Determines whether only basic information about the traffic recording is returned, or the actual event
+   * content as well (see the `body` oneof on `GrpcTrafficRecord`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   int getContentValue();
   /**
    * <pre>
-   * content determines whether only basic information about the traffic recording is returned or the actual content
+   * Determines whether only basic information about the traffic recording is returned, or the actual event
+   * content as well (see the `body` oneof on `GrpcTrafficRecord`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent content = 1;</code>
@@ -52,7 +54,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * since specifies the time from which the traffic recording should be returned
+   * The lower time bound (inclusive) for returned traffic records. If unset, no time-based lower bound is applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime since = 2;</code>
@@ -61,7 +63,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasSince();
   /**
    * <pre>
-   * since specifies the time from which the traffic recording should be returned
+   * The lower time bound (inclusive) for returned traffic records. If unset, no time-based lower bound is applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime since = 2;</code>
@@ -70,7 +72,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getSince();
   /**
    * <pre>
-   * since specifies the time from which the traffic recording should be returned
+   * The lower time bound (inclusive) for returned traffic records. If unset, no time-based lower bound is applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime since = 2;</code>
@@ -79,7 +81,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+   * The session sequence ID (see `GrpcTrafficRecord#sessionSequenceOrder`) from which the traffic recording should
+   * be returned (inclusive). If unset, no session-sequence lower bound is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceSessionSequenceId = 3;</code>
@@ -88,7 +91,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasSinceSessionSequenceId();
   /**
    * <pre>
-   * sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+   * The session sequence ID (see `GrpcTrafficRecord#sessionSequenceOrder`) from which the traffic recording should
+   * be returned (inclusive). If unset, no session-sequence lower bound is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceSessionSequenceId = 3;</code>
@@ -97,7 +101,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   com.google.protobuf.Int64Value getSinceSessionSequenceId();
   /**
    * <pre>
-   * sinceSessionSequenceId specifies the session sequence ID from which the traffic recording should be returned
+   * The session sequence ID (see `GrpcTrafficRecord#sessionSequenceOrder`) from which the traffic recording should
+   * be returned (inclusive). If unset, no session-sequence lower bound is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceSessionSequenceId = 3;</code>
@@ -106,10 +111,10 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
-   *                          (the offset is relative to the session sequence ID and starts from 0), offset allows
-   *                          to continue fetching the traffic recording from the last fetched record when session
-   *                          was not fully fetched
+   * The record offset within the session identified by `sinceSessionSequenceId` from which the traffic recording
+   * should be returned (the offset is relative to the session sequence ID and starts from 0); allows continuing to
+   * fetch a session's traffic recording from the last fetched record when the session was not fully fetched in a
+   * previous call. If unset, records are returned from the start of the session.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceRecordSessionOffset = 4;</code>
@@ -118,10 +123,10 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasSinceRecordSessionOffset();
   /**
    * <pre>
-   * sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
-   *                          (the offset is relative to the session sequence ID and starts from 0), offset allows
-   *                          to continue fetching the traffic recording from the last fetched record when session
-   *                          was not fully fetched
+   * The record offset within the session identified by `sinceSessionSequenceId` from which the traffic recording
+   * should be returned (the offset is relative to the session sequence ID and starts from 0); allows continuing to
+   * fetch a session's traffic recording from the last fetched record when the session was not fully fetched in a
+   * previous call. If unset, records are returned from the start of the session.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceRecordSessionOffset = 4;</code>
@@ -130,10 +135,10 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   com.google.protobuf.Int32Value getSinceRecordSessionOffset();
   /**
    * <pre>
-   * sinceRecordSessionOffset specifies the record session offset from which the traffic recording should be returned
-   *                          (the offset is relative to the session sequence ID and starts from 0), offset allows
-   *                          to continue fetching the traffic recording from the last fetched record when session
-   *                          was not fully fetched
+   * The record offset within the session identified by `sinceSessionSequenceId` from which the traffic recording
+   * should be returned (the offset is relative to the session sequence ID and starts from 0); allows continuing to
+   * fetch a session's traffic recording from the last fetched record when the session was not fully fetched in a
+   * previous call. If unset, records are returned from the start of the session.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceRecordSessionOffset = 4;</code>
@@ -142,7 +147,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * type specifies the types of traffic recording to be returned
+   * The types of traffic recording to be returned. If empty, records of all types are returned.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
@@ -151,7 +156,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType> getTypeList();
   /**
    * <pre>
-   * type specifies the types of traffic recording to be returned
+   * The types of traffic recording to be returned. If empty, records of all types are returned.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
@@ -160,7 +165,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   int getTypeCount();
   /**
    * <pre>
-   * type specifies the types of traffic recording to be returned
+   * The types of traffic recording to be returned. If empty, records of all types are returned.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
@@ -170,7 +175,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType getType(int index);
   /**
    * <pre>
-   * type specifies the types of traffic recording to be returned
+   * The types of traffic recording to be returned. If empty, records of all types are returned.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
@@ -180,7 +185,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   getTypeValueList();
   /**
    * <pre>
-   * type specifies the types of traffic recording to be returned
+   * The types of traffic recording to be returned. If empty, records of all types are returned.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingType type = 5;</code>
@@ -191,7 +196,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * sessionId specifies the session ID from which the traffic recording should be returned
+   * The session IDs to limit the returned traffic recording to. If empty, records from all sessions are considered.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
@@ -200,7 +205,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
       getSessionIdList();
   /**
    * <pre>
-   * sessionId specifies the session ID from which the traffic recording should be returned
+   * The session IDs to limit the returned traffic recording to. If empty, records from all sessions are considered.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
@@ -208,7 +213,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getSessionId(int index);
   /**
    * <pre>
-   * sessionId specifies the session ID from which the traffic recording should be returned
+   * The session IDs to limit the returned traffic recording to. If empty, records from all sessions are considered.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
@@ -216,7 +221,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   int getSessionIdCount();
   /**
    * <pre>
-   * sessionId specifies the session ID from which the traffic recording should be returned
+   * The session IDs to limit the returned traffic recording to. If empty, records from all sessions are considered.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
@@ -225,7 +230,7 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
       getSessionIdOrBuilderList();
   /**
    * <pre>
-   * sessionId specifies the session ID from which the traffic recording should be returned
+   * The session IDs to limit the returned traffic recording to. If empty, records from all sessions are considered.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid sessionId = 6;</code>
@@ -235,7 +240,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
+   * The minimum duration (milliseconds) the traffic recording operation must have taken to be returned. If unset,
+   * no minimum-duration filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
@@ -244,7 +250,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasLongerThanMilliseconds();
   /**
    * <pre>
-   * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
+   * The minimum duration (milliseconds) the traffic recording operation must have taken to be returned. If unset,
+   * no minimum-duration filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
@@ -253,7 +260,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   com.google.protobuf.Int32Value getLongerThanMilliseconds();
   /**
    * <pre>
-   * longerThan specifies the minimum duration in milliseconds of the traffic recording to be returned
+   * The minimum duration (milliseconds) the traffic recording operation must have taken to be returned. If unset,
+   * no minimum-duration filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value longerThanMilliseconds = 7;</code>
@@ -262,7 +270,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
+   * The minimum number of bytes the record must have fetched from the permanent storage to be returned. If unset,
+   * no minimum-size filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -271,7 +280,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   boolean hasFetchingMoreBytesThan();
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
+   * The minimum number of bytes the record must have fetched from the permanent storage to be returned. If unset,
+   * no minimum-size filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -280,7 +290,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   com.google.protobuf.Int32Value getFetchingMoreBytesThan();
   /**
    * <pre>
-   * fetchingMoreBytesThan specifies the minimum number of bytes that record should have fetched from the disk
+   * The minimum number of bytes the record must have fetched from the permanent storage to be returned. If unset,
+   * no minimum-size filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value fetchingMoreBytesThan = 8;</code>
@@ -289,7 +300,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * The client labels the traffic recording must have (both name and value must match). If empty, no label filter
+   * is applied.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
@@ -298,7 +310,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
       getLabelsList();
   /**
    * <pre>
-   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * The client labels the traffic recording must have (both name and value must match). If empty, no label filter
+   * is applied.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
@@ -306,7 +319,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcQueryLabel getLabels(int index);
   /**
    * <pre>
-   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * The client labels the traffic recording must have (both name and value must match). If empty, no label filter
+   * is applied.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
@@ -314,7 +328,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
   int getLabelsCount();
   /**
    * <pre>
-   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * The client labels the traffic recording must have (both name and value must match). If empty, no label filter
+   * is applied.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>
@@ -323,7 +338,8 @@ public interface GrpcTrafficRecordingCaptureCriteriaOrBuilder extends
       getLabelsOrBuilderList();
   /**
    * <pre>
-   * labels specifies the client labels that the traffic recording must have (both name and value must match)
+   * The client labels the traffic recording must have (both name and value must match). If empty, no label filter
+   * is applied.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryLabel labels = 9;</code>

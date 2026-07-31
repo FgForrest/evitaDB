@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that holds a map of values stored inside map of the complex object.
+ * Structure that holds a map-typed node of a complex associated data value's tree.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.DataItemMap}
@@ -106,7 +106,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -127,7 +127,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -156,7 +156,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
   }
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -343,7 +343,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
   }
   /**
    * <pre>
-   * Structure that holds a map of values stored inside map of the complex object.
+   * Structure that holds a map-typed node of a complex associated data value's tree.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.DataItemMap}
@@ -576,7 +576,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -597,7 +597,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -608,7 +608,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -625,7 +625,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -647,7 +647,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -670,7 +670,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -687,7 +687,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -706,7 +706,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue) {
     }
     /**
      * <pre>
-     * The stored named fields with associated values.
+     * The child nodes of this map node, keyed by property name.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>

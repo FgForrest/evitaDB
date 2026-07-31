@@ -54,9 +54,19 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * - **2-way direct-mapped, replace-on-collision** - no LRU bookkeeping, no locks; the secondary
  *   slot (derived from the upper hash bits) prevents two hot values that collide on the primary
  *   slot from evicting each other on every access;
- * - **immutable entries, benign races** - {@link CachedKey} is a record (all fields final), so a
+ * - **safely published entries, benign races** - {@link CachedKey}'s `value` and `key` are final, so a
  *   racy read of a concurrently published entry is safe under the JMM final-field guarantee; the
  *   worst outcome of a lost concurrent write is a redundant recomputation;
+ * - **decay, not resizing** - {@link #SIZE} is an upper bound on how many keys a locale MAY retain, not a
+ *   commitment to retain that many. {@link #sweep()} implements CLOCK second chance: an entry touched since the
+ *   previous sweep survives, an untouched one is dropped, so the retained footprint follows the live working set
+ *   and falls back towards nothing when the cache stops being exercised. Deliberately *not* implemented by
+ *   shrinking the slot array: the array is `slots x reference size` (4 MB at the maximum) while the entries it
+ *   points at measure ~282 bytes each (~254 MB for a fully populated million-slot locale), so shedding entries
+ *   recovers essentially all of the reclaimable memory and resizing would recover under 2% of it while forcing
+ *   a volatile array reference onto the hot path. The reference-tracking flag lives INSIDE the entry rather than
+ *   in a parallel bitmap so that marking a hit touches the cache line the reader has already loaded, instead of
+ *   contending on a side array shared by 64+ slots per line;
  * - **striped collator pool** - `RuleBasedCollator.getCollationKey` is `synchronized`, therefore
  *   each miss borrows a pool stripe's {@link Collator} exclusively (atomic exchange, falling back
  *   to a fresh clone when the stripe is empty), keeping cache misses monitor-free under concurrent
@@ -73,7 +83,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class CollationKeyCache implements Serializable {
+public final class CollationKeyCache implements Serializable {
 	@Serial private static final long serialVersionUID = 2359981769309770696L;
 
 	/**
@@ -236,6 +246,8 @@ final class CollationKeyCache implements Serializable {
 		// it changes the cost.
 		//noinspection StringEquality,ConditionCoveredByFurtherCondition
 		if (primaryEntry != null && (primaryEntry.value == value || primaryEntry.value.equals(value))) {
+			// mark for CLOCK second chance; the entry's cache line is already loaded by the comparison above
+			primaryEntry.referenced = true;
 			return primaryEntry.key;
 		}
 		final int secondary = (hash >>> 16) & this.mask;
@@ -243,6 +255,7 @@ final class CollationKeyCache implements Serializable {
 		// intentional identity fast path (see the note on the primary slot above)
 		//noinspection StringEquality,ConditionCoveredByFurtherCondition
 		if (secondaryEntry != null && (secondaryEntry.value == value || secondaryEntry.value.equals(value))) {
+			secondaryEntry.referenced = true;
 			return secondaryEntry.key;
 		}
 		// borrow a collator from the stripe keyed by the current thread (exclusive via exchange);
@@ -266,16 +279,96 @@ final class CollationKeyCache implements Serializable {
 	}
 
 	/**
-	 * Immutable (value, collation key) pair; record finality guarantees safe publication even when
-	 * the {@link #slots} elements are written without synchronization.
+	 * Drops every entry that has not been read since the previous sweep, and clears the reference flag of those that
+	 * have — CLOCK second chance. The retained footprint therefore follows the live working set: a locale that keeps
+	 * being exercised holds on to exactly the keys it keeps asking for, while one that has gone quiet (a catalog that
+	 * finished its bulk import, or an attribute nothing sorts by any more) releases its keys over the following
+	 * sweeps. See the class javadoc for why this, rather than resizing, is the mechanism.
 	 *
-	 * @param value the source string
-	 * @param key   its collation-key byte form
+	 * Safe by construction: entries are a pure function of `(locale rules, string)`, so discarding one can never
+	 * produce a wrong answer — only a recomputation on the next miss. Runs without synchronization; a concurrent
+	 * {@link #keyFor(String)} may lose the race and have its just-marked entry dropped, which costs one
+	 * recomputation. Cost is `O(slots)` (a linear scan of one reference array), so a caller sweeping the largest
+	 * supported cache walks a million references.
+	 *
+	 * @return number of entries dropped, for the caller to log or expose
 	 */
-	private record CachedKey(
-		@Nonnull String value,
-		@Nonnull byte[] key
-	) implements Serializable {
+	int sweep() {
+		int dropped = 0;
+		final CachedKey[] theSlots = this.slots;
+		for (int i = 0; i < theSlots.length; i++) {
+			final CachedKey entry = theSlots[i];
+			if (entry == null) {
+				continue;
+			}
+			if (entry.referenced) {
+				// touched since the last sweep - grant it a second chance and reset the flag
+				entry.referenced = false;
+			} else {
+				theSlots[i] = null;
+				dropped++;
+			}
+		}
+		return dropped;
+	}
+
+	/**
+	 * Sweeps every locale's cache — see {@link #sweep()}. This is the only entry point the rest of the engine needs:
+	 * the caches themselves are an implementation detail of this package, but the events that should trigger their
+	 * maintenance (a catalog leaving its bulk-indexing phase, a periodic housekeeping tick) are known only outside it.
+	 *
+	 * Safe to call at any time and from any thread: a cached key is a pure function of `(locale rules, string)`, so
+	 * discarding one can only ever cost a recomputation, never change an ordering. Cost is one linear scan per locale
+	 * — a million reference reads for the largest supported cache — so it belongs on a housekeeping path, never on
+	 * a request path.
+	 *
+	 * **A single sweep reclaims almost nothing, by design.** {@link #keyFor(String)} marks an entry on every hit and
+	 * one B+ tree descent re-reads its own probe several times, so practically every entry carries a set reference
+	 * flag moments after it was inserted and survives on its second chance. Releasing memory therefore takes TWO
+	 * sweeps with no intervening lookup: the first clears the flags, the second drops what stayed untouched between
+	 * them. Measured on a 972k-article localized import — a lone sweep at the end of the import released 3 entries
+	 * out of ~1M slots, while the same sweep preceded by one earlier sweep released ~215k. Callers wanting a bounded
+	 * footprint must therefore sweep periodically; a single well-timed sweep is not a substitute.
+	 *
+	 * @return total number of entries dropped across all locales
+	 */
+	public static int sweepAll() {
+		int dropped = 0;
+		for (final CollationKeyCache cache : INSTANCES.values()) {
+			dropped += cache.sweep();
+		}
+		return dropped;
+	}
+
+	/**
+	 * A (value, collation key) pair plus the CLOCK reference flag consulted by {@link #sweep()}.
+	 *
+	 * `value` and `key` are final, which is what guarantees safe publication when the {@link #slots} elements are
+	 * written without synchronization (see the class javadoc). {@link #referenced} is deliberately mutable and
+	 * deliberately NOT volatile: it is a hint, read only by the sweeper, and a lost write merely costs the entry its
+	 * second chance and therefore one recomputation. Writing it on a cache hit touches the cache line the reader has
+	 * just loaded to compare `value`, so marking a hit is effectively free.
+	 */
+	private static final class CachedKey implements Serializable {
+		@Serial private static final long serialVersionUID = 8543766319929827553L;
+		/**
+		 * The source string.
+		 */
+		@Nonnull private final String value;
+		/**
+		 * Its collation-key byte form.
+		 */
+		@Nonnull private final byte[] key;
+		/**
+		 * CLOCK reference flag: set on every read, cleared by {@link #sweep()}; an entry still clear at the next
+		 * sweep is dropped. Racy by design — see the class javadoc on this type.
+		 */
+		private boolean referenced;
+
+		CachedKey(@Nonnull String value, @Nonnull byte[] key) {
+			this.value = value;
+			this.key = key;
+		}
 	}
 
 }

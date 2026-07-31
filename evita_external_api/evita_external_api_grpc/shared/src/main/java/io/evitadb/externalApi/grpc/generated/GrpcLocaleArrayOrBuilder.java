@@ -33,7 +33,7 @@ public interface GrpcLocaleArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a Locale array.
+   * The individual Locale elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcLocaleArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a Locale array.
+   * The individual Locale elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcLocaleArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLocale getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a Locale array.
+   * The individual Locale elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcLocaleArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a Locale array.
+   * The individual Locale elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcLocaleArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a Locale array.
+   * The individual Locale elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale value = 1;</code>

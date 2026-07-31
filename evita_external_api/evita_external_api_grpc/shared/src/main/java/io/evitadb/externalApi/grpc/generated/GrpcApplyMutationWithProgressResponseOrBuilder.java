@@ -33,7 +33,8 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
 
   /**
    * <pre>
-   * The progress of the go live operation in percents.
+   * Progress of the tracked operation (percent, 0-100). Intermediate updates are throttled (only sent on an
+   * increase, at most once per second); the final message of the stream always carries 100.
    * </pre>
    *
    * <code>int32 progressInPercent = 1;</code>
@@ -43,7 +44,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
 
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final message (`progressInPercent` = 100), and only
+   * if the operation produced a catalog version (i.e. relates to a catalog rather than being purely engine-level);
+   * unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 2;</code>
@@ -52,7 +55,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
   boolean hasCatalogVersion();
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final message (`progressInPercent` = 100), and only
+   * if the operation produced a catalog version (i.e. relates to a catalog rather than being purely engine-level);
+   * unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 2;</code>
@@ -61,7 +66,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
   com.google.protobuf.Int64Value getCatalogVersion();
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final message (`progressInPercent` = 100), and only
+   * if the operation produced a catalog version (i.e. relates to a catalog rather than being purely engine-level);
+   * unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 2;</code>
@@ -70,7 +77,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
 
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog schema version (i.e. relates to a catalog rather than being
+   * purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 3;</code>
@@ -79,7 +88,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
   boolean hasCatalogSchemaVersion();
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog schema version (i.e. relates to a catalog rather than being
+   * purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 3;</code>
@@ -88,7 +99,9 @@ public interface GrpcApplyMutationWithProgressResponseOrBuilder extends
   com.google.protobuf.Int32Value getCatalogSchemaVersion();
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog schema version (i.e. relates to a catalog rather than being
+   * purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 3;</code>

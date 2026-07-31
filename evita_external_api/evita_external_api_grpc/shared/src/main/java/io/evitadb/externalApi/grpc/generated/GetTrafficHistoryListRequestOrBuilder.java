@@ -33,7 +33,10 @@ public interface GetTrafficHistoryListRequestOrBuilder extends
 
   /**
    * <pre>
-   * The limit of records to return
+   * Maximum number of matching traffic records to return in this response. This is a plain result cap - not
+   * page-based or offset-based pagination - and the server enforces no upper bound of its own beyond it. To
+   * continue fetching beyond this limit, issue a new request with `criteria.sinceSessionSequenceId` and
+   * `criteria.sinceRecordSessionOffset` set to the position right after the last record already received.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -43,7 +46,8 @@ public interface GetTrafficHistoryListRequestOrBuilder extends
 
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -52,7 +56,8 @@ public interface GetTrafficHistoryListRequestOrBuilder extends
   boolean hasCriteria();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -61,7 +66,8 @@ public interface GetTrafficHistoryListRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria getCriteria();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>

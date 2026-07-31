@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for acquiring an entity.
+ * Request for acquiring a single entity by primary key, in the richness described by `require`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityRequest}
@@ -86,7 +86,7 @@ private static final long serialVersionUID = 0L;
   private int primaryKey_ = 0;
   /**
    * <pre>
-   * The primary key of the entity.
+   * The primary key of the entity to fetch.
    * </pre>
    *
    * <code>int32 primaryKey = 1;</code>
@@ -102,7 +102,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object entityType_ = "";
   /**
    * <pre>
-   * The entity type of the entity.
+   * The entity type (collection name) the primary key belongs to.
    * </pre>
    *
    * <code>string entityType = 2;</code>
@@ -123,7 +123,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The entity type of the entity.
+   * The entity type (collection name) the primary key belongs to.
    * </pre>
    *
    * <code>string entityType = 2;</code>
@@ -149,7 +149,11 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object require_ = "";
   /**
    * <pre>
-   * The string part of the parametrised query require part.
+   * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+   * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+   * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+   * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+   * below for the full binding contract, which applies identically here.
    * </pre>
    *
    * <code>string require = 3;</code>
@@ -170,7 +174,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string part of the parametrised query require part.
+   * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+   * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+   * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+   * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+   * below for the full binding contract, which applies identically here.
    * </pre>
    *
    * <code>string require = 3;</code>
@@ -196,7 +204,10 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> positionalQueryParams_;
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+   * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+   * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+   * "Missing argument of index N."; extra values are ignored.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -207,7 +218,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+   * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+   * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+   * "Missing argument of index N."; extra values are ignored.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -219,7 +233,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+   * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+   * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+   * "Missing argument of index N."; extra values are ignored.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -230,7 +247,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+   * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+   * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+   * "Missing argument of index N."; extra values are ignored.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -241,7 +261,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+   * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+   * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+   * "Missing argument of index N."; extra values are ignored.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -280,7 +303,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+   * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+   * with "Missing argument of name `name`."; extra map entries are ignored.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -301,7 +326,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+   * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+   * with "Missing argument of name `name`."; extra map entries are ignored.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -312,7 +339,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+   * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+   * with "Missing argument of name `name`."; extra map entries are ignored.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -330,7 +359,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+   * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+   * with "Missing argument of name `name`."; extra map entries are ignored.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -361,7 +392,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
           };
   /**
    * <pre>
-   * The set of scopes to search for the entity.
+   * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+   * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -374,7 +406,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The set of scopes to search for the entity.
+   * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+   * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -386,7 +419,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The set of scopes to search for the entity.
+   * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+   * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -399,7 +433,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The set of scopes to search for the entity.
+   * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+   * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -412,7 +447,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The set of scopes to search for the entity.
+   * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+   * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -664,7 +700,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * Request for acquiring an entity.
+   * Request for acquiring a single entity by primary key, in the richness described by `require`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityRequest}
@@ -996,7 +1032,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     private int primaryKey_ ;
     /**
      * <pre>
-     * The primary key of the entity.
+     * The primary key of the entity to fetch.
      * </pre>
      *
      * <code>int32 primaryKey = 1;</code>
@@ -1008,7 +1044,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The primary key of the entity.
+     * The primary key of the entity to fetch.
      * </pre>
      *
      * <code>int32 primaryKey = 1;</code>
@@ -1024,7 +1060,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The primary key of the entity.
+     * The primary key of the entity to fetch.
      * </pre>
      *
      * <code>int32 primaryKey = 1;</code>
@@ -1040,7 +1076,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     private java.lang.Object entityType_ = "";
     /**
      * <pre>
-     * The entity type of the entity.
+     * The entity type (collection name) the primary key belongs to.
      * </pre>
      *
      * <code>string entityType = 2;</code>
@@ -1060,7 +1096,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The entity type of the entity.
+     * The entity type (collection name) the primary key belongs to.
      * </pre>
      *
      * <code>string entityType = 2;</code>
@@ -1081,7 +1117,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The entity type of the entity.
+     * The entity type (collection name) the primary key belongs to.
      * </pre>
      *
      * <code>string entityType = 2;</code>
@@ -1098,7 +1134,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The entity type of the entity.
+     * The entity type (collection name) the primary key belongs to.
      * </pre>
      *
      * <code>string entityType = 2;</code>
@@ -1112,7 +1148,7 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The entity type of the entity.
+     * The entity type (collection name) the primary key belongs to.
      * </pre>
      *
      * <code>string entityType = 2;</code>
@@ -1132,7 +1168,11 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     private java.lang.Object require_ = "";
     /**
      * <pre>
-     * The string part of the parametrised query require part.
+     * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+     * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+     * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+     * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+     * below for the full binding contract, which applies identically here.
      * </pre>
      *
      * <code>string require = 3;</code>
@@ -1152,7 +1192,11 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query require part.
+     * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+     * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+     * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+     * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+     * below for the full binding contract, which applies identically here.
      * </pre>
      *
      * <code>string require = 3;</code>
@@ -1173,7 +1217,11 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query require part.
+     * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+     * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+     * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+     * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+     * below for the full binding contract, which applies identically here.
      * </pre>
      *
      * <code>string require = 3;</code>
@@ -1190,7 +1238,11 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query require part.
+     * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+     * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+     * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+     * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+     * below for the full binding contract, which applies identically here.
      * </pre>
      *
      * <code>string require = 3;</code>
@@ -1204,7 +1256,11 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query require part.
+     * The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+     * parsed on the server. Parameter values are not embedded in this string but supplied separately via
+     * `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+     * parameter, an `&#64;name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+     * below for the full binding contract, which applies identically here.
      * </pre>
      *
      * <code>string require = 3;</code>
@@ -1235,7 +1291,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
 
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1249,7 +1308,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1263,7 +1325,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1277,7 +1342,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1298,7 +1366,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1316,7 +1387,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1336,7 +1410,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1357,7 +1434,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1375,7 +1455,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1393,7 +1476,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1412,7 +1498,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1429,7 +1518,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1446,7 +1538,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1457,7 +1552,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1471,7 +1569,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1486,7 +1587,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1497,7 +1601,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1509,7 +1616,10 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+     * the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+     * so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+     * "Missing argument of index N."; extra values are ignored.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -1570,7 +1680,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1591,7 +1703,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1602,7 +1716,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1619,7 +1735,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1641,7 +1759,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1664,7 +1784,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1681,7 +1803,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1700,7 +1824,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `require`, keyed by the name used after `&#64;` in the
+     * string (without the `&#64;` prefix). An `&#64;name` placeholder with no matching map entry fails the request
+     * with "Missing argument of name `name`."; extra map entries are ignored.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -1730,7 +1856,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1742,7 +1869,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1753,7 +1881,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1765,7 +1894,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1785,7 +1915,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1803,7 +1934,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1821,7 +1953,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1835,7 +1968,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1847,7 +1981,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1859,7 +1994,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1876,7 +2012,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>
@@ -1891,7 +2028,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The set of scopes to search for the entity.
+     * Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+     * `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope scopes = 6;</code>

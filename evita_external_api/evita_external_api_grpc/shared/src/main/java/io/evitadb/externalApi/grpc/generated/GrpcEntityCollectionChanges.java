@@ -71,6 +71,10 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings("serial")
   private volatile java.lang.Object entityName_ = "";
   /**
+   * <pre>
+   * The name (entity type) of the entity collection these counts apply to.
+   * </pre>
+   *
    * <code>string entityName = 1;</code>
    * @return The entityName.
    */
@@ -88,6 +92,10 @@ private static final long serialVersionUID = 0L;
     }
   }
   /**
+   * <pre>
+   * The name (entity type) of the entity collection these counts apply to.
+   * </pre>
+   *
    * <code>string entityName = 1;</code>
    * @return The bytes for entityName.
    */
@@ -552,6 +560,10 @@ private static final long serialVersionUID = 0L;
 
     private java.lang.Object entityName_ = "";
     /**
+     * <pre>
+     * The name (entity type) of the entity collection these counts apply to.
+     * </pre>
+     *
      * <code>string entityName = 1;</code>
      * @return The entityName.
      */
@@ -568,6 +580,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The name (entity type) of the entity collection these counts apply to.
+     * </pre>
+     *
      * <code>string entityName = 1;</code>
      * @return The bytes for entityName.
      */
@@ -585,6 +601,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * The name (entity type) of the entity collection these counts apply to.
+     * </pre>
+     *
      * <code>string entityName = 1;</code>
      * @param value The entityName to set.
      * @return This builder for chaining.
@@ -598,6 +618,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The name (entity type) of the entity collection these counts apply to.
+     * </pre>
+     *
      * <code>string entityName = 1;</code>
      * @return This builder for chaining.
      */
@@ -608,6 +632,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The name (entity type) of the entity collection these counts apply to.
+     * </pre>
+     *
      * <code>string entityName = 1;</code>
      * @param value The bytes for entityName to set.
      * @return This builder for chaining.

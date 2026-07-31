@@ -636,6 +636,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param filterByVisitor                     the visitor that will be used for traversing the constraint
 	 * @param managedReferencesBehaviour          defines whether only existing (managed) references should be returned or all
 	 * @param filterBy                            the filtering constraint itself
+	 * @param requiredLocale                      the locale the referenced entity bodies will be fetched with, resolved
+	 *                                            once per reference by {@link #resolveRequiredLocale(FilterBy, QueryExecutionContext)}
+	 *                                            so that both the referenced entities and their groups agree on it;
+	 *                                            {@code null} when the locale-aware existence check must not be applied
+	 *                                            (i.e. for {@link ManagedReferencesBehaviour#ANY} or when no locale applies)
 	 * @param validityMapping                     see detailed description in {@link ValidEntityToReferenceMapping}
 	 * @param entityNestedQueryComparator         comparator that holds information about requested ordering so that we can
 	 *                                            apply it during entity filtering (if it's performed) and pre-initialize it
@@ -659,6 +664,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceKeeper<FilterByVisitor> filterByVisitor,
 		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable FilterBy filterBy,
+		@Nullable Locale requiredLocale,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityResolver,
@@ -701,7 +707,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			allReferencedEntityPksInScope = limitToExistingEntities(
 				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
 				queryContext.getEntityCollection(targetEntityType).orElse(null),
-				examinedScopes
+				examinedScopes,
+				requiredLocale
 			);
 			// and also create unified lookup over all referenced entity ids in all requested scopes
 			allReferencedEntityPks = combineWithOr(allReferencedEntityPksInScope.values());
@@ -1041,6 +1048,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *                                                   entities exist. If null, no filtering is applied and an empty bitmap is returned.
 	 * @param examinedScopes                             A set of {@link Scope} objects defining the scopes within which to check for
 	 *                                                   existing entities.
+	 * @param requiredLocale                             when not {@code null} and the target schema is localized, entities that
+	 *                                                   have no content in this particular locale are excluded as well - they
+	 *                                                   would otherwise be returned without a body, which defeats the purpose of
+	 *                                                   {@link ManagedReferencesBehaviour#EXISTING}. This mirrors the gate applied
+	 *                                                   later by {@code EntityCollection#fetchEntityDecorator}, which exempts
+	 *                                                   non-localized schemas from the check altogether.
 	 * @return A {@link Bitmap} containing the IDs of entities that exist in the specified scopes of
 	 * the entity collection. If no entities exist for the given parameters, an empty bitmap is returned.
 	 */
@@ -1048,11 +1061,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static Map<Scope, Bitmap> limitToExistingEntities(
 		@Nonnull Bitmap allReferencedEntityIdsIncludingNonExisting,
 		@Nullable EntityCollection entityCollection,
-		@Nonnull Set<Scope> examinedScopes
+		@Nonnull Set<Scope> examinedScopes,
+		@Nullable Locale requiredLocale
 	) {
 		if (entityCollection != null) {
 			final PersistentRoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				allReferencedEntityIdsIncludingNonExisting);
+			// non-localized schemas are exempt from the locale check - exactly as the body fetch gate treats them
+			final boolean localeCheckApplies = requiredLocale != null && entityCollection.getSchema().isLocalized();
 			final Map<Scope, Bitmap> existingEntityIdsByScope = CollectionUtils.createHashMap(examinedScopes.size());
 			for (Scope scope : examinedScopes) {
 				final EntityIndex indexByKeyIfExists = entityCollection
@@ -1060,10 +1076,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 					);
 				if (indexByKeyIfExists != null) {
-					final PersistentRoaringBitmap andResult = PersistentRoaringBitmap.and(
+					PersistentRoaringBitmap andResult = PersistentRoaringBitmap.and(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
 						allPks
 					);
+					if (localeCheckApplies) {
+						// the per-locale bitmap is stored in the index, so this is a plain intersection against
+						// an already materialized bitmap - no formula evaluation takes place here
+						andResult = PersistentRoaringBitmap.and(
+							andResult,
+							RoaringBitmapBackedBitmap.getRoaringBitmap(
+								indexByKeyIfExists.getRecordsWithLanguageFormula(requiredLocale).compute()
+							)
+						);
+					}
 					existingEntityIdsByScope.put(
 						scope,
 						andResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(andResult)
@@ -1074,6 +1100,33 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		} else {
 			return Collections.emptyMap();
 		}
+	}
+
+	/**
+	 * Resolves the locale that the referenced entity (or group) bodies will be fetched with, so that the
+	 * {@link ManagedReferencesBehaviour#EXISTING} pre-filtering (see {@link #limitToExistingEntities}) agrees with what
+	 * actually happens later during the body fetch. It deliberately reproduces the chain the body fetch goes through:
+	 * {@link #fetchReferencedEntities} derives the fetch request from {@link #unwrapFilterBy(FilterBy)}, whose locale is
+	 * then resolved by {@link EvitaRequest}'s derived-request constructor and finally consulted by the entity collection
+	 * through {@link EvitaRequest#getRequiredOrImplicitLocale()}.
+	 *
+	 * @param referenceFilterBy the reference-level {@code filterBy} (may contain its own {@link EntityLocaleEquals})
+	 * @param executionContext  the current query execution context
+	 * @return the resolved locale, or {@code null} if none is required
+	 */
+	@Nullable
+	private static Locale resolveRequiredLocale(
+		@Nullable FilterBy referenceFilterBy,
+		@Nonnull QueryExecutionContext executionContext
+	) {
+		final FilterBy unwrappedFilterBy = unwrapFilterBy(referenceFilterBy);
+		if (unwrappedFilterBy != null) {
+			final EntityLocaleEquals localeConstraint = QueryUtils.findConstraint(unwrappedFilterBy, EntityLocaleEquals.class);
+			if (localeConstraint != null) {
+				return localeConstraint.getLocale();
+			}
+		}
+		return executionContext.getEvitaRequest().getRequiredOrImplicitLocale();
 	}
 
 	/**
@@ -1591,6 +1644,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			slicingMode.chunkTransformer()
 		);
 
+		// the referenced entities and their groups are fetched by a single derived request - resolve the locale it will
+		// use once, so that the EXISTING pre-filtering of both agrees with the actual body fetch
+		final Locale requiredLocale = requirements.managedReferencesBehaviour() == ManagedReferencesBehaviour.EXISTING
+			? resolveRequiredLocale(requirements.filterBy(), executionContext)
+			: null;
+
 		final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
 			entityPrimaryKey,
 			executionContext,
@@ -1600,6 +1659,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			filterByVisitor,
 			requirements.managedReferencesBehaviour(),
 			requirements.filterBy(),
+			requiredLocale,
 			validityMapping,
 			nestedQueryComparator,
 			referencedEntityIdsFormula,
@@ -1661,6 +1721,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				filterByVisitor,
 				requirements.managedReferencesBehaviour(),
 				null,
+				requiredLocale,
 				null,
 				null,
 				(refName, epk) -> slicer.getGroupIds(epk),

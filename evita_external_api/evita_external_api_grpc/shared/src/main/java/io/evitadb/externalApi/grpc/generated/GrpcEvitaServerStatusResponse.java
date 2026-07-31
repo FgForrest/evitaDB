@@ -276,7 +276,8 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * Health problems
+   * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+   * means no problems were detected.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -289,7 +290,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Health problems
+   * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+   * means no problems were detected.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -301,7 +303,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Health problems
+   * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+   * means no problems were detected.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -314,7 +317,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Health problems
+   * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+   * means no problems were detected.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -327,7 +331,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Health problems
+   * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+   * means no problems were detected.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -394,7 +399,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Information about all available APIs
+   * Status keyed by API code, for every external API registered on the classpath - including ones
+   * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+   * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+   * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -415,7 +423,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Information about all available APIs
+   * Status keyed by API code, for every external API registered on the classpath - including ones
+   * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+   * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+   * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -426,7 +437,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Information about all available APIs
+   * Status keyed by API code, for every external API registered on the classpath - including ones
+   * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+   * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+   * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -444,7 +458,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
   }
   /**
    * <pre>
-   * Information about all available APIs
+   * Status keyed by API code, for every external API registered on the classpath - including ones
+   * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+   * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+   * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -510,7 +527,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
   private long engineVersion_ = 0L;
   /**
    * <pre>
-   * The version of the current evitaDB server engine state (change in engine state).
+   * Monotonically increasing version number of the engine's own state, distinct from any single
+   * catalog's version - incremented once for each committed engine-level change (e.g. a catalog
+   * being created, removed, renamed, or having its format upgraded or read-only mode toggled).
+   * Ordinary data mutations within a catalog do not advance it.
    * </pre>
    *
    * <code>int64 engineVersion = 13;</code>
@@ -1794,7 +1814,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1806,7 +1827,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1817,7 +1839,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1829,7 +1852,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1849,7 +1873,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1867,7 +1892,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1885,7 +1911,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1899,7 +1926,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1911,7 +1939,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1923,7 +1952,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1940,7 +1970,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -1955,7 +1986,8 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Health problems
+     * Health problems currently detected by any of the server's health probes, deduplicated. Empty
+     * means no problems were detected.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHealthProblem healthProblems = 7;</code>
@@ -2082,7 +2114,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2103,7 +2138,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2114,7 +2152,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2131,7 +2172,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2153,7 +2197,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2176,7 +2223,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2193,7 +2243,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2212,7 +2265,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Information about all available APIs
+     * Status keyed by API code, for every external API registered on the classpath - including ones
+     * that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+     * case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+     * enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcApiStatus&gt; api = 9;</code>
@@ -2367,7 +2423,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     private long engineVersion_ ;
     /**
      * <pre>
-     * The version of the current evitaDB server engine state (change in engine state).
+     * Monotonically increasing version number of the engine's own state, distinct from any single
+     * catalog's version - incremented once for each committed engine-level change (e.g. a catalog
+     * being created, removed, renamed, or having its format upgraded or read-only mode toggled).
+     * Ordinary data mutations within a catalog do not advance it.
      * </pre>
      *
      * <code>int64 engineVersion = 13;</code>
@@ -2379,7 +2438,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * The version of the current evitaDB server engine state (change in engine state).
+     * Monotonically increasing version number of the engine's own state, distinct from any single
+     * catalog's version - incremented once for each committed engine-level change (e.g. a catalog
+     * being created, removed, renamed, or having its format upgraded or read-only mode toggled).
+     * Ordinary data mutations within a catalog do not advance it.
      * </pre>
      *
      * <code>int64 engineVersion = 13;</code>
@@ -2395,7 +2457,10 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * The version of the current evitaDB server engine state (change in engine state).
+     * Monotonically increasing version number of the engine's own state, distinct from any single
+     * catalog's version - incremented once for each committed engine-level change (e.g. a catalog
+     * being created, removed, renamed, or having its format upgraded or read-only mode toggled).
+     * Ordinary data mutations within a catalog do not advance it.
      * </pre>
      *
      * <code>int64 engineVersion = 13;</code>

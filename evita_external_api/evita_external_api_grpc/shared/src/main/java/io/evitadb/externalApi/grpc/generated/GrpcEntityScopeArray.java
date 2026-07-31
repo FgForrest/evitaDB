@@ -81,7 +81,7 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -94,7 +94,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -106,7 +106,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -119,7 +119,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -132,7 +132,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -524,7 +524,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -536,7 +536,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -547,7 +547,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -559,7 +559,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -579,7 +579,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -597,7 +597,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -615,7 +615,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -629,7 +629,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -653,7 +653,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -670,7 +670,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -685,7 +685,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Scope array.
+     * The individual Scope values, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>

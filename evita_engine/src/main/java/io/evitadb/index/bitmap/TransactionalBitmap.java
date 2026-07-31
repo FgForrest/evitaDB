@@ -402,6 +402,24 @@ public class TransactionalBitmap
 		}
 	}
 
+	/**
+	 * Returns the greatest record id at or below `fromValue` in signed order, or
+	 * {@link RoaringBitmapBackedBitmap#NO_PREVIOUS_VALUE} when none exists. Answered from the transactional diff layer
+	 * when one exists (mirroring {@link #isEmpty()} / {@link #size()}) rather than through the merged bitmap, so a
+	 * caller on the write path does not pay a whole-bucket merge per query.
+	 *
+	 * @param fromValue inclusive upper bound in signed order
+	 * @return the greatest signed value at or below `fromValue`, or {@link RoaringBitmapBackedBitmap#NO_PREVIOUS_VALUE}
+	 */
+	public long signedPreviousValue(int fromValue) {
+		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			return RoaringBitmapBackedBitmap.signedPreviousValue(this.roaringBitmap, fromValue);
+		} else {
+			return layer.signedPreviousValue(fromValue);
+		}
+	}
+
 	@Override
 	public int size() {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);

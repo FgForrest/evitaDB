@@ -33,7 +33,7 @@ public interface GrpcStripListOrBuilder extends
 
   /**
    * <pre>
-   * The size of the strip.
+   * Maximum number of records returned in this strip.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -43,7 +43,9 @@ public interface GrpcStripListOrBuilder extends
 
   /**
    * <pre>
-   * The offset of the strip - count of records from the beginning to skip.
+   * Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+   * an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+   * page number.
    * </pre>
    *
    * <code>int32 offset = 2;</code>

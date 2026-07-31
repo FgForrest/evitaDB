@@ -33,7 +33,8 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
 
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
       getCatalogStatisticsList();
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -50,7 +52,8 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics getCatalogStatistics(int index);
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -58,7 +61,8 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
   int getCatalogStatisticsCount();
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -67,7 +71,8 @@ public interface GrpcEvitaCatalogStatisticsResponseOrBuilder extends
       getCatalogStatisticsOrBuilderList();
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>

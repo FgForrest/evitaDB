@@ -30,6 +30,8 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * Record describing the location and form of the CDC data event in the evitaDB that should be captured.
+ * Every field below is an independent, optional filter (logically ANDed together when several are set); an
+ * unset/empty field imposes no restriction on that dimension.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite}
@@ -75,7 +77,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue entityType_;
   /**
    * <pre>
-   * the name of the intercepted entity type
+   * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+   * type.
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -87,7 +90,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted entity type
+   * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+   * type.
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -99,7 +103,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted entity type
+   * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+   * type.
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -113,7 +118,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value entityPrimaryKey_;
   /**
    * <pre>
-   * the primary key of the intercepted entity
+   * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+   * within the entity type filter above.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -125,7 +131,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the primary key of the intercepted entity
+   * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+   * within the entity type filter above.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -137,7 +144,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the primary key of the intercepted entity
+   * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+   * within the entity type filter above.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -161,7 +169,7 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * the intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -174,7 +182,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -186,7 +194,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -199,7 +207,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -212,7 +220,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -239,7 +247,8 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -252,7 +261,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -264,7 +274,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -277,7 +288,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -290,7 +302,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -309,7 +322,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 5;</code>
@@ -321,7 +335,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 5;</code>
@@ -332,7 +347,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 5;</code>
@@ -344,7 +360,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 5;</code>
@@ -603,6 +620,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Record describing the location and form of the CDC data event in the evitaDB that should be captured.
+   * Every field below is an independent, optional filter (logically ANDed together when several are set); an
+   * unset/empty field imposes no restriction on that dimension.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureDataSite}
@@ -910,7 +929,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> entityTypeBuilder_;
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -921,7 +941,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -936,7 +957,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -956,7 +978,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -974,7 +997,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -999,7 +1023,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -1016,7 +1041,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -1028,7 +1054,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -1043,7 +1070,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted entity type
+     * Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+     * type.
      * </pre>
      *
      * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -1067,7 +1095,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> entityPrimaryKeyBuilder_;
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1078,7 +1107,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1093,7 +1123,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1113,7 +1144,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1131,7 +1163,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1156,7 +1189,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1173,7 +1207,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1185,7 +1220,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1200,7 +1236,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the primary key of the intercepted entity
+     * Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+     * within the entity type filter above.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value entityPrimaryKey = 2;</code>
@@ -1229,7 +1266,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1241,7 +1278,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1252,7 +1289,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1264,7 +1301,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1284,7 +1321,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1302,7 +1339,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1320,7 +1357,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1334,7 +1371,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1346,7 +1383,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1358,7 +1395,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1375,7 +1412,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1390,7 +1427,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the intercepted type of operation
+     * Restricts capture to the listed operation types. If empty, matches any operation.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 3;</code>
@@ -1417,7 +1454,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1429,7 +1467,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1440,7 +1479,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1452,7 +1492,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1472,7 +1513,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1490,7 +1532,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1508,7 +1551,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1522,7 +1566,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1534,7 +1579,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1546,7 +1592,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1563,7 +1610,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1578,7 +1626,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the intercepted container type
+     * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+     * matches any container type.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 4;</code>
@@ -1605,7 +1654,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1618,7 +1668,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1629,7 +1680,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1641,7 +1693,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1654,7 +1707,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1673,7 +1727,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1691,7 +1746,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1709,7 +1765,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>
@@ -1724,7 +1781,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+     * reference name). If empty, matches containers of any name.
      * </pre>
      *
      * <code>repeated string containerName = 5;</code>

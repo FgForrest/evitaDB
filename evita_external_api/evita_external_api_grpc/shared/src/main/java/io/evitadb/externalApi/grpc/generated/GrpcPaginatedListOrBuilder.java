@@ -33,7 +33,8 @@ public interface GrpcPaginatedListOrBuilder extends
 
   /**
    * <pre>
-   * The size of the page.
+   * Number of records requested per page, echoed back from the query's `page()` require constraint.
+   * Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
    * </pre>
    *
    * <code>int32 pageSize = 1;</code>
@@ -43,7 +44,8 @@ public interface GrpcPaginatedListOrBuilder extends
 
   /**
    * <pre>
-   * The number of the page.
+   * The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+   * the requested page number.
    * </pre>
    *
    * <code>int32 pageNumber = 2;</code>
@@ -53,7 +55,7 @@ public interface GrpcPaginatedListOrBuilder extends
 
   /**
    * <pre>
-   * The number of the last page.
+   * The number of the last available page, given `pageSize` and the total record count.
    * </pre>
    *
    * <code>int32 lastPageNumber = 3;</code>

@@ -33,7 +33,8 @@ public interface GetTrafficHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic is streamed back.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
@@ -42,7 +43,8 @@ public interface GetTrafficHistoryRequestOrBuilder extends
   boolean hasCriteria();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic is streamed back.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>
@@ -51,7 +53,8 @@ public interface GetTrafficHistoryRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria getCriteria();
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic is streamed back.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 1;</code>

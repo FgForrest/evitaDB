@@ -119,7 +119,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value version_;
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -131,7 +132,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -143,7 +145,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -157,7 +160,16 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value index_;
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+   * #1349 for the full analysis.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -169,7 +181,16 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+   * #1349 for the full analysis.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -181,7 +202,16 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+   * #1349 for the full analysis.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -303,7 +333,8 @@ private static final long serialVersionUID = 0L;
   private int operation_ = 0;
   /**
    * <pre>
-   * the operation that was performed
+   * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+   * present) carries the payload - see the `body` oneof comment for the mapping.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -314,7 +345,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the operation that was performed
+   * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+   * present) carries the payload - see the `body` oneof comment for the mapping.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -327,6 +359,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int SCHEMAMUTATION_FIELD_NUMBER = 7;
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return Whether the schemaMutation field is set.
    */
@@ -335,6 +371,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 7;
   }
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return The schemaMutation.
    */
@@ -346,6 +386,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    */
   @java.lang.Override
@@ -358,6 +402,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENTITYMUTATION_FIELD_NUMBER = 8;
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return Whether the entityMutation field is set.
    */
@@ -366,6 +414,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 8;
   }
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return The entityMutation.
    */
@@ -377,6 +429,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    */
   @java.lang.Override
@@ -389,6 +445,11 @@ private static final long serialVersionUID = 0L;
 
   public static final int LOCALMUTATION_FIELD_NUMBER = 9;
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return Whether the localMutation field is set.
    */
@@ -397,6 +458,11 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 9;
   }
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return The localMutation.
    */
@@ -408,6 +474,11 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    */
   @java.lang.Override
@@ -420,6 +491,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int INFRASTRUCTUREMUTATION_FIELD_NUMBER = 10;
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    * @return Whether the infrastructureMutation field is set.
    */
@@ -428,6 +503,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 10;
   }
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    * @return The infrastructureMutation.
    */
@@ -439,6 +518,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    */
   @java.lang.Override
@@ -1208,7 +1291,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> versionBuilder_;
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1219,7 +1303,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1234,7 +1319,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1254,7 +1340,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1272,7 +1359,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1297,7 +1385,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1314,7 +1403,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1326,7 +1416,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1341,7 +1432,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the version of the catalog where the operation was performed
+     * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1365,7 +1457,16 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> indexBuilder_;
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1376,7 +1477,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1391,7 +1501,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1411,7 +1530,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1429,7 +1557,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1454,7 +1591,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1471,7 +1617,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1483,7 +1638,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1498,7 +1662,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+     * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+     * descending, so the same physical record gets the same index regardless of direction - but indices are
+     * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+     * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+     * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+     * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+     * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+     * #1349 for the full analysis.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1925,7 +2098,8 @@ private static final long serialVersionUID = 0L;
     private int operation_ = 0;
     /**
      * <pre>
-     * the operation that was performed
+     * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+     * present) carries the payload - see the `body` oneof comment for the mapping.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -1936,7 +2110,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the operation that was performed
+     * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+     * present) carries the payload - see the `body` oneof comment for the mapping.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -1951,7 +2126,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the operation that was performed
+     * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+     * present) carries the payload - see the `body` oneof comment for the mapping.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -1964,7 +2140,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the operation that was performed
+     * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+     * present) carries the payload - see the `body` oneof comment for the mapping.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -1982,7 +2159,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the operation that was performed
+     * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+     * present) carries the payload - see the `body` oneof comment for the mapping.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -1998,6 +2176,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder> schemaMutationBuilder_;
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      * @return Whether the schemaMutation field is set.
      */
@@ -2006,6 +2188,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 7;
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      * @return The schemaMutation.
      */
@@ -2024,6 +2210,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     public Builder setSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation value) {
@@ -2040,6 +2230,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     public Builder setSchemaMutation(
@@ -2054,6 +2248,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     public Builder mergeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation value) {
@@ -2077,6 +2275,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     public Builder clearSchemaMutation() {
@@ -2096,12 +2298,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.Builder getSchemaMutationBuilder() {
       return getSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     @java.lang.Override
@@ -2116,6 +2326,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2140,6 +2354,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder> entityMutationBuilder_;
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      * @return Whether the entityMutation field is set.
      */
@@ -2148,6 +2366,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 8;
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      * @return The entityMutation.
      */
@@ -2166,6 +2388,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     public Builder setEntityMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation value) {
@@ -2182,6 +2408,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     public Builder setEntityMutation(
@@ -2196,6 +2426,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     public Builder mergeEntityMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation value) {
@@ -2219,6 +2453,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     public Builder clearEntityMutation() {
@@ -2238,12 +2476,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.Builder getEntityMutationBuilder() {
       return getEntityMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     @java.lang.Override
@@ -2258,6 +2504,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for the top-level DATA area entity mutation. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2282,6 +2532,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocalMutation, io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder> localMutationBuilder_;
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      * @return Whether the localMutation field is set.
      */
@@ -2290,6 +2545,11 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 9;
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      * @return The localMutation.
      */
@@ -2308,6 +2568,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     public Builder setLocalMutation(io.evitadb.externalApi.grpc.generated.GrpcLocalMutation value) {
@@ -2324,6 +2589,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     public Builder setLocalMutation(
@@ -2338,6 +2608,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     public Builder mergeLocalMutation(io.evitadb.externalApi.grpc.generated.GrpcLocalMutation value) {
@@ -2361,6 +2636,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     public Builder clearLocalMutation() {
@@ -2380,12 +2660,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.Builder getLocalMutationBuilder() {
       return getLocalMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     @java.lang.Override
@@ -2400,6 +2690,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+     * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2424,6 +2719,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder> infrastructureMutationBuilder_;
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      * @return Whether the infrastructureMutation field is set.
      */
@@ -2432,6 +2731,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 10;
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      * @return The infrastructureMutation.
      */
@@ -2450,6 +2753,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     public Builder setInfrastructureMutation(io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation value) {
@@ -2466,6 +2773,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     public Builder setInfrastructureMutation(
@@ -2480,6 +2791,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     public Builder mergeInfrastructureMutation(io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation value) {
@@ -2503,6 +2818,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     public Builder clearInfrastructureMutation() {
@@ -2522,12 +2841,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder getInfrastructureMutationBuilder() {
       return getInfrastructureMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     @java.lang.Override
@@ -2542,6 +2869,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

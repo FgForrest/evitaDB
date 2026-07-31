@@ -33,7 +33,7 @@ public interface GetTrafficHistoryListResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The matching traffic records, up to the requested `limit`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -42,7 +42,7 @@ public interface GetTrafficHistoryListResponseOrBuilder extends
       getTrafficRecordList();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The matching traffic records, up to the requested `limit`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -50,7 +50,7 @@ public interface GetTrafficHistoryListResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord getTrafficRecord(int index);
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The matching traffic records, up to the requested `limit`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -58,7 +58,7 @@ public interface GetTrafficHistoryListResponseOrBuilder extends
   int getTrafficRecordCount();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The matching traffic records, up to the requested `limit`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -67,7 +67,7 @@ public interface GetTrafficHistoryListResponseOrBuilder extends
       getTrafficRecordOrBuilderList();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The matching traffic records, up to the requested `limit`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>

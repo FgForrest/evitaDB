@@ -72,7 +72,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object entityType_ = "";
   /**
    * <pre>
-   * The entity type of the collection - (count of entities stored).
+   * The entity type (collection name) whose size (count of entities stored) should be returned.
    * </pre>
    *
    * <code>string entityType = 1;</code>
@@ -93,7 +93,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The entity type of the collection - (count of entities stored).
+   * The entity type (collection name) whose size (count of entities stored) should be returned.
    * </pre>
    *
    * <code>string entityType = 1;</code>
@@ -447,7 +447,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object entityType_ = "";
     /**
      * <pre>
-     * The entity type of the collection - (count of entities stored).
+     * The entity type (collection name) whose size (count of entities stored) should be returned.
      * </pre>
      *
      * <code>string entityType = 1;</code>
@@ -467,7 +467,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The entity type of the collection - (count of entities stored).
+     * The entity type (collection name) whose size (count of entities stored) should be returned.
      * </pre>
      *
      * <code>string entityType = 1;</code>
@@ -488,7 +488,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The entity type of the collection - (count of entities stored).
+     * The entity type (collection name) whose size (count of entities stored) should be returned.
      * </pre>
      *
      * <code>string entityType = 1;</code>
@@ -505,7 +505,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The entity type of the collection - (count of entities stored).
+     * The entity type (collection name) whose size (count of entities stored) should be returned.
      * </pre>
      *
      * <code>string entityType = 1;</code>
@@ -519,7 +519,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The entity type of the collection - (count of entities stored).
+     * The entity type (collection name) whose size (count of entities stored) should be returned.
      * </pre>
      *
      * <code>string entityType = 1;</code>

@@ -33,7 +33,8 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcDataChunkOrBuilder extends
       getEntityReferencesList();
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -50,7 +52,8 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReferences(int index);
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -58,7 +61,8 @@ public interface GrpcDataChunkOrBuilder extends
   int getEntityReferencesCount();
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -67,7 +71,8 @@ public interface GrpcDataChunkOrBuilder extends
       getEntityReferencesOrBuilderList();
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -77,7 +82,9 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -86,7 +93,9 @@ public interface GrpcDataChunkOrBuilder extends
       getSealedEntitiesList();
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -94,7 +103,9 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getSealedEntities(int index);
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -102,7 +113,9 @@ public interface GrpcDataChunkOrBuilder extends
   int getSealedEntitiesCount();
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -111,7 +124,9 @@ public interface GrpcDataChunkOrBuilder extends
       getSealedEntitiesOrBuilderList();
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -121,7 +136,9 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -130,7 +147,9 @@ public interface GrpcDataChunkOrBuilder extends
       getBinaryEntitiesList();
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -138,7 +157,9 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity getBinaryEntities(int index);
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -146,7 +167,9 @@ public interface GrpcDataChunkOrBuilder extends
   int getBinaryEntitiesCount();
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -155,7 +178,9 @@ public interface GrpcDataChunkOrBuilder extends
       getBinaryEntitiesOrBuilderList();
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -165,7 +190,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -174,7 +199,7 @@ public interface GrpcDataChunkOrBuilder extends
   boolean hasPaginatedList();
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -183,7 +208,7 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcPaginatedList getPaginatedList();
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -192,7 +217,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -201,7 +226,7 @@ public interface GrpcDataChunkOrBuilder extends
   boolean hasStripList();
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -210,7 +235,7 @@ public interface GrpcDataChunkOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcStripList getStripList();
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -219,7 +244,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * The total number of records.
+   * Total number of records matching the query across all pages/strips, not just this chunk's size.
    * </pre>
    *
    * <code>int32 totalRecordCount = 6;</code>
@@ -229,7 +254,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if this is the first page.
+   * True if this chunk is the first page/strip of the result set.
    * </pre>
    *
    * <code>bool isFirst = 7;</code>
@@ -239,7 +264,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if this is the last page.
+   * True if this chunk is the last page/strip of the result set.
    * </pre>
    *
    * <code>bool isLast = 8;</code>
@@ -249,7 +274,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if there is a previous page.
+   * True if a preceding page/strip exists.
    * </pre>
    *
    * <code>bool hasPrevious = 9;</code>
@@ -259,7 +284,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if there is a next page.
+   * True if a following page/strip exists.
    * </pre>
    *
    * <code>bool hasNext = 10;</code>
@@ -269,7 +294,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if this is a single page.
+   * True if the entire result set fits within this single chunk.
    * </pre>
    *
    * <code>bool isSinglePage = 11;</code>
@@ -279,7 +304,7 @@ public interface GrpcDataChunkOrBuilder extends
 
   /**
    * <pre>
-   * True, if this is an empty page.
+   * True if this chunk (and the entire result set) contains no records.
    * </pre>
    *
    * <code>bool isEmpty = 12;</code>

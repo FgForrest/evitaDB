@@ -71,7 +71,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage_;
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -83,7 +84,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -95,7 +97,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The fetched record page with entities.
+   * The fetched page or strip of entities (in whichever of the three representations the query's
+   * `require` block asked for - see `GrpcDataChunk`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -109,7 +112,9 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults_;
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -121,7 +126,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -133,7 +140,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The computed extra results.
+   * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+   * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+   * requested none of these.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -537,7 +546,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDataChunk, io.evitadb.externalApi.grpc.generated.GrpcDataChunk.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataChunkOrBuilder> recordPageBuilder_;
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -548,7 +558,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -563,7 +574,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -583,7 +595,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -601,7 +614,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -626,7 +640,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -643,7 +658,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -655,7 +671,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -670,7 +687,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The fetched record page with entities.
+     * The fetched page or strip of entities (in whichever of the three representations the query's
+     * `require` block asked for - see `GrpcDataChunk`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataChunk recordPage = 1;</code>
@@ -694,7 +712,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcExtraResults, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder, io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOrBuilder> extraResultsBuilder_;
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -705,7 +725,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -720,7 +742,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -740,7 +764,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -758,7 +784,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -783,7 +811,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -800,7 +830,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -812,7 +844,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>
@@ -827,7 +861,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The computed extra results.
+     * Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+     * hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+     * requested none of these.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcExtraResults extraResults = 2;</code>

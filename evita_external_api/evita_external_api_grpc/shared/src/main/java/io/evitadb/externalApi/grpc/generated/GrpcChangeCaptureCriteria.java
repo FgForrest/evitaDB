@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
+ * Record for the criteria of the capture request allowing to limit mutations to specific area of interest and its
  * properties.
  * </pre>
  *
@@ -114,7 +114,9 @@ private static final long serialVersionUID = 0L;
   private int area_ = 0;
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+   * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+   * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -125,7 +127,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+   * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+   * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -419,7 +423,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
+   * Record for the criteria of the capture request allowing to limit mutations to specific area of interest and its
    * properties.
    * </pre>
    *
@@ -657,7 +661,9 @@ private static final long serialVersionUID = 0L;
     private int area_ = 0;
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+     * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+     * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -668,7 +674,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+     * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+     * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -683,7 +691,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+     * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+     * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -696,7 +706,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+     * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+     * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -714,7 +726,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The area of capture - either schema or data (correlates with the site)
+     * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+     * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+     * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>

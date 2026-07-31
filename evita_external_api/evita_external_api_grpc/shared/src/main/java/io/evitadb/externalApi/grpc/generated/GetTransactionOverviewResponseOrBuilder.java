@@ -33,7 +33,8 @@ public interface GetTransactionOverviewResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -42,7 +43,8 @@ public interface GetTransactionOverviewResponseOrBuilder extends
       getTransactionOverviewsList();
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -50,7 +52,8 @@ public interface GetTransactionOverviewResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview getTransactionOverviews(int index);
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -58,7 +61,8 @@ public interface GetTransactionOverviewResponseOrBuilder extends
   int getTransactionOverviewsCount();
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -67,7 +71,8 @@ public interface GetTransactionOverviewResponseOrBuilder extends
       getTransactionOverviewsOrBuilderList();
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>

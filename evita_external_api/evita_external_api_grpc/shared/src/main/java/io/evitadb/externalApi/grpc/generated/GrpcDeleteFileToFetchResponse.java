@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task statuses request.
+ * Response to a file deletion request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse}
@@ -70,7 +70,8 @@ private static final long serialVersionUID = 0L;
   private boolean success_ = false;
   /**
    * <pre>
-   * true if the file was found and deleted
+   * True if the file existed and was deleted; false if no file exists for the given id. Any other
+   * failure during deletion is reported as a gRPC error rather than `false`.
    * </pre>
    *
    * <code>bool success = 1;</code>
@@ -241,7 +242,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task statuses request.
+   * Response to a file deletion request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteFileToFetchResponse}
@@ -414,7 +415,8 @@ private static final long serialVersionUID = 0L;
     private boolean success_ ;
     /**
      * <pre>
-     * true if the file was found and deleted
+     * True if the file existed and was deleted; false if no file exists for the given id. Any other
+     * failure during deletion is reported as a gRPC error rather than `false`.
      * </pre>
      *
      * <code>bool success = 1;</code>
@@ -426,7 +428,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if the file was found and deleted
+     * True if the file existed and was deleted; false if no file exists for the given id. Any other
+     * failure during deletion is reported as a gRPC error rather than `false`.
      * </pre>
      *
      * <code>bool success = 1;</code>
@@ -442,7 +445,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if the file was found and deleted
+     * True if the file existed and was deleted; false if no file exists for the given id. Any other
+     * failure during deletion is reported as a gRPC error rather than `false`.
      * </pre>
      *
      * <code>bool success = 1;</code>

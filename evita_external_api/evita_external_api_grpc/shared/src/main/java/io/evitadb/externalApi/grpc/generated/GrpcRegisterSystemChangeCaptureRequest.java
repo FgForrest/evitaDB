@@ -73,7 +73,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value sinceVersion_;
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -85,7 +86,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -97,7 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -111,7 +114,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value sinceIndex_;
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -123,7 +128,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -135,7 +142,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -733,7 +742,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -744,7 +754,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -759,7 +770,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -779,7 +791,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -797,7 +810,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -822,7 +836,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -839,7 +854,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -851,7 +867,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -866,7 +883,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (engine version)
+     * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+     * recent / greatest available engine version rather than replaying history from the beginning.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -890,7 +908,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> sinceIndexBuilder_;
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -901,7 +921,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -916,7 +938,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -936,7 +960,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -954,7 +980,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -979,7 +1007,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -996,7 +1026,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -1008,7 +1040,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -1023,7 +1057,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+     * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+     * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+     * `sinceVersion` rather than resuming mid-transaction.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>

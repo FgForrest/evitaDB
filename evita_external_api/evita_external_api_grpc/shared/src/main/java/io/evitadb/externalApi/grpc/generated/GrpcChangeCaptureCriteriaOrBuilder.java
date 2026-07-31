@@ -33,7 +33,9 @@ public interface GrpcChangeCaptureCriteriaOrBuilder extends
 
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+   * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+   * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>
@@ -42,7 +44,9 @@ public interface GrpcChangeCaptureCriteriaOrBuilder extends
   int getAreaValue();
   /**
    * <pre>
-   * The area of capture - either schema or data (correlates with the site)
+   * The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+   * the effective area and this field is ignored; this field is only consulted when neither site is set, which
+   * is also the only way to select INFRASTRUCTURE (it has no site message of its own).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea area = 1;</code>

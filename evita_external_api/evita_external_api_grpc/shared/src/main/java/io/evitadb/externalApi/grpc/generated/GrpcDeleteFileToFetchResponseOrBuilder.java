@@ -33,7 +33,8 @@ public interface GrpcDeleteFileToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * true if the file was found and deleted
+   * True if the file existed and was deleted; false if no file exists for the given id. Any other
+   * failure during deletion is reported as a gRPC error rather than `false`.
    * </pre>
    *
    * <code>bool success = 1;</code>

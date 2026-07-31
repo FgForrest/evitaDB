@@ -29,7 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetMutationsHistoryPage request.
+ * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
+ * total record count, `hasMore`, or `isLast` field (a pagination contract gap tracked in #1349), unlike
+ * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
+ * page follows without requesting it and checking whether it comes back empty.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse}
@@ -72,7 +75,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> changeCapture_;
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -83,7 +87,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -95,7 +100,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -106,7 +112,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -117,7 +124,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -289,7 +297,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetMutationsHistoryPage request.
+   * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
+   * total record count, `hasMore`, or `isLast` field (a pagination contract gap tracked in #1349), unlike
+   * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
+   * page follows without requesting it and checking whether it comes back empty.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse}
@@ -520,7 +531,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -534,7 +546,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -548,7 +561,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -562,7 +576,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -583,7 +598,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -601,7 +617,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -621,7 +638,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -642,7 +660,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -660,7 +679,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -678,7 +698,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -697,7 +718,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -714,7 +736,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -731,7 +754,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -742,7 +766,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -756,7 +781,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -771,7 +797,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -782,7 +809,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -794,7 +822,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The mutations on this page, newest first. Can be shorter than the requested page size - including
+     * empty - without that implying it is the last page; see the message-level note above.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>

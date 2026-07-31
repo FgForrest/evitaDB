@@ -33,7 +33,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
 
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
   boolean hasCatalogId();
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId();
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -60,7 +60,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
 
   /**
    * <pre>
-   * name of the catalog
+   * The catalog's unique name, used to address it via the API.
    * </pre>
    *
    * <code>string catalogName = 2;</code>
@@ -69,7 +69,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
   java.lang.String getCatalogName();
   /**
    * <pre>
-   * name of the catalog
+   * The catalog's unique name, used to address it via the API.
    * </pre>
    *
    * <code>string catalogName = 2;</code>
@@ -81,18 +81,20 @@ public interface GrpcCatalogStatisticsOrBuilder extends
   /**
    * <pre>
    * true if the catalog is corrupted (other data will be not available)
+   * deprecated in favor of `catalogState` (compare against `CORRUPTED`)
    * </pre>
    *
    * <code>bool corrupted = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=413
+   *     See GrpcEvitaDataTypes.proto;l=493
    * @return The corrupted.
    */
   @java.lang.Deprecated boolean getCorrupted();
 
   /**
    * <pre>
-   * current state of the catalog, null for corrupted catalog
+   * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+   * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -101,7 +103,8 @@ public interface GrpcCatalogStatisticsOrBuilder extends
   int getCatalogStateValue();
   /**
    * <pre>
-   * current state of the catalog, null for corrupted catalog
+   * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+   * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>

@@ -33,7 +33,8 @@ public interface GrpcBackupCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcBackupCatalogResponseOrBuilder extends
   boolean hasTaskStatus();
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcBackupCatalogResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus();
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>

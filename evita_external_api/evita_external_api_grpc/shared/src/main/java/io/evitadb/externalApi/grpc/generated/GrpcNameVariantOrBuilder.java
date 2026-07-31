@@ -33,7 +33,7 @@ public interface GrpcNameVariantOrBuilder extends
 
   /**
    * <pre>
-   * naming convention the name is in
+   * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcNameVariantOrBuilder extends
   int getNamingConventionValue();
   /**
    * <pre>
-   * naming convention the name is in
+   * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -52,7 +52,7 @@ public interface GrpcNameVariantOrBuilder extends
 
   /**
    * <pre>
-   * the name in the particular naming convention
+   * The entity/attribute/reference name transformed into the given naming convention.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -61,7 +61,7 @@ public interface GrpcNameVariantOrBuilder extends
   java.lang.String getName();
   /**
    * <pre>
-   * the name in the particular naming convention
+   * The entity/attribute/reference name transformed into the given naming convention.
    * </pre>
    *
    * <code>string name = 2;</code>

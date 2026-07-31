@@ -221,7 +221,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid taskId_;
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -233,7 +234,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -245,7 +247,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -259,7 +262,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue catalogName_;
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -271,7 +275,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -283,7 +288,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -297,7 +303,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued_;
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -309,7 +316,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -321,7 +329,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -335,7 +344,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started_;
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -347,7 +356,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -359,7 +368,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -373,7 +382,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished_;
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -385,7 +395,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -397,7 +408,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -411,7 +423,8 @@ private static final long serialVersionUID = 0L;
   private int simplifiedState_ = 0;
   /**
    * <pre>
-   * Simplified state of the status
+   * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+   * from the task's more detailed internal state.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -422,7 +435,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Simplified state of the status
+   * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+   * from the task's more detailed internal state.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -452,7 +466,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue settings_;
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -464,7 +479,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -476,7 +492,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -489,7 +506,8 @@ private static final long serialVersionUID = 0L;
   public static final int TEXT_FIELD_NUMBER = 11;
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -501,7 +519,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -516,7 +535,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -532,7 +552,7 @@ private static final long serialVersionUID = 0L;
   public static final int FILE_FIELD_NUMBER = 12;
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -544,7 +564,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -559,7 +579,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -576,7 +596,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue exception_;
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -588,7 +609,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -600,7 +622,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -624,7 +647,8 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -637,7 +661,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -649,7 +674,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -662,7 +688,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -675,7 +702,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -692,7 +720,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -704,7 +732,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -716,7 +744,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -1816,7 +1844,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> taskIdBuilder_;
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1827,7 +1856,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1842,7 +1872,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1862,7 +1893,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1880,7 +1912,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1905,7 +1938,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1922,7 +1956,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1934,7 +1969,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1949,7 +1985,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task
+     * Unique identifier of this task instance; use it to reference this task in status lookups or
+     * cancellation requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -1973,7 +2010,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> catalogNameBuilder_;
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -1984,7 +2022,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -1999,7 +2038,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2019,7 +2059,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2037,7 +2078,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2062,7 +2104,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2079,7 +2122,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2091,7 +2135,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2106,7 +2151,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog the task is related to (optional)
+     * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+     * catalog (e.g. server-wide/system tasks).
      * </pre>
      *
      * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -2130,7 +2176,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> issuedBuilder_;
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2141,7 +2188,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2156,7 +2204,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2176,7 +2225,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2194,7 +2244,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2219,7 +2270,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2236,7 +2288,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2248,7 +2301,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2263,7 +2317,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was issued
+     * Date and time when the task was issued for execution (queued to run). Unset while the task is
+     * still pending and has not yet been issued.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -2287,7 +2342,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> startedBuilder_;
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2298,7 +2353,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2313,7 +2368,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2333,7 +2388,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2351,7 +2406,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2376,7 +2431,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2393,7 +2448,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2405,7 +2460,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2420,7 +2475,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was started
+     * Date and time when the task started executing. Unset before execution begins.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -2444,7 +2499,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> finishedBuilder_;
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2455,7 +2511,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2470,7 +2527,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2490,7 +2548,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2508,7 +2567,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2533,7 +2593,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2550,7 +2611,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2562,7 +2624,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2577,7 +2640,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was finished
+     * Date and time when the task finished executing, successfully or with an error. Unset while
+     * the task is still running.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -2599,7 +2663,8 @@ private static final long serialVersionUID = 0L;
     private int simplifiedState_ = 0;
     /**
      * <pre>
-     * Simplified state of the status
+     * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+     * from the task's more detailed internal state.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -2610,7 +2675,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Simplified state of the status
+     * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+     * from the task's more detailed internal state.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -2625,7 +2691,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Simplified state of the status
+     * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+     * from the task's more detailed internal state.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -2638,7 +2705,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Simplified state of the status
+     * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+     * from the task's more detailed internal state.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -2656,7 +2724,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Simplified state of the status
+     * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+     * from the task's more detailed internal state.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -2718,7 +2787,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> settingsBuilder_;
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2729,7 +2799,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2744,7 +2815,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2764,7 +2836,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2782,7 +2855,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2807,7 +2881,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2824,7 +2899,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2836,7 +2912,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2851,7 +2928,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Configuration settings of the task
+     * String representation (`toString()`) of the task's configuration settings. Read back as an
+     * empty string if unset.
      * </pre>
      *
      * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -2874,7 +2952,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> textBuilder_;
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2886,7 +2965,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2908,7 +2988,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2928,7 +3009,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2946,7 +3028,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2973,7 +3056,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -2996,7 +3080,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -3006,7 +3091,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -3024,7 +3110,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Textual result of the task
+     * String representation (`toString()`) of the task's result object, used for any result other
+     * than a fetchable file.
      * </pre>
      *
      * <code>.google.protobuf.StringValue text = 11;</code>
@@ -3052,7 +3139,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder> fileBuilder_;
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3064,7 +3151,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3086,7 +3173,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3106,7 +3193,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3124,7 +3211,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3151,7 +3238,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3174,7 +3261,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3184,7 +3271,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3202,7 +3289,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File that was created by the task and is available for fetching
+     * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -3231,7 +3318,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> exceptionBuilder_;
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3242,7 +3330,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3257,7 +3346,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3277,7 +3367,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3295,7 +3386,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3320,7 +3412,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3337,7 +3430,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3349,7 +3443,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3364,7 +3459,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exception that occurred during the task execution
+     * Public-safe error message if the task failed. Unset while the task is running or if it
+     * completed without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -3393,7 +3489,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3405,7 +3502,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3416,7 +3514,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3428,7 +3527,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3448,7 +3548,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3466,7 +3567,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3484,7 +3586,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3498,7 +3601,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3510,7 +3614,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3522,7 +3627,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3539,7 +3645,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3554,7 +3661,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of task traits
+     * Capabilities available for this task instance (e.g. whether it can be manually started,
+     * cancelled, or must be explicitly stopped).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -3576,7 +3684,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> createdBuilder_;
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3587,7 +3695,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3602,7 +3710,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3622,7 +3730,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3640,7 +3748,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3665,7 +3773,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3682,7 +3790,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3694,7 +3802,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -3709,7 +3817,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the task was created
+     * Date and time when this task status record was created; always set, and precedes `issued`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>

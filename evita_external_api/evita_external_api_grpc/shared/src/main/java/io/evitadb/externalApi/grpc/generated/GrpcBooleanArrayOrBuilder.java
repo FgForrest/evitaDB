@@ -33,7 +33,7 @@ public interface GrpcBooleanArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcBooleanArrayOrBuilder extends
   java.util.List<java.lang.Boolean> getValueList();
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcBooleanArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>

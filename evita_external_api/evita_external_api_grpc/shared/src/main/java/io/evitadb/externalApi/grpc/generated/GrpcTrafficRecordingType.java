@@ -46,7 +46,7 @@ public enum GrpcTrafficRecordingType
   TRAFFIC_RECORDING_SESSION_START(0),
   /**
    * <pre>
-   ** evitaDB session closed.
+   * evitaDB session closed.
    * </pre>
    *
    * <code>TRAFFIC_RECORDING_SESSION_FINISH = 1;</code>
@@ -116,7 +116,7 @@ public enum GrpcTrafficRecordingType
   public static final int TRAFFIC_RECORDING_SESSION_START_VALUE = 0;
   /**
    * <pre>
-   ** evitaDB session closed.
+   * evitaDB session closed.
    * </pre>
    *
    * <code>TRAFFIC_RECORDING_SESSION_FINISH = 1;</code>

@@ -73,7 +73,7 @@ private static final long serialVersionUID = 0L;
       emptyLongList();
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>
@@ -86,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>
@@ -97,7 +97,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>
@@ -484,7 +484,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -497,7 +497,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -508,7 +508,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -520,7 +520,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -539,7 +539,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -556,7 +556,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>
@@ -574,7 +574,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a long array.
+     * The individual long elements, in their original order.
      * </pre>
      *
      * <code>repeated int64 value = 1;</code>

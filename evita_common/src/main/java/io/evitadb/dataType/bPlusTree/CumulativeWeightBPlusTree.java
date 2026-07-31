@@ -288,28 +288,70 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 	 * @return the cumulative weight of all strictly-smaller keys
 	 */
 	public int rankOf(@Nonnull K key) {
+		return rankFrom(rankAndWeightOf(key));
+	}
+
+	/**
+	 * Answers {@link #rankOf(Object)}, {@link #containsKey(Object)} and {@link #weightOf(Object)} for the same key in a
+	 * **single** root → leaf descent, returning both results packed into one `long`: the rank in the upper 32 bits and
+	 * the key's weight (`0` when the key is absent) in the lower 32. Unpack with {@link #rankFrom(long)} and
+	 * {@link #weightFrom(long)}.
+	 *
+	 * The packing avoids allocating a result holder on what is the hottest read path of the localized sort index, where
+	 * every comparison may cost a full collation. Callers that need the block a key occupies — its start offset and its
+	 * length — previously issued three independent descents of the identical key; this method makes that one descent,
+	 * and the `weight == 0` encoding of absence removes the separate presence probe entirely (an absent key simply
+	 * yields an empty block at its insertion point).
+	 *
+	 * @param key the (possibly absent) key to locate
+	 * @return rank in the upper 32 bits, weight (`0` when absent) in the lower 32
+	 */
+	public long rankAndWeightOf(@Nonnull K key) {
 		int prefix = 0;
 		Node node = this.root;
 		while (node instanceof final InternalNode internal) {
-			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && compare(key, internal.separators[childIndex]) >= 0) {
-				prefix += internal.subtreeWeights[childIndex];
-				childIndex++;
+			// route by binary search over the separators - exactly the routing descend() performs, so the located child
+			// is identical; the children strictly left of it hold only keys below `key` and their subtree weights are
+			// then summed WITHOUT any further comparison
+			final int childIndex = routeChildIndex(internal, key);
+			for (int i = 0; i < childIndex; i++) {
+				prefix += internal.subtreeWeights[i];
 			}
 			node = internal.children[childIndex];
 		}
-		if (node != null) {
-			final LeafNode leaf = (LeafNode) node;
-			for (int i = 0; i < leaf.count; i++) {
-				if (compare(leaf.keys[i], key) < 0) {
-					prefix += leaf.weights[i];
-				} else {
-					// leaf keys are sorted ascending - the first key >= the query ends the prefix
-					break;
-				}
-			}
+		if (node == null) {
+			// empty tree: rank 0, key absent
+			return 0L;
 		}
-		return prefix;
+		final LeafNode leaf = (LeafNode) node;
+		// the first slot holding a key >= the query bounds the prefix; binary search finds it in O(log blockSize)
+		final int pos = leafInsertionIndex(leaf, key);
+		for (int i = 0; i < pos; i++) {
+			prefix += leaf.weights[i];
+		}
+		// one final comparison decides presence - the insertion slot holds the key itself iff it is present
+		final int weight = pos < leaf.count && compare(leaf.keys[pos], key) == 0 ? leaf.weights[pos] : 0;
+		return (((long) prefix) << 32) | (weight & 0xFFFFFFFFL);
+	}
+
+	/**
+	 * Extracts the rank from a {@link #rankAndWeightOf(Object)} result.
+	 *
+	 * @param rankAndWeight the packed result
+	 * @return the cumulative weight of all keys strictly smaller than the queried one
+	 */
+	public static int rankFrom(long rankAndWeight) {
+		return (int) (rankAndWeight >>> 32);
+	}
+
+	/**
+	 * Extracts the weight from a {@link #rankAndWeightOf(Object)} result; `0` means the queried key is absent.
+	 *
+	 * @param rankAndWeight the packed result
+	 * @return the weight associated with the queried key, or `0` when it is not present
+	 */
+	public static int weightFrom(long rankAndWeight) {
+		return (int) rankAndWeight;
 	}
 
 	/**
@@ -401,23 +443,40 @@ public class CumulativeWeightBPlusTree<K> implements ConsistencySensitiveDataStr
 			cursor.depth = 0;
 		}
 		while (node instanceof final InternalNode internal) {
-			int lo = 0;
-			int hi = internal.childCount - 1;
-			while (lo < hi) {
-				final int mid = (lo + hi) >>> 1;
-				if (compare(key, internal.separators[mid]) >= 0) {
-					lo = mid + 1;
-				} else {
-					hi = mid;
-				}
-			}
-			final int childIndex = lo;
+			final int childIndex = routeChildIndex(internal, key);
 			if (cursor != null) {
 				cursor.push(internal, childIndex);
 			}
 			node = internal.children[childIndex];
 		}
 		return (LeafNode) node;
+	}
+
+	/**
+	 * Returns the index of the child of `internal` whose subtree owns (or would own) `key` — the last child whose
+	 * guarding separator is `<= key`, found by binary search over the `childCount - 1` ascending separators in
+	 * `O(log blockSize)` comparisons.
+	 *
+	 * Shared by {@link #descend} and {@link #rankAndWeightOf(Object)} so the two can never route differently. Separators
+	 * left stale by the no-merge removal policy remain valid (possibly loose) lower bounds, which is all the search
+	 * relies on — see the class javadoc.
+	 *
+	 * @param internal the internal node to route through
+	 * @param key      the key being routed
+	 * @return index of the child to descend into
+	 */
+	private int routeChildIndex(@Nonnull InternalNode internal, @Nonnull K key) {
+		int lo = 0;
+		int hi = internal.childCount - 1;
+		while (lo < hi) {
+			final int mid = (lo + hi) >>> 1;
+			if (compare(key, internal.separators[mid]) >= 0) {
+				lo = mid + 1;
+			} else {
+				hi = mid;
+			}
+		}
+		return lo;
 	}
 
 	/**

@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private long read_ = 0L;
   /**
    * <pre>
-   * returns the number of bytes read from the backup file
+   * Cumulative number of bytes received for this upload so far, across this and all preceding
+   * chunks (bytes).
    * </pre>
    *
    * <code>int64 read = 1;</code>
@@ -87,7 +88,9 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid fileId_;
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identifies this upload. Echo this value back as `fileId` in the next
+   * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+   * chunk of an upload the server allocates this id and returns it here for the first time.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -99,7 +102,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identifies this upload. Echo this value back as `fileId` in the next
+   * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+   * chunk of an upload the server allocates this id and returns it here for the first time.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -111,7 +116,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identifies this upload. Echo this value back as `fileId` in the next
+   * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+   * chunk of an upload the server allocates this id and returns it here for the first time.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -125,7 +132,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task_;
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -137,7 +145,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -149,7 +158,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -576,7 +586,8 @@ private static final long serialVersionUID = 0L;
     private long read_ ;
     /**
      * <pre>
-     * returns the number of bytes read from the backup file
+     * Cumulative number of bytes received for this upload so far, across this and all preceding
+     * chunks (bytes).
      * </pre>
      *
      * <code>int64 read = 1;</code>
@@ -588,7 +599,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * returns the number of bytes read from the backup file
+     * Cumulative number of bytes received for this upload so far, across this and all preceding
+     * chunks (bytes).
      * </pre>
      *
      * <code>int64 read = 1;</code>
@@ -604,7 +616,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * returns the number of bytes read from the backup file
+     * Cumulative number of bytes received for this upload so far, across this and all preceding
+     * chunks (bytes).
      * </pre>
      *
      * <code>int64 read = 1;</code>
@@ -622,7 +635,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> fileIdBuilder_;
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -633,7 +648,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -648,7 +665,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -668,7 +687,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -686,7 +707,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -711,7 +734,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -728,7 +753,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -740,7 +767,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -755,7 +784,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identifies this upload. Echo this value back as `fileId` in the next
+     * `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+     * chunk of an upload the server allocates this id and returns it here for the first time.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -779,7 +810,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> taskBuilder_;
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -790,7 +822,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -805,7 +838,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -825,7 +859,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -843,7 +878,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -868,7 +904,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -885,7 +922,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -897,7 +935,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -912,7 +951,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to restore the catalog and getting its progress
+     * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+     * progress.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>

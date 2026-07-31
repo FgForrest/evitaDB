@@ -61,16 +61,29 @@ import java.util.concurrent.TimeUnit;
  * measured cross-jar against the base engine. It is {@link Mode#SingleShotTime} so entities per second is
  * `entityCount / score`, but at the iteration counts it can afford the wall-clock number is far too noisy to trust
  * (this issue saw ±258 % on `ns/op` against ±0.75 % on allocation in the same run), so **read `gc.alloc.rate.norm`,
- * not the score**, and run with `-prof gc` - subtracting {@link #fixtureControl} from it exactly as
- * {@link SortAttributeIngestBenchmarkState} prescribes, because the per-invocation fixture's allocation is counted
- * inside the raw figure. Note that the CPU-only changes are invisible here: the retained-leaf block search alters no
- * allocation, and resolving the thread's transaction once per positional read removes a single duplicate
- * `ThreadLocal` read that no end-to-end wall-clock measurement can separate from noise - it is kept on
- * strictly-fewer-operations grounds, not on a measured end-to-end delta.
+ * not the score**, and run with `-prof gc`. That figure still includes the per-invocation fixture, so run
+ * {@link #fixtureOnlyControl} at the same parameters and subtract it before quoting any percentage - the protocol is
+ * spelled out on {@link SortAttributeIngestBenchmarkState}. Note that the CPU-only changes
+ * are invisible here: the retained-leaf block search alters no allocation, and resolving the thread's transaction
+ * once per positional read removes a single duplicate `ThreadLocal` read that no end-to-end wall-clock measurement
+ * can separate from noise - it is kept on strictly-fewer-operations grounds, not on a measured end-to-end delta.
  *
  * Heap is sized explicitly in the fork arguments on purpose. The profiled process ran without `-Xmx`, so JVM
  * ergonomics handed it 23.4 GiB and it sat at 92 % old-gen occupancy with the young generation squeezed to 320 MB;
  * an unsized run here would measure GC pressure rather than insert cost.
+ *
+ * **It is sized at 16 GiB and not less, because 8 GiB cannot run half this benchmark.** At
+ * `distinctValues = 1000` the 40 low-cardinality attributes carry ~1000 value blocks each - roughly 40 000 blocks,
+ * each with its own bitmap, against ~800 at `distinctValues = 20`. Under `-Xmx8g` that combination died with
+ * `OutOfMemoryError` while building index state (seen in both `FacetIndex.getModifiedStorageParts` and
+ * `RoaringBitmapBackedBitmap.fromArray`), so **one of the two declared `distinctValues` values simply did not run**.
+ * Note how that failure presents: JMH exits 0, prints the surviving rows, and silently omits the dead combination -
+ * a missing row, not an error. Always check the log for `<failure>` before trusting a result set from this class.
+ *
+ * Raising the heap changes GC behaviour, which is exactly what sizing it explicitly was meant to control - the same
+ * `distinctValues = 20` workload reports 136 collections at 8 GiB against 80 at 16 GiB. The A/B pair stays valid
+ * because both sides run the same fork arguments, but **figures taken at 8 GiB are not comparable to figures taken
+ * at 16 GiB**; do not mix them across runs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -87,12 +100,13 @@ import java.util.concurrent.TimeUnit;
 		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_MATH,
 		BenchmarkForkArgs.ADD_OPENS, BenchmarkForkArgs.OPEN_UTIL,
 		// sized explicitly - see the class JavaDoc
-		"-Xmx8g"
+		"-Xmx16g"
 	}
 )
-// the state is Scope.Benchmark and its fixture is Level.Invocation, so under `-t N` all N threads would create and
-// close the one shared Evita instance concurrently. JMH's command line still wins over this annotation - `-t N`
-// overrides it - so treat it as the declared intent, not as an enforced guard: never pass `-t` to this benchmark.
+// declared, but NOT enforced: the state is Scope.Benchmark and its Level.Invocation fixture creates and closes a
+// whole Evita instance, so a multi-threaded run would have threads booting and closing the same catalog
+// concurrently. JMH's command line takes precedence over annotations, so `-t N` still overrides this - it records
+// the intent and the reason, it cannot enforce them. Never pass `-t` to this benchmark.
 @Threads(1)
 public class SortAttributeIngestBenchmark implements EvitaCatalogSetup {
 
@@ -120,23 +134,23 @@ public class SortAttributeIngestBenchmark implements EvitaCatalogSetup {
 	}
 
 	/**
-	 * Ingests nothing. This is the **control**: it takes the same state, so JMH runs the same `Level.Invocation`
-	 * fixture and the same `Level.Invocation` teardown around an empty body, and whatever `gc.alloc.rate.norm` it
-	 * reports *is* the fixture cost that {@link #warmUpIngest} also carries.
+	 * Ingests **nothing**: it takes the same state as {@link #warmUpIngest}, so it pays the identical
+	 * `Level.Invocation` fixture - Evita boot, schema definition, teardown - and then stops.
 	 *
-	 * Subtract it per `distinctValues` value, never pooled across the two - the fixture's own allocation differs
-	 * between them. See {@link SortAttributeIngestBenchmarkState} for the protocol and for what the subtraction
-	 * does and does not remove.
+	 * That makes its `gc.alloc.rate.norm` a direct measurement of the fixture allocation that `GCProfiler` folds into
+	 * every figure this benchmark reports. Run it at the same `entityCount` / `distinctValues` and subtract:
+	 * `ingest B/op = warmUpIngest B/op - fixtureOnlyControl B/op`. Without this subtraction the ingest's own
+	 * allocation has no honest denominator and any percentage quoted from `warmUpIngest` alone understates the change.
 	 *
-	 * Its **score is meaningless and near zero** - the body really is empty - and that is not evidence the control did
-	 * nothing: the state is `Scope.Benchmark`, so JMH runs `setUp()` and `closeEvita()` around it regardless, which is
-	 * precisely what the reported `gc.alloc.rate.norm` captures. Do not delete this method as a no-op benchmark.
+	 * The batch is touched (not ingested) so the reference cannot be optimised away and the control keeps the same
+	 * state-access shape as the measured method.
 	 *
-	 * @param state the freshly booted catalog and its product source - built, then deliberately left unused
+	 * @param state the freshly booted catalog and its product source - the subject of this measurement
+	 * @param bh    sink keeping the batch reference live
 	 */
 	@Benchmark
-	public void fixtureControl(SortAttributeIngestBenchmarkState state) {
-		// intentionally empty - the fixture is the measurement
+	public void fixtureOnlyControl(SortAttributeIngestBenchmarkState state, Blackhole bh) {
+		bh.consume(state.productBatch().size());
 	}
 
 }

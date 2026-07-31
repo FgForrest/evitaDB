@@ -33,7 +33,7 @@ public interface GrpcUuidOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a UUID.
+   * The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
    * </pre>
    *
    * <code>int64 mostSignificantBits = 1;</code>
@@ -42,6 +42,10 @@ public interface GrpcUuidOrBuilder extends
   long getMostSignificantBits();
 
   /**
+   * <pre>
+   * The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
+   * </pre>
+   *
    * <code>int64 leastSignificantBits = 2;</code>
    * @return The leastSignificantBits.
    */

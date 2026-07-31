@@ -33,7 +33,12 @@ public interface GrpcTaskStatusResponseOrBuilder extends
 
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -42,7 +47,12 @@ public interface GrpcTaskStatusResponseOrBuilder extends
   boolean hasTaskStatus();
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -51,7 +61,12 @@ public interface GrpcTaskStatusResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus();
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>

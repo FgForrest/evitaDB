@@ -26,6 +26,11 @@ package io.evitadb.externalApi.grpc.generated;
 import static io.grpc.MethodDescriptor.generateFullMethodName;
 
 /**
+ * <pre>
+ * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+ * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+ * session lifecycle events) captured for diagnostics.
+ * </pre>
  */
 @io.grpc.stub.annotations.GrpcGenerated
 public final class GrpcEvitaTrafficRecordingServiceGrpc {
@@ -343,6 +348,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
   }
 
   /**
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public interface AsyncService {
 
@@ -404,7 +414,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that starts the traffic recording for the given criteria and settings
+     * Procedure that starts the traffic recording for the given criteria and settings. Fails if a recording is
+     * already in progress - only one recording may run at a time.
      * </pre>
      */
     default void startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request,
@@ -436,6 +447,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * Base class for the server implementation of the service GrpcEvitaTrafficRecordingService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public static abstract class GrpcEvitaTrafficRecordingServiceImplBase
       implements io.grpc.BindableService, AsyncService {
@@ -447,6 +463,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * A stub to allow clients to do asynchronous rpc calls to service GrpcEvitaTrafficRecordingService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public static final class GrpcEvitaTrafficRecordingServiceStub
       extends io.grpc.stub.AbstractAsyncStub<GrpcEvitaTrafficRecordingServiceStub> {
@@ -524,7 +545,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that starts the traffic recording for the given criteria and settings
+     * Procedure that starts the traffic recording for the given criteria and settings. Fails if a recording is
+     * already in progress - only one recording may run at a time.
      * </pre>
      */
     public void startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request,
@@ -559,6 +581,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * A stub to allow clients to do synchronous rpc calls to service GrpcEvitaTrafficRecordingService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public static final class GrpcEvitaTrafficRecordingServiceBlockingV2Stub
       extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingV2Stub> {
@@ -633,7 +660,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that starts the traffic recording for the given criteria and settings
+     * Procedure that starts the traffic recording for the given criteria and settings. Fails if a recording is
+     * already in progress - only one recording may run at a time.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request) throws io.grpc.StatusException {
@@ -665,6 +693,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * A stub to allow clients to do limited synchronous rpc calls to service GrpcEvitaTrafficRecordingService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public static final class GrpcEvitaTrafficRecordingServiceBlockingStub
       extends io.grpc.stub.AbstractBlockingStub<GrpcEvitaTrafficRecordingServiceBlockingStub> {
@@ -738,7 +771,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that starts the traffic recording for the given criteria and settings
+     * Procedure that starts the traffic recording for the given criteria and settings. Fails if a recording is
+     * already in progress - only one recording may run at a time.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse startTrafficRecording(io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest request) {
@@ -770,6 +804,11 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
   /**
    * A stub to allow clients to do ListenableFuture-style rpc calls to service GrpcEvitaTrafficRecordingService.
+   * <pre>
+   * This service contains RPCs that could be called by gRPC clients on evitaDB's catalog by usage of a before created
+   * session. Main purpose of this service is to provide a way to query and manage recorded traffic (queries, mutations,
+   * session lifecycle events) captured for diagnostics.
+   * </pre>
    */
   public static final class GrpcEvitaTrafficRecordingServiceFutureStub
       extends io.grpc.stub.AbstractFutureStub<GrpcEvitaTrafficRecordingServiceFutureStub> {
@@ -834,7 +873,8 @@ public final class GrpcEvitaTrafficRecordingServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that starts the traffic recording for the given criteria and settings
+     * Procedure that starts the traffic recording for the given criteria and settings. Fails if a recording is
+     * already in progress - only one recording may run at a time.
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse> startTrafficRecording(

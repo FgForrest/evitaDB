@@ -34,6 +34,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -82,6 +83,26 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Run with {@code -prof gc} to capture the normalized allocation rate (B/op) alongside ns/op.</p>
  *
+ * <p><b>Second use — the JDK-intrinsic byte comparisons.</b> Two further families A/B the hand-written per-byte
+ * loops against their {@code java.util.Arrays} equivalents:</p>
+ * <ul>
+ *     <li>{@link #findKey_byteCompareIntrinsic_hit} / {@link #findKey_byteCompareIntrinsic_miss} — the same search
+ *     as the byte-compare family, with {@link #compareUnsigned} swapped for {@link Arrays#compareUnsigned}. This is
+ *     already shipped in {@code FrontCodedStringColumn#compareUnsignedBytes}; the pair exists to confirm it, not to
+ *     gate it.</li>
+ *     <li>{@link #commonPrefix_scalar} / {@link #commonPrefix_intrinsic} — the *encode*-side shared-prefix scan
+ *     versus {@link Arrays#mismatch}. Not shipped; this is the open candidate.</li>
+ * </ul>
+ *
+ * <p><b>Read the shared-prefix distribution before the ns/op.</b> {@code commonPrefix} is reached only from
+ * {@code encode}, and only for non-restart entries — a restart entry assigns {@code shared = 0} outright rather than
+ * making a short call — so <i>every</i> call compares two adjacent keys. Because
+ * {@link #generateKeys} emits fixed-width zero-padded sequential keys, adjacent keys here share almost their whole
+ * length, which is the most favourable distribution {@link Arrays#mismatch} could be handed. {@code @Setup} prints
+ * the min / mean / max and a coarse histogram per fixture for exactly this reason: a win measured at 30 shared bytes
+ * says nothing about an attribute corpus of brand or product names, whose neighbours diverge early. Treat the
+ * printed distribution and the ns/op as a single result.</p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @BenchmarkMode(Mode.AverageTime)
@@ -89,6 +110,10 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
+// pinned, not merely defaulted: {@link #cur} is shared mutable decode scratch that the decode path REPLACES on
+// growth, so a multi-threaded run would corrupt it - and silently, since the @Setup self-checks all complete before
+// any measurement thread starts
+@Threads(1)
 @State(Scope.Benchmark)
 public class FrontCodedFindKeyBenchmark {
 
@@ -109,6 +134,12 @@ public class FrontCodedFindKeyBenchmark {
 	 * == 7}); sized generously so {@link #recordByteCompareHops} never has to grow its scratch buffer.
 	 */
 	private static final int MAX_HOPS = 16;
+	/**
+	 * Bucket count of {@link #prefixLengthHistogram}: shared-prefix lengths are binned as
+	 * {@code 0-3 / 4-7 / 8-15 / 16-31 / 32+}. The split at 8 is the one that matters — that is roughly where
+	 * {@code Arrays.mismatch}'s vector setup starts to pay for itself against a scalar loop.
+	 */
+	private static final int PREFIX_HISTOGRAM_BUCKETS = 5;
 
 	/**
 	 * Realistic key shapes an indexed String attribute would hold. All four generate {@code n} distinct keys already
@@ -153,6 +184,31 @@ public class FrontCodedFindKeyBenchmark {
 	 */
 	private int[] hitHops;
 	private int[] missHops;
+
+	/**
+	 * The raw (not front-coded) key bytes {@link #encode} indexed, retained so {@link #commonPrefix_scalar} /
+	 * {@link #commonPrefix_intrinsic} can replay against the identical buffer.
+	 */
+	private byte[] prefixFlat;
+	/**
+	 * The exact argument quads {@code encode} passed to {@link #commonPrefix} for this fixture, flattened four ints
+	 * per call as {@code (aStart, aLen, bStart, bLen)}.
+	 *
+	 * Note this is *not* one entry per key: {@code encode} skips the call entirely at every restart point
+	 * ({@code i % RESTART_INTERVAL == 0} assigns {@code shared = 0} directly, mirroring production
+	 * {@code FrontCodedStringColumn#encode}), so every recorded call compares two **adjacent** keys and there is no
+	 * population of short-prefix calls from restarts. The count is therefore
+	 * {@code n - ceil(n / RESTART_INTERVAL)}.
+	 */
+	private int[] prefixCalls;
+
+	/**
+	 * Coarse histogram of the shared-prefix lengths {@link #commonPrefix} returns for this fixture, printed once per
+	 * trial by {@link #setUp()}. The decision this benchmark feeds is gated on the *distribution*, not on the ns/op
+	 * alone — {@code Arrays.mismatch}'s setup cost is only amortized above roughly 8 shared bytes, so a timing number
+	 * without the distribution it was measured at is uninterpretable.
+	 */
+	private int[] prefixLengthHistogram;
 
 	@Setup(Level.Trial)
 	public void setUp() {
@@ -221,6 +277,73 @@ public class FrontCodedFindKeyBenchmark {
 		final byte[] missProbeBytes = this.missProbe.getBytes(StandardCharsets.UTF_8);
 		final int missHopCount = recordByteCompareHops(this.data, this.restartOffsets, this.n, missProbeBytes, hopScratch);
 		this.missHops = Arrays.copyOf(hopScratch, missHopCount);
+
+		// self-check 3: the intrinsic search must return the identical packed result as the scalar one on both
+		// probes - change B is only a drop-in if sign agreement holds at every hop, not just on average
+		final int hitByIntrinsic = findKeyPosition_byteCompareIntrinsic(
+			this.data, this.restartOffsets, this.n, this.hitProbe
+		);
+		final int missByIntrinsic = findKeyPosition_byteCompareIntrinsic(
+			this.data, this.restartOffsets, this.n, this.missProbe
+		);
+		if (hitByIntrinsic != hitByByte || missByIntrinsic != missByByte) {
+			throw new IllegalStateException(
+				"Intrinsic byte-compare search disagreement for " + this.keyShape + "/" + this.n
+					+ ": hit scalar=" + hitByByte + " intrinsic=" + hitByIntrinsic
+					+ ", miss scalar=" + missByByte + " intrinsic=" + missByIntrinsic
+			);
+		}
+
+		this.prefixFlat = column.flat();
+		this.prefixCalls = recordCommonPrefixCalls(column.offsets(), this.n);
+
+		// self-check 4: the two commonPrefix implementations must agree on every call this fixture actually makes,
+		// and the shared-prefix distribution is captured in the same pass - the distribution is the decision gate,
+		// so it is printed alongside the timings rather than inferred from them
+		this.prefixLengthHistogram = new int[PREFIX_HISTOGRAM_BUCKETS];
+		int minPrefix = Integer.MAX_VALUE;
+		int maxPrefix = 0;
+		long prefixSum = 0;
+		for (int c = 0; c < this.prefixCalls.length; c += 4) {
+			final int aStart = this.prefixCalls[c];
+			final int aLen = this.prefixCalls[c + 1];
+			final int bStart = this.prefixCalls[c + 2];
+			final int bLen = this.prefixCalls[c + 3];
+			final int scalar = commonPrefix(this.prefixFlat, aStart, aLen, bStart, bLen);
+			final int intrinsic = commonPrefixIntrinsic(this.prefixFlat, aStart, aLen, bStart, bLen);
+			if (scalar != intrinsic) {
+				throw new IllegalStateException(
+					"commonPrefix disagreement for " + this.keyShape + "/" + this.n + " at call " + (c >> 2)
+						+ ": scalar=" + scalar + " intrinsic=" + intrinsic
+				);
+			}
+			minPrefix = Math.min(minPrefix, scalar);
+			maxPrefix = Math.max(maxPrefix, scalar);
+			prefixSum += scalar;
+			this.prefixLengthHistogram[prefixBucket(scalar)]++;
+		}
+
+		// self-check 5: Arrays.mismatch returns -1 rather than the common length when it finds no mismatch inside
+		// the shorter range, which is exactly what the normalization in commonPrefixIntrinsic exists to repair.
+		// Strictly-ascending distinct keys never hit that branch, so it is asserted deliberately here instead of
+		// being left to a fixture that cannot reach it.
+		final byte[] degenerate = "abcdefabc".getBytes(StandardCharsets.UTF_8);
+		// "abcdef" vs "abc": the shorter range is a proper prefix of the longer one
+		assertCommonPrefixAgrees(degenerate, 0, 6, 6, 3, 3);
+		// "abc" vs "abc": fully equal ranges
+		assertCommonPrefixAgrees(degenerate, 6, 3, 6, 3, 3);
+
+		final int callCount = this.prefixCalls.length >> 2;
+		System.out.printf(
+			"[3A fixture] shape=%-8s leafSize=%2d commonPrefix calls=%2d  sharedLen min=%d mean=%.1f max=%d"
+				+ "  histogram 0-3/4-7/8-15/16-31/32+ = %d/%d/%d/%d/%d%n",
+			this.keyShape, this.n, callCount,
+			callCount == 0 ? 0 : minPrefix,
+			callCount == 0 ? 0.0 : (double) prefixSum / callCount,
+			maxPrefix,
+			this.prefixLengthHistogram[0], this.prefixLengthHistogram[1], this.prefixLengthHistogram[2],
+			this.prefixLengthHistogram[3], this.prefixLengthHistogram[4]
+		);
 	}
 
 	@Benchmark
@@ -241,6 +364,46 @@ public class FrontCodedFindKeyBenchmark {
 	@Benchmark
 	public void findKey_byteCompare_miss(@Nonnull Blackhole bh) {
 		bh.consume(findKeyPosition_byteCompare(this.data, this.restartOffsets, this.n, this.missProbe));
+	}
+
+	@Benchmark
+	public void findKey_byteCompareIntrinsic_hit(@Nonnull Blackhole bh) {
+		bh.consume(findKeyPosition_byteCompareIntrinsic(this.data, this.restartOffsets, this.n, this.hitProbe));
+	}
+
+	@Benchmark
+	public void findKey_byteCompareIntrinsic_miss(@Nonnull Blackhole bh) {
+		bh.consume(findKeyPosition_byteCompareIntrinsic(this.data, this.restartOffsets, this.n, this.missProbe));
+	}
+
+	/**
+	 * Item 3A's A-side: the scalar {@link #commonPrefix} loop, replayed over the exact argument quads
+	 * {@link #encode} produced for this fixture. Measured this way rather than by timing {@code encode} as a whole
+	 * because encode's varint writes and {@code System.arraycopy} would dominate and dilute the signal to nothing.
+	 */
+	@Benchmark
+	public void commonPrefix_scalar(@Nonnull Blackhole bh) {
+		int acc = 0;
+		final int[] calls = this.prefixCalls;
+		for (int c = 0; c < calls.length; c += 4) {
+			acc += commonPrefix(this.prefixFlat, calls[c], calls[c + 1], calls[c + 2], calls[c + 3]);
+		}
+		bh.consume(acc);
+	}
+
+	/**
+	 * Item 3A's B-side: identical replay through {@link #commonPrefixIntrinsic}. Compare against
+	 * {@link #commonPrefix_scalar} *only* alongside the shared-prefix distribution `setUp` prints — the two are one
+	 * result, not two.
+	 */
+	@Benchmark
+	public void commonPrefix_intrinsic(@Nonnull Blackhole bh) {
+		int acc = 0;
+		final int[] calls = this.prefixCalls;
+		for (int c = 0; c < calls.length; c += 4) {
+			acc += commonPrefixIntrinsic(this.prefixFlat, calls[c], calls[c + 1], calls[c + 2], calls[c + 3]);
+		}
+		bh.consume(acc);
 	}
 
 	@Benchmark
@@ -306,6 +469,34 @@ public class FrontCodedFindKeyBenchmark {
 			final int mid = (lo + hi) >>> 1;
 			final int candLen = decodeAtBytes(data, restartOffsets, mid);
 			final int cmp = compareUnsigned(this.cur, candLen, probeBytes, probeBytes.length);
+			if (cmp < 0) {
+				lo = mid + 1;
+			} else if (cmp > 0) {
+				hi = mid - 1;
+			} else {
+				return (mid << 1) | 1;
+			}
+		}
+		return lo << 1;
+	}
+
+	/**
+	 * Item 3B's shipped form, kept here as the measured B-side: byte-for-byte the same search as
+	 * {@link #findKeyPosition_byteCompare}, differing only in that the per-hop comparison goes through
+	 * {@link #compareUnsignedIntrinsic}.
+	 *
+	 * @return packed result, see {@link #findKeyPosition_stringCompare}
+	 */
+	private int findKeyPosition_byteCompareIntrinsic(
+		@Nonnull byte[] data, @Nonnull int[] restartOffsets, int n, @Nonnull String probe
+	) {
+		final byte[] probeBytes = probe.getBytes(StandardCharsets.UTF_8);
+		int lo = 0;
+		int hi = n - 1;
+		while (lo <= hi) {
+			final int mid = (lo + hi) >>> 1;
+			final int candLen = decodeAtBytes(data, restartOffsets, mid);
+			final int cmp = compareUnsignedIntrinsic(this.cur, candLen, probeBytes, probeBytes.length);
 			if (cmp < 0) {
 				lo = mid + 1;
 			} else if (cmp > 0) {
@@ -416,6 +607,101 @@ public class FrontCodedFindKeyBenchmark {
 	}
 
 	/**
+	 * The JDK-intrinsic form of {@link #compareUnsigned} — item 3B, as shipped in
+	 * {@code FrontCodedStringColumn#compareUnsignedBytes}. A true drop-in: on a mismatch the intrinsic returns
+	 * {@code Byte.compareUnsigned} of the differing pair, and when one range is a prefix of the other it returns the
+	 * difference of the range lengths, which is precisely {@code aLen - bLen}. Only the sign is consumed by either
+	 * caller, and the two agree on sign everywhere.
+	 */
+	private static int compareUnsignedIntrinsic(@Nonnull byte[] a, int aLen, @Nonnull byte[] b, int bLen) {
+		return Arrays.compareUnsigned(a, 0, aLen, b, 0, bLen);
+	}
+
+	/**
+	 * The JDK-intrinsic form of {@link #commonPrefix} — item 3A, *not* shipped; this is the candidate under
+	 * measurement.
+	 *
+	 * Two properties make this less of a drop-in than {@link #compareUnsignedIntrinsic}:
+	 *
+	 * - the same array is passed as both operands, because both ranges live in one flat buffer — that is intended,
+	 *   not a bug to "fix" into two arrays;
+	 * - {@code Arrays.mismatch} returns a **relative** index (from the start of each range, not an absolute offset
+	 *   into {@code arr}) and yields {@code -1} — not the common length — when it finds no mismatch within the
+	 *   shorter range. The {@code Math.min} normalization below repairs exactly that second case; see self-check 5
+	 *   in {@link #setUp()}, which reaches it deliberately since ascending distinct keys never do.
+	 */
+	private static int commonPrefixIntrinsic(@Nonnull byte[] arr, int aStart, int aLen, int bStart, int bLen) {
+		final int m = Arrays.mismatch(arr, aStart, aStart + aLen, arr, bStart, bStart + bLen);
+		return m < 0 ? Math.min(aLen, bLen) : m;
+	}
+
+	/**
+	 * Rebuilds the exact sequence of {@link #commonPrefix} argument quads {@link #encode} makes for a column of
+	 * {@code n} keys with the given {@code offsets}, flattened four ints per call.
+	 *
+	 * Mirrors encode's loop precisely, including the detail that drives item 3A's whole gate: a restart entry
+	 * ({@code i % RESTART_INTERVAL == 0}) assigns {@code shared = 0} **without calling** {@code commonPrefix}, while
+	 * {@code prevStart} / {@code prevLen} still advance every iteration. So restarts contribute no short-prefix
+	 * calls; they contribute no calls at all.
+	 */
+	@Nonnull
+	private static int[] recordCommonPrefixCalls(@Nonnull int[] offsets, int n) {
+		final int restarts = (n + RESTART_INTERVAL - 1) / RESTART_INTERVAL;
+		final int[] calls = new int[(n - restarts) << 2];
+		int at = 0;
+		int prevStart = 0;
+		int prevLen = 0;
+		for (int i = 0; i < n; i++) {
+			final int start = offsets[i];
+			final int keyLen = offsets[i + 1] - start;
+			if (i % RESTART_INTERVAL != 0) {
+				calls[at++] = prevStart;
+				calls[at++] = prevLen;
+				calls[at++] = start;
+				calls[at++] = keyLen;
+			}
+			prevStart = start;
+			prevLen = keyLen;
+		}
+		return calls;
+	}
+
+	/**
+	 * Bins a shared-prefix length into {@link #prefixLengthHistogram}: {@code 0-3 / 4-7 / 8-15 / 16-31 / 32+}.
+	 */
+	private static int prefixBucket(int sharedLength) {
+		if (sharedLength < 4) {
+			return 0;
+		} else if (sharedLength < 8) {
+			return 1;
+		} else if (sharedLength < 16) {
+			return 2;
+		} else if (sharedLength < 32) {
+			return 3;
+		} else {
+			return 4;
+		}
+	}
+
+	/**
+	 * Asserts both {@code commonPrefix} implementations return {@code expected} for one hand-built range pair —
+	 * used by self-check 5 to reach the {@code Arrays.mismatch} {@code -1} branch the key fixtures cannot produce.
+	 */
+	private static void assertCommonPrefixAgrees(
+		@Nonnull byte[] arr, int aStart, int aLen, int bStart, int bLen, int expected
+	) {
+		final int scalar = commonPrefix(arr, aStart, aLen, bStart, bLen);
+		final int intrinsic = commonPrefixIntrinsic(arr, aStart, aLen, bStart, bLen);
+		if (scalar != expected || intrinsic != expected) {
+			throw new IllegalStateException(
+				"commonPrefix disagreement on the no-mismatch case for range (" + aStart + "," + aLen + ") vs ("
+					+ bStart + "," + bLen + "): expected=" + expected + " scalar=" + scalar
+					+ " intrinsic=" + intrinsic
+			);
+		}
+	}
+
+	/**
 	 * Generates {@code n} distinct keys of the given shape, already in ascending natural order (see {@link KeyShape}).
 	 */
 	@Nonnull
@@ -497,7 +783,7 @@ public class FrontCodedFindKeyBenchmark {
 			prevStart = start;
 			prevLen = keyLen;
 		}
-		return new EncodedColumn(Arrays.copyOf(buf, len), restarts);
+		return new EncodedColumn(Arrays.copyOf(buf, len), restarts, flat, offsets);
 	}
 
 	private static int commonPrefix(@Nonnull byte[] arr, int aStart, int aLen, int bStart, int bLen) {
@@ -534,7 +820,14 @@ public class FrontCodedFindKeyBenchmark {
 	/**
 	 * A front-coded blob plus its restart index — the minimal state {@link #decodeAtBytes} needs.
 	 */
-	private record EncodedColumn(@Nonnull byte[] data, @Nonnull int[] restartOffsets) {
+	/**
+	 * The encoded column plus the raw inputs {@link #encode} worked from. {@code flat} / {@code offsets} are handed
+	 * back — rather than staying locals — because {@link #commonPrefix} is called *only* from inside {@code encode},
+	 * so the only way to measure it is to replay its exact argument quads against the very buffer it indexed.
+	 */
+	private record EncodedColumn(
+		@Nonnull byte[] data, @Nonnull int[] restartOffsets, @Nonnull byte[] flat, @Nonnull int[] offsets
+	) {
 	}
 
 	public static void main(String[] args) throws Exception {

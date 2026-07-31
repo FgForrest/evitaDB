@@ -301,8 +301,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -320,8 +320,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -417,7 +417,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
-   * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+   * on a reference-level attribute schema, it marks attributes distinguishing duplicated
    * references to the same entity and is a key attribute for creating distinct indexes for such references.
    *
    * In overall, representative attributes should be used in developer tools along with the entity's primary key to
@@ -684,8 +684,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -700,8 +700,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -717,8 +717,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -733,8 +733,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -749,8 +749,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-   * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-   * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+   * entity having certain value of this attribute in the entire catalog.
+   * The type of the unique attribute must implement the `Comparable` interface.
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
@@ -2686,8 +2686,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -2705,8 +2705,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -2728,8 +2728,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -2749,8 +2749,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -2775,8 +2775,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -3017,7 +3017,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
-     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * on a reference-level attribute schema, it marks attributes distinguishing duplicated
      * references to the same entity and is a key attribute for creating distinct indexes for such references.
      *
      * In overall, representative attributes should be used in developer tools along with the entity's primary key to
@@ -3036,7 +3036,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
-     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * on a reference-level attribute schema, it marks attributes distinguishing duplicated
      * references to the same entity and is a key attribute for creating distinct indexes for such references.
      *
      * In overall, representative attributes should be used in developer tools along with the entity's primary key to
@@ -3059,7 +3059,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
-     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * on a reference-level attribute schema, it marks attributes distinguishing duplicated
      * references to the same entity and is a key attribute for creating distinct indexes for such references.
      *
      * In overall, representative attributes should be used in developer tools along with the entity's primary key to
@@ -4130,8 +4130,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4149,8 +4149,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4168,8 +4168,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4187,8 +4187,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4213,8 +4213,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4236,8 +4236,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4261,8 +4261,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4287,8 +4287,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4310,8 +4310,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4333,8 +4333,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4357,8 +4357,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4379,8 +4379,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4401,8 +4401,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4417,8 +4417,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4436,8 +4436,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4456,8 +4456,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4472,8 +4472,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.
@@ -4489,8 +4489,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-     * entity having certain value of this attribute in entire {&#64;link CatalogContract}.
-     * {&#64;link AttributeSchemaContract#getType() Type} of the unique attribute must implement {&#64;link Comparable} interface.
+     * entity having certain value of this attribute in the entire catalog.
+     * The type of the unique attribute must implement the `Comparable` interface.
      *
      * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
      * better to have this ensured by the database engine.

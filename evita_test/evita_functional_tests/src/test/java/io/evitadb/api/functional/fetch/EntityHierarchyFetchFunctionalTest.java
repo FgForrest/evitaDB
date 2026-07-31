@@ -269,8 +269,8 @@ class EntityHierarchyFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 						assertEquals(1, references.size());
 						atLeastOnePriceListBodyFound = atLeastOnePriceListBodyFound || references.stream().anyMatch(
 							it -> it.getReferencedEntity().isPresent());
-						parentEntityRef = parentEntity.getParentEntity();
 					}
+					parentEntityRef = parentEntity.getParentEntity();
 				}
 				assertTrue(atLeastOnPriceListFound, "At least one price list should be found in the hierarchy");
 				assertTrue(

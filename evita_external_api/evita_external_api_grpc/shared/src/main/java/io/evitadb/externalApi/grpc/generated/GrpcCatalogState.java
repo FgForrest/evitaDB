@@ -82,7 +82,7 @@ public enum GrpcCatalogState
   INACTIVE(4),
   /**
    * <pre>
-   * State signalizing that evitaDB engine is transitioning catalog from {&#64;link #WARMING_UP} to {&#64;link #ALIVE} state.
+   * State signalizing that evitaDB engine is transitioning catalog from `WARMING_UP` to `ALIVE` state.
    * Until the transition is fully completed, the catalog is not able to serve any requests.
    * </pre>
    *
@@ -102,7 +102,7 @@ public enum GrpcCatalogState
   /**
    * <pre>
    * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
-   * is moved to {&#64;link #INACTIVE} state.
+   * is moved to `INACTIVE` state.
    * </pre>
    *
    * <code>BEING_DEACTIVATED = 7;</code>
@@ -212,7 +212,7 @@ public enum GrpcCatalogState
   public static final int INACTIVE_VALUE = 4;
   /**
    * <pre>
-   * State signalizing that evitaDB engine is transitioning catalog from {&#64;link #WARMING_UP} to {&#64;link #ALIVE} state.
+   * State signalizing that evitaDB engine is transitioning catalog from `WARMING_UP` to `ALIVE` state.
    * Until the transition is fully completed, the catalog is not able to serve any requests.
    * </pre>
    *
@@ -232,7 +232,7 @@ public enum GrpcCatalogState
   /**
    * <pre>
    * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
-   * is moved to {&#64;link #INACTIVE} state.
+   * is moved to `INACTIVE` state.
    * </pre>
    *
    * <code>BEING_DEACTIVATED = 7;</code>

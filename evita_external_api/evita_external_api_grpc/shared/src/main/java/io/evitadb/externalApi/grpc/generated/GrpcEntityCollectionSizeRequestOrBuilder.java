@@ -33,7 +33,7 @@ public interface GrpcEntityCollectionSizeRequestOrBuilder extends
 
   /**
    * <pre>
-   * The entity type of the collection - (count of entities stored).
+   * The entity type (collection name) whose size (count of entities stored) should be returned.
    * </pre>
    *
    * <code>string entityType = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcEntityCollectionSizeRequestOrBuilder extends
   java.lang.String getEntityType();
   /**
    * <pre>
-   * The entity type of the collection - (count of entities stored).
+   * The entity type (collection name) whose size (count of entities stored) should be returned.
    * </pre>
    *
    * <code>string entityType = 1;</code>

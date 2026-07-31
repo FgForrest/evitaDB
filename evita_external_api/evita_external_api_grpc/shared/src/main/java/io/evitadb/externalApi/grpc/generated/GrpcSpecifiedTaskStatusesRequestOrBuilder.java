@@ -33,7 +33,9 @@ public interface GrpcSpecifiedTaskStatusesRequestOrBuilder extends
 
   /**
    * <pre>
-   * set of task ids to be listed
+   * Identifications of the tasks whose statuses should be returned. Ids that don't match any
+   * known task are silently omitted from the response - see
+   * `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid taskIds = 1;</code>
@@ -42,7 +44,9 @@ public interface GrpcSpecifiedTaskStatusesRequestOrBuilder extends
       getTaskIdsList();
   /**
    * <pre>
-   * set of task ids to be listed
+   * Identifications of the tasks whose statuses should be returned. Ids that don't match any
+   * known task are silently omitted from the response - see
+   * `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid taskIds = 1;</code>
@@ -50,7 +54,9 @@ public interface GrpcSpecifiedTaskStatusesRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskIds(int index);
   /**
    * <pre>
-   * set of task ids to be listed
+   * Identifications of the tasks whose statuses should be returned. Ids that don't match any
+   * known task are silently omitted from the response - see
+   * `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid taskIds = 1;</code>
@@ -58,7 +64,9 @@ public interface GrpcSpecifiedTaskStatusesRequestOrBuilder extends
   int getTaskIdsCount();
   /**
    * <pre>
-   * set of task ids to be listed
+   * Identifications of the tasks whose statuses should be returned. Ids that don't match any
+   * known task are silently omitted from the response - see
+   * `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid taskIds = 1;</code>
@@ -67,7 +75,9 @@ public interface GrpcSpecifiedTaskStatusesRequestOrBuilder extends
       getTaskIdsOrBuilderList();
   /**
    * <pre>
-   * set of task ids to be listed
+   * Identifications of the tasks whose statuses should be returned. Ids that don't match any
+   * known task are silently omitted from the response - see
+   * `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid taskIds = 1;</code>

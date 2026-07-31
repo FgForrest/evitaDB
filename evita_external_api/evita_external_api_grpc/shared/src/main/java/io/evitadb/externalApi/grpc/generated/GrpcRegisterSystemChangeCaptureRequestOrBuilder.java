@@ -33,7 +33,8 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
   boolean hasSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
   com.google.protobuf.Int64Value getSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (engine version)
+   * Starting point for the search (engine version). If `null`, the capture starts live-tailing from the most
+   * recent / greatest available engine version rather than replaying history from the beginning.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -60,7 +63,9 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -69,7 +74,9 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
   boolean hasSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -78,7 +85,9 @@ public interface GrpcRegisterSystemChangeCaptureRequestOrBuilder extends
   com.google.protobuf.Int32Value getSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+   * Continuation point within `sinceVersion` (index of the mutation within the engine version - currently each
+   * engine level transaction contains only one mutation). If `null`, the capture starts at the beginning of
+   * `sinceVersion` rather than resuming mid-transaction.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
