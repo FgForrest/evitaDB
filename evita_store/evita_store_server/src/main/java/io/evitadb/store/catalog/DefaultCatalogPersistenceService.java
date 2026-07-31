@@ -2759,7 +2759,11 @@ public class DefaultCatalogPersistenceService
 				descriptors.forEach(it -> lookedUpVersions.removeAll(it.version()));
 			}
 
-			return Arrays.asList(result);
+			// versions unknown to history (purged, or never committed) leave their slot in `result` null - the
+			// documented contract is to omit them, not to hand callers a positionally-aligned array full of holes
+			return Arrays.stream(result)
+				.filter(Objects::nonNull)
+				.toList();
 		} else {
 			return Collections.emptyList();
 		}

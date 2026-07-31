@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
@@ -77,7 +78,11 @@ public class ChangeCaptureConverter {
 		return new ChangeCatalogCaptureRequest(
 			request.hasSinceVersion() && request.getSinceVersion().getValue() <= requestedCatalogVersion ?
 				request.getSinceVersion().getValue() : requestedCatalogVersion,
-			request.hasSinceVersion() ? request.getSinceIndex().getValue() : (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
+			// the index default must be derived from `sinceIndex` presence alone - deriving it from `sinceVersion`
+			// would collapse an unset index to 0, which is the slot reserved for the transaction header
+			request.hasSinceIndex()
+				? request.getSinceIndex().getValue()
+				: (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
 			request.getCriteriaList()
 			       .stream()
 			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
@@ -227,7 +232,20 @@ public class ChangeCaptureConverter {
 		} else if (changeCatalogCapture.hasSchemaMutation()) {
 			mutation = DelegatingEntitySchemaMutationConverter.INSTANCE.convert(
 				changeCatalogCapture.getSchemaMutation());
+		} else if (changeCatalogCapture.hasInfrastructureMutation()) {
+			final Mutation infrastructureMutation = DelegatingInfrastructureMutationConverter.INSTANCE.convert(
+				changeCatalogCapture.getInfrastructureMutation());
+			Assert.isPremiseValid(
+				infrastructureMutation instanceof CatalogBoundMutation,
+				() -> new GenericEvitaInternalError(
+					"Infrastructure mutation `" + infrastructureMutation.getClass().getName() +
+						"` is not bound to a catalog and cannot be carried by a change catalog capture!"
+				)
+			);
+			mutation = (CatalogBoundMutation) infrastructureMutation;
 		} else {
+			// no body arm is set - this is the `CHANGE_HEADER` content mode, where the capture carries
+			// only its (version, index, area, operation) header and no mutation body at all
 			mutation = null;
 		}
 		Assert.isPremiseValid(

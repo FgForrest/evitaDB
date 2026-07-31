@@ -120,7 +120,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -133,7 +133,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -146,7 +146,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-   * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -168,8 +168,7 @@ private static final long serialVersionUID = 0L;
    * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
    * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
    * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-   * #1349 for the full analysis.
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -189,8 +188,7 @@ private static final long serialVersionUID = 0L;
    * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
    * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
    * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-   * #1349 for the full analysis.
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -210,8 +208,7 @@ private static final long serialVersionUID = 0L;
    * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
    * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
    * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-   * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-   * #1349 for the full analysis.
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1292,7 +1289,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1304,7 +1301,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1320,7 +1317,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1341,7 +1338,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1360,7 +1357,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1386,7 +1383,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1404,7 +1401,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1417,7 +1414,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1433,7 +1430,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-     * forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+     * forward stream, descending in a reverse stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -1465,8 +1462,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1485,8 +1481,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1509,8 +1504,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1538,8 +1532,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1565,8 +1558,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1599,8 +1591,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1625,8 +1616,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1646,8 +1636,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -1670,8 +1659,7 @@ private static final long serialVersionUID = 0L;
      * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
      * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
      * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-     * filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-     * #1349 for the full analysis.
+     * filtering is applied, so it stays stable and comparable across requests using different filters.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value index = 2;</code>

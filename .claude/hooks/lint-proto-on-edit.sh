@@ -5,9 +5,14 @@
 # instead of waiting for CI (tools/lint-proto.sh, wired into .github/workflows/ci-dev.yml). Reuses
 # that same script/buf.yaml/Docker image rather than duplicating the buf invocation.
 #
-# The `if` filter on the hook entries in .claude/settings.json already restricts invocation to
-# Edit(*.proto)/Write(*.proto) calls; the suffix check below is a cheap belt-and-braces fallback in
-# case that filter is ever loosened.
+# The hook is registered in .claude/settings.json against every Edit/Write with no per-hook path
+# filter, so the .proto suffix check below is the only thing scoping it - a deliberate choice, since
+# a path filter that silently fails to match would leave the hook installed but dead.
+#
+# The linter itself is a soft dependency: tools/lint-proto.sh prefers a native `buf` and falls back
+# to Docker, and signals "neither available" with exit 3 - which this hook reports and passes on.
+# Only actual buf violations block, so a contributor with neither installed can still edit .proto
+# files (CI remains the hard gate).
 
 set -euo pipefail
 
@@ -18,15 +23,18 @@ FILE_PATH="$(printf '%s' "${INPUT}" | jq -r '.tool_input.file_path // empty' 2>/
 
 [[ "${FILE_PATH}" == *.proto ]] || exit 0
 
-if ! command -v docker >/dev/null 2>&1; then
-	echo "note: skipping buf lint for ${FILE_PATH} - docker not available on PATH" >&2
-	exit 0
-fi
-
 set +e
 LINT_OUTPUT="$("${PROJECT_DIR}/tools/lint-proto.sh" 2>&1)"
 LINT_EXIT=$?
 set -e
+
+# tools/lint-proto.sh reserves exit 3 for "no linter available" (no buf on PATH and no reachable
+# Docker daemon) - that is a missing toolchain, not a violation, so it must never block an edit
+if [[ ${LINT_EXIT} -eq 3 ]]; then
+	echo "note: skipping buf lint for ${FILE_PATH} - no linter available" >&2
+	echo "${LINT_OUTPUT}" >&2
+	exit 0
+fi
 
 if [[ ${LINT_EXIT} -ne 0 ]]; then
 	echo "buf lint failed after editing ${FILE_PATH} - fix the violation(s) below before continuing:" >&2

@@ -111,6 +111,7 @@ import static io.evitadb.externalApi.grpc.testUtils.TestDataProvider.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -2534,6 +2535,94 @@ class EvitaSessionServiceFunctionalTest {
 			final GrpcBinaryEntity grpcBinaryEntity = response.get().getRecordPage().getBinaryEntitiesList().get(i);
 			final BinaryEntity binaryEntity = entityResponse.get(i);
 			assertBinaryEntity(binaryEntity, grpcBinaryEntity);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should omit catalog versions unknown to history instead of failing the whole GetTransactionOverview call")
+	void shouldOmitCatalogVersionsUnknownToHistoryFromTransactionOverview(GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// versions far beyond anything this catalog ever reached cannot be known to history; before the
+		// fix, DefaultCatalogPersistenceService handed back a positionally-aligned list holding nulls at
+		// those slots, and mapping those straight through the @Nonnull converter NPE'd and failed the
+		// entire RPC, contradicting the documented contract that unknown versions are simply omitted
+		final AtomicReference<GetTransactionOverviewResponse> response = new AtomicReference<>();
+		assertDoesNotThrow(
+			() -> response.set(
+				evitaSessionBlockingStub.getTransactionOverview(
+					GetTransactionOverviewRequest
+						.newBuilder()
+						.addCatalogVersion(Long.MAX_VALUE - 1L)
+						.addCatalogVersion(Long.MAX_VALUE)
+						.build()
+				)
+			)
+		);
+
+		assertNotNull(response.get());
+		assertTrue(
+			response.get().getTransactionOverviewsList().isEmpty(),
+			"no overview may be returned for catalog versions unknown to history"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should return GetTransactionOverview entries correlatable by their own catalog version when the request mixes known and unknown versions")
+	void shouldReturnTransactionOverviewEntriesCorrelatableByCatalogVersion(
+		Evita evita,
+		GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final long currentCatalogVersion = evita.queryCatalog(
+			TEST_CATALOG, EvitaSessionContract::getCatalogVersion
+		);
+		final long unknownCatalogVersion = Long.MAX_VALUE;
+
+		final AtomicReference<GetTransactionOverviewResponse> response = new AtomicReference<>();
+		assertDoesNotThrow(
+			() -> response.set(
+				evitaSessionBlockingStub.getTransactionOverview(
+					GetTransactionOverviewRequest
+						.newBuilder()
+						// the unknown version deliberately comes first, so a positional reading of the
+						// response would mis-attribute the surviving entry to it
+						.addCatalogVersion(unknownCatalogVersion)
+						.addCatalogVersion(currentCatalogVersion)
+						.build()
+				)
+			)
+		);
+
+		assertNotNull(response.get());
+		final List<GrpcTransactionOverview> overviews = response.get().getTransactionOverviewsList();
+		// exactly one of the two requested versions can possibly be known to history, so the unknown one
+		// must have been dropped rather than padded - a response of size 2 would mean it was materialized
+		assertTrue(
+			overviews.size() <= 1,
+			"the version unknown to history must be omitted, leaving at most one entry, but got " +
+				overviews.size()
+		);
+		final Set<Long> requestedVersions = Set.of(unknownCatalogVersion, currentCatalogVersion);
+		for (final GrpcTransactionOverview overview : overviews) {
+			assertTrue(
+				requestedVersions.contains(overview.getCatalogVersion()),
+				"every returned entry must carry one of the requested catalog versions"
+			);
+			assertNotEquals(
+				unknownCatalogVersion,
+				overview.getCatalogVersion(),
+				"a version unknown to history must never be materialized into an entry"
+			);
 		}
 	}
 

@@ -31,7 +31,7 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * Request for GetMutationsHistory, a streamed, reverse-chronological read of past mutations that match
  * the given criteria - the unpaged sibling of GetMutationsHistoryPage. Traversal is always reverse
- * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+ * (newest first); there is currently no forward-traversal RPC.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest}
@@ -462,7 +462,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Request for GetMutationsHistory, a streamed, reverse-chronological read of past mutations that match
    * the given criteria - the unpaged sibling of GetMutationsHistoryPage. Traversal is always reverse
-   * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+   * (newest first); there is currently no forward-traversal RPC.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest}

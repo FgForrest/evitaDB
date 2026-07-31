@@ -31,7 +31,7 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * Request for GetMutationsHistoryPage, a paged, reverse-chronological read of past mutations (catalog
  * schema changes and entity mutations) that match the given criteria. Traversal is always reverse
- * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+ * (newest first); there is currently no forward-traversal RPC.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest}
@@ -164,12 +164,6 @@ private static final long serialVersionUID = 0L;
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
    * than rejected.
-   *
-   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -185,12 +179,6 @@ private static final long serialVersionUID = 0L;
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
    * than rejected.
-   *
-   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -206,12 +194,6 @@ private static final long serialVersionUID = 0L;
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
    * than rejected.
-   *
-   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -227,8 +209,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-   * on `sinceVersion` above for the (common) case where this default currently does not apply.
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+   * This default applies independently of whether `sinceVersion` is set.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -242,8 +224,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-   * on `sinceVersion` above for the (common) case where this default currently does not apply.
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+   * This default applies independently of whether `sinceVersion` is set.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -257,8 +239,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-   * on `sinceVersion` above for the (common) case where this default currently does not apply.
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+   * This default applies independently of whether `sinceVersion` is set.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -663,7 +645,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Request for GetMutationsHistoryPage, a paged, reverse-chronological read of past mutations (catalog
    * schema changes and entity mutations) that match the given criteria. Traversal is always reverse
-   * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+   * (newest first); there is currently no forward-traversal RPC.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest}
@@ -1360,12 +1342,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1380,12 +1356,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1404,12 +1374,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1433,12 +1397,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1460,12 +1418,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1494,12 +1446,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1520,12 +1466,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1541,12 +1481,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1565,12 +1499,6 @@ private static final long serialVersionUID = 0L;
      * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
      * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
      * than rejected.
-     *
-     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1596,8 +1524,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1610,8 +1538,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1628,8 +1556,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1651,8 +1579,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1672,8 +1600,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1700,8 +1628,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1720,8 +1648,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1735,8 +1663,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1753,8 +1681,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
      * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-     * on `sinceVersion` above for the (common) case where this default currently does not apply.
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+     * This default applies independently of whether `sinceVersion` is set.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>

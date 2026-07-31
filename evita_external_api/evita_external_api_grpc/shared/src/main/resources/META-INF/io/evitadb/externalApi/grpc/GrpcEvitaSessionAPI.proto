@@ -46,7 +46,7 @@ message GrpcCatalogVersionAtResponse {
 
 // Request for GetMutationsHistoryPage, a paged, reverse-chronological read of past mutations (catalog
 // schema changes and entity mutations) that match the given criteria. Traversal is always reverse
-// (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+// (newest first); there is currently no forward-traversal RPC.
 message GetMutationsHistoryPageRequest {
   // The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
   // Not rejected when it lands past the last available page - the response is simply empty; see the
@@ -59,17 +59,11 @@ message GetMutationsHistoryPageRequest {
   // the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
   // the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
   // than rejected.
-  //
-  // Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
-  // does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
-  // as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
-  // the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
-  // set `sinceIndex` explicitly together with `sinceVersion`.
   google.protobuf.Int64Value sinceVersion = 3;
   // Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
   // are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
-  // `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
-  // on `sinceVersion` above for the (common) case where this default currently does not apply.
+  // `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - traversal being reverse.
+  // This default applies independently of whether `sinceVersion` is set.
   google.protobuf.Int32Value sinceIndex = 4;
   // Restricts the search to mutations committed within this time range. The lower bound (`from`) is
   // exclusive - the version resolved from it is excluded from the result, even though the underlying
@@ -86,7 +80,7 @@ message GetMutationsHistoryPageRequest {
 }
 
 // Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
-// total record count, `hasMore`, or `isLast` field (a pagination contract gap tracked in #1349), unlike
+// total record count, `hasMore`, or `isLast` field, unlike
 // `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
 // page follows without requesting it and checking whether it comes back empty.
 message GetMutationsHistoryPageResponse {
@@ -97,7 +91,7 @@ message GetMutationsHistoryPageResponse {
 
 // Request for GetMutationsHistory, a streamed, reverse-chronological read of past mutations that match
 // the given criteria - the unpaged sibling of GetMutationsHistoryPage. Traversal is always reverse
-// (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+// (newest first); there is currently no forward-traversal RPC.
 message GetMutationsHistoryRequest {
   // Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
   // catalog version. Note this default differs from the paged RPC's, which anchors on the session's
@@ -150,14 +144,14 @@ message GetTransactionOverviewRequest {
   repeated int64 catalogVersion = 1;
 }
 
-// Response to GetTransactionOverview request. Entries are ordered the same way as the requested
-// `catalogVersion` list. The intended contract (per the underlying Java API) is that a version unknown
-// to history is silently omitted rather than padded with an empty entry, so the response can be shorter
-// than the request - but this is currently not honored: a single unknown/purged version makes the whole
-// RPC fail instead of being omitted (known defect, tracked in #1349).
+// Response to GetTransactionOverview request. Entries preserve the relative order of the requested
+// `catalogVersion` list, but a version unknown to history - purged, or never committed - is omitted
+// rather than padded with an empty entry. The response can therefore be shorter than the request, and
+// can be empty; it is not an error to ask for a version history no longer holds.
 message GetTransactionOverviewResponse {
-  // The transaction overviews for the requested catalog versions, in request order - see the
-  // message-level note above for the current gap between the intended and actual completeness contract.
+  // The transaction overviews for those requested catalog versions that are still known to history, in
+  // request order. Because unknown versions are omitted rather than padded, positions do not line up
+  // with the request - correlate each entry by its own `catalogVersion` field, never by index.
   repeated GrpcTransactionOverview transactionOverviews = 1;
 }
 

@@ -29,11 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetTransactionOverview request. Entries are ordered the same way as the requested
- * `catalogVersion` list. The intended contract (per the underlying Java API) is that a version unknown
- * to history is silently omitted rather than padded with an empty entry, so the response can be shorter
- * than the request - but this is currently not honored: a single unknown/purged version makes the whole
- * RPC fail instead of being omitted (known defect, tracked in #1349).
+ * Response to GetTransactionOverview request. Entries preserve the relative order of the requested
+ * `catalogVersion` list, but a version unknown to history - purged, or never committed - is omitted
+ * rather than padded with an empty entry. The response can therefore be shorter than the request, and
+ * can be empty; it is not an error to ask for a version history no longer holds.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTransactionOverviewResponse}
@@ -76,8 +75,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview> transactionOverviews_;
   /**
    * <pre>
-   * The transaction overviews for the requested catalog versions, in request order - see the
-   * message-level note above for the current gap between the intended and actual completeness contract.
+   * The transaction overviews for those requested catalog versions that are still known to history, in
+   * request order. Because unknown versions are omitted rather than padded, positions do not line up
+   * with the request - correlate each entry by its own `catalogVersion` field, never by index.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -88,8 +88,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The transaction overviews for the requested catalog versions, in request order - see the
-   * message-level note above for the current gap between the intended and actual completeness contract.
+   * The transaction overviews for those requested catalog versions that are still known to history, in
+   * request order. Because unknown versions are omitted rather than padded, positions do not line up
+   * with the request - correlate each entry by its own `catalogVersion` field, never by index.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -101,8 +102,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The transaction overviews for the requested catalog versions, in request order - see the
-   * message-level note above for the current gap between the intended and actual completeness contract.
+   * The transaction overviews for those requested catalog versions that are still known to history, in
+   * request order. Because unknown versions are omitted rather than padded, positions do not line up
+   * with the request - correlate each entry by its own `catalogVersion` field, never by index.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -113,8 +115,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The transaction overviews for the requested catalog versions, in request order - see the
-   * message-level note above for the current gap between the intended and actual completeness contract.
+   * The transaction overviews for those requested catalog versions that are still known to history, in
+   * request order. Because unknown versions are omitted rather than padded, positions do not line up
+   * with the request - correlate each entry by its own `catalogVersion` field, never by index.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -125,8 +128,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The transaction overviews for the requested catalog versions, in request order - see the
-   * message-level note above for the current gap between the intended and actual completeness contract.
+   * The transaction overviews for those requested catalog versions that are still known to history, in
+   * request order. Because unknown versions are omitted rather than padded, positions do not line up
+   * with the request - correlate each entry by its own `catalogVersion` field, never by index.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -298,11 +302,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetTransactionOverview request. Entries are ordered the same way as the requested
-   * `catalogVersion` list. The intended contract (per the underlying Java API) is that a version unknown
-   * to history is silently omitted rather than padded with an empty entry, so the response can be shorter
-   * than the request - but this is currently not honored: a single unknown/purged version makes the whole
-   * RPC fail instead of being omitted (known defect, tracked in #1349).
+   * Response to GetTransactionOverview request. Entries preserve the relative order of the requested
+   * `catalogVersion` list, but a version unknown to history - purged, or never committed - is omitted
+   * rather than padded with an empty entry. The response can therefore be shorter than the request, and
+   * can be empty; it is not an error to ask for a version history no longer holds.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTransactionOverviewResponse}
@@ -533,8 +536,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -548,8 +552,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -563,8 +568,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -578,8 +584,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -600,8 +607,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -619,8 +627,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -640,8 +649,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -662,8 +672,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -681,8 +692,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -700,8 +712,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -720,8 +733,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -738,8 +752,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -756,8 +771,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -768,8 +784,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -783,8 +800,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -799,8 +817,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -811,8 +830,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -824,8 +844,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The transaction overviews for the requested catalog versions, in request order - see the
-     * message-level note above for the current gap between the intended and actual completeness contract.
+     * The transaction overviews for those requested catalog versions that are still known to history, in
+     * request order. Because unknown versions are omitted rather than padded, positions do not line up
+     * with the request - correlate each entry by its own `catalogVersion` field, never by index.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>

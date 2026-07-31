@@ -30,7 +30,7 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
- * total record count, `hasMore`, or `isLast` field (a pagination contract gap tracked in #1349), unlike
+ * total record count, `hasMore`, or `isLast` field, unlike
  * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
  * page follows without requesting it and checking whether it comes back empty.
  * </pre>
@@ -298,7 +298,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
-   * total record count, `hasMore`, or `isLast` field (a pagination contract gap tracked in #1349), unlike
+   * total record count, `hasMore`, or `isLast` field, unlike
    * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
    * page follows without requesting it and checking whether it comes back empty.
    * </pre>
