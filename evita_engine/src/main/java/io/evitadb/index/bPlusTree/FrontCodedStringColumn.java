@@ -200,8 +200,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		int[] offsets2 = EMPTY_INT_ARRAY;
 		/**
 		 * {@link #copyRangeTo}'s splice-assembly output buffer: the prefix/gap/slice/suffix segments are written here
-		 * before being handed to {@link #encode(byte[], int[], int)}, which only ever reads it (never retains it), so
-		 * reusing this buffer across calls is safe.
+		 * before being handed to {@link #encode(DecodeScratch, byte[], int[], int)}, which only ever reads it
+		 * (never retains it), so reusing this buffer across calls is safe.
 		 */
 		byte[] flat3 = EMPTY_BYTES;
 		/** Entry boundary table paired with {@link #flat3}. */
@@ -343,7 +343,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		}
 		scratch.flat = flat;
 		scratch.offsets = offsets;
-		encode(flat, offsets, n + 1);
+		encode(scratch, flat, offsets, n + 1);
 	}
 
 	@Override
@@ -375,7 +375,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		for (int i = index; i < n; i++) {
 			offsets[i] = offsets[i + 1] - removeLen;
 		}
-		encode(flat, offsets, n - 1);
+		encode(scratch, flat, offsets, n - 1);
 	}
 
 	@Override
@@ -454,7 +454,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		outOffsets[idx] = pos;
 		scratch.flat3 = outFlat;
 		scratch.offsets3 = outOffsets;
-		target.encode(outFlat, outOffsets, newSize);
+		target.encode(scratch, outFlat, outOffsets, newSize);
 	}
 
 	@Override
@@ -700,8 +700,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * {@code flat[offsets[i - 1] .. offsets[i - 1] + shared)}, the immediately preceding entry, still resident
 	 * earlier in the same buffer, and no separate rolling "current key" buffer is needed the way {@link #decodeAt}
 	 * / {@link #decodeAllBytes} need one; the shared-prefix compression itself is re-derived once, on the way back
-	 * out, by {@link #encode(byte[], int[], int)}. Entries in {@code [base, fromInclusive)} are decoded only to
-	 * reconstruct that chain for a range decode ({@link #decodeAllToFlat} always starts at {@code fromInclusive ==
+	 * out, by {@link #encode(DecodeScratch, byte[], int[], int)}. Entries in {@code [base, fromInclusive)} are
+	 * decoded only to reconstruct that chain for a range decode ({@link #decodeAllToFlat} always starts at {@code fromInclusive ==
 	 * 0}, so it never has any). The two callers differ only in which buffer pair
 	 * ({@link DecodeScratch#flat}/{@link DecodeScratch#offsets} vs {@link DecodeScratch#flat2}/
 	 * {@link DecodeScratch#offsets2}) they read from / write back to; selecting the pair via {@code secondary} only
@@ -798,8 +798,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	/**
 	 * Cold path only ({@link #clearAt} / {@link #fillEmpty} truncation — the hot slot mutators call
-	 * {@link #encode(byte[], int[], int)} directly). Flattens {@code keys} (raw UTF-8 key bytes, one entry per
-	 * element; {@code keys.length} may exceed {@code n}, only the live prefix is encoded) into a single contiguous
+	 * {@link #encode(DecodeScratch, byte[], int[], int)} directly). Flattens {@code keys} (raw UTF-8 key bytes, one
+	 * entry per element; {@code keys.length} may exceed {@code n}, only the live prefix is encoded) into a contiguous
 	 * buffer once and delegates there, so the shared-prefix / restart-table / trim logic exists in exactly one place.
 	 *
 	 * @param keys the source key bytes (at least {@code n} non-null entries)
@@ -823,7 +823,8 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 			pos += keys[i].length;
 		}
 		offsets[n] = pos;
-		encode(flat, offsets, n);
+		// cold path: no caller-held scratch to thread in, so this adapter is the one place that still looks it up
+		encode(SCRATCH.get(), flat, offsets, n);
 	}
 
 	/**
@@ -834,17 +835,18 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * {@link #encode(byte[][], int)} adapter after it flattens a {@code byte[][]}. The same pass also determines
 	 * whether the re-encoded corpus is BMP-only, feeding {@link #bmpSafe} via {@link #finishEncode}.
 	 *
+	 * @param scratch the calling thread's scratch — the caller already holds it, so it is threaded in rather than
+	 *                looked up a second time (the thread-local lookup here used to duplicate the mutator's own)
 	 * @param flat    the source key bytes, concatenated (at least {@code offsets[n]} bytes)
 	 * @param offsets the entry boundary table (at least {@code n + 1} entries)
 	 * @param n       the number of entries to encode
 	 */
-	private void encode(@Nonnull byte[] flat, @Nonnull int[] offsets, int n) {
+	private void encode(@Nonnull DecodeScratch scratch, @Nonnull byte[] flat, @Nonnull int[] offsets, int n) {
 		if (n == 0) {
 			resetToEmpty();
 			return;
 		}
 		final int[] restarts = newRestartTable(n);
-		final DecodeScratch scratch = SCRATCH.get();
 		byte[] buf = acquireEncodeBuf(scratch, n);
 		int len = 0;
 		int prevStart = 0;
@@ -956,7 +958,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	/**
 	 * Returns the length of the common leading byte run of two ranges within the same array, used by
-	 * {@link #encode(byte[], int[], int)}.
+	 * {@link #encode(DecodeScratch, byte[], int[], int)}.
 	 *
 	 * @param arr    the backing array holding both ranges
 	 * @param aStart the start offset of the first (predecessor) range
@@ -1034,14 +1036,10 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * @return negative / zero / positive matching {@link String#compareTo}'s contract
 	 */
 	private static int compareUnsignedBytes(@Nonnull byte[] a, int aLen, @Nonnull byte[] b, int bLen) {
-		final int min = Math.min(aLen, bLen);
-		for (int i = 0; i < min; i++) {
-			final int cmp = (a[i] & 0xFF) - (b[i] & 0xFF);
-			if (cmp != 0) {
-				return cmp;
-			}
-		}
-		return aLen - bLen;
+		// the JDK intrinsic matches this method's contract exactly: on a mismatch it returns
+		// Byte.compareUnsigned of the differing pair, and when one range is a prefix of the other it returns the
+		// difference of the range lengths - only the sign is consumed by findKeyPosition either way
+		return Arrays.compareUnsigned(a, 0, aLen, b, 0, bLen);
 	}
 
 	/**

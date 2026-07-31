@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -44,11 +45,13 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
@@ -2605,8 +2608,9 @@ class TransactionalBucketBPlusTreeTest {
 				singleLeaf(1, 4), singleLeaf(6), singleLeaf(8, 9)
 			));
 			final TransactionalBucketBPlusTree.Cursor<Integer> cursor = tree.createCursor(6);
-			// the actual 0->1 key (6) is sound: both checks run and pass
-			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, 6));
+			// the actual 0->1 key (6) is sound: both checks run and pass. Index 0 on a leaf whose peek is 0 is the
+			// 0->1 shape the production caller passes here, and it satisfies both branch conditions at once
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, 6, 0));
 			// the SAME single-key leaf is subject to the head check (a smaller key undercuts L_pred's last key 4)
 			assertThrows(GenericEvitaInternalError.class, () -> tree.assertHeadBoundary(cursor, 3));
 			// ...and to the tail check (a larger key reaches L_succ's first key 8)
@@ -2636,6 +2640,285 @@ class TransactionalBucketBPlusTreeTest {
 			});
 			final ConsistencyReport descendingReport = descending.getConsistencyReport();
 			assertEquals(ConsistencyState.CONSISTENT, descendingReport.state(), descendingReport.report());
+		}
+
+	}
+
+	/**
+	 * Pins the equivalence the op-time boundary asserts stand on. `assertInsertBoundaries` selects its head / tail
+	 * branch from the insertion INDEX the leaf add methods return, not by decoding the leaf's first and last key and
+	 * comparing them to the inserted one. The two answers coincide only because a comparator-equal key never inserts a
+	 * new bucket — `findKeyPosition` reports it as already present, and that branch never reaches the asserts — so the
+	 * returned index can never point anywhere but at the slot the key itself occupies.
+	 *
+	 * That argument is comparator-relative and an ASCII-only test cannot exercise it: under natural order,
+	 * comparator-equal and equal-as-strings are the same thing. Every test here therefore runs under a collator, one of
+	 * them at PRIMARY strength where two DISTINCT strings compare equal — the shape that would break the equivalence if
+	 * the "no comparator-equal duplicates" premise did not hold.
+	 */
+	@Nested
+	@DisplayName("Insertion-index boundary branch selection")
+	class InsertionIndexBranchSelectionTest {
+
+		private static final int VALUE_BLOCK_SIZE = 10;
+		/**
+		 * Mirrors the production sentinel: the leaf add methods return this when the record joined an EXISTING bucket
+		 * and no new bucket key was inserted.
+		 */
+		private static final int NO_NEW_BUCKET = -1;
+		/**
+		 * Distinct keys that are non-trivial for a collator: mixed case and accented letters, whose collation order
+		 * differs from their raw UTF-8 byte order. All are distinct under FRENCH collation at default (tertiary)
+		 * strength, so each add inserts a genuinely new bucket.
+		 */
+		private static final String[] COLLATION_SENSITIVE_KEYS = {
+			"Zebre", "abricot", "éclair", "Mangue", "ananas", "Ëtude", "zebre", "Abricot"
+		};
+
+		/**
+		 * Builds an empty String-keyed tree ordered by the supplied collator, wired to the front-coded value column the
+		 * production factory selects for String keys.
+		 *
+		 * @param collator the comparator defining key order
+		 * @return a new empty tree
+		 */
+		@Nonnull
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		private static TransactionalBucketBPlusTree<String> collatedTree(@Nonnull Comparator<String> collator) {
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, collator);
+			return new TransactionalBucketBPlusTree<>(
+				VALUE_BLOCK_SIZE, 3, 7, 3, String.class, collator, factory
+			);
+		}
+
+		/**
+		 * Asserts that the index-based head / tail branch conditions agree with the key-comparison ones they replaced,
+		 * against the leaf's post-insert state.
+		 *
+		 * @param leaf       the leaf the key was just inserted into
+		 * @param key        the freshly inserted key
+		 * @param insertedAt the slot index the leaf add method reported
+		 * @param collator   the comparator defining key order
+		 */
+		private static void assertIndexAgreesWithKeyComparison(
+			@Nonnull BPlusLeafTreeNode<String> leaf,
+			@Nonnull String key,
+			int insertedAt,
+			@Nonnull Comparator<String> collator
+		) {
+			final int peek = leaf.getPeek();
+			final boolean tailByKey = collator.compare(key, leaf.keyAt(peek)) == 0;
+			final boolean headByKey = collator.compare(key, leaf.keyAt(0)) == 0;
+			assertEquals(
+				tailByKey, insertedAt == peek,
+				"Tail branch disagreement for '" + key + "' at index " + insertedAt + " (peek " + peek + ")"
+			);
+			assertEquals(
+				headByKey, insertedAt == 0,
+				"Head branch disagreement for '" + key + "' at index " + insertedAt + " (peek " + peek + ")"
+			);
+		}
+
+		/**
+		 * Builds an empty String-keyed LONG-PAYLOAD tree ordered by the supplied collator.
+		 *
+		 * @param collator the comparator defining key order
+		 * @return a new empty long-payload tree
+		 */
+		@Nonnull
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		private static TransactionalBucketBPlusTree<String> collatedLongPayloadTree(
+			@Nonnull Comparator<String> collator
+		) {
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, collator);
+			return TransactionalBucketBPlusTree.withLongPayload(
+				VALUE_BLOCK_SIZE, 3, 7, 3, String.class, collator, factory
+			);
+		}
+
+		/**
+		 * Produces `count` distinct collation-sensitive keys — an accented, mixed-case stem plus a zero-padded ordinal,
+		 * so that collation order and raw UTF-8 byte order genuinely disagree across the set.
+		 *
+		 * @param count the number of keys to produce
+		 * @return the generated keys, in generation order (NOT collation order)
+		 */
+		@Nonnull
+		private static String[] collatedKeys(int count) {
+			final String[] stems = {"éclair", "Abricot", "Ëtude", "mangue", "Zebre", "ananas"};
+			final String[] keys = new String[count];
+			for (int i = 0; i < count; i++) {
+				keys[i] = stems[i % stems.length] + "-" + String.format("%03d", i);
+			}
+			return keys;
+		}
+
+		@Test
+		@DisplayName("index-based branch selection matches key comparison over randomized collated inserts")
+		void shouldAgreeWithKeyComparisonOverRandomizedCollatedInserts() {
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			final Random random = new Random(20260731L);
+			for (int trial = 0; trial < 200; trial++) {
+				// a fresh single-leaf tree per trial, filled in a random order so head, tail and interior inserts all
+				// occur; the key count stays below the block size so no split intervenes and the cursor's leaf is the root
+				final TransactionalBucketBPlusTree<String> tree = collatedTree(collator);
+				final List<String> shuffled = new ArrayList<>(List.of(COLLATION_SENSITIVE_KEYS));
+				Collections.shuffle(shuffled, random);
+				int pk = 0;
+				for (final String key : shuffled) {
+					final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(key);
+					final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+					final int insertedAt = leaf.addRecord(key, pk++);
+					assertNotEquals(
+						NO_NEW_BUCKET, insertedAt,
+						"Every key in the fixture is distinct under this collator, so each add must insert a bucket."
+					);
+					assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
+					// the production entry point must accept the index and validate the sound leaf without complaint
+					assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, key, insertedAt));
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("index-based branch selection matches key comparison on a transactional layer")
+		void shouldAgreeWithKeyComparisonOnTransactionalLayer() {
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			final TransactionalBucketBPlusTree<String> tree = collatedTree(collator);
+			tree.addRecord("Mangue", 1);
+			tree.addRecord("abricot", 2);
+			// the layer branch computes the position from, and inserts it into, the layer's own key column - the
+			// rollback keeps the assertions confined to the transactional state without committing a bypassed size
+			assertStateAfterRollback(
+				tree,
+				tested -> {
+					int pk = 100;
+					for (final String key : new String[]{"Zebre", "Ëtude", "Abricot", "éclair"}) {
+						final TransactionalBucketBPlusTree.Cursor<String> cursor = tested.createCursor(key);
+						final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+						final int insertedAt = leaf.addRecord(key, pk++);
+						assertNotEquals(NO_NEW_BUCKET, insertedAt);
+						assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
+						assertDoesNotThrow(() -> tested.assertInsertBoundaries(cursor, key, insertedAt));
+					}
+				},
+				(original, committed) -> {
+					assertTrue(original.contains("Mangue"));
+					assertFalse(original.contains("Zebre"));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("distinct strings that compare equal under a PRIMARY collator never insert a second bucket")
+		void shouldNotInsertNewBucketForComparatorEqualDistinctStrings() {
+			// at PRIMARY strength the collator ignores accents, so "resume" and "résumé" are equal keys despite being
+			// different strings. This is precisely the case that would let the returned index point at a slot other
+			// than the one holding the key - the add must report NO_NEW_BUCKET instead, so the asserts never run
+			final Collator primary = Collator.getInstance(Locale.FRENCH);
+			primary.setStrength(Collator.PRIMARY);
+			final Comparator<String> collator = new LocalizedStringComparator(primary);
+			assertEquals(0, collator.compare("resume", "résumé"), "Fixture precondition: the two keys must collate equal");
+
+			final TransactionalBucketBPlusTree<String> tree = collatedTree(collator);
+			final TransactionalBucketBPlusTree.Cursor<String> firstCursor = tree.createCursor("resume");
+			assertEquals(0, firstCursor.leafNode().addRecord("resume", 1));
+
+			final TransactionalBucketBPlusTree.Cursor<String> secondCursor = tree.createCursor("résumé");
+			assertEquals(
+				NO_NEW_BUCKET, secondCursor.leafNode().addRecord("résumé", 2),
+				"A comparator-equal key must join the existing bucket, never insert a second one."
+			);
+		}
+
+		@Test
+		@DisplayName("the long-payload leaf add reports an insertion index that matches key comparison")
+		void shouldReportInsertionIndexForLongPayloadAdds() {
+			// addLongRecord is the method whose result the outer tree API used to discard entirely, so a wrong index
+			// there would go unnoticed longest - and it backs GlobalUniqueIndex / ReferenceTypeCardinalityIndex
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			final TransactionalBucketBPlusTree<String> tree = collatedLongPayloadTree(collator);
+			long payload = 1L;
+			for (final String key : COLLATION_SENSITIVE_KEYS) {
+				final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(key);
+				final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+				final int insertedAt = leaf.addLongRecord(key, payload++);
+				assertNotEquals(NO_NEW_BUCKET, insertedAt, "A long-payload add always inserts a new bucket.");
+				assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
+				assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, key, insertedAt));
+			}
+		}
+
+		@Test
+		@DisplayName("index-based branch selection still matches key comparison on leaves reached after splits")
+		void shouldAgreeWithKeyComparisonOnLeavesReachedAfterSplits() {
+			// the tests above never split (few keys, one root leaf), so the leaf's peek only ever grew by insertion.
+			// A split RECOMPUTES peek and hands the cursor a different leaf object - the shape most likely to break a
+			// coordinate-space assumption - so this builds a genuinely multi-level tree first
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final ValueColumnFactory factory = ValueColumnFactory.forKey(String.class, collator);
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+				8, 3, 3, 1, String.class, collator, factory
+			);
+			final String[] built = collatedKeys(120);
+			for (int i = 0; i < built.length; i++) {
+				tree.addRecord(built[i], i);
+			}
+			assertInstanceOf(
+				BPlusInternalTreeNode.class, tree.getRoot(),
+				"Fixture precondition: the tree must have split into a multi-level spine."
+			);
+
+			int probed = 0;
+			int skipped = 0;
+			// coverage is counted in DISTINCT leaves, not probes: each successful direct insert pushes its leaf
+			// closer to full, so a probe count alone would drift with the fixture and still read as full coverage
+			final Set<BPlusLeafTreeNode<String>> probedLeaves = Collections.newSetFromMap(new IdentityHashMap<>());
+			for (int i = 0; i < built.length; i++) {
+				// each probe is its base key plus a trailing letter, so it collates immediately after that key and
+				// therefore targets the leaf holding it — spreading the probes over EVERY leaf instead of piling
+				// them all onto the few leaves that happen to hold the tail of the key space
+				final String probe = built[i] + "m";
+				final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(probe);
+				final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+				if (leaf.isFull()) {
+					// a direct leaf insert cannot trigger the split the tree API would run, so skip rather than
+					// corrupt the fixture — the assertion below pins that most probes still landed
+					skipped++;
+					continue;
+				}
+				final int insertedAt = leaf.addRecord(probe, 10_000 + i);
+				assertNotEquals(NO_NEW_BUCKET, insertedAt);
+				assertIndexAgreesWithKeyComparison(leaf, probe, insertedAt, collator);
+				assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, probe, insertedAt));
+				probedLeaves.add(leaf);
+				probed++;
+			}
+			assertTrue(
+				probedLeaves.size() >= 12,
+				"The equivalence must be exercised on several DISTINCT post-split leaves, but only "
+					+ probedLeaves.size() + " were reached (" + probed + " probes ran, " + skipped
+					+ " skipped on an already-full leaf)."
+			);
+		}
+
+		@Test
+		@DisplayName("the 0 to 1 insert reports index 0 on a leaf whose peek is 0, satisfying both branches")
+		void shouldReportIndexZeroForInsertIntoEmptyLeaf() {
+			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
+			final TransactionalBucketBPlusTree<String> tree = collatedTree(collator);
+			final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor("éclair");
+			final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+			assertEquals(-1, leaf.getPeek(), "Fixture precondition: the leaf must start empty.");
+
+			final int insertedAt = leaf.addRecord("éclair", 1);
+			assertEquals(0, insertedAt);
+			assertEquals(0, leaf.getPeek());
+			// both branch conditions hold at once, which is what the head/tail asserts require of this transition
+			assertIndexAgreesWithKeyComparison(leaf, "éclair", insertedAt, collator);
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, "éclair", insertedAt));
 		}
 
 	}
