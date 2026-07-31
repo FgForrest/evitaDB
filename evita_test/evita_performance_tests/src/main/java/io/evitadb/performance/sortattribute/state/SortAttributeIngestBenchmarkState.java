@@ -94,14 +94,49 @@ import java.util.Random;
  * cursor path, the allocation-free unordered-array guards - so run it with `-prof gc` and compare the normalised
  * allocation rate against the base worktree.
  *
- * **The reported bytes/op is `fixture + ingest`, so compare the ABSOLUTE difference.** `setUp()` is annotated
- * `@Setup(Level.Invocation)` and boots a full Evita instance, defines the schema and materialises the whole batch;
- * JMH's `GCProfiler` snapshots its counters in `beforeIteration` / `afterIteration`, bracketing the entire iteration
- * including per-invocation fixtures, so the fixture's allocation is counted inside the reported figure. The fixture
- * is identical on both sides of the A/B pair and therefore cancels in the **absolute** GB/op difference - that number
- * is trustworthy. The **percentage** is not: its denominator is diluted by fixture allocation, so it understates the
- * change and must never be read as a fraction of the ingest's own allocation. Quantifying the fixture would take a
- * control `@Benchmark` with an empty body taking this same state; no such control exists today.
+ * **Reported bytes/op is `fixture + ingest`; subtract the control to get the ingest alone.** `setUp()` is annotated
+ * `@Setup(Level.Invocation)` and boots a full Evita instance, defines the schema and materialises the whole batch,
+ * and `closeEvita()` is its matching `@TearDown(Level.Invocation)`. JMH's `GCProfiler` is an `InternalProfiler`: it
+ * snapshots the allocation counters in `beforeIteration` / `afterIteration`, which brackets the **entire** iteration
+ * including both per-invocation fixtures, so their allocation lands inside the reported figure.
+ *
+ * `SortAttributeIngestBenchmark.fixtureControl` is what makes that recoverable - it takes this same state and does
+ * nothing, so whatever it reports *is* the fixture. The protocol is
+ *
+ * ```
+ * ingest allocation = warmUpIngest[distinctValues] - fixtureControl[distinctValues]
+ * ```
+ *
+ * with three conditions that are easy to get wrong:
+ *
+ * 1. **Subtract per `distinctValues`; never pool one control across both.** The two settings do not carry the same
+ *    fixture cost. `setAttribute` boxes every low-cardinality `int` and `Integer.valueOf` caches `-128..127`, so at
+ *    `distinctValues = 20` all `entityCount * 40` values are cache hits and allocate nothing, while at 1000 only
+ *    12.8 % of them are. Measured at `entityCount = 20 000`: 1.268 GB/op against 1.257 GB/op - an 11.2 MB gap, which
+ *    is exactly the 697 600 boxes that escape the cache. Pooling would over-subtract one arm and under-subtract the
+ *    other.
+ * 2. **Take the control from the same build as the `warmUpIngest` it is subtracted from**, and say which build that
+ *    was. The fixture itself is stable across an A/B pair - it touches only `evita_api` builders and the engine's
+ *    boot path, neither of which a sort-index change moves - but the percentage's denominator is that one build's
+ *    own `warmUpIngest - fixtureControl`.
+ * 3. **The remainder is the ingest plus a teardown asymmetry.** `closeEvita()` is inside the bracket for both
+ *    methods, but the control closes an *empty* catalog while `warmUpIngest` closes one holding `entityCount`
+ *    entities, so the flush the ingest provokes stays in the remainder. That is where it belongs - the ingest caused
+ *    it - but the remainder is therefore not the `upsertEntity` loop in isolation.
+ *
+ * **Why the batch is still rebuilt every invocation.** The fixture is 1.35 % (`distinctValues = 1000`) and 1.65 %
+ * (`distinctValues = 20`) of the corresponding `warmUpIngest` at `entityCount = 20 000`, and scaling the control from
+ * 5 000 to 20 000 entities shows ~96 % of it is the batch itself (~61 kB per builder against ~49 MB of fixed boot,
+ * schema and empty-catalog close). Memoising the batch across a trial would therefore remove most of the fixture -
+ * but the subtraction above already removes *all* of it, exactly, so hoisting would buy no accuracy while costing the
+ * guarantee that each invocation ingests a batch no previous invocation has touched. The Evita boot cannot leave
+ * `Level.Invocation` at all: a catalog still holding the previous invocation's entities would start with wide sort
+ * blocks and would stop measuring a cold WARM_UP load.
+ *
+ * **Reproducing the #1332 figures.** They were taken with `-p entityCount=5000`, not at the `@Param` default of
+ * 20 000 committed here - the block widths quoted alongside them (~5 and ~250) only follow from 5 000. At that
+ * override this harness reports 26.222 and 22.600 GB/op against the 25.920 and 22.472 recorded there, so it
+ * reproduces to within 1.2 %.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

@@ -33,6 +33,7 @@ import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -60,11 +61,12 @@ import java.util.concurrent.TimeUnit;
  * measured cross-jar against the base engine. It is {@link Mode#SingleShotTime} so entities per second is
  * `entityCount / score`, but at the iteration counts it can afford the wall-clock number is far too noisy to trust
  * (this issue saw ±258 % on `ns/op` against ±0.75 % on allocation in the same run), so **read `gc.alloc.rate.norm`,
- * not the score**, and run with `-prof gc` - reading that figure the way {@link SortAttributeIngestBenchmarkState}
- * prescribes, because the per-invocation fixture's allocation is counted inside it. Note that the CPU-only changes
- * are invisible here: the retained-leaf block search alters no allocation, and resolving the thread's transaction
- * once per positional read removes a single duplicate `ThreadLocal` read that no end-to-end wall-clock measurement
- * can separate from noise - it is kept on strictly-fewer-operations grounds, not on a measured end-to-end delta.
+ * not the score**, and run with `-prof gc` - subtracting {@link #fixtureControl} from it exactly as
+ * {@link SortAttributeIngestBenchmarkState} prescribes, because the per-invocation fixture's allocation is counted
+ * inside the raw figure. Note that the CPU-only changes are invisible here: the retained-leaf block search alters no
+ * allocation, and resolving the thread's transaction once per positional read removes a single duplicate
+ * `ThreadLocal` read that no end-to-end wall-clock measurement can separate from noise - it is kept on
+ * strictly-fewer-operations grounds, not on a measured end-to-end delta.
  *
  * Heap is sized explicitly in the fork arguments on purpose. The profiled process ran without `-Xmx`, so JVM
  * ergonomics handed it 23.4 GiB and it sat at 92 % old-gen occupancy with the young generation squeezed to 320 MB;
@@ -88,6 +90,10 @@ import java.util.concurrent.TimeUnit;
 		"-Xmx8g"
 	}
 )
+// the state is Scope.Benchmark and its fixture is Level.Invocation, so under `-t N` all N threads would create and
+// close the one shared Evita instance concurrently. JMH's command line still wins over this annotation - `-t N`
+// overrides it - so treat it as the declared intent, not as an enforced guard: never pass `-t` to this benchmark.
+@Threads(1)
 public class SortAttributeIngestBenchmark implements EvitaCatalogSetup {
 
 	/**
@@ -111,6 +117,26 @@ public class SortAttributeIngestBenchmark implements EvitaCatalogSetup {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Ingests nothing. This is the **control**: it takes the same state, so JMH runs the same `Level.Invocation`
+	 * fixture and the same `Level.Invocation` teardown around an empty body, and whatever `gc.alloc.rate.norm` it
+	 * reports *is* the fixture cost that {@link #warmUpIngest} also carries.
+	 *
+	 * Subtract it per `distinctValues` value, never pooled across the two - the fixture's own allocation differs
+	 * between them. See {@link SortAttributeIngestBenchmarkState} for the protocol and for what the subtraction
+	 * does and does not remove.
+	 *
+	 * Its **score is meaningless and near zero** - the body really is empty - and that is not evidence the control did
+	 * nothing: the state is `Scope.Benchmark`, so JMH runs `setUp()` and `closeEvita()` around it regardless, which is
+	 * precisely what the reported `gc.alloc.rate.norm` captures. Do not delete this method as a no-op benchmark.
+	 *
+	 * @param state the freshly booted catalog and its product source - built, then deliberately left unused
+	 */
+	@Benchmark
+	public void fixtureControl(SortAttributeIngestBenchmarkState state) {
+		// intentionally empty - the fixture is the measurement
 	}
 
 }
