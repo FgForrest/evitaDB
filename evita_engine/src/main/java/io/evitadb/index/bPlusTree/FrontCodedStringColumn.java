@@ -968,12 +968,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * @return the shared prefix length
 	 */
 	private static int commonPrefix(@Nonnull byte[] arr, int aStart, int aLen, int bStart, int bLen) {
-		final int min = Math.min(aLen, bLen);
-		int i = 0;
-		while (i < min && arr[aStart + i] == arr[bStart + i]) {
-			i++;
-		}
-		return i;
+		// both ranges deliberately live in the SAME array - passing it as both operands is what this call means, not
+		// an oversight. Arrays.mismatch reports a RELATIVE index (from each range's start, not an absolute offset
+		// into arr) and yields -1 rather than the common length when it finds no mismatch inside the shorter range,
+		// which is exactly what the Math.min below repairs
+		final int mismatch = Arrays.mismatch(arr, aStart, aStart + aLen, arr, bStart, bStart + bLen);
+		return mismatch < 0 ? Math.min(aLen, bLen) : mismatch;
 	}
 
 	/**
