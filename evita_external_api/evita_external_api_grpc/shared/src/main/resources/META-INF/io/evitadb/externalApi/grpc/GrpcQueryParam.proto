@@ -9,106 +9,168 @@ import "GrpcEnums.proto";
 
 // Structure that supports storing all possible parameters that could be used within query.
 message GrpcQueryParam {
-  // The value of the parameter.
+  // Exactly one of the following arms must be set. An unset `queryParam` is a client error:
+  // `QueryConverter.convertQueryParam` dispatches on the set arm and throws
+  // `EvitaInvalidUsageException` if none matches.
+  //
+  // Positional parameters (query strings using `?` placeholders) bind to entries of the enclosing
+  // message's `positionalQueryParams` list in the order the `?` placeholders are encountered in the
+  // query text — the first `?` binds to index 0, and so on. A query with more `?` placeholders than
+  // available entries fails with `EvitaInvalidUsageException("Missing argument of index N.")`.
+  //
+  // Named parameters (query strings using `@name` placeholders) bind to entries of the enclosing
+  // message's `namedQueryParams` map by the name embedded in the query text. A placeholder with no
+  // matching key fails with `EvitaInvalidUsageException("Missing argument of name `name`.")`.
   oneof queryParam {
-    // The string value.
+    // Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+    // `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
     string stringValue = 1;
-    // The integer value.
+    // Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
     int32 integerValue = 2;
-    // The long value.
+    // Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+    // that exceed the `int32` range.
     int64 longValue = 3;
-    // The boolean value.
+    // Binds a boolean parameter into the query.
     bool booleanValue = 4;
-    // The big decimal value.
+    // Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+    // other monetary/decimal literals.
     GrpcBigDecimal bigDecimalValue = 5;
-    // The date time range value.
+    // Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+    // style constraints that test whether a given instant falls within a validity range.
     GrpcDateTimeRange dateTimeRangeValue = 6;
-    // The integer number range value.
+    // Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
     GrpcIntegerNumberRange integerNumberRangeValue = 7;
-    // The long number range value.
+    // Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
     GrpcLongNumberRange longNumberRangeValue = 8;
-    // The big decimal number range value.
+    // Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+    // style range constraints over prices or other decimal values.
     GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
-    // The offset date time value.
+    // Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+    // `priceValidIn` to test price validity at a specific instant.
     GrpcOffsetDateTime offsetDateTimeValue = 10;
-    // The locale value.
+    // Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
     GrpcLocale localeValue = 11;
-    // The currency value.
+    // Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
     GrpcCurrency currencyValue = 12;
-    // The facet statistics depth enum value.
+    // Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+    // `facetSummary` requirement to select whether only counts or also selection impact is computed.
     GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;
-    // The query price mode enum value.
+    // Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+    // constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+    // is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+    // accessors and JSON field mapping for existing clients.
     GrpcQueryPriceMode queryPriceModelValue = 14;
-    // The price content mode enum value.
+    // Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+    // requirement to select which prices are fetched along with the entity.
     GrpcPriceContentMode priceContentModeValue = 15;
-    // The attribute special value enum value.
+    // Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+    // to test whether an attribute value is `NULL` or `NOT_NULL`.
     GrpcAttributeSpecialValue attributeSpecialValue = 16;
-    // The order direction enum value.
+    // Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+    // and other ordering constraints to select ascending or descending order.
     GrpcOrderDirection orderDirectionValue = 17;
-    // The empty hierarchical entity behaviour enum value.
+    // Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+    // statistics requirements to select whether hierarchy nodes with no referring entities are kept
+    // in or removed from the result tree.
     GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
-    // The statistics base enum value.
+    // Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+    // requirements to select which part of the `filterBy` constraint is considered when computing
+    // cardinalities.
     GrpcStatisticsBase statisticsBase = 19;
-    // The statistics type enum value.
+    // Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+    // requirements to select whether children counts or queried-entity counts are produced.
     GrpcStatisticsType statisticsType = 20;
-    // The histogram behavior enum value.
+    // Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+    // to select whether the histogram always has exactly the requested bucket count or an optimized,
+    // more compact bucket layout.
     GrpcHistogramBehavior histogramBehavior = 21;
-    // The managed references behaviour
+    // Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+    // `referenceContent` requirement to select whether references to a managed entity that no longer
+    // exists are still returned.
     GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;
-    // The expression
+    // Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+    // used as the size argument of the `gap` requirement to compute spacing between paginated results.
     string expressionValue = 23;
-    // The scope enum value.
+    // Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+    // select whether live or archived entities are considered.
     GrpcEntityScope scope = 24;
-    // The facetRelationType enum value.
+    // Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+    // calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+    // applied between facets.
     GrpcFacetRelationType facetRelationType = 25;
-    // The facetGroupRelationLevel enum value.
+    // Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+    // impact calculation to select whether the relation applies between facets in the same group or
+    // across different groups/references.
     GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;
-    // The facet traversal mode enum value.
+    // Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+    // `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
     GrpcTraversalMode traversalMode = 27;
 
-    // The string array value.
+    // Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+    // as `attributeInSet` over string-typed attributes.
     GrpcStringArray stringArrayValue = 101;
-    // The integer array value.
+    // Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+    // `attributeInSet` over integer-typed attributes.
     GrpcIntegerArray integerArrayValue = 102;
-    // The long array value.
+    // Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+    // long-typed values that exceed the `int32` range.
     GrpcLongArray longArrayValue = 103;
-    // The boolean array value.
+    // Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+    // boolean-typed attributes.
     GrpcBooleanArray booleanArrayValue = 104;
-    // The big decimal array value.
+    // Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+    // `inSet`-style constraints over decimal-typed attributes.
     GrpcBigDecimalArray bigDecimalArrayValue = 105;
-    // The date time range array value.
+    // Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+    // constraints over range-typed attributes.
     GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;
-    // The integer number range array value.
+    // Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+    // constraints over integer-range-typed attributes.
     GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;
-    // The long number range array value.
+    // Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+    // over long-range-typed attributes.
     GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;
-    // The big decimal number range array value.
+    // Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+    // `inSet`-style constraints over decimal-range-typed attributes.
     GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;
-    // The offset date time array value.
+    // Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+    // constraints over date-time-typed attributes.
     GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;
-    // The locale array value.
+    // Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+    // a single constraint or requirement.
     GrpcLocaleArray localeArrayValue = 111;
-    // The currency array value.
+    // Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+    // in a single constraint or requirement.
     GrpcCurrencyArray currencyArrayValue = 112;
-    // The facet statistics depth array value.
+    // Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+    // placeholder resolves to a list rather than a single value.
     GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;
-    // The query price mode array value.
+    // Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+    // resolves to a list rather than a single value.
     GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;
-    // The price content mode array value.
+    // Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+    // placeholder resolves to a list rather than a single value.
     GrpcPriceContentModeArray priceContentModeArrayValue = 115;
-    // The attribute special value array value.
+    // Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+    // placeholder resolves to a list rather than a single value.
     GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;
-    // The order direction array value.
+    // Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+    // resolves to a list rather than a single value.
     GrpcOrderDirectionArray orderDirectionArrayValue = 117;
-    // The empty hierarchical entity behaviour array value.
+    // Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+    // where the placeholder resolves to a list rather than a single value.
     GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;
-    // The statistics base array value.
+    // Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+    // resolves to a list rather than a single value.
     GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;
-    // The statistics type array value.
+    // Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+    // resolves to a list rather than a single value.
     GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;
-    // The histogram behavior enum value.
+    // Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+    // placeholder resolves to a list rather than a single value.
     GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;
-    // The scope enum value.
+    // Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+    // that accept multiple scopes (live, archived) at once.
     GrpcEntityScopeArray scopeArrayValue = 122;
   }
 }

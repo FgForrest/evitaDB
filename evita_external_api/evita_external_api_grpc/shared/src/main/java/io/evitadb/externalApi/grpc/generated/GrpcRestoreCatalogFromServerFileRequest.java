@@ -29,7 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to restore a catalog.
+ * Request to restore a catalog from a backup file that already exists on the server (e.g. produced
+ * by a prior backup task, or a previous restore upload) - in contrast to
+ * `GrpcRestoreCatalogRequest` and `GrpcRestoreCatalogUnaryRequest`, which upload a new backup file
+ * as part of the call.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest}
@@ -73,8 +76,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -95,8 +98,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -121,7 +124,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid fileId_;
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -133,7 +136,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -145,7 +148,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -329,7 +332,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to restore a catalog.
+   * Request to restore a catalog from a backup file that already exists on the server (e.g. produced
+   * by a prior backup task, or a previous restore upload) - in contrast to
+   * `GrpcRestoreCatalogRequest` and `GrpcRestoreCatalogUnaryRequest`, which upload a new backup file
+   * as part of the call.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest}
@@ -533,8 +539,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -554,8 +560,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -576,8 +582,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -594,8 +600,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -609,8 +615,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -632,7 +638,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> fileIdBuilder_;
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -643,7 +649,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -658,7 +664,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -678,7 +684,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -696,7 +702,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -721,7 +727,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -738,7 +744,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -750,7 +756,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -765,7 +771,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The identification of the file on the server that should be restored
+     * Identification of the backup file already stored on the server that should be restored.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>

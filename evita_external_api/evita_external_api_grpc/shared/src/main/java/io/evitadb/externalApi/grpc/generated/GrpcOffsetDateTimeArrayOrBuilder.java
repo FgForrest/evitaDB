@@ -33,7 +33,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an OffsetDateTime array.
+   * The individual date/time elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing an OffsetDateTime array.
+   * The individual date/time elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getValue(int index);
   /**
    * <pre>
-   * Value that supports storing an OffsetDateTime array.
+   * The individual date/time elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an OffsetDateTime array.
+   * The individual date/time elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcOffsetDateTimeArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing an OffsetDateTime array.
+   * The individual date/time elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value = 1;</code>

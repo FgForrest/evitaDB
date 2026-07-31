@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * identification of the file available for fetching
+ * Identification of a file available for fetching from the server (e.g. a backup archive or an
+ * export produced by an asynchronous task).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFile}
@@ -73,7 +74,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid fileId_;
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -85,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -97,7 +98,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -112,7 +113,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object name_ = "";
   /**
    * <pre>
-   * File name
+   * File name, including extension.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -133,7 +134,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * File name
+   * File name, including extension.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -158,7 +159,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue description_;
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -170,7 +172,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -182,7 +185,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -197,7 +201,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object contentType_ = "";
   /**
    * <pre>
-   * Content type of the file
+   * MIME content type of the file (e.g. `application/zip`).
    * </pre>
    *
    * <code>string contentType = 4;</code>
@@ -218,7 +222,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Content type of the file
+   * MIME content type of the file (e.g. `application/zip`).
    * </pre>
    *
    * <code>string contentType = 4;</code>
@@ -243,7 +247,7 @@ private static final long serialVersionUID = 0L;
   private long totalSizeInBytes_ = 0L;
   /**
    * <pre>
-   * Size of the file in bytes
+   * Size of the file on disk (bytes).
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 5;</code>
@@ -258,7 +262,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created_;
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -270,7 +274,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -282,7 +286,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -296,7 +300,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue origin_;
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -308,7 +313,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -320,7 +326,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -574,7 +581,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * identification of the file available for fetching
+   * Identification of a file available for fetching from the server (e.g. a backup archive or an
+   * export produced by an asynchronous task).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFile}
@@ -872,7 +880,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> fileIdBuilder_;
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -883,7 +891,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -898,7 +906,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -918,7 +926,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -936,7 +944,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -961,7 +969,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -978,7 +986,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -990,7 +998,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -1005,7 +1013,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the file
+     * Unique identifier of the file, used to reference it in fetch/download requests.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -1027,7 +1035,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object name_ = "";
     /**
      * <pre>
-     * File name
+     * File name, including extension.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -1047,7 +1055,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File name
+     * File name, including extension.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -1068,7 +1076,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File name
+     * File name, including extension.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -1085,7 +1093,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File name
+     * File name, including extension.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -1099,7 +1107,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File name
+     * File name, including extension.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -1121,7 +1129,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1132,7 +1141,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1147,7 +1157,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1167,7 +1178,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1185,7 +1197,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1210,7 +1223,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1227,7 +1241,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1239,7 +1254,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1254,7 +1270,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Detailed description of the file
+     * Human-readable description of the file's purpose or contents. Unset when no description was
+     * provided.
      * </pre>
      *
      * <code>.google.protobuf.StringValue description = 3;</code>
@@ -1276,7 +1293,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object contentType_ = "";
     /**
      * <pre>
-     * Content type of the file
+     * MIME content type of the file (e.g. `application/zip`).
      * </pre>
      *
      * <code>string contentType = 4;</code>
@@ -1296,7 +1313,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Content type of the file
+     * MIME content type of the file (e.g. `application/zip`).
      * </pre>
      *
      * <code>string contentType = 4;</code>
@@ -1317,7 +1334,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Content type of the file
+     * MIME content type of the file (e.g. `application/zip`).
      * </pre>
      *
      * <code>string contentType = 4;</code>
@@ -1334,7 +1351,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Content type of the file
+     * MIME content type of the file (e.g. `application/zip`).
      * </pre>
      *
      * <code>string contentType = 4;</code>
@@ -1348,7 +1365,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Content type of the file
+     * MIME content type of the file (e.g. `application/zip`).
      * </pre>
      *
      * <code>string contentType = 4;</code>
@@ -1368,7 +1385,7 @@ private static final long serialVersionUID = 0L;
     private long totalSizeInBytes_ ;
     /**
      * <pre>
-     * Size of the file in bytes
+     * Size of the file on disk (bytes).
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 5;</code>
@@ -1380,7 +1397,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Size of the file in bytes
+     * Size of the file on disk (bytes).
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 5;</code>
@@ -1396,7 +1413,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Size of the file in bytes
+     * Size of the file on disk (bytes).
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 5;</code>
@@ -1414,7 +1431,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> createdBuilder_;
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1425,7 +1442,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1440,7 +1457,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1460,7 +1477,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1478,7 +1495,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1503,7 +1520,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1520,7 +1537,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1532,7 +1549,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1547,7 +1564,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Date and time when the file was created
+     * Date and time when the file was created.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -1571,7 +1588,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> originBuilder_;
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1582,7 +1600,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1597,7 +1616,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1617,7 +1637,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1635,7 +1656,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1660,7 +1682,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1677,7 +1700,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1689,7 +1713,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -1704,7 +1729,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Origin of the file (usually the taskType)
+     * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+     * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
      * </pre>
      *
      * <code>.google.protobuf.StringValue origin = 7;</code>

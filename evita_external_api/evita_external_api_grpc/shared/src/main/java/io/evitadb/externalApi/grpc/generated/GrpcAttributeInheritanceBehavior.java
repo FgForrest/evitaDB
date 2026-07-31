@@ -39,7 +39,7 @@ public enum GrpcAttributeInheritanceBehavior
   /**
    * <pre>
    **
-   * Inherit all attributes by default except those listed in the {&#64;link #getAttributeInheritanceFilter()} array.
+   * Inherit all attributes by default except those listed in the attribute inheritance filter array.
    * </pre>
    *
    * <code>INHERIT_ALL_EXCEPT = 0;</code>
@@ -48,7 +48,7 @@ public enum GrpcAttributeInheritanceBehavior
   /**
    * <pre>
    **
-   * Do not inherit any attributes by default except those listed in the {&#64;link #getAttributeInheritanceFilter()} array.
+   * Do not inherit any attributes by default except those listed in the attribute inheritance filter array.
    * </pre>
    *
    * <code>INHERIT_ONLY_SPECIFIED = 1;</code>
@@ -60,7 +60,7 @@ public enum GrpcAttributeInheritanceBehavior
   /**
    * <pre>
    **
-   * Inherit all attributes by default except those listed in the {&#64;link #getAttributeInheritanceFilter()} array.
+   * Inherit all attributes by default except those listed in the attribute inheritance filter array.
    * </pre>
    *
    * <code>INHERIT_ALL_EXCEPT = 0;</code>
@@ -69,7 +69,7 @@ public enum GrpcAttributeInheritanceBehavior
   /**
    * <pre>
    **
-   * Do not inherit any attributes by default except those listed in the {&#64;link #getAttributeInheritanceFilter()} array.
+   * Do not inherit any attributes by default except those listed in the attribute inheritance filter array.
    * </pre>
    *
    * <code>INHERIT_ONLY_SPECIFIED = 1;</code>

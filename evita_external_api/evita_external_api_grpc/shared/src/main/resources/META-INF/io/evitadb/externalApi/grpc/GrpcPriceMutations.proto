@@ -49,6 +49,7 @@ message GrpcUpsertPriceMutation {
   // entity but won't be considered when evaluating search query. These prices may be
   // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
   // as "usual price") but are not considered as the "selling" price.
+  // RENAMED TO "indexed"
   bool sellable = 9 [deprecated = true];
   // Controls whether price is subject to filtering / sorting logic, non-indexed prices will be fetched along with
   // entity but won't be considered when evaluating search query. These prices may be
@@ -57,6 +58,7 @@ message GrpcUpsertPriceMutation {
   bool indexed = 10;
 }
 
+// This mutation allows to remove an existing `price` of the entity, identified by price ID, price list and currency.
 message GrpcRemovePriceMutation {
   // Contains identification of the price in the external systems. This id is expected to be used for the synchronization
   // of the price in relation with the primary source of the prices.

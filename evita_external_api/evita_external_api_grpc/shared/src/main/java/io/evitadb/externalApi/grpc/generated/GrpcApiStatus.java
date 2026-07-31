@@ -73,7 +73,8 @@ private static final long serialVersionUID = 0L;
   private boolean enabled_ = false;
   /**
    * <pre>
-   * True if the API is enabled
+   * True when this API is turned on in the server configuration. An enabled API can still be
+   * briefly not ready while the server is starting up - see `ready`.
    * </pre>
    *
    * <code>bool enabled = 1;</code>
@@ -88,7 +89,8 @@ private static final long serialVersionUID = 0L;
   private boolean ready_ = false;
   /**
    * <pre>
-   * API readiness status
+   * True when the API has finished initialization and is actually able to serve requests.
+   * Always false when `enabled` is false.
    * </pre>
    *
    * <code>bool ready = 2;</code>
@@ -105,7 +107,9 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -117,7 +121,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -128,7 +134,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -140,7 +148,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -157,8 +167,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEndpoint> endpoints_;
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -169,8 +180,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -182,8 +194,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -194,8 +207,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -206,8 +220,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -686,7 +701,8 @@ private static final long serialVersionUID = 0L;
     private boolean enabled_ ;
     /**
      * <pre>
-     * True if the API is enabled
+     * True when this API is turned on in the server configuration. An enabled API can still be
+     * briefly not ready while the server is starting up - see `ready`.
      * </pre>
      *
      * <code>bool enabled = 1;</code>
@@ -698,7 +714,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True if the API is enabled
+     * True when this API is turned on in the server configuration. An enabled API can still be
+     * briefly not ready while the server is starting up - see `ready`.
      * </pre>
      *
      * <code>bool enabled = 1;</code>
@@ -714,7 +731,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True if the API is enabled
+     * True when this API is turned on in the server configuration. An enabled API can still be
+     * briefly not ready while the server is starting up - see `ready`.
      * </pre>
      *
      * <code>bool enabled = 1;</code>
@@ -730,7 +748,8 @@ private static final long serialVersionUID = 0L;
     private boolean ready_ ;
     /**
      * <pre>
-     * API readiness status
+     * True when the API has finished initialization and is actually able to serve requests.
+     * Always false when `enabled` is false.
      * </pre>
      *
      * <code>bool ready = 2;</code>
@@ -742,7 +761,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * API readiness status
+     * True when the API has finished initialization and is actually able to serve requests.
+     * Always false when `enabled` is false.
      * </pre>
      *
      * <code>bool ready = 2;</code>
@@ -758,7 +778,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * API readiness status
+     * True when the API has finished initialization and is actually able to serve requests.
+     * Always false when `enabled` is false.
      * </pre>
      *
      * <code>bool ready = 2;</code>
@@ -781,7 +802,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -794,7 +817,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -805,7 +830,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -817,7 +844,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -830,7 +859,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -849,7 +880,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -867,7 +900,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -885,7 +920,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -900,7 +937,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of base url of the web API
+     * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+     * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+     * name is singular.
      * </pre>
      *
      * <code>repeated string baseUrl = 3;</code>
@@ -932,8 +971,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -947,8 +987,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -962,8 +1003,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -977,8 +1019,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -999,8 +1042,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1018,8 +1062,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1039,8 +1084,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1061,8 +1107,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1080,8 +1127,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1099,8 +1147,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1119,8 +1168,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1137,8 +1187,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1155,8 +1206,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1167,8 +1219,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1182,8 +1235,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1198,8 +1252,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1210,8 +1265,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -1223,8 +1279,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * list of specific endpoints of particular API
-     * currently only system API provides list of endpoints
+     * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+     * endpoint and giving its URL(s). Currently only the system API populates this list; every
+     * other API reports it empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>

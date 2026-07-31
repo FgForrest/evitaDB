@@ -33,7 +33,8 @@ public interface GrpcCancelTaskResponseOrBuilder extends
 
   /**
    * <pre>
-   * true if the task was found and canceled
+   * True if a task with the given id existed and was successfully canceled; false if no such task
+   * exists, or the task could no longer be canceled (e.g. it had already finished).
    * </pre>
    *
    * <code>bool success = 1;</code>

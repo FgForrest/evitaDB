@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics> catalogStatistics_;
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -83,7 +84,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -95,7 +97,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -106,7 +109,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -117,7 +121,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of catalog statistics for all catalogs
+   * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+   * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -520,7 +525,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -534,7 +540,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -548,7 +555,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -562,7 +570,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -583,7 +592,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -601,7 +611,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -621,7 +632,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -642,7 +654,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -660,7 +673,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -678,7 +692,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -697,7 +712,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -714,7 +730,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -731,7 +748,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -742,7 +760,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -756,7 +775,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -771,7 +791,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -782,7 +803,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>
@@ -794,7 +816,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of catalog statistics for all catalogs
+     * Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+     * `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics catalogStatistics = 1;</code>

@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a catalog backup request.
+ * Request to back up a catalog and stream the backup file to the client.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest}
@@ -71,7 +71,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment_;
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -83,7 +84,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -95,7 +97,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -125,8 +128,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value catalogVersion_;
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -138,8 +142,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -151,8 +156,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -354,7 +360,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a catalog backup request.
+   * Request to back up a catalog and stream the backup file to the client.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest}
@@ -580,7 +586,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> pastMomentBuilder_;
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -591,7 +598,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -606,7 +614,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -626,7 +635,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -644,7 +654,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -669,7 +680,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -686,7 +698,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -698,7 +711,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -713,7 +727,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The moment in time to which the catalog should be backed up. Might be null for current time.
+     * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+     * (subject to being overridden by `catalogVersion`, see below).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -784,8 +799,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> catalogVersionBuilder_;
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -796,8 +812,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -812,8 +829,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -833,8 +851,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -852,8 +871,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -878,8 +898,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -896,8 +917,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -909,8 +931,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -925,8 +948,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * precise catalog version to create backup for, or null to create backup for the latest version,
-     * when set not null, the pastMoment parameter is ignored
+     * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+     * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+     * ignored regardless of whether it is also set.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>

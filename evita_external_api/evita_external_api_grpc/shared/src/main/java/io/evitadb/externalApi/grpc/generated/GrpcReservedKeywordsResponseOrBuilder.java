@@ -33,7 +33,7 @@ public interface GrpcReservedKeywordsResponseOrBuilder extends
 
   /**
    * <pre>
-   * List of reserved keywords
+   * All reserved keywords, across all classifier types.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcReservedKeywordsResponseOrBuilder extends
       getKeywordsList();
   /**
    * <pre>
-   * List of reserved keywords
+   * All reserved keywords, across all classifier types.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcReservedKeywordsResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword getKeywords(int index);
   /**
    * <pre>
-   * List of reserved keywords
+   * All reserved keywords, across all classifier types.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcReservedKeywordsResponseOrBuilder extends
   int getKeywordsCount();
   /**
    * <pre>
-   * List of reserved keywords
+   * All reserved keywords, across all classifier types.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcReservedKeywordsResponseOrBuilder extends
       getKeywordsOrBuilderList();
   /**
    * <pre>
-   * List of reserved keywords
+   * All reserved keywords, across all classifier types.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword keywords = 1;</code>

@@ -29,8 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
- * That is decided by require block in a query, so as the pagination method used.
+ * A page or strip of entities, in one of three representations (references, full sealed entities, or
+ * binary entities) depending on what the query's `require` block asked for. Only one representation is
+ * populated per response and only one of the two pagination descriptors below is set, matching whichever
+ * paging requirement (`page()`/`strip()`) the query used.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataChunk}
@@ -117,7 +119,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> entityReferences_;
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -128,7 +131,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -140,7 +144,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -151,7 +156,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -162,7 +168,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of entity references.
+   * Entity references (type + primary key only, no content). Populated when the query's `require` block
+   * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -178,7 +185,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> sealedEntities_;
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -189,7 +198,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -201,7 +212,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -212,7 +225,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -223,7 +238,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of sealed entities.
+   * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+   * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+   * are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -239,7 +256,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity> binaryEntities_;
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -250,7 +269,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -262,7 +283,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -273,7 +296,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -284,7 +309,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of binary entities.
+   * Fully fetched entities in the server's binary storage format, for clients that decode entities
+   * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+   * storage format; `entityReferences`/`sealedEntities` are then both empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -298,7 +325,7 @@ private static final long serialVersionUID = 0L;
   public static final int PAGINATEDLIST_FIELD_NUMBER = 4;
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -310,7 +337,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -325,7 +352,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The paginated list.
+   * Set when the query used page-based paging (`page()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -341,7 +368,7 @@ private static final long serialVersionUID = 0L;
   public static final int STRIPLIST_FIELD_NUMBER = 5;
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -353,7 +380,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -368,7 +395,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The strip list.
+   * Set when the query used strip/offset-based paging (`strip()`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -385,7 +412,7 @@ private static final long serialVersionUID = 0L;
   private int totalRecordCount_ = 0;
   /**
    * <pre>
-   * The total number of records.
+   * Total number of records matching the query across all pages/strips, not just this chunk's size.
    * </pre>
    *
    * <code>int32 totalRecordCount = 6;</code>
@@ -400,7 +427,7 @@ private static final long serialVersionUID = 0L;
   private boolean isFirst_ = false;
   /**
    * <pre>
-   * True, if this is the first page.
+   * True if this chunk is the first page/strip of the result set.
    * </pre>
    *
    * <code>bool isFirst = 7;</code>
@@ -415,7 +442,7 @@ private static final long serialVersionUID = 0L;
   private boolean isLast_ = false;
   /**
    * <pre>
-   * True, if this is the last page.
+   * True if this chunk is the last page/strip of the result set.
    * </pre>
    *
    * <code>bool isLast = 8;</code>
@@ -430,7 +457,7 @@ private static final long serialVersionUID = 0L;
   private boolean hasPrevious_ = false;
   /**
    * <pre>
-   * True, if there is a previous page.
+   * True if a preceding page/strip exists.
    * </pre>
    *
    * <code>bool hasPrevious = 9;</code>
@@ -445,7 +472,7 @@ private static final long serialVersionUID = 0L;
   private boolean hasNext_ = false;
   /**
    * <pre>
-   * True, if there is a next page.
+   * True if a following page/strip exists.
    * </pre>
    *
    * <code>bool hasNext = 10;</code>
@@ -460,7 +487,7 @@ private static final long serialVersionUID = 0L;
   private boolean isSinglePage_ = false;
   /**
    * <pre>
-   * True, if this is a single page.
+   * True if the entire result set fits within this single chunk.
    * </pre>
    *
    * <code>bool isSinglePage = 11;</code>
@@ -475,7 +502,7 @@ private static final long serialVersionUID = 0L;
   private boolean isEmpty_ = false;
   /**
    * <pre>
-   * True, if this is an empty page.
+   * True if this chunk (and the entire result set) contains no records.
    * </pre>
    *
    * <code>bool isEmpty = 12;</code>
@@ -795,8 +822,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
-   * That is decided by require block in a query, so as the pagination method used.
+   * A page or strip of entities, in one of three representations (references, full sealed entities, or
+   * binary entities) depending on what the query's `require` block asked for. Only one representation is
+   * populated per response and only one of the two pagination descriptors below is set, matching whichever
+   * paging requirement (`page()`/`strip()`) the query used.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataChunk}
@@ -1285,7 +1314,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1299,7 +1329,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1313,7 +1344,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1327,7 +1359,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1348,7 +1381,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1366,7 +1400,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1386,7 +1421,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1407,7 +1443,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1425,7 +1462,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1443,7 +1481,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1462,7 +1501,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1479,7 +1519,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1496,7 +1537,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1507,7 +1549,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1521,7 +1564,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1536,7 +1580,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1547,7 +1592,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1559,7 +1605,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of entity references.
+     * Entity references (type + primary key only, no content). Populated when the query's `require` block
+     * has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReferences = 1;</code>
@@ -1597,7 +1644,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1611,7 +1660,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1625,7 +1676,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1639,7 +1692,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1660,7 +1715,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1678,7 +1735,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1698,7 +1757,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1719,7 +1780,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1737,7 +1800,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1755,7 +1820,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1774,7 +1841,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1791,7 +1860,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1808,7 +1879,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1819,7 +1892,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1833,7 +1908,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1848,7 +1925,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1859,7 +1938,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1871,7 +1952,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of sealed entities.
+     * Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+     * requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+     * are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity sealedEntities = 2;</code>
@@ -1909,7 +1992,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -1923,7 +2008,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -1937,7 +2024,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -1951,7 +2040,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -1972,7 +2063,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -1990,7 +2083,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2010,7 +2105,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2031,7 +2128,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2049,7 +2148,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2067,7 +2168,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2086,7 +2189,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2103,7 +2208,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2120,7 +2227,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2131,7 +2240,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2145,7 +2256,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2160,7 +2273,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2171,7 +2286,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2183,7 +2300,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of binary entities.
+     * Fully fetched entities in the server's binary storage format, for clients that decode entities
+     * themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+     * storage format; `entityReferences`/`sealedEntities` are then both empty.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBinaryEntity binaryEntities = 3;</code>
@@ -2211,7 +2330,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcPaginatedList, io.evitadb.externalApi.grpc.generated.GrpcPaginatedList.Builder, io.evitadb.externalApi.grpc.generated.GrpcPaginatedListOrBuilder> paginatedListBuilder_;
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2223,7 +2342,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2245,7 +2364,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2265,7 +2384,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2283,7 +2402,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2310,7 +2429,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2333,7 +2452,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2343,7 +2462,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2361,7 +2480,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The paginated list.
+     * Set when the query used page-based paging (`page()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPaginatedList paginatedList = 4;</code>
@@ -2389,7 +2508,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcStripList, io.evitadb.externalApi.grpc.generated.GrpcStripList.Builder, io.evitadb.externalApi.grpc.generated.GrpcStripListOrBuilder> stripListBuilder_;
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2401,7 +2520,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2423,7 +2542,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2443,7 +2562,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2461,7 +2580,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2488,7 +2607,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2511,7 +2630,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2521,7 +2640,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2539,7 +2658,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The strip list.
+     * Set when the query used strip/offset-based paging (`strip()`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStripList stripList = 5;</code>
@@ -2566,7 +2685,7 @@ private static final long serialVersionUID = 0L;
     private int totalRecordCount_ ;
     /**
      * <pre>
-     * The total number of records.
+     * Total number of records matching the query across all pages/strips, not just this chunk's size.
      * </pre>
      *
      * <code>int32 totalRecordCount = 6;</code>
@@ -2578,7 +2697,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records.
+     * Total number of records matching the query across all pages/strips, not just this chunk's size.
      * </pre>
      *
      * <code>int32 totalRecordCount = 6;</code>
@@ -2594,7 +2713,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records.
+     * Total number of records matching the query across all pages/strips, not just this chunk's size.
      * </pre>
      *
      * <code>int32 totalRecordCount = 6;</code>
@@ -2610,7 +2729,7 @@ private static final long serialVersionUID = 0L;
     private boolean isFirst_ ;
     /**
      * <pre>
-     * True, if this is the first page.
+     * True if this chunk is the first page/strip of the result set.
      * </pre>
      *
      * <code>bool isFirst = 7;</code>
@@ -2622,7 +2741,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is the first page.
+     * True if this chunk is the first page/strip of the result set.
      * </pre>
      *
      * <code>bool isFirst = 7;</code>
@@ -2638,7 +2757,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is the first page.
+     * True if this chunk is the first page/strip of the result set.
      * </pre>
      *
      * <code>bool isFirst = 7;</code>
@@ -2654,7 +2773,7 @@ private static final long serialVersionUID = 0L;
     private boolean isLast_ ;
     /**
      * <pre>
-     * True, if this is the last page.
+     * True if this chunk is the last page/strip of the result set.
      * </pre>
      *
      * <code>bool isLast = 8;</code>
@@ -2666,7 +2785,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is the last page.
+     * True if this chunk is the last page/strip of the result set.
      * </pre>
      *
      * <code>bool isLast = 8;</code>
@@ -2682,7 +2801,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is the last page.
+     * True if this chunk is the last page/strip of the result set.
      * </pre>
      *
      * <code>bool isLast = 8;</code>
@@ -2698,7 +2817,7 @@ private static final long serialVersionUID = 0L;
     private boolean hasPrevious_ ;
     /**
      * <pre>
-     * True, if there is a previous page.
+     * True if a preceding page/strip exists.
      * </pre>
      *
      * <code>bool hasPrevious = 9;</code>
@@ -2710,7 +2829,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if there is a previous page.
+     * True if a preceding page/strip exists.
      * </pre>
      *
      * <code>bool hasPrevious = 9;</code>
@@ -2726,7 +2845,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if there is a previous page.
+     * True if a preceding page/strip exists.
      * </pre>
      *
      * <code>bool hasPrevious = 9;</code>
@@ -2742,7 +2861,7 @@ private static final long serialVersionUID = 0L;
     private boolean hasNext_ ;
     /**
      * <pre>
-     * True, if there is a next page.
+     * True if a following page/strip exists.
      * </pre>
      *
      * <code>bool hasNext = 10;</code>
@@ -2754,7 +2873,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if there is a next page.
+     * True if a following page/strip exists.
      * </pre>
      *
      * <code>bool hasNext = 10;</code>
@@ -2770,7 +2889,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if there is a next page.
+     * True if a following page/strip exists.
      * </pre>
      *
      * <code>bool hasNext = 10;</code>
@@ -2786,7 +2905,7 @@ private static final long serialVersionUID = 0L;
     private boolean isSinglePage_ ;
     /**
      * <pre>
-     * True, if this is a single page.
+     * True if the entire result set fits within this single chunk.
      * </pre>
      *
      * <code>bool isSinglePage = 11;</code>
@@ -2798,7 +2917,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is a single page.
+     * True if the entire result set fits within this single chunk.
      * </pre>
      *
      * <code>bool isSinglePage = 11;</code>
@@ -2814,7 +2933,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is a single page.
+     * True if the entire result set fits within this single chunk.
      * </pre>
      *
      * <code>bool isSinglePage = 11;</code>
@@ -2830,7 +2949,7 @@ private static final long serialVersionUID = 0L;
     private boolean isEmpty_ ;
     /**
      * <pre>
-     * True, if this is an empty page.
+     * True if this chunk (and the entire result set) contains no records.
      * </pre>
      *
      * <code>bool isEmpty = 12;</code>
@@ -2842,7 +2961,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is an empty page.
+     * True if this chunk (and the entire result set) contains no records.
      * </pre>
      *
      * <code>bool isEmpty = 12;</code>
@@ -2858,7 +2977,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * True, if this is an empty page.
+     * True if this chunk (and the entire result set) contains no records.
      * </pre>
      *
      * <code>bool isEmpty = 12;</code>

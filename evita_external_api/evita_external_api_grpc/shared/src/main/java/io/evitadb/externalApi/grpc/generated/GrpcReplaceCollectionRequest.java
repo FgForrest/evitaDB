@@ -28,6 +28,13 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Request for replacing an entity collection's contents with those of another collection. On success,
+ * `entityTypeToBeReplaced` is purged and its name is taken over by the (dropped) `entityTypeToBeReplacedWith`
+ * collection. If an error occurs mid-operation, both collections are guaranteed to be left untouched under
+ * their original names.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest}
  */
 public final class GrpcReplaceCollectionRequest extends
@@ -69,7 +76,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object entityTypeToBeReplaced_ = "";
   /**
    * <pre>
-   * Name of the entity collection that will be replaced and dropped (new name)
+   * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+   * holding the contents of `entityTypeToBeReplacedWith` under this same name.
    * </pre>
    *
    * <code>string entityTypeToBeReplaced = 1;</code>
@@ -90,7 +98,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the entity collection that will be replaced and dropped (new name)
+   * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+   * holding the contents of `entityTypeToBeReplacedWith` under this same name.
    * </pre>
    *
    * <code>string entityTypeToBeReplaced = 1;</code>
@@ -116,7 +125,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object entityTypeToBeReplacedWith_ = "";
   /**
    * <pre>
-   * Name of the entity collection that will become the successor of the original collection (old name)
+   * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+   * collection itself no longer exists under its own name once the replacement completes.
    * </pre>
    *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -137,7 +147,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the entity collection that will become the successor of the original collection (old name)
+   * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+   * collection itself no longer exists under its own name once the replacement completes.
    * </pre>
    *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -325,6 +336,13 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Request for replacing an entity collection's contents with those of another collection. On success,
+   * `entityTypeToBeReplaced` is purged and its name is taken over by the (dropped) `entityTypeToBeReplacedWith`
+   * collection. If an error occurs mid-operation, both collections are guaranteed to be left untouched under
+   * their original names.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReplaceCollectionRequest}
    */
   public static final class Builder extends
@@ -511,7 +529,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object entityTypeToBeReplaced_ = "";
     /**
      * <pre>
-     * Name of the entity collection that will be replaced and dropped (new name)
+     * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+     * holding the contents of `entityTypeToBeReplacedWith` under this same name.
      * </pre>
      *
      * <code>string entityTypeToBeReplaced = 1;</code>
@@ -531,7 +550,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will be replaced and dropped (new name)
+     * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+     * holding the contents of `entityTypeToBeReplacedWith` under this same name.
      * </pre>
      *
      * <code>string entityTypeToBeReplaced = 1;</code>
@@ -552,7 +572,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will be replaced and dropped (new name)
+     * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+     * holding the contents of `entityTypeToBeReplacedWith` under this same name.
      * </pre>
      *
      * <code>string entityTypeToBeReplaced = 1;</code>
@@ -569,7 +590,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will be replaced and dropped (new name)
+     * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+     * holding the contents of `entityTypeToBeReplacedWith` under this same name.
      * </pre>
      *
      * <code>string entityTypeToBeReplaced = 1;</code>
@@ -583,7 +605,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will be replaced and dropped (new name)
+     * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+     * holding the contents of `entityTypeToBeReplacedWith` under this same name.
      * </pre>
      *
      * <code>string entityTypeToBeReplaced = 1;</code>
@@ -603,7 +626,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object entityTypeToBeReplacedWith_ = "";
     /**
      * <pre>
-     * Name of the entity collection that will become the successor of the original collection (old name)
+     * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+     * collection itself no longer exists under its own name once the replacement completes.
      * </pre>
      *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -623,7 +647,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will become the successor of the original collection (old name)
+     * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+     * collection itself no longer exists under its own name once the replacement completes.
      * </pre>
      *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -644,7 +669,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will become the successor of the original collection (old name)
+     * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+     * collection itself no longer exists under its own name once the replacement completes.
      * </pre>
      *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -661,7 +687,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will become the successor of the original collection (old name)
+     * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+     * collection itself no longer exists under its own name once the replacement completes.
      * </pre>
      *
      * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -675,7 +702,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the entity collection that will become the successor of the original collection (old name)
+     * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+     * collection itself no longer exists under its own name once the replacement completes.
      * </pre>
      *
      * <code>string entityTypeToBeReplacedWith = 2;</code>

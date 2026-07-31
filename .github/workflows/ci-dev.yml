@@ -7,6 +7,7 @@ on:
     branches: [ "dev" ]            # trap each push to dev branch
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
+      - evita*/**/*.proto
       - evita*/**/pom.xml
       - pom.xml
       - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
@@ -31,6 +32,10 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 checkout sources
       with:
         persist-credentials: false
+
+    - name: Lint gRPC proto files with buf   # fails fast, before JDK setup/compile/tests - every
+      run: tools/lint-proto.sh               # message/field/enum/rpc/service must carry a real
+                                              # comment (.claude/rules/proto-documentation.md)
 
     - name: Detect RoaringBitmap module changes   # colocated vendor test suite - skip it unless
       id: roaring-filter                          # this push actually touches that module or the

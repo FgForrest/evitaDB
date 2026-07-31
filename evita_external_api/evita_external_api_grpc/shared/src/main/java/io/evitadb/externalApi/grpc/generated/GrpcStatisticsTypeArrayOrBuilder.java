@@ -33,7 +33,7 @@ public interface GrpcStatisticsTypeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a StatisticsType array.
+   * The individual StatisticsType values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsType value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcStatisticsTypeArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcStatisticsType> getValueList();
   /**
    * <pre>
-   * Value that supports storing a StatisticsType array.
+   * The individual StatisticsType values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsType value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcStatisticsTypeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a StatisticsType array.
+   * The individual StatisticsType values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsType value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcStatisticsTypeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsType getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a StatisticsType array.
+   * The individual StatisticsType values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsType value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcStatisticsTypeArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a StatisticsType array.
+   * The individual StatisticsType values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsType value = 1;</code>

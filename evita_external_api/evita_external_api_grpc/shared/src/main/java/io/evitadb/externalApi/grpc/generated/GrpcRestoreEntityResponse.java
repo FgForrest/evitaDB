@@ -111,7 +111,7 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -123,7 +123,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -154,7 +154,7 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITY_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -166,7 +166,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -181,7 +181,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -607,7 +607,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferenceBuilder_;
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -619,7 +619,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -661,7 +661,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -679,7 +679,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -706,7 +706,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -729,7 +729,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -739,7 +739,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -757,7 +757,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity reference.
+     * The restored entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -785,7 +785,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> entityBuilder_;
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -797,7 +797,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -819,7 +819,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -839,7 +839,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -857,7 +857,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -884,7 +884,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -907,7 +907,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -917,7 +917,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -935,7 +935,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The restored entity.
+     * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>

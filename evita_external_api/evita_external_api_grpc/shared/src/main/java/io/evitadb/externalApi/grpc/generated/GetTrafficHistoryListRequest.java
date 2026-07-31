@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to GetTrafficHistoryList request.
+ * Request for a single bounded batch of past traffic records matching the given criteria.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest}
@@ -71,7 +71,10 @@ private static final long serialVersionUID = 0L;
   private int limit_ = 0;
   /**
    * <pre>
-   * The limit of records to return
+   * Maximum number of matching traffic records to return in this response. This is a plain result cap - not
+   * page-based or offset-based pagination - and the server enforces no upper bound of its own beyond it. To
+   * continue fetching beyond this limit, issue a new request with `criteria.sinceSessionSequenceId` and
+   * `criteria.sinceRecordSessionOffset` set to the position right after the last record already received.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -86,7 +89,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria_;
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -98,7 +102,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -110,7 +115,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the traffic recording, allows to define constraints on the returned records
+   * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+   * are applied and all recorded traffic (up to `limit`) is eligible.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -295,7 +301,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to GetTrafficHistoryList request.
+   * Request for a single bounded batch of past traffic records matching the given criteria.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficHistoryListRequest}
@@ -497,7 +503,10 @@ private static final long serialVersionUID = 0L;
     private int limit_ ;
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of matching traffic records to return in this response. This is a plain result cap - not
+     * page-based or offset-based pagination - and the server enforces no upper bound of its own beyond it. To
+     * continue fetching beyond this limit, issue a new request with `criteria.sinceSessionSequenceId` and
+     * `criteria.sinceRecordSessionOffset` set to the position right after the last record already received.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -509,7 +518,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of matching traffic records to return in this response. This is a plain result cap - not
+     * page-based or offset-based pagination - and the server enforces no upper bound of its own beyond it. To
+     * continue fetching beyond this limit, issue a new request with `criteria.sinceSessionSequenceId` and
+     * `criteria.sinceRecordSessionOffset` set to the position right after the last record already received.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -525,7 +537,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of matching traffic records to return in this response. This is a plain result cap - not
+     * page-based or offset-based pagination - and the server enforces no upper bound of its own beyond it. To
+     * continue fetching beyond this limit, issue a new request with `criteria.sinceSessionSequenceId` and
+     * `criteria.sinceRecordSessionOffset` set to the position right after the last record already received.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -543,7 +558,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteriaOrBuilder> criteriaBuilder_;
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -554,7 +570,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -569,7 +586,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -589,7 +607,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -607,7 +626,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -632,7 +652,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -649,7 +670,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -661,7 +683,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>
@@ -676,7 +699,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the traffic recording, allows to define constraints on the returned records
+     * The criteria of the traffic recording, allowing constraints on the returned records. If unset, no filters
+     * are applied and all recorded traffic (up to `limit`) is eligible.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingCaptureCriteria criteria = 2;</code>

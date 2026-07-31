@@ -33,7 +33,8 @@ public interface GrpcStringArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -43,7 +44,8 @@ public interface GrpcStringArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -52,7 +54,8 @@ public interface GrpcStringArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -62,7 +65,8 @@ public interface GrpcStringArrayOrBuilder extends
   java.lang.String getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>

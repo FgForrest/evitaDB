@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality response.
+ * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse}
@@ -74,7 +74,7 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -86,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -97,7 +97,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -109,7 +109,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -286,7 +286,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality response.
+   * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesResponse}
@@ -476,7 +476,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -489,7 +489,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -500,7 +500,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -512,7 +512,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -525,7 +525,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -544,7 +544,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -562,7 +562,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -580,7 +580,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>
@@ -595,7 +595,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of labels names that match the criteria
+     * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
      * </pre>
      *
      * <code>repeated string labelName = 1;</code>

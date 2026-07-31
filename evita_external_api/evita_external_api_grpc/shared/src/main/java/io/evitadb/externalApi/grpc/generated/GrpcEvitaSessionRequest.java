@@ -119,7 +119,10 @@ private static final long serialVersionUID = 0L;
   private int commitBehavior_ = 0;
   /**
    * <pre>
-   * Commit behaviour
+   * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+   * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+   * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+   * durability/performance trade-offs.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -130,7 +133,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Commit behaviour
+   * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+   * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+   * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+   * durability/performance trade-offs.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -627,7 +633,10 @@ private static final long serialVersionUID = 0L;
     private int commitBehavior_ = 0;
     /**
      * <pre>
-     * Commit behaviour
+     * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+     * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+     * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+     * durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -638,7 +647,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+     * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+     * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+     * durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -653,7 +665,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+     * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+     * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+     * durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -666,7 +681,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+     * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+     * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+     * durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>
@@ -684,7 +702,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Default commit behaviour applied when the session is closed implicitly via `close()` - determines how far a
+     * transaction must be durably persisted before the close is considered complete. Can be overridden per call by
+     * closing the session explicitly with a specific behaviour instead. See `GrpcCommitBehavior` for the available
+     * durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehavior = 2;</code>

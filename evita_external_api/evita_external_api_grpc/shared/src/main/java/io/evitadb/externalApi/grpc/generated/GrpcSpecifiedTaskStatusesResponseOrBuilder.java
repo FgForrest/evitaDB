@@ -33,7 +33,8 @@ public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
 
   /**
    * <pre>
-   * Collection of task statuses.
+   * Statuses of the requested tasks that were found, in no particular order; ids from the request
+   * that don't match any known task are simply absent here, no error is raised for them.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
       getTaskStatusList();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Statuses of the requested tasks that were found, in no particular order; ids from the request
+   * that don't match any known task are simply absent here, no error is raised for them.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -50,7 +52,8 @@ public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index);
   /**
    * <pre>
-   * Collection of task statuses.
+   * Statuses of the requested tasks that were found, in no particular order; ids from the request
+   * that don't match any known task are simply absent here, no error is raised for them.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -58,7 +61,8 @@ public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
   int getTaskStatusCount();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Statuses of the requested tasks that were found, in no particular order; ids from the request
+   * that don't match any known task are simply absent here, no error is raised for them.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -67,7 +71,8 @@ public interface GrpcSpecifiedTaskStatusesResponseOrBuilder extends
       getTaskStatusOrBuilderList();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Statuses of the requested tasks that were found, in no particular order; ids from the request
+   * that don't match any known task are simply absent here, no error is raised for them.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>

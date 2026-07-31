@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object languageTag_ = "";
   /**
    * <pre>
-   * The language tag of the locale.
+   * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+   * `Locale#forLanguageTag(String)`.
    * </pre>
    *
    * <code>string languageTag = 1;</code>
@@ -93,7 +94,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The language tag of the locale.
+   * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+   * `Locale#forLanguageTag(String)`.
    * </pre>
    *
    * <code>string languageTag = 1;</code>
@@ -447,7 +449,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object languageTag_ = "";
     /**
      * <pre>
-     * The language tag of the locale.
+     * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+     * `Locale#forLanguageTag(String)`.
      * </pre>
      *
      * <code>string languageTag = 1;</code>
@@ -467,7 +470,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The language tag of the locale.
+     * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+     * `Locale#forLanguageTag(String)`.
      * </pre>
      *
      * <code>string languageTag = 1;</code>
@@ -488,7 +492,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The language tag of the locale.
+     * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+     * `Locale#forLanguageTag(String)`.
      * </pre>
      *
      * <code>string languageTag = 1;</code>
@@ -505,7 +510,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The language tag of the locale.
+     * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+     * `Locale#forLanguageTag(String)`.
      * </pre>
      *
      * <code>string languageTag = 1;</code>
@@ -519,7 +525,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The language tag of the locale.
+     * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+     * `Locale#forLanguageTag(String)`.
      * </pre>
      *
      * <code>string languageTag = 1;</code>

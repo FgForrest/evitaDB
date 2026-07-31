@@ -33,7 +33,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasStringValue();
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcEvitaValueOrBuilder extends
   java.lang.String getStringValue();
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -62,7 +65,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Integer value.
+   * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+   * `type` is `BYTE` or `SHORT`.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -71,7 +75,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasIntegerValue();
   /**
    * <pre>
-   * Integer value.
+   * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+   * `type` is `BYTE` or `SHORT`.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -81,7 +86,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Long value.
+   * Long value (Java `long`).
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -90,7 +95,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLongValue();
   /**
    * <pre>
-   * Long value.
+   * Long value (Java `long`).
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -100,7 +105,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Boolean value.
+   * Boolean value (Java `boolean`).
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -109,7 +114,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBooleanValue();
   /**
    * <pre>
-   * Boolean value.
+   * Boolean value (Java `boolean`).
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -119,7 +124,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -128,7 +133,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBigDecimalValue();
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -137,7 +142,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getBigDecimalValue();
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -146,7 +151,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -155,7 +160,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasDateTimeRangeValue();
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -164,7 +169,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getDateTimeRangeValue();
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -173,7 +178,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -182,7 +188,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasIntegerNumberRangeValue();
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -191,7 +198,8 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getIntegerNumberRangeValue();
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -200,7 +208,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -209,7 +217,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLongNumberRangeValue();
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -218,7 +226,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange getLongNumberRangeValue();
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -227,7 +235,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -236,7 +244,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBigDecimalNumberRangeValue();
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -245,7 +253,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getBigDecimalNumberRangeValue();
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -254,7 +262,9 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -263,7 +273,9 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasOffsetDateTimeValue();
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -272,7 +284,9 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getOffsetDateTimeValue();
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -281,7 +295,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -290,7 +304,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLocaleValue();
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -299,7 +313,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLocale getLocaleValue();
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -308,7 +322,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -317,7 +331,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasCurrencyValue();
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -326,7 +340,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getCurrencyValue();
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -335,7 +349,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -344,7 +358,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasUuidValue();
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -353,7 +367,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getUuidValue();
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -362,7 +376,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -371,7 +386,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasPredecessorValue();
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -380,7 +396,8 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcPredecessor getPredecessorValue();
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -389,7 +406,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -398,7 +416,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasStringArrayValue();
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -407,7 +426,8 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue();
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -416,7 +436,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -425,7 +446,8 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasIntegerArrayValue();
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -434,7 +456,8 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue();
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -443,7 +466,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -452,7 +475,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLongArrayValue();
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -461,7 +484,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue();
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -470,7 +493,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -479,7 +502,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBooleanArrayValue();
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -488,7 +511,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue();
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -497,7 +520,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -506,7 +529,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBigDecimalArrayValue();
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -515,7 +538,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue();
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -524,7 +547,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -533,7 +556,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasDateTimeRangeArrayValue();
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -542,7 +565,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue();
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -551,7 +574,9 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -560,7 +585,9 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasIntegerNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -569,7 +596,9 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -578,7 +607,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -587,7 +616,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLongNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -596,7 +625,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -605,7 +634,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -614,7 +643,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasBigDecimalNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -623,7 +652,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue();
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -632,7 +661,9 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -641,7 +672,9 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasOffsetDateTimeArrayValue();
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -650,7 +683,9 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue();
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -659,7 +694,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -668,7 +703,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasLocaleArrayValue();
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -677,7 +712,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue();
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -686,7 +721,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -695,7 +730,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasCurrencyArrayValue();
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -704,7 +739,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue();
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -713,7 +748,7 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -722,7 +757,7 @@ public interface GrpcEvitaValueOrBuilder extends
   boolean hasUuidArrayValue();
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -731,7 +766,7 @@ public interface GrpcEvitaValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuidArray getUuidArrayValue();
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -740,7 +775,8 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+   * comment for which narrower types it also stands in for).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -749,7 +785,8 @@ public interface GrpcEvitaValueOrBuilder extends
   int getTypeValue();
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+   * comment for which narrower types it also stands in for).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>

@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task status request.
+ * One chunk of a file's contents, streamed back to the client. The server sends a sequence of
+ * these messages; concatenate `fileContents` from all of them, in arrival order, to reconstruct
+ * the full file.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse}
@@ -71,7 +73,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.ByteString fileContents_ = com.google.protobuf.ByteString.EMPTY;
   /**
    * <pre>
-   * chunk of the file content
+   * One chunk of the file's binary contents.
    * </pre>
    *
    * <code>bytes fileContents = 1;</code>
@@ -86,7 +88,8 @@ private static final long serialVersionUID = 0L;
   private long totalSizeInBytes_ = 0L;
   /**
    * <pre>
-   * total size of the file
+   * Total size of the complete file (bytes); the same value is repeated on every chunk in the
+   * stream, not just the size of this chunk.
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 2;</code>
@@ -268,7 +271,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task status request.
+   * One chunk of a file's contents, streamed back to the client. The server sends a sequence of
+   * these messages; concatenate `fileContents` from all of them, in arrival order, to reconstruct
+   * the full file.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse}
@@ -453,7 +458,7 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.ByteString fileContents_ = com.google.protobuf.ByteString.EMPTY;
     /**
      * <pre>
-     * chunk of the file content
+     * One chunk of the file's binary contents.
      * </pre>
      *
      * <code>bytes fileContents = 1;</code>
@@ -465,7 +470,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * chunk of the file content
+     * One chunk of the file's binary contents.
      * </pre>
      *
      * <code>bytes fileContents = 1;</code>
@@ -481,7 +486,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * chunk of the file content
+     * One chunk of the file's binary contents.
      * </pre>
      *
      * <code>bytes fileContents = 1;</code>
@@ -497,7 +502,8 @@ private static final long serialVersionUID = 0L;
     private long totalSizeInBytes_ ;
     /**
      * <pre>
-     * total size of the file
+     * Total size of the complete file (bytes); the same value is repeated on every chunk in the
+     * stream, not just the size of this chunk.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 2;</code>
@@ -509,7 +515,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * total size of the file
+     * Total size of the complete file (bytes); the same value is repeated on every chunk in the
+     * stream, not just the size of this chunk.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 2;</code>
@@ -525,7 +532,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * total size of the file
+     * Total size of the complete file (bytes); the same value is repeated on every chunk in the
+     * stream, not just the size of this chunk.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 2;</code>

@@ -29,7 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Wrapper for representing an array of IntegerNumberRanges.
+ * Wrapper for representing an array of IntegerNumberRanges. Also used to carry ByteNumberRange
+ * and ShortNumberRange arrays; which Java array type applies is determined by the accompanying
+ * GrpcEvitaDataType (BYTE_NUMBER_RANGE_ARRAY, SHORT_NUMBER_RANGE_ARRAY or
+ * INTEGER_NUMBER_RANGE_ARRAY).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray}
@@ -72,7 +75,7 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange> value_;
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -83,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -95,7 +98,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -106,7 +109,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -117,7 +120,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -289,7 +292,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Wrapper for representing an array of IntegerNumberRanges.
+   * Wrapper for representing an array of IntegerNumberRanges. Also used to carry ByteNumberRange
+   * and ShortNumberRange arrays; which Java array type applies is determined by the accompanying
+   * GrpcEvitaDataType (BYTE_NUMBER_RANGE_ARRAY, SHORT_NUMBER_RANGE_ARRAY or
+   * INTEGER_NUMBER_RANGE_ARRAY).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray}
@@ -520,7 +526,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -534,7 +540,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -548,7 +554,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -562,7 +568,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -583,7 +589,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -601,7 +607,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -621,7 +627,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -642,7 +648,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -660,7 +666,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -678,7 +684,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -697,7 +703,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -714,7 +720,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -731,7 +737,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -742,7 +748,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -756,7 +762,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -771,7 +777,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -782,7 +788,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -794,7 +800,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an IntegerNumberRange array.
+     * The individual IntegerNumberRange elements, in their original order.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>

@@ -26,7 +26,7 @@ enum GrpcCatalogState {
   // State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
   // the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
   INACTIVE = 4;
-  // State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
+  // State signalizing that evitaDB engine is transitioning catalog from `WARMING_UP` to `ALIVE` state.
   // Until the transition is fully completed, the catalog is not able to serve any requests.
   GOING_ALIVE = 5;
   // State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
@@ -34,7 +34,7 @@ enum GrpcCatalogState {
   // completed.
   BEING_ACTIVATED = 6;
   // State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
-  // is moved to {@link #INACTIVE} state.
+  // is moved to `INACTIVE` state.
   BEING_DEACTIVATED = 7;
   // State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
   // until the creation is fully completed.
@@ -57,7 +57,7 @@ enum GrpcCatalogState {
   UNKNOWN_CATALOG_STATE = 2;
 }
 
-// This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
+// This enum represents the uniqueness type of an `AttributeSchema`. It is used to determine whether the attribute
 // value must be unique among all the entity attributes of this type or whether it must be unique only among attributes
 // of the same locale.
 enum GrpcAttributeUniquenessType {
@@ -65,22 +65,22 @@ enum GrpcAttributeUniquenessType {
   NOT_UNIQUE = 0;
   // The attribute value must be unique among all the entities of the same collection.
   UNIQUE_WITHIN_COLLECTION = 1;
-  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
+  // The localized attribute value must be unique among all values of the same `Locale` among all the entities
   // using of the same collection.
   UNIQUE_WITHIN_COLLECTION_LOCALE = 2;
 }
 
-// This enum represents the uniqueness type of an {@link GlobalAttributeSchema}. It is used to determine whether
-// the attribute value must be unique among all the entities using this {@link GlobalAttributeSchema} or whether it
+// This enum represents the uniqueness type of a `GlobalAttributeSchema`. It is used to determine whether
+// the attribute value must be unique among all the entities using this `GlobalAttributeSchema` or whether it
 // must be unique only among entities of the same locale.
 enum GrpcGlobalAttributeUniquenessType {
   // The attribute is not unique (default).
   NOT_GLOBALLY_UNIQUE = 0;
   // The attribute value (either localized or non-localized) must be unique among all values among all the entities
-  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  // using this `GlobalAttributeSchema` in the entire catalog.
   UNIQUE_WITHIN_CATALOG = 1;
-  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
-  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  // The localized attribute value must be unique among all values of the same `Locale` among all the entities
+  // using this `GlobalAttributeSchema` in the entire catalog.
   UNIQUE_WITHIN_CATALOG_LOCALE = 2;
 }
 
@@ -198,10 +198,10 @@ enum GrpcHistogramBehavior {
   EQUALIZED_OPTIMIZED = 3;
 }
 
-// This enumeration controls behavior of the {@link ReferenceContent} related to managed entities.
-// If the target entity is not (yet) present in the database and {@link ManagedReferencesBehaviour#EXISTING} is set,
+// This enumeration controls behavior of the `ReferenceContent` related to managed entities.
+// If the target entity is not (yet) present in the database and `EXISTING` is set,
 // the reference will not be returned as if it does not exist.
-// If {@link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+// If `ANY` is set (default behavior), the reference will be returned if defined regardless
 // of its target entity existence.
 enum GrpcManagedReferencesBehaviour {
   // The reference to managed entity will always be returned regardless of the target entity existence.
@@ -408,6 +408,8 @@ enum GrpcEvitaDataType {
 
 // This enum contains all supported data types of AssociatedData.
 message GrpcEvitaAssociatedDataDataType {
+  // Enumerates the value types evitaDB supports for associated data (both scalar and array variants) - a subset
+  // of the general query data types plus `ComplexDataObject` for arbitrary nested structures.
   enum GrpcEvitaDataType {
     // Represents string data type.
     STRING = 0;
@@ -569,7 +571,7 @@ enum GrpcCommitBehavior {
   // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
   // is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
   // (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
-  // slower than {@link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
+  // slower than `WAIT_FOR_CONFLICT_RESOLUTION` but guarantees that the changes are persisted on disk and durable. The server
   // may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
   // necessary. This behaviour still does not guarantee that the changes will be visible immediately after
   // the commit - because they still need to be propagated to indexes in order new data can be found by queries.
@@ -697,12 +699,12 @@ enum GrpcTaskSimplifiedState {
 // Enum specifies different modes for reference attributes inheritance in reflected schema.
 enum GrpcAttributeInheritanceBehavior {
   /**
-   * Inherit all attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   * Inherit all attributes by default except those listed in the attribute inheritance filter array.
    */
   INHERIT_ALL_EXCEPT = 0;
 
   /**
-   * Do not inherit any attributes by default except those listed in the {@link #getAttributeInheritanceFilter()} array.
+   * Do not inherit any attributes by default except those listed in the attribute inheritance filter array.
    */
   INHERIT_ONLY_SPECIFIED = 1;
 }

@@ -33,7 +33,7 @@ public interface GrpcPriceContentModeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a PriceContentMode array.
+   * The individual PriceContentMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcPriceContentModeArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode> getValueList();
   /**
    * <pre>
-   * Value that supports storing a PriceContentMode array.
+   * The individual PriceContentMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcPriceContentModeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a PriceContentMode array.
+   * The individual PriceContentMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcPriceContentModeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a PriceContentMode array.
+   * The individual PriceContentMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcPriceContentModeArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a PriceContentMode array.
+   * The individual PriceContentMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode value = 1;</code>

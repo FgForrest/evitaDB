@@ -28,6 +28,14 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * One message of the GoLiveAndCloseWithProgress stream. Intermediate messages report only
+ * `progressInPercent` (throttled to at most once per second, and only when the percentage has
+ * increased); `catalogVersion`/`catalogSchemaVersion` are left at their zero default on those messages
+ * since they are not yet meaningful. The final message always carries `progressInPercent == 100` together
+ * with a populated `catalogVersion`/`catalogSchemaVersion`, and ends the stream.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse}
  */
 public final class GrpcGoLiveAndCloseWithProgressResponse extends
@@ -66,7 +74,8 @@ private static final long serialVersionUID = 0L;
   private long catalogVersion_ = 0L;
   /**
    * <pre>
-   * Contains next catalog version
+   * Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+   * at its default (`0`) on intermediate progress-only messages.
    * </pre>
    *
    * <code>int64 catalogVersion = 1;</code>
@@ -83,7 +92,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Contains the version of the catalog schema that will be valid at the moment of closing the session.
    * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-   * version (i.e. the one that is returned in the response) becomes visible.
+   * version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+   * message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
    * </pre>
    *
    * <code>int32 catalogSchemaVersion = 2;</code>
@@ -98,7 +108,8 @@ private static final long serialVersionUID = 0L;
   private int progressInPercent_ = 0;
   /**
    * <pre>
-   * The progress of the go live operation in percents.
+   * Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+   * in the stream always carries 100.
    * </pre>
    *
    * <code>int32 progressInPercent = 3;</code>
@@ -290,6 +301,14 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * One message of the GoLiveAndCloseWithProgress stream. Intermediate messages report only
+   * `progressInPercent` (throttled to at most once per second, and only when the percentage has
+   * increased); `catalogVersion`/`catalogSchemaVersion` are left at their zero default on those messages
+   * since they are not yet meaningful. The final message always carries `progressInPercent == 100` together
+   * with a populated `catalogVersion`/`catalogSchemaVersion`, and ends the stream.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseWithProgressResponse}
    */
   public static final class Builder extends
@@ -484,7 +503,8 @@ private static final long serialVersionUID = 0L;
     private long catalogVersion_ ;
     /**
      * <pre>
-     * Contains next catalog version
+     * Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+     * at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int64 catalogVersion = 1;</code>
@@ -496,7 +516,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains next catalog version
+     * Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+     * at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int64 catalogVersion = 1;</code>
@@ -512,7 +533,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains next catalog version
+     * Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+     * at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int64 catalogVersion = 1;</code>
@@ -530,7 +552,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains the version of the catalog schema that will be valid at the moment of closing the session.
      * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-     * version (i.e. the one that is returned in the response) becomes visible.
+     * version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+     * message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int32 catalogSchemaVersion = 2;</code>
@@ -544,7 +567,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains the version of the catalog schema that will be valid at the moment of closing the session.
      * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-     * version (i.e. the one that is returned in the response) becomes visible.
+     * version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+     * message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int32 catalogSchemaVersion = 2;</code>
@@ -562,7 +586,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains the version of the catalog schema that will be valid at the moment of closing the session.
      * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-     * version (i.e. the one that is returned in the response) becomes visible.
+     * version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+     * message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
      * </pre>
      *
      * <code>int32 catalogSchemaVersion = 2;</code>
@@ -578,7 +603,8 @@ private static final long serialVersionUID = 0L;
     private int progressInPercent_ ;
     /**
      * <pre>
-     * The progress of the go live operation in percents.
+     * Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+     * in the stream always carries 100.
      * </pre>
      *
      * <code>int32 progressInPercent = 3;</code>
@@ -590,7 +616,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the go live operation in percents.
+     * Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+     * in the stream always carries 100.
      * </pre>
      *
      * <code>int32 progressInPercent = 3;</code>
@@ -606,7 +633,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the go live operation in percents.
+     * Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+     * in the stream always carries 100.
      * </pre>
      *
      * <code>int32 progressInPercent = 3;</code>

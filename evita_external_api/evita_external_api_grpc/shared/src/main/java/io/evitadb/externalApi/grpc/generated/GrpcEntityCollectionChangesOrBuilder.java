@@ -32,11 +32,19 @@ public interface GrpcEntityCollectionChangesOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * The name (entity type) of the entity collection these counts apply to.
+   * </pre>
+   *
    * <code>string entityName = 1;</code>
    * @return The entityName.
    */
   java.lang.String getEntityName();
   /**
+   * <pre>
+   * The name (entity type) of the entity collection these counts apply to.
+   * </pre>
+   *
    * <code>string entityName = 1;</code>
    * @return The bytes for entityName.
    */

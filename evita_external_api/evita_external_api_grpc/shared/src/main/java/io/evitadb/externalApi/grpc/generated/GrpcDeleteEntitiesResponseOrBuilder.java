@@ -33,7 +33,7 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
 
   /**
    * <pre>
-   * Count of deleted entities.
+   * Total number of entities deleted.
    * </pre>
    *
    * <code>int32 deletedEntities = 1;</code>
@@ -43,7 +43,9 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The deleted entity bodies.
+   * The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+   * `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+   * `entityFetch` requirement.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
@@ -52,7 +54,9 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
       getDeletedEntityBodiesList();
   /**
    * <pre>
-   * The deleted entity bodies.
+   * The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+   * `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+   * `entityFetch` requirement.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
@@ -60,7 +64,9 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedEntityBodies(int index);
   /**
    * <pre>
-   * The deleted entity bodies.
+   * The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+   * `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+   * `entityFetch` requirement.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
@@ -68,7 +74,9 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
   int getDeletedEntityBodiesCount();
   /**
    * <pre>
-   * The deleted entity bodies.
+   * The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+   * `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+   * `entityFetch` requirement.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
@@ -77,7 +85,9 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
       getDeletedEntityBodiesOrBuilderList();
   /**
    * <pre>
-   * The deleted entity bodies.
+   * The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+   * `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+   * `entityFetch` requirement.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>

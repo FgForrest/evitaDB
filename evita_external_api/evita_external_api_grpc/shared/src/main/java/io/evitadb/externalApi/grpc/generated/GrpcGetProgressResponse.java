@@ -72,7 +72,10 @@ private static final long serialVersionUID = 0L;
   private boolean found_ = false;
   /**
    * <pre>
-   * contains information whether the progress was found or not
+   * True when a mutation progress was being tracked for `catalogName` at the moment this call was received. If
+   * `false`, none of the fields below carry information - either no mutation is currently in flight for this
+   * catalog, or a previously tracked one already finished (and its progress entry was cleared) before this call
+   * arrived; the call must be made while the operation is still running in order to observe it.
    * </pre>
    *
    * <code>bool found = 1;</code>
@@ -87,7 +90,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value progressInPercent_;
   /**
    * <pre>
-   * The progress of the top-level engine mutation in percents.
+   * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+   * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
    * </pre>
    *
    * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -99,7 +103,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The progress of the top-level engine mutation in percents.
+   * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+   * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
    * </pre>
    *
    * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -111,7 +116,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The progress of the top-level engine mutation in percents.
+   * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+   * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
    * </pre>
    *
    * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -126,7 +132,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * Catalog name copied from the request. Empty when `found` is `false`.
    * </pre>
    *
    * <code>string catalogName = 3;</code>
@@ -147,7 +153,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains catalog name copied from the request (if the progress is related to a catalog)
+   * Catalog name copied from the request. Empty when `found` is `false`.
    * </pre>
    *
    * <code>string catalogName = 3;</code>
@@ -172,7 +178,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value catalogVersion_;
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+   * engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -184,7 +192,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+   * engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -196,7 +206,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+   * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+   * engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -210,7 +222,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value catalogSchemaVersion_;
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final streamed message
+   * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+   * catalog rather than being purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -222,7 +236,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final streamed message
+   * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+   * catalog rather than being purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -234,7 +250,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+   * Catalog schema version reached by the operation. Set only on the final streamed message
+   * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+   * catalog rather than being purely engine-level); unset on every intermediate update.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -722,7 +740,10 @@ private static final long serialVersionUID = 0L;
     private boolean found_ ;
     /**
      * <pre>
-     * contains information whether the progress was found or not
+     * True when a mutation progress was being tracked for `catalogName` at the moment this call was received. If
+     * `false`, none of the fields below carry information - either no mutation is currently in flight for this
+     * catalog, or a previously tracked one already finished (and its progress entry was cleared) before this call
+     * arrived; the call must be made while the operation is still running in order to observe it.
      * </pre>
      *
      * <code>bool found = 1;</code>
@@ -734,7 +755,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * contains information whether the progress was found or not
+     * True when a mutation progress was being tracked for `catalogName` at the moment this call was received. If
+     * `false`, none of the fields below carry information - either no mutation is currently in flight for this
+     * catalog, or a previously tracked one already finished (and its progress entry was cleared) before this call
+     * arrived; the call must be made while the operation is still running in order to observe it.
      * </pre>
      *
      * <code>bool found = 1;</code>
@@ -750,7 +774,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * contains information whether the progress was found or not
+     * True when a mutation progress was being tracked for `catalogName` at the moment this call was received. If
+     * `false`, none of the fields below carry information - either no mutation is currently in flight for this
+     * catalog, or a previously tracked one already finished (and its progress entry was cleared) before this call
+     * arrived; the call must be made while the operation is still running in order to observe it.
      * </pre>
      *
      * <code>bool found = 1;</code>
@@ -768,7 +795,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> progressInPercentBuilder_;
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -779,7 +807,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -794,7 +823,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -814,7 +844,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -832,7 +863,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -857,7 +889,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -874,7 +907,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -886,7 +920,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -901,7 +936,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The progress of the top-level engine mutation in percents.
+     * Current progress of the tracked mutation (percent, 0-100). Unset iff `found` is `false`. The final streamed
+     * message carries 100; intermediate updates are throttled (only sent on an increase, at most once per second).
      * </pre>
      *
      * <code>.google.protobuf.Int32Value progressInPercent = 2;</code>
@@ -923,7 +959,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * Catalog name copied from the request. Empty when `found` is `false`.
      * </pre>
      *
      * <code>string catalogName = 3;</code>
@@ -943,7 +979,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * Catalog name copied from the request. Empty when `found` is `false`.
      * </pre>
      *
      * <code>string catalogName = 3;</code>
@@ -964,7 +1000,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * Catalog name copied from the request. Empty when `found` is `false`.
      * </pre>
      *
      * <code>string catalogName = 3;</code>
@@ -981,7 +1017,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * Catalog name copied from the request. Empty when `found` is `false`.
      * </pre>
      *
      * <code>string catalogName = 3;</code>
@@ -995,7 +1031,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog name copied from the request (if the progress is related to a catalog)
+     * Catalog name copied from the request. Empty when `found` is `false`.
      * </pre>
      *
      * <code>string catalogName = 3;</code>
@@ -1017,7 +1053,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> catalogVersionBuilder_;
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1028,7 +1066,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1043,7 +1083,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1063,7 +1105,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1081,7 +1125,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1106,7 +1152,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1123,7 +1171,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1135,7 +1185,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1150,7 +1202,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog version reached by the operation. Set only on the final streamed message (`progressInPercent` = 100),
+     * and only if the operation produced a catalog version (i.e. relates to a catalog rather than being purely
+     * engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value catalogVersion = 4;</code>
@@ -1174,7 +1228,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> catalogSchemaVersionBuilder_;
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1185,7 +1241,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1200,7 +1258,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1220,7 +1280,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1238,7 +1300,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1263,7 +1327,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1280,7 +1346,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1292,7 +1360,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>
@@ -1307,7 +1377,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+     * Catalog schema version reached by the operation. Set only on the final streamed message
+     * (`progressInPercent` = 100), and only if the operation produced a catalog schema version (i.e. relates to a
+     * catalog rather than being purely engine-level); unset on every intermediate update.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value catalogSchemaVersion = 5;</code>

@@ -33,7 +33,7 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
 
   /**
    * <pre>
-   * Count of deleted entities.
+   * Total number of entities deleted (the root plus its whole nested hierarchy).
    * </pre>
    *
    * <code>int32 deletedEntities = 1;</code>
@@ -43,7 +43,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
 
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -52,7 +53,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   boolean hasDeletedRootEntityReference();
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -61,7 +63,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getDeletedRootEntityReference();
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -70,7 +73,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
 
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -79,7 +83,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   boolean hasDeletedRootEntity();
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -88,7 +93,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getDeletedRootEntity();
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -97,7 +103,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
 
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -106,7 +113,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   java.util.List<java.lang.Integer> getDeletedEntityPrimaryKeysList();
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -115,7 +123,8 @@ public interface GrpcDeleteEntityAndItsHierarchyResponseOrBuilder extends
   int getDeletedEntityPrimaryKeysCount();
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>

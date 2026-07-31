@@ -72,7 +72,7 @@ private static final long serialVersionUID = 0L;
   private int catalogState_ = 0;
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -83,7 +83,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -94,7 +94,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -444,7 +444,7 @@ private static final long serialVersionUID = 0L;
     private int catalogState_ = 0;
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -455,7 +455,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -466,7 +466,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -481,7 +481,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -494,7 +494,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -512,7 +512,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * State of the catalog.
+     * State of the catalog. Unset if no catalog with the requested name exists.
      * </pre>
      *
      * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>

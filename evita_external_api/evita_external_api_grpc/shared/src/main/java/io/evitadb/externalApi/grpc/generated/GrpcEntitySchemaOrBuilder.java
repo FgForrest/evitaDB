@@ -154,7 +154,7 @@ public interface GrpcEntitySchemaOrBuilder extends
    * Each entity must be part of at most single hierarchy (tree).
    *
    * Hierarchy can limit returned entities by using filtering constraints. It's also used for
-   * computation of extra data - such as `hierarchyParentsOfSelf`. It can also invert type of returned entities in case extra result
+   * computation of extra data - such as the `parents` requirement. It can also invert type of returned entities in case extra result
    * `hierarchyOfSelf` is requested.
    * </pre>
    *
@@ -859,7 +859,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * can define its price), but it is not possible to work with the price information in any other way (calculating
    * price histogram, filtering, sorting by price, etc.).
    *
-   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -873,7 +873,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * can define its price), but it is not possible to work with the price information in any other way (calculating
    * price histogram, filtering, sorting by price, etc.).
    *
-   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -887,7 +887,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * can define its price), but it is not possible to work with the price information in any other way (calculating
    * price histogram, filtering, sorting by price, etc.).
    *
-   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -902,7 +902,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * can define its price), but it is not possible to work with the price information in any other way (calculating
    * price histogram, filtering, sorting by price, etc.).
    *
-   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>
@@ -917,7 +917,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    * can define its price), but it is not possible to work with the price information in any other way (calculating
    * price histogram, filtering, sorting by price, etc.).
    *
-   * Prices can be also set as non-indexed individually by setting {&#64;link PriceContract#indexed()} to false.
+   * Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope priceIndexedInScopes = 18;</code>

@@ -122,7 +122,8 @@ private static final long serialVersionUID = 0L;
   private int sessionType_ = 0;
   /**
    * <pre>
-   * Type of the created session.
+   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -133,7 +134,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Type of the created session.
+   * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+   * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -148,7 +150,8 @@ private static final long serialVersionUID = 0L;
   private int commitBehaviour_ = 0;
   /**
    * <pre>
-   * Commit behaviour
+   * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+   * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -159,7 +162,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Commit behaviour
+   * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+   * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -758,7 +762,8 @@ private static final long serialVersionUID = 0L;
     private int sessionType_ = 0;
     /**
      * <pre>
-     * Type of the created session.
+     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -769,7 +774,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session.
+     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -784,7 +790,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session.
+     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -797,7 +804,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session.
+     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -815,7 +823,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the created session.
+     * Type of the created session - read-only vs. read-write, and whether fetched entities are returned in binary
+     * form for the Java driver (`BINARY_*` variants). See `GrpcSessionType`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSessionType sessionType = 2;</code>
@@ -831,7 +840,8 @@ private static final long serialVersionUID = 0L;
     private int commitBehaviour_ = 0;
     /**
      * <pre>
-     * Commit behaviour
+     * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+     * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -842,7 +852,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+     * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -857,7 +868,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+     * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -870,7 +882,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+     * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
@@ -888,7 +901,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Commit behaviour
+     * Effective commit behaviour of the created session, applied when the session is closed implicitly via
+     * `close()`. See `GrpcCommitBehavior` for the available durability/performance trade-offs.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>

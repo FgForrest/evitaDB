@@ -33,7 +33,7 @@ public interface GrpcReservedKeywordOrBuilder extends
 
   /**
    * <pre>
-   * Type of the keyword
+   * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcReservedKeywordOrBuilder extends
   int getClassifierTypeValue();
   /**
    * <pre>
-   * Type of the keyword
+   * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -52,7 +52,9 @@ public interface GrpcReservedKeywordOrBuilder extends
 
   /**
    * <pre>
-   * Reserved keyword
+   * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+   * colliding if it matches this value in any of evitaDB's supported naming conventions
+   * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
    * </pre>
    *
    * <code>string classifier = 2;</code>
@@ -61,7 +63,9 @@ public interface GrpcReservedKeywordOrBuilder extends
   java.lang.String getClassifier();
   /**
    * <pre>
-   * Reserved keyword
+   * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+   * colliding if it matches this value in any of evitaDB's supported naming conventions
+   * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
    * </pre>
    *
    * <code>string classifier = 2;</code>
@@ -72,7 +76,8 @@ public interface GrpcReservedKeywordOrBuilder extends
 
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -82,7 +87,8 @@ public interface GrpcReservedKeywordOrBuilder extends
       getWordsList();
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -91,7 +97,8 @@ public interface GrpcReservedKeywordOrBuilder extends
   int getWordsCount();
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -101,7 +108,8 @@ public interface GrpcReservedKeywordOrBuilder extends
   java.lang.String getWords(int index);
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>

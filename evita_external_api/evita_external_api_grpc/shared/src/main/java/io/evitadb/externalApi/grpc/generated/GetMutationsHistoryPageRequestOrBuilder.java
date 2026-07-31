@@ -33,7 +33,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -42,7 +44,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasPage();
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -51,7 +55,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   com.google.protobuf.Int32Value getPage();
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -60,7 +66,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -69,7 +76,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasPageSize();
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -78,7 +86,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   com.google.protobuf.Int32Value getPageSize();
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -87,7 +96,16 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -96,7 +114,16 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -105,7 +132,16 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   com.google.protobuf.Int64Value getSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -114,7 +150,10 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -123,7 +162,10 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -132,7 +174,10 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   com.google.protobuf.Int32Value getSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -141,7 +186,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -150,7 +197,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasTimeFrame();
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -159,7 +208,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getTimeFrame();
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -168,7 +219,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -177,7 +229,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
       getCriteriaList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -185,7 +238,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index);
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -193,7 +247,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   int getCriteriaCount();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -202,7 +257,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
       getCriteriaOrBuilderList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -212,7 +268,10 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -221,7 +280,10 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   int getContentValue();
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>

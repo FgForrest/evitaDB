@@ -33,7 +33,8 @@ public interface GetTrafficHistoryResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The traffic records carried by this streamed frame (the current server implementation emits exactly one
+   * record per frame).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -42,7 +43,8 @@ public interface GetTrafficHistoryResponseOrBuilder extends
       getTrafficRecordList();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The traffic records carried by this streamed frame (the current server implementation emits exactly one
+   * record per frame).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -50,7 +52,8 @@ public interface GetTrafficHistoryResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord getTrafficRecord(int index);
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The traffic records carried by this streamed frame (the current server implementation emits exactly one
+   * record per frame).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -58,7 +61,8 @@ public interface GetTrafficHistoryResponseOrBuilder extends
   int getTrafficRecordCount();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The traffic records carried by this streamed frame (the current server implementation emits exactly one
+   * record per frame).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>
@@ -67,7 +71,8 @@ public interface GetTrafficHistoryResponseOrBuilder extends
       getTrafficRecordOrBuilderList();
   /**
    * <pre>
-   * The list of traffic records that match the criteria
+   * The traffic records carried by this streamed frame (the current server implementation emits exactly one
+   * record per frame).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTrafficRecord trafficRecord = 1;</code>

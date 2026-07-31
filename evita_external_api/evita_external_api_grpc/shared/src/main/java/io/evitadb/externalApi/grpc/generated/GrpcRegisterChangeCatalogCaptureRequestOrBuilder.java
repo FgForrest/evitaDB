@@ -33,7 +33,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -42,7 +44,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   boolean hasSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -51,7 +55,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   com.google.protobuf.Int64Value getSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -60,7 +66,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -69,7 +77,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   boolean hasSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -78,7 +88,9 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   com.google.protobuf.Int32Value getSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -87,7 +99,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -96,7 +109,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
       getCriteriaList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -104,7 +118,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index);
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -112,7 +127,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   int getCriteriaCount();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -121,7 +137,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
       getCriteriaOrBuilderList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -131,7 +148,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
 
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+   * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -140,7 +158,8 @@ public interface GrpcRegisterChangeCatalogCaptureRequestOrBuilder extends
   int getContentValue();
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+   * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>

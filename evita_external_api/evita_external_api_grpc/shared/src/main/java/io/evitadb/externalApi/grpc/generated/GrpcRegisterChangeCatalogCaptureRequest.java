@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to RegisterChangeCatalogCapture request.
+ * Request to open a live subscription (RegisterChangeCatalogCapture) that streams mutations as they
+ * commit, optionally preceded by a historical replay starting at `sinceVersion`/`sinceIndex`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest}
@@ -73,7 +74,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value sinceVersion_;
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -85,7 +88,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -97,7 +102,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+   * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+   * subscription is registered are delivered, with no historical replay.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -111,7 +118,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value sinceIndex_;
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -123,7 +132,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -135,7 +146,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+   * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+   * If unset, defaults to 0, i.e. starting from that version's transaction header.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -150,7 +163,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> criteria_;
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -161,7 +175,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -173,7 +188,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -184,7 +200,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -195,7 +212,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -210,7 +228,8 @@ private static final long serialVersionUID = 0L;
   private int content_ = 0;
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+   * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -221,7 +240,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+   * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -435,7 +455,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to RegisterChangeCatalogCapture request.
+   * Request to open a live subscription (RegisterChangeCatalogCapture) that streams mutations as they
+   * commit, optionally preceded by a historical replay starting at `sinceVersion`/`sinceIndex`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest}
@@ -721,7 +742,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -732,7 +755,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -747,7 +772,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -767,7 +794,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -785,7 +814,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -810,7 +841,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -827,7 +860,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -839,7 +874,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -854,7 +891,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version from which to start the historical replay portion of the subscription (inclusive).
+     * If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+     * subscription is registered are delivered, with no historical replay.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -878,7 +917,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> sinceIndexBuilder_;
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -889,7 +930,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -904,7 +947,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -924,7 +969,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -942,7 +989,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -967,7 +1016,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -984,7 +1035,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -996,7 +1049,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -1011,7 +1066,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+     * A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+     * If unset, defaults to 0, i.e. starting from that version's transaction header.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -1044,7 +1101,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1058,7 +1116,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1072,7 +1131,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1086,7 +1146,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1107,7 +1168,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1125,7 +1187,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1145,7 +1208,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1166,7 +1230,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1184,7 +1249,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1202,7 +1268,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1221,7 +1288,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1238,7 +1306,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1255,7 +1324,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1266,7 +1336,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1280,7 +1351,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1295,7 +1367,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1306,7 +1379,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1318,7 +1392,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -1345,7 +1420,8 @@ private static final long serialVersionUID = 0L;
     private int content_ = 0;
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+     * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -1356,7 +1432,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+     * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -1371,7 +1448,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+     * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -1384,7 +1462,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+     * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -1402,7 +1481,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+     * value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>

@@ -8,70 +8,98 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
 
-// Representation of IntegerNumberRange structures with optional from and to values.
+// Representation of IntegerNumberRange structures. At least one of `from`/`to` should be set; if
+// both are absent, the range decodes to the degenerate range `[0,0]` rather than being unbounded
+// in both directions.
 message GrpcIntegerNumberRange {
-  // The lower bound of the range.
+  // The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+  // below.
   google.protobuf.Int32Value from = 1;
-  // The upper bound of the range.
+  // The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+  // above.
   google.protobuf.Int32Value to = 2;
 }
 
-// Representation of LongNumberRange structures with optional from and to values.
+// Representation of LongNumberRange structures. At least one of `from`/`to` should be set; if
+// both are absent, the range decodes to the degenerate range `[0,0]` rather than being unbounded
+// in both directions.
 message GrpcLongNumberRange {
-  // The lower bound of the range.
+  // The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+  // below.
   google.protobuf.Int64Value from = 1;
-  // The upper bound of the range.
+  // The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+  // above.
   google.protobuf.Int64Value to = 2;
 }
 
-// Representation of BigDecimalNumberRange structures with optional from and to values.
+// Representation of BigDecimalNumberRange structures. At least one of `from`/`to` should be set;
+// if both are absent, the range decodes to the degenerate range `[0,0]` rather than being
+// unbounded in both directions.
 message GrpcBigDecimalNumberRange {
-  // The lower bound of the range.
+  // The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+  // below.
   GrpcBigDecimal from = 1;
-  // The upper bound of the range.
+  // The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+  // above.
   GrpcBigDecimal to = 2;
-  // The number of decimal places to compare.
+  // The number of fractional digits retained (rounded half-up) when comparing values against this
+  // range: both bounds and the compared value are scaled to this precision first, so digits beyond
+  // it are ignored for range-membership comparisons.
   int32 decimalPlacesToCompare = 3;
 }
 
-// Representation of DateTimeRange structures with optional from and to values.
+// Representation of DateTimeRange structures. At least one of `from`/`to` should be set; if both
+// are absent, the range decodes to a degenerate range anchored at the Unix epoch
+// (1970-01-01T00:00:00Z) rather than being unbounded in both directions.
 message GrpcDateTimeRange {
-  // The lower bound of the range.
+  // The inclusive lower bound (start) of the range. If unset (while `to` is set), the range is
+  // unbounded below (open start).
   GrpcOffsetDateTime from = 1;
-  // The upper bound of the range.
+  // The inclusive upper bound (end) of the range. If unset (while `from` is set), the range is
+  // unbounded above (open end).
   GrpcOffsetDateTime to = 2;
 }
 
 // Representation of Java's BigDecimal class with arbitrary precision.
 message GrpcBigDecimal {
-  // The string serialized value.
+  // The decimal value serialized as a string in the canonical form produced by
+  // `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+  // (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+  // exactly.
   string valueString = 1;
 }
 
 // Structure for representing Locale objects specified by language tag.
 message GrpcLocale {
-  // The language tag of the locale.
+  // IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+  // `Locale#forLanguageTag(String)`.
   string languageTag = 1;
 }
 
 // Structure for representing Currency objects specified by currency code.
 message GrpcCurrency {
-  // The currency code of the currency.
+  // ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+  // `Currency#getInstance(String)`.
   string code = 1;
 }
 
 // Structure for representing UUID objects.
 message GrpcUuid {
-  // Value that supports storing a UUID.
+  // The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
   int64 mostSignificantBits = 1;
+  // The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
   int64 leastSignificantBits = 2;
 }
 
-// Structure for representing Predecessor objects.
+// Structure for representing Predecessor objects, used to express a manually maintained ordering
+// of sibling entities/references by pointing each one at the primary key of the item that precedes
+// it.
 message GrpcPredecessor {
-  // true if predecessor is a head, false otherwise
+  // If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+  // set. If `false`, this item has a predecessor and `predecessorId` must be set.
   bool head = 1;
-  // Value that supports storing a Predecessor.
+  // The primary key of the entity/reference that precedes this one in the ordering. Unset when
+  // `head` is `true`; must be set when `head` is `false`.
   google.protobuf.Int32Value predecessorId = 2;
 }
 
@@ -95,270 +123,311 @@ message GrpcOffsetDateTime {
   string offset = 2;
 }
 
-// Wrapper for representing an array of strings.
+// Wrapper for representing an array of strings. Also used to carry a Character array — each
+// element is then a single-character string; which Java array type applies is determined by the
+// accompanying GrpcEvitaDataType (STRING_ARRAY vs CHARACTER_ARRAY).
 message GrpcStringArray {
-  // Value that supports storing a string array.
+  // The individual string (or, for a character array, single-character) elements, in their
+  // original order.
   repeated string value = 1;
 }
 
-// Wrapper for representing an array of integers.
+// Wrapper for representing an array of integers. Also used to carry Byte and Short arrays,
+// narrowed/widened to int32 on the wire; which Java array type applies is determined by the
+// accompanying GrpcEvitaDataType (BYTE_ARRAY, SHORT_ARRAY or INTEGER_ARRAY).
 message GrpcIntegerArray {
-  // Value that supports storing an integer array.
+  // The individual integer elements, in their original order.
   repeated int32 value = 1;
 }
 
 // Wrapper for representing an array of longs.
 message GrpcLongArray {
-  // Value that supports storing a long array.
+  // The individual long elements, in their original order.
   repeated int64 value = 1;
 }
 
 // Wrapper for representing an array of booleans.
 message GrpcBooleanArray {
-  // Value that supports storing a boolean array.
+  // The individual boolean elements, in their original order.
   repeated bool value = 1;
 }
 
 // Wrapper for representing an array of BigDecimals.
 message GrpcBigDecimalArray {
-  // Value that supports storing a BigDecimal array.
+  // The individual BigDecimal elements, in their original order.
   repeated GrpcBigDecimal value = 1;
 }
 
 // Wrapper for representing an array of DateTimeRanges.
 message GrpcDateTimeRangeArray {
-  // Value that supports storing a DateTimeRange array.
+  // The individual DateTimeRange elements, in their original order.
   repeated GrpcDateTimeRange value = 1;
 }
 
-// Wrapper for representing an array of IntegerNumberRanges.
+// Wrapper for representing an array of IntegerNumberRanges. Also used to carry ByteNumberRange
+// and ShortNumberRange arrays; which Java array type applies is determined by the accompanying
+// GrpcEvitaDataType (BYTE_NUMBER_RANGE_ARRAY, SHORT_NUMBER_RANGE_ARRAY or
+// INTEGER_NUMBER_RANGE_ARRAY).
 message GrpcIntegerNumberRangeArray {
-  // Value that supports storing an IntegerNumberRange array.
+  // The individual IntegerNumberRange elements, in their original order.
   repeated GrpcIntegerNumberRange value = 1;
 }
 
 // Wrapper for representing an array of LongNumberRanges.
 message GrpcLongNumberRangeArray {
-  // Value that supports storing a LongNumberRange array.
+  // The individual LongNumberRange elements, in their original order.
   repeated GrpcLongNumberRange value = 1;
 }
 
 // Wrapper for representing an array of BigDecimalNumberRanges.
 message GrpcBigDecimalNumberRangeArray {
-  // Value that supports storing a BigDecimalNumberRange array.
+  // The individual BigDecimalNumberRange elements, in their original order.
   repeated GrpcBigDecimalNumberRange value = 1;
 }
 
-// Wrapper for representing an array of OffsetDateTimes.
+// Wrapper for representing an array of OffsetDateTimes. Also used to carry LocalDateTime,
+// LocalDate and LocalTime arrays; which Java array type applies is determined by the accompanying
+// GrpcEvitaDataType (OFFSET_DATE_TIME_ARRAY, LOCAL_DATE_TIME_ARRAY, LOCAL_DATE_ARRAY or
+// LOCAL_TIME_ARRAY).
 message GrpcOffsetDateTimeArray {
-  // Value that supports storing an OffsetDateTime array.
+  // The individual date/time elements, in their original order.
   repeated GrpcOffsetDateTime value = 1;
 }
 
 // Wrapper for representing an array of Locales.
 message GrpcLocaleArray {
-  // Value that supports storing a Locale array.
+  // The individual Locale elements, in their original order.
   repeated GrpcLocale value = 1;
 }
 
 // Wrapper for representing an array of Currencies.
 message GrpcCurrencyArray {
-  // Value that supports storing a Currency array.
+  // The individual Currency elements, in their original order.
   repeated GrpcCurrency value = 1;
 }
 
 // Wrapper for representing an array of UUIDs.
 message GrpcUuidArray {
-  // Value that supports storing a UUID array.
+  // The individual UUID elements, in their original order.
   repeated GrpcUuid value = 1;
 }
 
 // Wrapper for representing an array of FacetStatisticsDepth enums.
 message GrpcFacetStatisticsDepthArray {
-  // Value that supports storing a FacetStatisticsDepth array.
+  // The individual FacetStatisticsDepth values, in their original order.
   repeated GrpcFacetStatisticsDepth value = 1;
 }
 
 // Wrapper for representing an array of QueryPriceModeArray enums.
 message GrpcQueryPriceModeArray {
-  // Value that supports storing a QueryPriceMode array.
+  // The individual QueryPriceMode values, in their original order.
   repeated GrpcQueryPriceMode value = 1;
 }
 
 // Wrapper for representing an array of PriceContentMode enums.
 message GrpcPriceContentModeArray {
-  // Value that supports storing a PriceContentMode array.
+  // The individual PriceContentMode values, in their original order.
   repeated GrpcPriceContentMode value = 1;
 }
 
 // Wrapper for representing an array of AttributeSpecialValue enums.
 message GrpcAttributeSpecialValueArray {
-  // Value that supports storing an AttributeSpecialValue array.
+  // The individual AttributeSpecialValue values, in their original order.
   repeated GrpcAttributeSpecialValue value = 1;
 }
 
 // Wrapper for representing an array of OrderDirection enums.
 message GrpcOrderDirectionArray {
-  // Value that supports storing an OrderDirection array.
+  // The individual OrderDirection values, in their original order.
   repeated GrpcOrderDirection value = 1;
 }
 
 // Wrapper for representing an array of EmptyHierarchicalEntityBehaviour enums.
 message GrpcEmptyHierarchicalEntityBehaviourArray {
-  // Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+  // The individual EmptyHierarchicalEntityBehaviour values, in their original order.
   repeated GrpcEmptyHierarchicalEntityBehaviour value = 1;
 }
 
 // Wrapper for representing an array of StatisticsBase enums.
 message GrpcStatisticsBaseArray {
-  // Value that supports storing a StatisticsBase array.
+  // The individual StatisticsBase values, in their original order.
   repeated GrpcStatisticsBase value = 1;
 }
 
 // Wrapper for representing an array of StatisticsType enums.
 message GrpcStatisticsTypeArray {
-  // Value that supports storing a StatisticsType array.
+  // The individual StatisticsType values, in their original order.
   repeated GrpcStatisticsType value = 1;
 }
 
 // Wrapper for representing an array of HistogramBehavior enums.
 message GrpcHistogramBehaviorTypeArray {
-  // Value that supports storing a HistogramBehavior array.
+  // The individual HistogramBehavior values, in their original order.
   repeated GrpcHistogramBehavior value = 1;
 }
 
 // Wrapper for representing an array of Scope enums.
 message GrpcEntityScopeArray {
-  // Value that supports storing a Scope array.
+  // The individual Scope values, in their original order.
   repeated GrpcEntityScope value = 1;
 }
 
-// Structure that holds one of the supported data type values, its type and version of stored value.
+// Structure that holds a single attribute/default-value value together with its declared Evita
+// data type and optimistic-locking version.
 message GrpcEvitaValue {
-  // The stored value. May by only one of the following at the time.
+  // The stored value in its wire representation; which Evita/Java type it actually represents is
+  // given by `type` below — several narrower Evita types share the same wire arm (see individual
+  // field comments). Exactly one of these fields is set when the value is non-null. When this
+  // `GrpcEvitaValue` represents an absent/null value (e.g. no default value defined for an
+  // attribute schema), none of these fields are set and `type` is left at its enum default
+  // (`STRING`), which callers must not interpret as an actual empty string value.
   oneof value {
-    // String value.
+    // String value (Java `String`). Also carries a `Character` value, as a single-character
+    // string, when `type` is `CHARACTER`.
     string stringValue = 1;
-    // Integer value.
+    // Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+    // `type` is `BYTE` or `SHORT`.
     int32 integerValue = 2;
-    // Long value.
+    // Long value (Java `long`).
     int64 longValue = 3;
-    // Boolean value.
+    // Boolean value (Java `boolean`).
     bool booleanValue = 4;
-    // BigDecimal value.
+    // BigDecimal value (Java `BigDecimal`).
     GrpcBigDecimal bigDecimalValue = 5;
-    // DateTimeRange value.
+    // DateTimeRange value (evitaDB `DateTimeRange`).
     GrpcDateTimeRange dateTimeRangeValue = 6;
-    // IntegerNumberRange value.
+    // IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+    // `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
     GrpcIntegerNumberRange integerNumberRangeValue = 7;
-    // LongNumberRange value.
+    // LongNumberRange value (evitaDB `LongNumberRange`).
     GrpcLongNumberRange longNumberRangeValue = 8;
-    // BigDecimalNumberRange value.
+    // BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
     GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
-    // OffsetDateTime value.
+    // Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+    // `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+    // respectively.
     GrpcOffsetDateTime offsetDateTimeValue = 10;
-    // Locale value.
+    // Locale value (Java `Locale`).
     GrpcLocale localeValue = 11;
-    // Currency value.
+    // Currency value (Java `Currency`).
     GrpcCurrency currencyValue = 12;
-    // UUID value.
+    // UUID value (Java `UUID`).
     GrpcUuid uuidValue = 13;
-    // Predecessor value.
+    // Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+    // value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
     GrpcPredecessor predecessorValue = 14;
 
-    // Array of string values.
+    // String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+    // single-character string, when `type` is `CHARACTER_ARRAY`.
     GrpcStringArray stringArrayValue = 50;
-    // Array of integer values.
+    // Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+    // `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
     GrpcIntegerArray integerArrayValue = 51;
-    // Array of long values.
+    // Long array value (Java `Long[]`).
     GrpcLongArray longArrayValue = 52;
-    // Array of boolean values.
+    // Boolean array value (Java `Boolean[]`).
     GrpcBooleanArray booleanArrayValue = 53;
-    // Array of BigDecimal values.
+    // BigDecimal array value (Java `BigDecimal[]`).
     GrpcBigDecimalArray bigDecimalArrayValue = 54;
-    // Array of DateTimeRange values.
+    // DateTimeRange array value (evitaDB `DateTimeRange[]`).
     GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;
-    // Array of IntegerNumberRange values.
+    // IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+    // `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+    // `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
     GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;
-    // Array of LongNumberRange values.
+    // LongNumberRange array value (evitaDB `LongNumberRange[]`).
     GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;
-    // Array of BigDecimalNumberRange values.
+    // BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
     GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;
-    // Array of OffsetDateTime values.
+    // Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+    // `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+    // `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
     GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;
-    // Array of Locale values.
+    // Locale array value (Java `Locale[]`).
     GrpcLocaleArray localeArrayValue = 60;
-    // Array of Currency values.
+    // Currency array value (Java `Currency[]`).
     GrpcCurrencyArray currencyArrayValue = 61;
-    // Array of UUID values.
+    // UUID array value (Java `UUID[]`).
     GrpcUuidArray uuidArrayValue = 62;
   }
-  // The type of the stored value.
+  // The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+  // comment for which narrower types it also stands in for).
   GrpcEvitaDataType type = 100;
   // Contains version of this value and gets increased with any entity type update. Allows to execute
   // optimistic locking i.e. avoiding parallel modifications. May be null if value is used within larger complex object.
   google.protobuf.Int32Value version = 101;
 }
 
-// Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
-// internally converted into ComplexDataObject.
+// Structure that holds a single associated-data value, which is either one of the primitive/array
+// Evita data types (wrapped by `GrpcEvitaValue`) or a complex (structured) object.
 message GrpcEvitaAssociatedDataValue {
-  // The stored value. May by only one of the following at the time.
+  // Exactly one of these fields is set, identifying how the associated data value is encoded.
   oneof value {
-    // Primitive value.
+    // A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+    // is not a complex/structured object.
     GrpcEvitaValue primitiveValue = 1;
-    // JSON string value, this old approach led to data type loss and is deprecated.
+    // JSON-encoded `ComplexDataObject` value.
+    // deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+    // TOBEDONE #538: remove once no client older than 2025.4 remains in use
+    // (https://github.com/FgForrest/evitaDB/issues/538)
     string jsonValue = 2 [deprecated = true];
-    // The array of values.
+    // The root node of a complex (structured) object's tree, recursively described by
+    // `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
     GrpcDataItem root = 4;
   }
-  // The type of the stored value.
+  // The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+  // value is a structured object described via `root` (or the deprecated `jsonValue`).
   GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;
-  // Contains version of this value and gets increased with any entity type update. Allows to execute
-  //			optimistic locking i.e. avoiding parallel modifications.
+  // Version of this associated data value; increases on every update to enable optimistic locking
+  // (concurrent-modification detection). May be null if this value is nested within a larger
+  // complex object.
   google.protobuf.Int32Value version = 3;
 }
 
-// Structure that holds a complex object. It can be either a map or an array of values.
+// Structure that holds one node of a complex (structured) associated data value's recursive tree.
+// A node is either a leaf primitive value, an array of child nodes, or a map of named child nodes.
 message GrpcDataItem {
-  // The stored value. May by only one of the following at the time.
+  // Exactly one of these is set, identifying which kind of node this is.
   oneof value {
-    // Primitive value.
+    // Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
     GrpcEvitaValue primitiveValue = 1;
-    // The array of values.
+    // Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
     GrpcDataItemArray arrayValue = 4;
-    // The map of values.
+    // Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
     DataItemMap mapValue = 5;
   }
 }
 
-// Structure that holds a array of values stored inside array of the complex object.
+// Structure that holds an array-typed node of a complex associated data value's tree.
 message GrpcDataItemArray {
-  // The stored array of values.
+  // The ordered child nodes of this array node, in their original order.
   repeated GrpcDataItem children = 1;
 }
 
-// Structure that holds a map of values stored inside map of the complex object.
+// Structure that holds a map-typed node of a complex associated data value's tree.
 message DataItemMap {
-  // The stored named fields with associated values.
+  // The child nodes of this map node, keyed by property name.
   map<string, GrpcDataItem> data = 1;
 }
 
-// identification of the file available for fetching
+// Identification of a file available for fetching from the server (e.g. a backup archive or an
+// export produced by an asynchronous task).
 message GrpcFile {
-  // Identification of the file
+  // Unique identifier of the file, used to reference it in fetch/download requests.
   GrpcUuid fileId = 1;
-  // File name
+  // File name, including extension.
   string name = 2;
-  // Detailed description of the file
+  // Human-readable description of the file's purpose or contents. Unset when no description was
+  // provided.
   google.protobuf.StringValue description = 3;
-  // Content type of the file
+  // MIME content type of the file (e.g. `application/zip`).
   string contentType = 4;
-  // Size of the file in bytes
+  // Size of the file on disk (bytes).
   int64 totalSizeInBytes = 5;
-  // Date and time when the file was created
+  // Date and time when the file was created.
   GrpcOffsetDateTime created = 6;
-  // Origin of the file (usually the taskType)
+  // Comma-separated identifiers of what produced the file — usually the `taskType` (see
+  // `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
   google.protobuf.StringValue origin = 7;
 }
 
@@ -373,46 +442,58 @@ message GrpcTaskStatus {
   string taskType = 1;
   // Longer, human-readable name of the task
   string taskName = 2;
-  // Identification of the task
+  // Unique identifier of this task instance; use it to reference this task in status lookups or
+  // cancellation requests.
   GrpcUuid taskId = 3;
-  // Name of the catalog the task is related to (optional)
+  // Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+  // catalog (e.g. server-wide/system tasks).
   google.protobuf.StringValue catalogName = 4;
-  // Date and time when the task was issued
+  // Date and time when the task was issued for execution (queued to run). Unset while the task is
+  // still pending and has not yet been issued.
   GrpcOffsetDateTime issued = 5;
-  // Date and time when the task was started
+  // Date and time when the task started executing. Unset before execution begins.
   GrpcOffsetDateTime started = 6;
-  // Date and time when the task was finished
+  // Date and time when the task finished executing, successfully or with an error. Unset while
+  // the task is still running.
   GrpcOffsetDateTime finished = 7;
-  // Simplified state of the status
+  // Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+  // from the task's more detailed internal state.
   GrpcTaskSimplifiedState simplifiedState = 8;
   // Progress of the task (0-100)
   int32 progress = 9;
-  // Configuration settings of the task
+  // String representation (`toString()`) of the task's configuration settings. Read back as an
+  // empty string if unset.
   google.protobuf.StringValue settings = 10;
-  // Result of the task
+  // The task's result, once it has produced one. At most one of these is set; neither is set
+  // while the task has not finished or produced no result.
   oneof result {
-    // Textual result of the task
+    // String representation (`toString()`) of the task's result object, used for any result other
+    // than a fetchable file.
     google.protobuf.StringValue text = 11;
-    // File that was created by the task and is available for fetching
+    // The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
     GrpcFile file = 12;
   }
-  // Exception that occurred during the task execution
+  // Public-safe error message if the task failed. Unset while the task is running or if it
+  // completed without error.
   google.protobuf.StringValue exception = 13;
-  // List of task traits
+  // Capabilities available for this task instance (e.g. whether it can be manually started,
+  // cancelled, or must be explicitly stopped).
   repeated GrpcTaskTrait trait = 14;
-  // Date and time when the task was created
+  // Date and time when this task status record was created; always set, and precedes `issued`.
   GrpcOffsetDateTime created = 15;
 }
 
 // Aggregates basic data about the catalog and entity types stored in it.
 message GrpcCatalogStatistics {
-  // name of the catalog
+  // unique identifier of the catalog
   GrpcUuid catalogId = 1;
-  // name of the catalog
+  // The catalog's unique name, used to address it via the API.
   string catalogName = 2;
   // true if the catalog is corrupted (other data will be not available)
+  // deprecated in favor of `catalogState` (compare against `CORRUPTED`)
   bool corrupted = 3 [deprecated = true];
-  // current state of the catalog, null for corrupted catalog
+  // Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+  // consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
   GrpcCatalogState catalogState = 4;
   // version of the catalog, -1 for corrupted catalog
   int64 catalogVersion = 5;
@@ -444,9 +525,9 @@ message GrpcEntityCollectionStatistics {
 
 // Structure for representing a name in a particular naming convention.
 message GrpcNameVariant {
-  // naming convention the name is in
+  // The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
   GrpcNamingConvention namingConvention = 1;
-  // the name in the particular naming convention
+  // The entity/attribute/reference name transformed into the given naming convention.
   string name = 2;
 }
 

@@ -29,7 +29,11 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to restore a catalog.
+ * One chunk of a streamed catalog restore. The client sends a sequence of these messages over the
+ * same gRPC client stream, each carrying one slice of the backup archive; the server concatenates
+ * `backupFile` across all messages, in arrival order, into a single ZIP file. `catalogName` is
+ * expected to be identical on every chunk - only the value from the last message in the stream is
+ * actually used to name the restored catalog.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest}
@@ -73,8 +77,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -95,8 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -121,7 +125,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.ByteString backupFile_ = com.google.protobuf.ByteString.EMPTY;
   /**
    * <pre>
-   * Binary contents of the backup file.
+   * One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+   * stream, in order, to reconstruct the full archive.
    * </pre>
    *
    * <code>bytes backupFile = 2;</code>
@@ -301,7 +306,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to restore a catalog.
+   * One chunk of a streamed catalog restore. The client sends a sequence of these messages over the
+   * same gRPC client stream, each carrying one slice of the backup archive; the server concatenates
+   * `backupFile` across all messages, in arrival order, into a single ZIP file. `catalogName` is
+   * expected to be identical on every chunk - only the value from the last message in the stream is
+   * actually used to name the restored catalog.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest}
@@ -488,8 +497,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -509,8 +518,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -531,8 +540,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -549,8 +558,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -564,8 +573,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -585,7 +594,8 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.ByteString backupFile_ = com.google.protobuf.ByteString.EMPTY;
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+     * stream, in order, to reconstruct the full archive.
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>
@@ -597,7 +607,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+     * stream, in order, to reconstruct the full archive.
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>
@@ -613,7 +624,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+     * stream, in order, to reconstruct the full archive.
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>

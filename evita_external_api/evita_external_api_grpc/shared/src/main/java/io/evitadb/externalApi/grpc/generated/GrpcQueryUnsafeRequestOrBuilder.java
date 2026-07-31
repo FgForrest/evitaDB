@@ -33,7 +33,8 @@ public interface GrpcQueryUnsafeRequestOrBuilder extends
 
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+   * to resolve).
    * </pre>
    *
    * <code>string query = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcQueryUnsafeRequestOrBuilder extends
   java.lang.String getQuery();
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+   * to resolve).
    * </pre>
    *
    * <code>string query = 1;</code>

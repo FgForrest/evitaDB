@@ -33,7 +33,7 @@ public interface GrpcDataItemArrayOrBuilder extends
 
   /**
    * <pre>
-   * The stored array of values.
+   * The ordered child nodes of this array node, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcDataItemArrayOrBuilder extends
       getChildrenList();
   /**
    * <pre>
-   * The stored array of values.
+   * The ordered child nodes of this array node, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcDataItemArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDataItem getChildren(int index);
   /**
    * <pre>
-   * The stored array of values.
+   * The ordered child nodes of this array node, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcDataItemArrayOrBuilder extends
   int getChildrenCount();
   /**
    * <pre>
-   * The stored array of values.
+   * The ordered child nodes of this array node, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcDataItemArrayOrBuilder extends
       getChildrenOrBuilderList();
   /**
    * <pre>
-   * The stored array of values.
+   * The ordered child nodes of this array node, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDataItem children = 1;</code>

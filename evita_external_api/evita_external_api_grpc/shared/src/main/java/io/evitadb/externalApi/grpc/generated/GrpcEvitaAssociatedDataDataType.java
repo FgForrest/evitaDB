@@ -67,6 +67,11 @@ private static final long serialVersionUID = 0L;
   }
 
   /**
+   * <pre>
+   * Enumerates the value types evitaDB supports for associated data (both scalar and array variants) - a subset
+   * of the general query data types plus `ComplexDataObject` for arbitrary nested structures.
+   * </pre>
+   *
    * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType}
    */
   public enum GrpcEvitaDataType

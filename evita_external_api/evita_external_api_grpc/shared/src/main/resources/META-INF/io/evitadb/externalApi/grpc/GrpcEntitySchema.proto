@@ -49,7 +49,7 @@ message GrpcEntitySchema {
   // Each entity must be part of at most single hierarchy (tree).
   //
   // Hierarchy can limit returned entities by using filtering constraints. It's also used for
-  // computation of extra data - such as `hierarchyParentsOfSelf`. It can also invert type of returned entities in case extra result
+  // computation of extra data - such as the `parents` requirement. It can also invert type of returned entities in case extra result
   // `hierarchyOfSelf` is requested.
   bool withHierarchy = 6;
   // Contains `true` when entities of this type holds price information.
@@ -134,7 +134,7 @@ message GrpcEntitySchema {
 	// can define its price), but it is not possible to work with the price information in any other way (calculating
 	// price histogram, filtering, sorting by price, etc.).
 	//
-	// Prices can be also set as non-indexed individually by setting {@link PriceContract#indexed()} to false.
+	// Prices can be also set as non-indexed individually via the individual price's own `indexed` flag.
   repeated GrpcEntityScope priceIndexedInScopes = 18;
   // Contains current version of the catalog schema this entity schema belongs to.
   int64 catalogSchemaVersion = 19;
@@ -181,8 +181,8 @@ message GrpcAttributeSchema {
   // deprecated in favor of `uniqueInScopes`
   GrpcAttributeUniquenessType unique = 5 [deprecated = true];
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-  // entity having certain value of this attribute in entire {@link CatalogContract}.
-  // {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+  // entity having certain value of this attribute in the entire catalog.
+  // The type of the unique attribute must implement the `Comparable` interface.
   //
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
@@ -207,7 +207,7 @@ message GrpcAttributeSchema {
   // non-null checks upon upserting of the entity.
   bool nullable = 10;
   // Representative flag marks the attribute as one of the most important attributes in the entity, or when used
-  // on reference level in the {@link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+  // on a reference-level attribute schema, it marks attributes distinguishing duplicated
   // references to the same entity and is a key attribute for creating distinct indexes for such references.
   //
   // In overall, representative attributes should be used in developer tools along with the entity's primary key to
@@ -237,8 +237,8 @@ message GrpcAttributeSchema {
   // better to have this ensured by the database engine.
   repeated GrpcScopedAttributeUniquenessType uniqueInScopes = 17;
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-  // entity having certain value of this attribute in entire {@link CatalogContract}.
-  // {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+  // entity having certain value of this attribute in the entire catalog.
+  // The type of the unique attribute must implement the `Comparable` interface.
   //
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
@@ -271,6 +271,8 @@ message GrpcAssociatedDataSchema {
   // Contains unique name of the model. Case-sensitive. Distinguishes one model item from another
   // within single entity instance.
   string name = 1;
+  // Contains description of the model is optional but helps authors of the schema / client API to better
+  // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 2;
   // Deprecation notice contains information about planned removal of this entity from the model / client API.
   // This allows to plan and evolve the schema allowing clients to adapt early to planned breaking changes.

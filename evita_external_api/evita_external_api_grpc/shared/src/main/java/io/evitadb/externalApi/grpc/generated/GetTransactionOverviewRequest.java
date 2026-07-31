@@ -73,7 +73,8 @@ private static final long serialVersionUID = 0L;
       emptyLongList();
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>
@@ -86,7 +87,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>
@@ -97,7 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>
@@ -484,7 +487,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -497,7 +501,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -508,7 +513,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -520,7 +526,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -539,7 +546,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -556,7 +564,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>
@@ -574,7 +583,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The catalog version for which the transaction overview should be returned
+     * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+     * for the ordering and completeness contract of the response.
      * </pre>
      *
      * <code>repeated int64 catalogVersion = 1;</code>

@@ -29,7 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to restore a catalog.
+ * One chunk of a catalog restore uploaded via repeated unary calls, used where true client-side
+ * streaming (as in `GrpcRestoreCatalogRequest`) is unavailable, e.g. gRPC-Web. The client calls
+ * `RestoreCatalogUnary` once per chunk, feeding back the `fileId` it received in the previous
+ * response so the server appends to the same upload; see `GrpcRestoreCatalogUnaryResponse`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest}
@@ -74,8 +77,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -96,8 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -122,7 +125,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.ByteString backupFile_ = com.google.protobuf.ByteString.EMPTY;
   /**
    * <pre>
-   * Binary contents of the backup file.
+   * One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+   * received for this upload (identified by `fileId`).
    * </pre>
    *
    * <code>bytes backupFile = 2;</code>
@@ -137,7 +141,11 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid fileId_;
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -149,7 +157,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -161,7 +173,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -175,7 +191,11 @@ private static final long serialVersionUID = 0L;
   private long totalSizeInBytes_ = 0L;
   /**
    * <pre>
-   * Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+   * Total size of the complete backup file (bytes), as expected once all chunks have been
+   * received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+   * restore starts automatically. If more bytes are received than this, the server still returns
+   * a normal response for that (final) chunk and only afterwards discards the partial upload - an
+   * overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 4;</code>
@@ -383,7 +403,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to restore a catalog.
+   * One chunk of a catalog restore uploaded via repeated unary calls, used where true client-side
+   * streaming (as in `GrpcRestoreCatalogRequest`) is unavailable, e.g. gRPC-Web. The client calls
+   * `RestoreCatalogUnary` once per chunk, feeding back the `fileId` it received in the previous
+   * response so the server appends to the same upload; see `GrpcRestoreCatalogUnaryResponse`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest}
@@ -611,8 +634,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -632,8 +655,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -654,8 +677,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -672,8 +695,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -687,8 +710,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog where the backup will be restored
-     * The name must not clash with any of existing catalogs
+     * Name of the target catalog into which the backup will be restored.
+     * Must not clash with the name of any existing catalog.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -708,7 +731,8 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.ByteString backupFile_ = com.google.protobuf.ByteString.EMPTY;
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+     * received for this upload (identified by `fileId`).
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>
@@ -720,7 +744,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+     * received for this upload (identified by `fileId`).
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>
@@ -736,7 +761,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Binary contents of the backup file.
+     * One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+     * received for this upload (identified by `fileId`).
      * </pre>
      *
      * <code>bytes backupFile = 2;</code>
@@ -754,7 +780,11 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> fileIdBuilder_;
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -765,7 +795,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -780,7 +814,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -800,7 +838,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -818,7 +860,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -843,7 +889,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -860,7 +910,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -872,7 +926,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -887,7 +945,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the task (for continuation purpose)
+     * Identifies the upload this chunk continues.
+     *
+     * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+     * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+     * this same upload, and this chunk is appended to it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -909,7 +971,11 @@ private static final long serialVersionUID = 0L;
     private long totalSizeInBytes_ ;
     /**
      * <pre>
-     * Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+     * Total size of the complete backup file (bytes), as expected once all chunks have been
+     * received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+     * restore starts automatically. If more bytes are received than this, the server still returns
+     * a normal response for that (final) chunk and only afterwards discards the partial upload - an
+     * overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 4;</code>
@@ -921,7 +987,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+     * Total size of the complete backup file (bytes), as expected once all chunks have been
+     * received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+     * restore starts automatically. If more bytes are received than this, the server still returns
+     * a normal response for that (final) chunk and only afterwards discards the partial upload - an
+     * overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 4;</code>
@@ -937,7 +1007,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+     * Total size of the complete backup file (bytes), as expected once all chunks have been
+     * received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+     * restore starts automatically. If more bytes are received than this, the server still returns
+     * a normal response for that (final) chunk and only afterwards discards the partial upload - an
+     * overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
      * </pre>
      *
      * <code>int64 totalSizeInBytes = 4;</code>

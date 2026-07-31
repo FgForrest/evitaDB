@@ -72,7 +72,7 @@ private static final long serialVersionUID = 0L;
   private int namingConvention_ = 0;
   /**
    * <pre>
-   * naming convention the name is in
+   * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -83,7 +83,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * naming convention the name is in
+   * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -99,7 +99,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object name_ = "";
   /**
    * <pre>
-   * the name in the particular naming convention
+   * The entity/attribute/reference name transformed into the given naming convention.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -120,7 +120,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the name in the particular naming convention
+   * The entity/attribute/reference name transformed into the given naming convention.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -496,7 +496,7 @@ private static final long serialVersionUID = 0L;
     private int namingConvention_ = 0;
     /**
      * <pre>
-     * naming convention the name is in
+     * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -507,7 +507,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * naming convention the name is in
+     * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -522,7 +522,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * naming convention the name is in
+     * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -535,7 +535,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * naming convention the name is in
+     * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -553,7 +553,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * naming convention the name is in
+     * The naming convention this variant is rendered in (e.g. camelCase, kebab-case, PascalCase).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcNamingConvention namingConvention = 1;</code>
@@ -569,7 +569,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object name_ = "";
     /**
      * <pre>
-     * the name in the particular naming convention
+     * The entity/attribute/reference name transformed into the given naming convention.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -589,7 +589,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name in the particular naming convention
+     * The entity/attribute/reference name transformed into the given naming convention.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -610,7 +610,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name in the particular naming convention
+     * The entity/attribute/reference name transformed into the given naming convention.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -627,7 +627,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name in the particular naming convention
+     * The entity/attribute/reference name transformed into the given naming convention.
      * </pre>
      *
      * <code>string name = 2;</code>
@@ -641,7 +641,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the name in the particular naming convention
+     * The entity/attribute/reference name transformed into the given naming convention.
      * </pre>
      *
      * <code>string name = 2;</code>

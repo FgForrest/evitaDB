@@ -33,7 +33,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange getValue(int index);
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcIntegerNumberRangeArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing an IntegerNumberRange array.
+   * The individual IntegerNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange value = 1;</code>

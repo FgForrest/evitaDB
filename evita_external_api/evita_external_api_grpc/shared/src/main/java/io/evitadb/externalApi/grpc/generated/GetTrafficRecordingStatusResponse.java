@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to StartTrafficRecording and  request.
+ * Response to StartTrafficRecording, StopTrafficRecording, and ExportTrafficRecording requests.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse}
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to StartTrafficRecording and  request.
+   * Response to StartTrafficRecording, StopTrafficRecording, and ExportTrafficRecording requests.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingStatusResponse}
