@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 
@@ -53,6 +54,22 @@ public class VersionUtilsTest {
 		assertEquals(-1, SemVer.fromString("1.1.0").compareTo(SemVer.fromString("1.2.0")));
 		assertEquals(1, SemVer.fromString("2025.1.0").compareTo(SemVer.fromString("2024.12.0")));
 		assertEquals(-1, SemVer.fromString("2024.12.0").compareTo(SemVer.fromString("2025.1.0")));
+	}
+
+	@Test
+	void shouldReturnExpectedGreaterThanEqualsResults() {
+		// client is newer than the compared major.minor
+		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2026.2.0")));
+		// client is on the same major, newer minor
+		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.5.0")));
+		// client is exactly on the compared major.minor
+		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.4.0")));
+		// client is on the same major, older minor
+		assertFalse(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.3.0")));
+		// client is on an older major
+		assertFalse(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2024.12.0")));
+		// client declared no version at all - treated as older than any major.minor
+		assertFalse(VersionUtils.greaterThanEquals(2025, 4, null));
 	}
 
 	@Test
