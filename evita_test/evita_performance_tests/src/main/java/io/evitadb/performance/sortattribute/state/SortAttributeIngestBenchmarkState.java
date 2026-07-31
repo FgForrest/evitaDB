@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.core.Evita;
 import io.evitadb.performance.artificial.ArtificialBenchmarkState;
 import io.evitadb.performance.setup.EvitaCatalogSetup;
 import io.evitadb.performance.sortattribute.SortAttributeIngestBenchmark;
@@ -94,14 +95,23 @@ import java.util.Random;
  * cursor path, the allocation-free unordered-array guards - so run it with `-prof gc` and compare the normalised
  * allocation rate against the base worktree.
  *
- * **The reported bytes/op is `fixture + ingest`, so compare the ABSOLUTE difference.** `setUp()` is annotated
- * `@Setup(Level.Invocation)` and boots a full Evita instance, defines the schema and materialises the whole batch;
- * JMH's `GCProfiler` snapshots its counters in `beforeIteration` / `afterIteration`, bracketing the entire iteration
- * including per-invocation fixtures, so the fixture's allocation is counted inside the reported figure. The fixture
- * is identical on both sides of the A/B pair and therefore cancels in the **absolute** GB/op difference - that number
- * is trustworthy. The **percentage** is not: its denominator is diluted by fixture allocation, so it understates the
- * change and must never be read as a fraction of the ingest's own allocation. Quantifying the fixture would take a
- * control `@Benchmark` with an empty body taking this same state; no such control exists today.
+ * **The reported bytes/op is `fixture + ingest` - subtract the control before quoting a percentage.** JMH's
+ * `GCProfiler` snapshots its counters in `beforeIteration` / `afterIteration`, bracketing the entire iteration
+ * including any `Level.Invocation` fixture, so whatever {@link #setUp()} and {@link #closeEvita()} allocate is
+ * counted inside the reported figure. Two things follow, and they are different claims:
+ *
+ * - The **absolute** GB/op difference across the A/B pair is trustworthy as-is: the fixture is identical on both
+ *   sides and cancels.
+ * - The **percentage** is not, because its denominator is diluted by fixture allocation. To get a real one, run
+ *   `SortAttributeIngestBenchmark.fixtureOnlyControl` at the same parameters - it takes this very state and does no
+ *   ingest at all, so its `gc.alloc.rate.norm` **is** the fixture - and subtract:
+ *   `ingest B/op = warmUpIngest B/op - fixtureOnlyControl B/op`. Quote percentages against that difference, never
+ *   against the raw `warmUpIngest` figure.
+ *
+ * The residual fixture is deliberately as small as it can be: the 20 000-entity batch is materialised once per trial
+ * by {@link #setUpBatch()}, outside every measured iteration. What necessarily remains inside is the Evita boot and
+ * the schema definition, because a *cold* WARM_UP catalog is the very thing being measured and cannot be reused
+ * across invocations. That residue is what the control quantifies.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -172,12 +182,59 @@ public class SortAttributeIngestBenchmarkState extends ArtificialBenchmarkState
 	}
 
 	/**
-	 * Boots an empty catalog, defines the product schema and materialises the batch to ingest, **without** ingesting
-	 * anything - the ingest itself is the measured operation.
+	 * Materialises the batch to ingest **once per trial**, so its allocation lands outside every measured iteration -
+	 * trial setup precedes the first warmup iteration, and `GCProfiler` only snapshots per iteration, so none of the
+	 * one warmup plus three measurement iterations sees it.
+	 *
+	 * The batch needs a validated schema to build against and the only source of one is a catalog, so this boots a
+	 * throwaway instance for that purpose alone and closes it immediately. The *measured* catalog is still created
+	 * fresh per invocation by {@link #setUp()}, so the cold-WARM_UP property the whole benchmark rests on is
+	 * untouched — only the entity materialisation moves out.
+	 *
+	 * Sharing one batch across invocations is safe because an {@link EntityBuilder} is a pure mutation source:
+	 * `upsertEntity` routes it through `InstanceEditor.toMutation()`, which allocates a fresh mutation list and
+	 * derives every mutation from the builder's retained values without writing back to it. Each invocation therefore
+	 * produces its own identical set of mutations — and that per-upsert mutation allocation deliberately stays inside
+	 * the measured window, because it is genuine ingest work.
+	 */
+	@Setup(Level.Trial)
+	public void setUpBatch() {
+		final String catalogName = getCatalogName();
+		final Evita schemaSource = createEmptyEvitaInstance(catalogName);
+		try {
+			schemaSource.updateCatalog(
+				catalogName,
+				session -> {
+					final EntitySchemaBuilder schemaBuilder = session.defineEntitySchema(Entities.PRODUCT);
+					declareSortAttributeShape(schemaBuilder);
+					this.productSchema = session.updateAndFetchEntitySchema(schemaBuilder);
+				}
+			);
+			// NOTE: this write to productSchema is TRANSIENT and exists only to build the batch below - it holds a
+			// schema belonging to the throwaway instance, which is closed before this method returns. setUp()
+			// overwrites the field per invocation with the measured catalog's schema. Nothing reads it in between
+			// today; if a measured method ever needs it, read it from the session rather than from this field.
+			// A fresh Random(SEED) walked in primary-key order makes the batch identical on every invocation and,
+			// crucially, across the A/B jars.
+			final List<EntityBuilder> batch = new ArrayList<>(this.entityCount);
+			final Random valueRandom = new Random(SEED);
+			for (int primaryKey = 1; primaryKey <= this.entityCount; primaryKey++) {
+				batch.add(buildProduct(this.productSchema, primaryKey, valueRandom, this.distinctValues));
+			}
+			this.productBatch = batch;
+		} finally {
+			schemaSource.close();
+		}
+	}
+
+	/**
+	 * Boots an empty catalog and defines the product schema, **without** ingesting anything - the ingest itself is the
+	 * measured operation.
 	 *
 	 * This runs per invocation rather than per trial because the subject is a cold WARM_UP bulk load: a catalog that
 	 * already held the previous invocation's entities would start with wide blocks and grow them wider, so successive
-	 * invocations would not be measuring the same thing.
+	 * invocations would not be measuring the same thing. The batch is deliberately *not* rebuilt here - see
+	 * {@link #setUpBatch()}.
 	 */
 	@Setup(Level.Invocation)
 	public void setUp() {
@@ -191,14 +248,6 @@ public class SortAttributeIngestBenchmarkState extends ArtificialBenchmarkState
 				this.productSchema = session.updateAndFetchEntitySchema(schemaBuilder);
 			}
 		);
-		// materialise the whole batch OUTSIDE the measured method - see the class JavaDoc. A fresh Random(SEED) walked
-		// in primary-key order makes the batch identical on every invocation and, crucially, across the A/B jars.
-		final List<EntityBuilder> batch = new ArrayList<>(this.entityCount);
-		final Random valueRandom = new Random(SEED);
-		for (int primaryKey = 1; primaryKey <= this.entityCount; primaryKey++) {
-			batch.add(buildProduct(this.productSchema, primaryKey, valueRandom, this.distinctValues));
-		}
-		this.productBatch = batch;
 	}
 
 	/**
@@ -303,11 +352,19 @@ public class SortAttributeIngestBenchmarkState extends ArtificialBenchmarkState
 	}
 
 	/**
-	 * Shuts the instance down and releases the batch after every measured ingest.
+	 * Shuts the measured instance down after every measured ingest. The batch deliberately survives - it is released
+	 * by {@link #releaseBatch()} at the end of the trial.
 	 */
 	@TearDown(Level.Invocation)
 	public void closeEvita() {
 		this.evita.close();
+	}
+
+	/**
+	 * Releases the shared batch once the whole trial is over.
+	 */
+	@TearDown(Level.Trial)
+	public void releaseBatch() {
 		this.productBatch = null;
 	}
 

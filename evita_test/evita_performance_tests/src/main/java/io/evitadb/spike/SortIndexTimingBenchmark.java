@@ -171,12 +171,32 @@ public class SortIndexTimingBenchmark {
 	 * does not regress the narrow-block case that dominates real `ean`-style attributes.
 	 *
 	 * The trustworthy output here is `ns/op`: {@link Mode#SingleShotTime} times the benchmark method only, so the
-	 * per-invocation rebuild stays out of the wall clock. The `gc.alloc.rate.norm` figure is NOT trustworthy -
-	 * `InsertState.setUp` is `@Setup(Level.Invocation)` and rebuilds the whole owner before every measured batch
-	 * (100 000 records for `uniform_1k_100k`, ~130 000 for `synth_100k`, 1 000 000 for `uniform_1k_1m`) against a
-	 * measured `BATCH_SIZE` of 10 000, and JMH's `GCProfiler` snapshots its counters in `beforeIteration` /
-	 * `afterIteration`, bracketing the whole iteration including per-invocation fixtures. The reported allocation is
-	 * therefore 10:1 to 100:1 fixture and must not be read as the insert path's allocation.
+	 * per-invocation rebuild stays out of the wall clock. **The `gc.alloc.rate.norm` figure is unusable — do not
+	 * quote it, and do not try to correct it by subtraction.** `InsertState.setUp` is `@Setup(Level.Invocation)` and
+	 * rebuilds the whole owner before every measured batch (100 000 records for `uniform_1k_100k`, ~130 000 for
+	 * `synth_100k`, 1 000 000 for `uniform_1k_1m`) against a measured `BATCH_SIZE` of 10 000, and JMH's `GCProfiler`
+	 * snapshots its counters in `beforeIteration` / `afterIteration`, bracketing the whole iteration including
+	 * per-invocation fixtures — so the reported allocation is 10:1 to 100:1 fixture.
+	 *
+	 * The obvious repair is an empty-body control taking this same state, so the fixture can be measured and
+	 * subtracted. **That was built and measured, and it does not work** — the control has since been removed rather
+	 * than left in place returning noise. At `-f 1 -wi 0 -i 3 -prof gc` the two sides came out:
+	 *
+	 * | scenario | `insertRecord` | fixture-only control | difference | error |
+	 * |---|---|---|---|---|
+	 * | `synth_100k` | 940.6 MB | 901.7 MB | 38.9 MB | ±12.1 GB |
+	 * | `uniform_1k_100k` | 538.0 MB | 506.8 MB | 31.2 MB | ±7.1 GB |
+	 * | `uniform_1k_1m` | 4.82 GB | 4.78 GB | 42.2 MB | ±61.5 GB |
+	 *
+	 * The error bars run 200x to 1500x the difference. Note the stronger implication, which is why the figure is
+	 * called unusable rather than merely diluted: **each error bar exceeds its own measurement**, so allocation here
+	 * is not a stable quantity under `SingleShotTime` at these iteration counts, with or without a control. Raising
+	 * `-i` far enough might eventually separate them, but that is a great deal of machine time for a number `ns/op`
+	 * already reports honestly. If you want the insert path's allocation, build a harness whose fixture is not
+	 * 10-100x the measurement.
+	 *
+	 * (The `anchor` scenario additionally needs `/var/tmp/decodoma-bench/sort-anchor.txt`, a real dataset export
+	 * absent from a clean checkout; it fails in `@Setup`.)
 	 */
 	@Benchmark
 	@BenchmarkMode(Mode.SingleShotTime)
