@@ -109,18 +109,18 @@ public class VersionUtils {
 	}
 
 	/**
-	 * Checks whether `comparedVersion` is greater than or equal to the given `major.minor` version.
-	 * A missing `comparedVersion` (e.g. a client that declared no version at all) is treated as older
+	 * Checks whether `version` is greater than or equal to the given `major.minor` version.
+	 * A missing `version` (e.g. a client that declared no version at all) is treated as older
 	 * than any `major.minor` and thus always yields `false`.
 	 *
+	 * @param version the SemVer object whose recency is being checked; can be null
 	 * @param major the major version to compare against
 	 * @param minor the minor version to compare against
-	 * @param comparedVersion the SemVer object whose recency is being checked; can be null
-	 * @return true if `comparedVersion` is greater than or equal to `major.minor`, false otherwise
+	 * @return true if `version` is greater than or equal to `major.minor`, false otherwise
 	 */
-	public static boolean greaterThanEquals(int major, int minor, @Nullable SemVer comparedVersion) {
-		return comparedVersion != null &&
-			(comparedVersion.major() > major || (comparedVersion.major() == major && comparedVersion.minor() >= minor));
+	public static boolean isAtLeast(@Nullable SemVer version, int major, int minor) {
+		return version != null &&
+			(version.major() > major || (version.major() == major && version.minor() >= minor));
 	}
 
 	/**

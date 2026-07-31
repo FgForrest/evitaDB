@@ -57,19 +57,19 @@ public class VersionUtilsTest {
 	}
 
 	@Test
-	void shouldReturnExpectedGreaterThanEqualsResults() {
+	void shouldReturnExpectedIsAtLeastResults() {
 		// client is newer than the compared major.minor
-		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2026.2.0")));
+		assertTrue(VersionUtils.isAtLeast(SemVer.fromString("2026.2.0"), 2025, 4));
 		// client is on the same major, newer minor
-		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.5.0")));
+		assertTrue(VersionUtils.isAtLeast(SemVer.fromString("2025.5.0"), 2025, 4));
 		// client is exactly on the compared major.minor
-		assertTrue(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.4.0")));
+		assertTrue(VersionUtils.isAtLeast(SemVer.fromString("2025.4.0"), 2025, 4));
 		// client is on the same major, older minor
-		assertFalse(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2025.3.0")));
+		assertFalse(VersionUtils.isAtLeast(SemVer.fromString("2025.3.0"), 2025, 4));
 		// client is on an older major
-		assertFalse(VersionUtils.greaterThanEquals(2025, 4, SemVer.fromString("2024.12.0")));
+		assertFalse(VersionUtils.isAtLeast(SemVer.fromString("2024.12.0"), 2025, 4));
 		// client declared no version at all - treated as older than any major.minor
-		assertFalse(VersionUtils.greaterThanEquals(2025, 4, null));
+		assertFalse(VersionUtils.isAtLeast(null, 2025, 4));
 	}
 
 	@Test
