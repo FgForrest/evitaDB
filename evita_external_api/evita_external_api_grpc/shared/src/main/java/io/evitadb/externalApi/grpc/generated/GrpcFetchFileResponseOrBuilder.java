@@ -33,7 +33,7 @@ public interface GrpcFetchFileResponseOrBuilder extends
 
   /**
    * <pre>
-   * chunk of the file content
+   * One chunk of the file's binary contents.
    * </pre>
    *
    * <code>bytes fileContents = 1;</code>
@@ -43,7 +43,8 @@ public interface GrpcFetchFileResponseOrBuilder extends
 
   /**
    * <pre>
-   * total size of the file
+   * Total size of the complete file (bytes); the same value is repeated on every chunk in the
+   * stream, not just the size of this chunk.
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 2;</code>

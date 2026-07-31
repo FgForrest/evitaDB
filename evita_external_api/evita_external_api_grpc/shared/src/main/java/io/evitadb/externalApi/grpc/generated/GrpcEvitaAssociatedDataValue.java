@@ -29,8 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
- * internally converted into ComplexDataObject.
+ * Structure that holds a single associated-data value, which is either one of the primitive/array
+ * Evita data types (wrapped by `GrpcEvitaValue`) or a complex (structured) object.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue}
@@ -116,7 +116,8 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMITIVEVALUE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -128,7 +129,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -143,7 +145,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -159,12 +162,15 @@ private static final long serialVersionUID = 0L;
   public static final int JSONVALUE_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=372
    * @return Whether the jsonValue field is set.
    */
   @java.lang.Deprecated public boolean hasJsonValue() {
@@ -172,12 +178,15 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=372
    * @return The jsonValue.
    */
   @java.lang.Deprecated public java.lang.String getJsonValue() {
@@ -199,12 +208,15 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=372
    * @return The bytes for jsonValue.
    */
   @java.lang.Deprecated public com.google.protobuf.ByteString
@@ -229,7 +241,8 @@ private static final long serialVersionUID = 0L;
   public static final int ROOT_FIELD_NUMBER = 4;
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -241,7 +254,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -256,7 +270,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -273,7 +288,8 @@ private static final long serialVersionUID = 0L;
   private int type_ = 0;
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+   * value is a structured object described via `root` (or the deprecated `jsonValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -284,7 +300,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+   * value is a structured object described via `root` (or the deprecated `jsonValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -299,8 +316,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value version_;
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -312,8 +330,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -325,8 +344,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -563,8 +583,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that holds AssociatedData value. Might be one of the supported data types or a JSON string that will be
-   * internally converted into ComplexDataObject.
+   * Structure that holds a single associated-data value, which is either one of the primitive/array
+   * Evita data types (wrapped by `GrpcEvitaValue`) or a complex (structured) object.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue}
@@ -843,7 +863,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> primitiveValueBuilder_;
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -855,7 +876,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -877,7 +899,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -897,7 +920,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -915,7 +939,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -942,7 +967,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -965,7 +991,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -975,7 +1002,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -993,7 +1021,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+     * is not a complex/structured object.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -1019,12 +1048,15 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @return Whether the jsonValue field is set.
      */
     @java.lang.Override
@@ -1033,12 +1065,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @return The jsonValue.
      */
     @java.lang.Override
@@ -1061,12 +1096,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @return The bytes for jsonValue.
      */
     @java.lang.Override
@@ -1090,12 +1128,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @param value The jsonValue to set.
      * @return This builder for chaining.
      */
@@ -1109,12 +1150,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearJsonValue() {
@@ -1127,12 +1171,15 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * JSON string value, this old approach led to data type loss and is deprecated.
+     * JSON-encoded `ComplexDataObject` value.
+     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+     * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=310
+     *     See GrpcEvitaDataTypes.proto;l=372
      * @param value The bytes for jsonValue to set.
      * @return This builder for chaining.
      */
@@ -1150,7 +1197,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDataItem, io.evitadb.externalApi.grpc.generated.GrpcDataItem.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemOrBuilder> rootBuilder_;
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1162,7 +1210,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1184,7 +1233,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1204,7 +1254,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1222,7 +1273,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1249,7 +1301,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1272,7 +1325,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1282,7 +1336,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1300,7 +1355,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * The root node of a complex (structured) object's tree, recursively described by
+     * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -1327,7 +1383,8 @@ private static final long serialVersionUID = 0L;
     private int type_ = 0;
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+     * value is a structured object described via `root` (or the deprecated `jsonValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -1338,7 +1395,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+     * value is a structured object described via `root` (or the deprecated `jsonValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -1353,7 +1411,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+     * value is a structured object described via `root` (or the deprecated `jsonValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -1366,7 +1425,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+     * value is a structured object described via `root` (or the deprecated `jsonValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -1384,7 +1444,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+     * value is a structured object described via `root` (or the deprecated `jsonValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -1402,8 +1463,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> versionBuilder_;
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1414,8 +1476,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1430,8 +1493,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1451,8 +1515,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1470,8 +1535,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1496,8 +1562,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1514,8 +1581,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1527,8 +1595,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -1543,8 +1612,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains version of this value and gets increased with any entity type update. Allows to execute
-     *			optimistic locking i.e. avoiding parallel modifications.
+     * Version of this associated data value; increases on every update to enable optimistic locking
+     * (concurrent-modification detection). May be null if this value is nested within a larger
+     * complex object.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value version = 3;</code>

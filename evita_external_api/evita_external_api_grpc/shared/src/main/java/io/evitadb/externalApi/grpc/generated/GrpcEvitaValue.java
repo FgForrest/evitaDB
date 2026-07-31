@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that holds one of the supported data type values, its type and version of stored value.
+ * Structure that holds a single attribute/default-value value together with its declared Evita
+ * data type and optimistic-locking version.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaValue}
@@ -163,7 +164,8 @@ private static final long serialVersionUID = 0L;
   public static final int STRINGVALUE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -174,7 +176,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -199,7 +202,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * String value.
+   * String value (Java `String`). Also carries a `Character` value, as a single-character
+   * string, when `type` is `CHARACTER`.
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -227,7 +231,8 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERVALUE_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * Integer value.
+   * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+   * `type` is `BYTE` or `SHORT`.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -239,7 +244,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Integer value.
+   * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+   * `type` is `BYTE` or `SHORT`.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -256,7 +262,7 @@ private static final long serialVersionUID = 0L;
   public static final int LONGVALUE_FIELD_NUMBER = 3;
   /**
    * <pre>
-   * Long value.
+   * Long value (Java `long`).
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -268,7 +274,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Long value.
+   * Long value (Java `long`).
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -285,7 +291,7 @@ private static final long serialVersionUID = 0L;
   public static final int BOOLEANVALUE_FIELD_NUMBER = 4;
   /**
    * <pre>
-   * Boolean value.
+   * Boolean value (Java `boolean`).
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -297,7 +303,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Boolean value.
+   * Boolean value (Java `boolean`).
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -314,7 +320,7 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALVALUE_FIELD_NUMBER = 5;
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -326,7 +332,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -341,7 +347,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * BigDecimal value.
+   * BigDecimal value (Java `BigDecimal`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -357,7 +363,7 @@ private static final long serialVersionUID = 0L;
   public static final int DATETIMERANGEVALUE_FIELD_NUMBER = 6;
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -369,7 +375,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -384,7 +390,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * DateTimeRange value.
+   * DateTimeRange value (evitaDB `DateTimeRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -400,7 +406,8 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERNUMBERRANGEVALUE_FIELD_NUMBER = 7;
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -412,7 +419,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -427,7 +435,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * IntegerNumberRange value.
+   * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+   * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -443,7 +452,7 @@ private static final long serialVersionUID = 0L;
   public static final int LONGNUMBERRANGEVALUE_FIELD_NUMBER = 8;
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -455,7 +464,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -470,7 +479,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * LongNumberRange value.
+   * LongNumberRange value (evitaDB `LongNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -486,7 +495,7 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALNUMBERRANGEVALUE_FIELD_NUMBER = 9;
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -498,7 +507,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -513,7 +522,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * BigDecimalNumberRange value.
+   * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -529,7 +538,9 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSETDATETIMEVALUE_FIELD_NUMBER = 10;
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -541,7 +552,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -556,7 +569,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * OffsetDateTime value.
+   * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+   * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+   * respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -572,7 +587,7 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALEVALUE_FIELD_NUMBER = 11;
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -584,7 +599,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -599,7 +614,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Locale value.
+   * Locale value (Java `Locale`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -615,7 +630,7 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCYVALUE_FIELD_NUMBER = 12;
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -627,7 +642,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -642,7 +657,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Currency value.
+   * Currency value (Java `Currency`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -658,7 +673,7 @@ private static final long serialVersionUID = 0L;
   public static final int UUIDVALUE_FIELD_NUMBER = 13;
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -670,7 +685,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -685,7 +700,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * UUID value.
+   * UUID value (Java `UUID`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -701,7 +716,8 @@ private static final long serialVersionUID = 0L;
   public static final int PREDECESSORVALUE_FIELD_NUMBER = 14;
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -713,7 +729,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -728,7 +745,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Predecessor value.
+   * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+   * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -744,7 +762,8 @@ private static final long serialVersionUID = 0L;
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 50;
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -756,7 +775,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -771,7 +791,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of string values.
+   * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+   * single-character string, when `type` is `CHARACTER_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -787,7 +808,8 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERARRAYVALUE_FIELD_NUMBER = 51;
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -799,7 +821,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -814,7 +837,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of integer values.
+   * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+   * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -830,7 +854,7 @@ private static final long serialVersionUID = 0L;
   public static final int LONGARRAYVALUE_FIELD_NUMBER = 52;
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -842,7 +866,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -857,7 +881,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of long values.
+   * Long array value (Java `Long[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -873,7 +897,7 @@ private static final long serialVersionUID = 0L;
   public static final int BOOLEANARRAYVALUE_FIELD_NUMBER = 53;
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -885,7 +909,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -900,7 +924,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of boolean values.
+   * Boolean array value (Java `Boolean[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -916,7 +940,7 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALARRAYVALUE_FIELD_NUMBER = 54;
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -928,7 +952,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -943,7 +967,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of BigDecimal values.
+   * BigDecimal array value (Java `BigDecimal[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -959,7 +983,7 @@ private static final long serialVersionUID = 0L;
   public static final int DATETIMERANGEARRAYVALUE_FIELD_NUMBER = 55;
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -971,7 +995,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -986,7 +1010,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of DateTimeRange values.
+   * DateTimeRange array value (evitaDB `DateTimeRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -1002,7 +1026,9 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 56;
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -1014,7 +1040,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -1029,7 +1057,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of IntegerNumberRange values.
+   * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+   * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+   * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -1045,7 +1075,7 @@ private static final long serialVersionUID = 0L;
   public static final int LONGNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 57;
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -1057,7 +1087,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -1072,7 +1102,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of LongNumberRange values.
+   * LongNumberRange array value (evitaDB `LongNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -1088,7 +1118,7 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 58;
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -1100,7 +1130,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -1115,7 +1145,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of BigDecimalNumberRange values.
+   * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -1131,7 +1161,9 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSETDATETIMEARRAYVALUE_FIELD_NUMBER = 59;
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -1143,7 +1175,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -1158,7 +1192,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of OffsetDateTime values.
+   * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+   * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+   * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -1174,7 +1210,7 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALEARRAYVALUE_FIELD_NUMBER = 60;
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -1186,7 +1222,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -1201,7 +1237,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of Locale values.
+   * Locale array value (Java `Locale[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -1217,7 +1253,7 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCYARRAYVALUE_FIELD_NUMBER = 61;
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -1229,7 +1265,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -1244,7 +1280,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of Currency values.
+   * Currency array value (Java `Currency[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -1260,7 +1296,7 @@ private static final long serialVersionUID = 0L;
   public static final int UUIDARRAYVALUE_FIELD_NUMBER = 62;
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -1272,7 +1308,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -1287,7 +1323,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Array of UUID values.
+   * UUID array value (Java `UUID[]`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -1304,7 +1340,8 @@ private static final long serialVersionUID = 0L;
   private int type_ = 0;
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+   * comment for which narrower types it also stands in for).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -1315,7 +1352,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+   * comment for which narrower types it also stands in for).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -1962,7 +2000,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that holds one of the supported data type values, its type and version of stored value.
+   * Structure that holds a single attribute/default-value value together with its declared Evita
+   * data type and optimistic-locking version.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaValue}
@@ -2644,7 +2683,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2656,7 +2696,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2682,7 +2723,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2709,7 +2751,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2726,7 +2769,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2742,7 +2786,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * String value.
+     * String value (Java `String`). Also carries a `Character` value, as a single-character
+     * string, when `type` is `CHARACTER`.
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -2761,7 +2806,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Integer value.
+     * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+     * `type` is `BYTE` or `SHORT`.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -2772,7 +2818,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Integer value.
+     * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+     * `type` is `BYTE` or `SHORT`.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -2786,7 +2833,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Integer value.
+     * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+     * `type` is `BYTE` or `SHORT`.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -2802,7 +2850,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Integer value.
+     * Integer value (Java `int`). Also carries `Byte` and `Short` values, widened to int32, when
+     * `type` is `BYTE` or `SHORT`.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -2819,7 +2868,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Long value.
+     * Long value (Java `long`).
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -2830,7 +2879,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Long value.
+     * Long value (Java `long`).
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -2844,7 +2893,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Long value.
+     * Long value (Java `long`).
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -2860,7 +2909,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Long value.
+     * Long value (Java `long`).
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -2877,7 +2926,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Boolean value.
+     * Boolean value (Java `boolean`).
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -2888,7 +2937,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Boolean value.
+     * Boolean value (Java `boolean`).
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -2902,7 +2951,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Boolean value.
+     * Boolean value (Java `boolean`).
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -2918,7 +2967,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Boolean value.
+     * Boolean value (Java `boolean`).
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -2937,7 +2986,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> bigDecimalValueBuilder_;
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -2949,7 +2998,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -2971,7 +3020,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -2991,7 +3040,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3009,7 +3058,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3036,7 +3085,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3059,7 +3108,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3069,7 +3118,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3087,7 +3136,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimal value.
+     * BigDecimal value (Java `BigDecimal`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -3115,7 +3164,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> dateTimeRangeValueBuilder_;
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3127,7 +3176,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3149,7 +3198,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3169,7 +3218,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3187,7 +3236,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3214,7 +3263,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3237,7 +3286,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3247,7 +3296,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3265,7 +3314,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * DateTimeRange value.
+     * DateTimeRange value (evitaDB `DateTimeRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -3293,7 +3342,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> integerNumberRangeValueBuilder_;
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3305,7 +3355,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3327,7 +3378,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3347,7 +3399,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3365,7 +3418,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3392,7 +3446,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3415,7 +3470,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3425,7 +3481,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3443,7 +3500,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * IntegerNumberRange value.
+     * IntegerNumberRange value (evitaDB `IntegerNumberRange`). Also carries `ByteNumberRange` and
+     * `ShortNumberRange` values when `type` is `BYTE_NUMBER_RANGE` or `SHORT_NUMBER_RANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -3471,7 +3529,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> longNumberRangeValueBuilder_;
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3483,7 +3541,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3505,7 +3563,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3525,7 +3583,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3543,7 +3601,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3570,7 +3628,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3593,7 +3651,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3603,7 +3661,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3621,7 +3679,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * LongNumberRange value.
+     * LongNumberRange value (evitaDB `LongNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -3649,7 +3707,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> bigDecimalNumberRangeValueBuilder_;
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3661,7 +3719,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3683,7 +3741,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3703,7 +3761,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3721,7 +3779,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3748,7 +3806,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3771,7 +3829,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3781,7 +3839,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3799,7 +3857,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * BigDecimalNumberRange value.
+     * BigDecimalNumberRange value (evitaDB `BigDecimalNumberRange`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -3827,7 +3885,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> offsetDateTimeValueBuilder_;
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3839,7 +3899,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3861,7 +3923,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3881,7 +3945,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3899,7 +3965,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3926,7 +3994,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3949,7 +4019,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3959,7 +4031,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -3977,7 +4051,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * OffsetDateTime value.
+     * Date/time value (Java `OffsetDateTime`). Also carries `LocalDateTime`, `LocalDate` and
+     * `LocalTime` values when `type` is `LOCAL_DATE_TIME`, `LOCAL_DATE` or `LOCAL_TIME`
+     * respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -4005,7 +4081,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> localeValueBuilder_;
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4017,7 +4093,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4039,7 +4115,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4059,7 +4135,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4077,7 +4153,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4104,7 +4180,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4127,7 +4203,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4137,7 +4213,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4155,7 +4231,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Locale value.
+     * Locale value (Java `Locale`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -4183,7 +4259,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> currencyValueBuilder_;
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4195,7 +4271,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4217,7 +4293,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4237,7 +4313,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4255,7 +4331,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4282,7 +4358,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4305,7 +4381,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4315,7 +4391,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4333,7 +4409,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Currency value.
+     * Currency value (Java `Currency`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -4361,7 +4437,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidValueBuilder_;
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4373,7 +4449,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4395,7 +4471,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4415,7 +4491,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4433,7 +4509,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4460,7 +4536,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4483,7 +4559,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4493,7 +4569,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4511,7 +4587,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * UUID value.
+     * UUID value (Java `UUID`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
@@ -4539,7 +4615,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder> predecessorValueBuilder_;
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4551,7 +4628,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4573,7 +4651,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4593,7 +4672,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4611,7 +4691,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4638,7 +4719,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4661,7 +4743,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4671,7 +4754,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4689,7 +4773,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Predecessor value.
+     * Predecessor value (evitaDB `Predecessor`). Also carries a `ReferencedEntityPredecessor`
+     * value when `type` is `REFERENCED_ENTITY_PREDECESSOR`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
@@ -4717,7 +4802,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> stringArrayValueBuilder_;
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4729,7 +4815,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4751,7 +4838,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4771,7 +4859,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4789,7 +4878,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4816,7 +4906,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4839,7 +4930,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4849,7 +4941,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4867,7 +4960,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of string values.
+     * String array value (Java `String[]`). Also carries a `Character[]` value, each element a
+     * single-character string, when `type` is `CHARACTER_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
@@ -4895,7 +4989,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder> integerArrayValueBuilder_;
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -4907,7 +5002,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -4929,7 +5025,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -4949,7 +5046,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -4967,7 +5065,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -4994,7 +5093,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -5017,7 +5117,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -5027,7 +5128,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -5045,7 +5147,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of integer values.
+     * Integer array value (Java `Integer[]`). Also carries `Byte[]` and `Short[]` values when
+     * `type` is `BYTE_ARRAY` or `SHORT_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
@@ -5073,7 +5176,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder> longArrayValueBuilder_;
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5085,7 +5188,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5107,7 +5210,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5127,7 +5230,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5145,7 +5248,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5172,7 +5275,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5195,7 +5298,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5205,7 +5308,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5223,7 +5326,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of long values.
+     * Long array value (Java `Long[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
@@ -5251,7 +5354,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder> booleanArrayValueBuilder_;
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5263,7 +5366,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5285,7 +5388,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5305,7 +5408,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5323,7 +5426,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5350,7 +5453,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5373,7 +5476,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5383,7 +5486,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5401,7 +5504,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of boolean values.
+     * Boolean array value (Java `Boolean[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
@@ -5429,7 +5532,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder> bigDecimalArrayValueBuilder_;
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5441,7 +5544,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5463,7 +5566,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5483,7 +5586,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5501,7 +5604,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5528,7 +5631,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5551,7 +5654,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5561,7 +5664,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5579,7 +5682,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimal values.
+     * BigDecimal array value (Java `BigDecimal[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
@@ -5607,7 +5710,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder> dateTimeRangeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5619,7 +5722,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5641,7 +5744,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5661,7 +5764,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5679,7 +5782,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5706,7 +5809,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5729,7 +5832,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5739,7 +5842,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5757,7 +5860,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of DateTimeRange values.
+     * DateTimeRange array value (evitaDB `DateTimeRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
@@ -5785,7 +5888,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder> integerNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5797,7 +5902,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5819,7 +5926,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5839,7 +5948,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5857,7 +5968,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5884,7 +5997,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5907,7 +6022,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5917,7 +6034,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5935,7 +6054,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of IntegerNumberRange values.
+     * IntegerNumberRange array value (evitaDB `IntegerNumberRange[]`). Also carries
+     * `ByteNumberRange[]` and `ShortNumberRange[]` values when `type` is
+     * `BYTE_NUMBER_RANGE_ARRAY` or `SHORT_NUMBER_RANGE_ARRAY`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
@@ -5963,7 +6084,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder> longNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -5975,7 +6096,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -5997,7 +6118,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6017,7 +6138,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6035,7 +6156,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6062,7 +6183,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6085,7 +6206,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6095,7 +6216,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6113,7 +6234,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of LongNumberRange values.
+     * LongNumberRange array value (evitaDB `LongNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
@@ -6141,7 +6262,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder> bigDecimalNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6153,7 +6274,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6175,7 +6296,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6195,7 +6316,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6213,7 +6334,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6240,7 +6361,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6263,7 +6384,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6273,7 +6394,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6291,7 +6412,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of BigDecimalNumberRange values.
+     * BigDecimalNumberRange array value (evitaDB `BigDecimalNumberRange[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
@@ -6319,7 +6440,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder> offsetDateTimeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6331,7 +6454,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6353,7 +6478,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6373,7 +6500,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6391,7 +6520,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6418,7 +6549,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6441,7 +6574,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6451,7 +6586,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6469,7 +6606,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of OffsetDateTime values.
+     * Date/time array value (Java `OffsetDateTime[]`). Also carries `LocalDateTime[]`,
+     * `LocalDate[]` and `LocalTime[]` values when `type` is `LOCAL_DATE_TIME_ARRAY`,
+     * `LOCAL_DATE_ARRAY` or `LOCAL_TIME_ARRAY` respectively.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
@@ -6497,7 +6636,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder> localeArrayValueBuilder_;
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6509,7 +6648,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6531,7 +6670,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6551,7 +6690,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6569,7 +6708,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6596,7 +6735,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6619,7 +6758,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6629,7 +6768,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6647,7 +6786,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Locale values.
+     * Locale array value (Java `Locale[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
@@ -6675,7 +6814,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder> currencyArrayValueBuilder_;
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6687,7 +6826,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6709,7 +6848,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6729,7 +6868,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6747,7 +6886,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6774,7 +6913,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6797,7 +6936,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6807,7 +6946,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6825,7 +6964,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of Currency values.
+     * Currency array value (Java `Currency[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
@@ -6853,7 +6992,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder> uuidArrayValueBuilder_;
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6865,7 +7004,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6887,7 +7026,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6907,7 +7046,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6925,7 +7064,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6952,7 +7091,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6975,7 +7114,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -6985,7 +7124,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -7003,7 +7142,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Array of UUID values.
+     * UUID array value (Java `UUID[]`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
@@ -7030,7 +7169,8 @@ private static final long serialVersionUID = 0L;
     private int type_ = 0;
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+     * comment for which narrower types it also stands in for).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -7041,7 +7181,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+     * comment for which narrower types it also stands in for).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -7056,7 +7197,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+     * comment for which narrower types it also stands in for).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -7069,7 +7211,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+     * comment for which narrower types it also stands in for).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
@@ -7087,7 +7230,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the stored value.
+     * The concrete Evita/Java data type represented by the `value` oneof above (see each arm's
+     * comment for which narrower types it also stands in for).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>

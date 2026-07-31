@@ -29,7 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to RegisterChangeCatalogCapture request.
+ * One message of the RegisterChangeCatalogCapture stream. `responseType` selects which payload is
+ * meaningful: `ACKNOWLEDGEMENT` (subscription set up; `heartBeat` populated, `capture` is not),
+ * `CHANGE` (`capture` populated, `heartBeat` is not), or `HEARTBEAT` (`heartBeat` populated, `capture`
+ * is not) - the periodic keep-alive sent while no matching mutation has occurred.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
@@ -72,7 +75,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid uuid_;
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -84,7 +88,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -96,7 +101,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -110,7 +116,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture_;
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -122,7 +129,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -134,7 +142,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -148,8 +157,8 @@ private static final long serialVersionUID = 0L;
   private int responseType_ = 0;
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+   * comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -160,8 +169,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+   * comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -176,7 +185,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat_;
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -188,7 +198,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -200,7 +211,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -416,7 +428,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to RegisterChangeCatalogCapture request.
+   * One message of the RegisterChangeCatalogCapture stream. `responseType` selects which payload is
+   * meaningful: `ACKNOWLEDGEMENT` (subscription set up; `heartBeat` populated, `capture` is not),
+   * `CHANGE` (`capture` populated, `heartBeat` is not), or `HEARTBEAT` (`heartBeat` populated, `capture`
+   * is not) - the periodic keep-alive sent while no matching mutation has occurred.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse}
@@ -664,7 +679,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidBuilder_;
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -675,7 +691,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -690,7 +707,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -710,7 +728,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -728,7 +747,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -753,7 +773,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -770,7 +791,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -782,7 +804,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -797,7 +820,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Present on every message, not just the initial
+     * acknowledgement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -821,7 +845,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder> captureBuilder_;
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -832,7 +857,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -847,7 +873,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -867,7 +894,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -885,7 +913,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -910,7 +939,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -927,7 +957,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -939,7 +970,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -954,7 +986,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+     * `CHANGE`; unset otherwise.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -976,8 +1009,8 @@ private static final long serialVersionUID = 0L;
     private int responseType_ = 0;
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+     * comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -988,8 +1021,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+     * comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1004,8 +1037,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+     * comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1018,8 +1051,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+     * comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1037,8 +1070,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+     * comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1056,7 +1089,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcHeartBeat, io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder, io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder> heartBeatBuilder_;
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1067,7 +1101,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1082,7 +1117,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1102,7 +1138,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1120,7 +1157,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1145,7 +1183,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1162,7 +1201,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1174,7 +1214,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1189,7 +1230,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+     * `responseType` is `CHANGE`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>

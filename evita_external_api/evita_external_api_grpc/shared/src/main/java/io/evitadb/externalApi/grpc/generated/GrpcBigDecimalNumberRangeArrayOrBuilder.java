@@ -33,7 +33,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a BigDecimalNumberRange array.
+   * The individual BigDecimalNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a BigDecimalNumberRange array.
+   * The individual BigDecimalNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a BigDecimalNumberRange array.
+   * The individual BigDecimalNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a BigDecimalNumberRange array.
+   * The individual BigDecimalNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcBigDecimalNumberRangeArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a BigDecimalNumberRange array.
+   * The individual BigDecimalNumberRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange value = 1;</code>

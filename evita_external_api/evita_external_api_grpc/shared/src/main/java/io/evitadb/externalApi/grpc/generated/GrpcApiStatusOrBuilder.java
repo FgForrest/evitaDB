@@ -33,7 +33,8 @@ public interface GrpcApiStatusOrBuilder extends
 
   /**
    * <pre>
-   * True if the API is enabled
+   * True when this API is turned on in the server configuration. An enabled API can still be
+   * briefly not ready while the server is starting up - see `ready`.
    * </pre>
    *
    * <code>bool enabled = 1;</code>
@@ -43,7 +44,8 @@ public interface GrpcApiStatusOrBuilder extends
 
   /**
    * <pre>
-   * API readiness status
+   * True when the API has finished initialization and is actually able to serve requests.
+   * Always false when `enabled` is false.
    * </pre>
    *
    * <code>bool ready = 2;</code>
@@ -53,7 +55,9 @@ public interface GrpcApiStatusOrBuilder extends
 
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -63,7 +67,9 @@ public interface GrpcApiStatusOrBuilder extends
       getBaseUrlList();
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -72,7 +78,9 @@ public interface GrpcApiStatusOrBuilder extends
   int getBaseUrlCount();
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -82,7 +90,9 @@ public interface GrpcApiStatusOrBuilder extends
   java.lang.String getBaseUrl(int index);
   /**
    * <pre>
-   * list of base url of the web API
+   * Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+   * `exposeOn` override if set), so this commonly holds more than one URL even though the field
+   * name is singular.
    * </pre>
    *
    * <code>repeated string baseUrl = 3;</code>
@@ -94,8 +104,9 @@ public interface GrpcApiStatusOrBuilder extends
 
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -104,8 +115,9 @@ public interface GrpcApiStatusOrBuilder extends
       getEndpointsList();
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -113,8 +125,9 @@ public interface GrpcApiStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEndpoint getEndpoints(int index);
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -122,8 +135,9 @@ public interface GrpcApiStatusOrBuilder extends
   int getEndpointsCount();
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>
@@ -132,8 +146,9 @@ public interface GrpcApiStatusOrBuilder extends
       getEndpointsOrBuilderList();
   /**
    * <pre>
-   * list of specific endpoints of particular API
-   * currently only system API provides list of endpoints
+   * Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+   * endpoint and giving its URL(s). Currently only the system API populates this list; every
+   * other API reports it empty.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEndpoint endpoints = 4;</code>

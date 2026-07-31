@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Representation of LongNumberRange structures with optional from and to values.
+ * Representation of LongNumberRange structures. At least one of `from`/`to` should be set; if
+ * both are absent, the range decodes to the degenerate range `[0,0]` rather than being unbounded
+ * in both directions.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange}
@@ -71,7 +73,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value from_;
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -83,7 +86,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -95,7 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -109,7 +114,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value to_;
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -121,7 +127,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -133,7 +140,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -323,7 +331,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Representation of LongNumberRange structures with optional from and to values.
+   * Representation of LongNumberRange structures. At least one of `from`/`to` should be set; if
+   * both are absent, the range decodes to the degenerate range `[0,0]` rather than being unbounded
+   * in both directions.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange}
@@ -537,7 +547,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> fromBuilder_;
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -548,7 +559,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -563,7 +575,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -583,7 +596,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -601,7 +615,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -626,7 +641,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -643,7 +659,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -655,7 +672,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -670,7 +688,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -694,7 +713,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> toBuilder_;
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -705,7 +725,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -720,7 +741,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -740,7 +762,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -758,7 +781,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -783,7 +807,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -800,7 +825,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -812,7 +838,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -827,7 +854,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value to = 2;</code>

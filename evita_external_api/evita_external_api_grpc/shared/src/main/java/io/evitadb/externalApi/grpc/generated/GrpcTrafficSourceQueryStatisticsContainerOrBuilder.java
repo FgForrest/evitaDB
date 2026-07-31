@@ -60,7 +60,7 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
 
   /**
    * <pre>
-   * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
+   * The number of records actually returned by the query, i.e. the size of the fetched data chunk after pagination.
    * </pre>
    *
    * <code>int32 returnedRecordCount = 2;</code>
@@ -70,7 +70,7 @@ public interface GrpcTrafficSourceQueryStatisticsContainerOrBuilder extends
 
   /**
    * <pre>
-   * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
+   * The total number of records matching the query, before pagination is applied.
    * </pre>
    *
    * <code>int32 totalRecordCount = 3;</code>

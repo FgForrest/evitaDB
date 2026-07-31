@@ -33,7 +33,8 @@ public interface GrpcEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcEntityResponseOrBuilder extends
   boolean hasEntity();
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>

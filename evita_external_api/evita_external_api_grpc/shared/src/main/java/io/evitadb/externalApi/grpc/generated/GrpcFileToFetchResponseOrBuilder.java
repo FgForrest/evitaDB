@@ -33,7 +33,7 @@ public interface GrpcFileToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcFileToFetchResponseOrBuilder extends
   boolean hasFileToFetch();
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcFileToFetchResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcFile getFileToFetch();
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>

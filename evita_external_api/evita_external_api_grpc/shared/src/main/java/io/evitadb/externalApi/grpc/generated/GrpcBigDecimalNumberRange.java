@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Representation of BigDecimalNumberRange structures with optional from and to values.
+ * Representation of BigDecimalNumberRange structures. At least one of `from`/`to` should be set;
+ * if both are absent, the range decodes to the degenerate range `[0,0]` rather than being
+ * unbounded in both directions.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange}
@@ -71,7 +73,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from_;
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -83,7 +86,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -95,7 +99,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -109,7 +114,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to_;
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -121,7 +127,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -133,7 +140,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -147,7 +155,9 @@ private static final long serialVersionUID = 0L;
   private int decimalPlacesToCompare_ = 0;
   /**
    * <pre>
-   * The number of decimal places to compare.
+   * The number of fractional digits retained (rounded half-up) when comparing values against this
+   * range: both bounds and the compared value are scaled to this precision first, so digits beyond
+   * it are ignored for range-membership comparisons.
    * </pre>
    *
    * <code>int32 decimalPlacesToCompare = 3;</code>
@@ -349,7 +359,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Representation of BigDecimalNumberRange structures with optional from and to values.
+   * Representation of BigDecimalNumberRange structures. At least one of `from`/`to` should be set;
+   * if both are absent, the range decodes to the degenerate range `[0,0]` rather than being
+   * unbounded in both directions.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange}
@@ -575,7 +587,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> fromBuilder_;
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -586,7 +599,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -601,7 +615,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -621,7 +636,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -639,7 +655,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -664,7 +681,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -681,7 +699,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -693,7 +712,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -708,7 +728,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The lower bound of the range.
+     * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+     * below.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -732,7 +753,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> toBuilder_;
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -743,7 +765,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -758,7 +781,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -778,7 +802,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -796,7 +821,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -821,7 +847,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -838,7 +865,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -850,7 +878,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -865,7 +894,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upper bound of the range.
+     * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+     * above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -887,7 +917,9 @@ private static final long serialVersionUID = 0L;
     private int decimalPlacesToCompare_ ;
     /**
      * <pre>
-     * The number of decimal places to compare.
+     * The number of fractional digits retained (rounded half-up) when comparing values against this
+     * range: both bounds and the compared value are scaled to this precision first, so digits beyond
+     * it are ignored for range-membership comparisons.
      * </pre>
      *
      * <code>int32 decimalPlacesToCompare = 3;</code>
@@ -899,7 +931,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of decimal places to compare.
+     * The number of fractional digits retained (rounded half-up) when comparing values against this
+     * range: both bounds and the compared value are scaled to this precision first, so digits beyond
+     * it are ignored for range-membership comparisons.
      * </pre>
      *
      * <code>int32 decimalPlacesToCompare = 3;</code>
@@ -915,7 +949,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of decimal places to compare.
+     * The number of fractional digits retained (rounded half-up) when comparing values against this
+     * range: both bounds and the compared value are scaled to this precision first, so digits beyond
+     * it are ignored for range-membership comparisons.
      * </pre>
      *
      * <code>int32 decimalPlacesToCompare = 3;</code>

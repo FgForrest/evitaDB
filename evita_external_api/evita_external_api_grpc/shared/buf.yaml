@@ -1,0 +1,24 @@
+version: v2
+# Kept out of src/main/resources deliberately: everything under that tree is packaged as-is into
+# the evita_external_api_grpc_shared JAR (alongside the .proto sources themselves, so downstream
+# non-Java clients can extract and compile them directly) - this file is our own lint config, not
+# something meant to ship to consumers of the JAR.
+#
+# `path` below points at the proto module root (relative to this file): all .proto files there
+# import each other by bare filename (e.g. `import "GrpcEnums.proto";`), which only resolves
+# correctly if buf treats that exact directory as the module root rather than this one.
+modules:
+  - path: src/main/resources/META-INF/io/evitadb/externalApi/grpc
+lint:
+  use:
+    # COMMENTS enforces a non-empty leading comment on every message, field, enum, enum value,
+    # RPC and service - directly enforcing the "every message/field/enum needs a real comment"
+    # rule from .claude/rules/proto-documentation.md (repo root).
+    #
+    # Deliberately NOT using STANDARD/DEFAULT/BASIC: those bundle naming-convention rules
+    # (lower_snake_case field/enum names, file/package layout, versioned package suffixes) that
+    # conflict with this surface's established camelCase style, which exists to match the
+    # generated Java accessor names (`stringValue` -> `getStringValue()`) and is shared by every
+    # client language already relying on it. Enforcing them would demand renaming ~1000 existing
+    # fields - a massive breaking change, not what #1350 asked for.
+    - COMMENTS

@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a task statuses request.
+ * Response to a request for a single file available for fetching. If no file exists for the given
+ * id, the call fails with an error instead of returning this message.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse}
@@ -71,7 +72,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch_;
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -83,7 +84,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -95,7 +96,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * File to fetch.
+   * Descriptor of the requested file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -269,7 +270,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a task statuses request.
+   * Response to a request for a single file available for fetching. If no file exists for the given
+   * id, the call fails with an error instead of returning this message.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFileToFetchResponse}
@@ -461,7 +463,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFile, io.evitadb.externalApi.grpc.generated.GrpcFile.Builder, io.evitadb.externalApi.grpc.generated.GrpcFileOrBuilder> fileToFetchBuilder_;
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -472,7 +474,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -487,7 +489,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -507,7 +509,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -525,7 +527,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -550,7 +552,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -567,7 +569,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -579,7 +581,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>
@@ -594,7 +596,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * File to fetch.
+     * Descriptor of the requested file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile fileToFetch = 1;</code>

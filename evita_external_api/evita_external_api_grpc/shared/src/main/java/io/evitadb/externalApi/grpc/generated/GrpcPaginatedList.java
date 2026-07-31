@@ -29,7 +29,13 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that represents a pagination within a data chunk.
+ * Page-based pagination descriptor for a `GrpcDataChunk`, reporting the page actually returned. The
+ * desired page is requested via the query's `page()` require constraint, not a field on this response
+ * structure - see `io.evitadb.api.query.require.Page` for the full contract. `pageNumber` is 1-indexed
+ * (page 1 is the first page) - see `io.evitadb.dataType.PaginatedList#getPageNumber`. A requested page
+ * number of 0 or less is rejected by the server; a requested page number beyond `lastPageNumber` is not
+ * rejected - the engine returns the first page instead, so `pageNumber` here can differ from what was
+ * requested.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPaginatedList}
@@ -70,7 +76,8 @@ private static final long serialVersionUID = 0L;
   private int pageSize_ = 0;
   /**
    * <pre>
-   * The size of the page.
+   * Number of records requested per page, echoed back from the query's `page()` require constraint.
+   * Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
    * </pre>
    *
    * <code>int32 pageSize = 1;</code>
@@ -85,7 +92,8 @@ private static final long serialVersionUID = 0L;
   private int pageNumber_ = 0;
   /**
    * <pre>
-   * The number of the page.
+   * The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+   * the requested page number.
    * </pre>
    *
    * <code>int32 pageNumber = 2;</code>
@@ -100,7 +108,7 @@ private static final long serialVersionUID = 0L;
   private int lastPageNumber_ = 0;
   /**
    * <pre>
-   * The number of the last page.
+   * The number of the last available page, given `pageSize` and the total record count.
    * </pre>
    *
    * <code>int32 lastPageNumber = 3;</code>
@@ -292,7 +300,13 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that represents a pagination within a data chunk.
+   * Page-based pagination descriptor for a `GrpcDataChunk`, reporting the page actually returned. The
+   * desired page is requested via the query's `page()` require constraint, not a field on this response
+   * structure - see `io.evitadb.api.query.require.Page` for the full contract. `pageNumber` is 1-indexed
+   * (page 1 is the first page) - see `io.evitadb.dataType.PaginatedList#getPageNumber`. A requested page
+   * number of 0 or less is rejected by the server; a requested page number beyond `lastPageNumber` is not
+   * rejected - the engine returns the first page instead, so `pageNumber` here can differ from what was
+   * requested.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPaginatedList}
@@ -489,7 +503,8 @@ private static final long serialVersionUID = 0L;
     private int pageSize_ ;
     /**
      * <pre>
-     * The size of the page.
+     * Number of records requested per page, echoed back from the query's `page()` require constraint.
+     * Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -501,7 +516,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page.
+     * Number of records requested per page, echoed back from the query's `page()` require constraint.
+     * Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -517,7 +533,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page.
+     * Number of records requested per page, echoed back from the query's `page()` require constraint.
+     * Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -533,7 +550,8 @@ private static final long serialVersionUID = 0L;
     private int pageNumber_ ;
     /**
      * <pre>
-     * The number of the page.
+     * The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+     * the requested page number.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -545,7 +563,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the page.
+     * The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+     * the requested page number.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -561,7 +580,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the page.
+     * The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+     * the requested page number.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -577,7 +597,7 @@ private static final long serialVersionUID = 0L;
     private int lastPageNumber_ ;
     /**
      * <pre>
-     * The number of the last page.
+     * The number of the last available page, given `pageSize` and the total record count.
      * </pre>
      *
      * <code>int32 lastPageNumber = 3;</code>
@@ -589,7 +609,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the last page.
+     * The number of the last available page, given `pageSize` and the total record count.
      * </pre>
      *
      * <code>int32 lastPageNumber = 3;</code>
@@ -605,7 +625,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the last page.
+     * The number of the last available page, given `pageSize` and the total record count.
      * </pre>
      *
      * <code>int32 lastPageNumber = 3;</code>

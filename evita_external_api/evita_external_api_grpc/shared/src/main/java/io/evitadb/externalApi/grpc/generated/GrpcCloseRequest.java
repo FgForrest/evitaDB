@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response for Close request that commits or rollbacks the changes in the session.
+ * Request for Close, which commits or rollbacks the changes in the session and terminates it.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseRequest}
@@ -338,7 +338,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response for Close request that commits or rollbacks the changes in the session.
+   * Request for Close, which commits or rollbacks the changes in the session and terminates it.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseRequest}

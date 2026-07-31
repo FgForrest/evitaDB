@@ -71,13 +71,23 @@ message GrpcRemoveSortableAttributeCompoundSchemaMutation {
   string name = 1;
 }
 
+// Mutation of a sortable attribute compound schema.
 message GrpcSortableAttributeCompoundSchemaMutation {
+  // Type of the mutation. Exactly one of the following must be set.
   oneof mutation {
+    // Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
     GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;
+    // Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+    // in the `EntitySchema`.
     GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;
+    // Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+    // in the `EntitySchema`.
     GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;
+    // Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
     GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;
+    // Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
     GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;
+    // Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
     GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;
   }
 }

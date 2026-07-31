@@ -13,12 +13,16 @@ import "GrpcInfrastrutureMutation.proto";
 import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
 
-// Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
+// Record for the criteria of the capture request allowing to limit mutations to specific area of interest and its
 // properties.
 message GrpcChangeCaptureCriteria {
-  // The area of capture - either schema or data (correlates with the site)
+  // The area of capture - SCHEMA, DATA or INFRASTRUCTURE. If `schemaSite`/`dataSite` below is set, it determines
+  // the effective area and this field is ignored; this field is only consulted when neither site is set, which
+  // is also the only way to select INFRASTRUCTURE (it has no site message of its own).
   GrpcChangeCaptureArea area = 1;
-  // The specific requirements for the designated area
+  // At most one of `schemaSite`/`dataSite` may be set. If neither is set, every mutation matching `area` passes
+  // without further site-level filtering; each set field on the chosen site message narrows the match further
+  // (see that message's field comments for what an unset field means).
   oneof site {
     // Criteria for schema capture
     GrpcChangeCaptureSchemaSite schemaSite = 2;
@@ -28,36 +32,57 @@ message GrpcChangeCaptureCriteria {
 }
 
 // Record describing the location and form of the CDC schema event in the evitaDB that should be captured.
+// Every field below is an independent, optional filter (logically ANDed together when several are set); an
+// unset/empty field imposes no restriction on that dimension.
 message GrpcChangeCaptureSchemaSite {
-  // The name of intercepted entity
+  // Restricts capture to schema mutations of the named entity type. If `null`, matches schema mutations for any
+  // entity type, including catalog-level schema changes (which carry no entity type of their own).
   google.protobuf.StringValue entityType = 1;
-  // The intercepted type of operation
+  // Restricts capture to the listed operation types. If empty, matches any operation.
   repeated GrpcChangeCaptureOperation operation = 2;
-  // the name of the intercepted container type
+  // Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+  // matches any container type.
   repeated GrpcChangeCaptureContainerType containerType = 3;
-  // the name of the container (e.g. attribute name, associated data name, reference name)
+  // Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+  // reference name). If empty, matches containers of any name.
   repeated string containerName = 4;
 }
 
 // Record describing the location and form of the CDC data event in the evitaDB that should be captured.
+// Every field below is an independent, optional filter (logically ANDed together when several are set); an
+// unset/empty field imposes no restriction on that dimension.
 message GrpcChangeCaptureDataSite {
-  // the name of the intercepted entity type
+  // Restricts capture to mutations of the named entity type. If `null`, matches data mutations for any entity
+  // type.
   google.protobuf.StringValue entityType = 1;
-  // the primary key of the intercepted entity
+  // Restricts capture to mutations of the entity with this primary key. If `null`, matches any primary key
+  // within the entity type filter above.
   google.protobuf.Int32Value entityPrimaryKey = 2;
-  // the intercepted type of operation
+  // Restricts capture to the listed operation types. If empty, matches any operation.
   repeated GrpcChangeCaptureOperation operation = 3;
-  // the name of the intercepted container type
+  // Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+  // matches any container type.
   repeated GrpcChangeCaptureContainerType containerType = 4;
-  // the name of the container (e.g. attribute name, associated data name, reference name)
+  // Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+  // reference name). If empty, matches containers of any name.
   repeated string containerName = 5;
 }
 
 // Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeCatalogCapture {
-  // the version of the catalog where the operation was performed
+  // The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+  // forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
   google.protobuf.Int64Value version = 1;
-  // the index of the event within the enclosed transaction, index 0 is the transaction lead event
+  // A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+  // counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+  // descending, so the same physical record gets the same index regardless of direction - but indices are
+  // therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+  // index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+  // index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+  // `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+  // local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+  // filtering is applied, so it stays stable and comparable across requests using different filters. See issue
+  // #1349 for the full analysis.
   google.protobuf.Int32Value index = 2;
   // the area of the operation
   GrpcChangeCaptureArea area = 3;
@@ -67,13 +92,25 @@ message GrpcChangeCatalogCapture {
   // the primary key of the entity that was affected by the operation
   // (null for schema operations)
   google.protobuf.Int32Value entityPrimaryKey = 5;
-  // the operation that was performed
+  // The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+  // present) carries the payload - see the `body` oneof comment for the mapping.
   GrpcChangeCaptureOperation operation = 6;
-  // optional body of the operation when it is requested by the GrpcContent
+  // Payload of the operation. Present only when the request's content mode is `CHANGE_BODY` (see
+  // `GrpcChangeCaptureContent`); a `CHANGE_HEADER` request - the proto3 default when `content` is left unset -
+  // always leaves every arm of this oneof unset. When present, exactly one arm is set, chosen by
+  // `area`/`operation`: `schemaMutation` for a SCHEMA area mutation, `entityMutation` for the top-level DATA
+  // area entity mutation, `localMutation` for a DATA area field-level mutation nested inside an entity upsert
+  // (it shares the parent entity mutation's `(version, index)` - see the `index` field comment above),
+  // `infrastructureMutation` for the INFRASTRUCTURE area transaction header.
   oneof body {
+    // Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
     GrpcEntitySchemaMutation schemaMutation = 7;
+    // Set for the top-level DATA area entity mutation. See the `body` comment above.
     GrpcEntityMutation entityMutation = 8;
+    // Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+    // comment above and the `index` field comment for how it shares its parent's `(version, index)`.
     GrpcLocalMutation localMutation = 9;
+    // Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
     GrpcInfrastructureMutation infrastructureMutation = 10;
   }
   // Represents the timestamp of the commit.
@@ -104,6 +141,7 @@ message GrpcChangeSystemCapture {
 // Host CDC event. Carried as the body of GrpcChangeSystemCapture
 // when the subscriber explicitly opted in to HOST.
 message GrpcHostSystemEvent {
+  // Exactly one of the following event kinds is set.
   oneof event {
     // Fires when a catalog's local reference settles into a non-transient state on this host.
     GrpcCatalogInstalledIntoLiveView catalogInstalled = 1;

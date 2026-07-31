@@ -33,7 +33,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
   boolean hasEntityReference();
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
    * <pre>
-   * The restored entity reference.
+   * The restored entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -60,7 +60,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -69,7 +69,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
   boolean hasEntity();
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -78,7 +78,7 @@ public interface GrpcRestoreEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
    * <pre>
-   * The restored entity.
+   * The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>

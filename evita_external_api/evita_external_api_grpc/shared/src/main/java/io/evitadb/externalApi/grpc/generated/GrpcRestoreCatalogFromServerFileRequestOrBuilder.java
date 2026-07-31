@@ -33,8 +33,8 @@ public interface GrpcRestoreCatalogFromServerFileRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -43,8 +43,8 @@ public interface GrpcRestoreCatalogFromServerFileRequestOrBuilder extends
   java.lang.String getCatalogName();
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -55,7 +55,7 @@ public interface GrpcRestoreCatalogFromServerFileRequestOrBuilder extends
 
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -64,7 +64,7 @@ public interface GrpcRestoreCatalogFromServerFileRequestOrBuilder extends
   boolean hasFileId();
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>
@@ -73,7 +73,7 @@ public interface GrpcRestoreCatalogFromServerFileRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getFileId();
   /**
    * <pre>
-   * The identification of the file on the server that should be restored
+   * Identification of the backup file already stored on the server that should be restored.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 2;</code>

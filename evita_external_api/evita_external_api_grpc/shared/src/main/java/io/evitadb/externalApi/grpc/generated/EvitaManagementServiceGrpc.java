@@ -645,7 +645,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
+     * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
      */
     default io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
@@ -655,7 +656,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+     * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
      */
     default void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
@@ -665,7 +667,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a backup file already stored on the server, without
+     * re-uploading it.
      * </pre>
      */
     default void restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request,
@@ -735,7 +738,7 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get file contents
+     * Procedure used to get file contents, streamed back to the client in chunks.
      * </pre>
      */
     default void fetchFile(io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest request,
@@ -846,7 +849,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
+     * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
      */
     public io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest> restoreCatalog(
@@ -857,7 +861,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+     * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
      */
     public void restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request,
@@ -868,7 +873,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a backup file already stored on the server, without
+     * re-uploading it.
      * </pre>
      */
     public void restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request,
@@ -945,7 +951,7 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get file contents
+     * Procedure used to get file contents, streamed back to the client in chunks.
      * </pre>
      */
     public void fetchFile(io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest request,
@@ -1040,7 +1046,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
+     * streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
      * </pre>
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
@@ -1052,7 +1059,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+     * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) throws io.grpc.StatusException {
@@ -1062,7 +1070,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a backup file already stored on the server, without
+     * re-uploading it.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request) throws io.grpc.StatusException {
@@ -1132,7 +1141,7 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get file contents
+     * Procedure used to get file contents, streamed back to the client in chunks.
      * </pre>
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
@@ -1226,7 +1235,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+     * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse restoreCatalogUnary(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest request) {
@@ -1236,7 +1246,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a backup file already stored on the server, without
+     * re-uploading it.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse restoreCatalogFromServerFile(io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogFromServerFileRequest request) {
@@ -1306,7 +1317,7 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to get file contents
+     * Procedure used to get file contents, streamed back to the client in chunks.
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcFetchFileResponse> fetchFile(
@@ -1403,7 +1414,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup (unary version for gRPC/web).
+     * Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+     * version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryResponse> restoreCatalogUnary(
@@ -1414,7 +1426,8 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to restore a catalog from backup.
+     * Procedure used to restore a catalog from a backup file already stored on the server, without
+     * re-uploading it.
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> restoreCatalogFromServerFile(

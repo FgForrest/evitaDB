@@ -33,7 +33,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -42,7 +42,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
       getChangeCaptureList();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -50,7 +50,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getChangeCapture(int index);
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -58,7 +58,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
   int getChangeCaptureCount();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -67,7 +67,7 @@ public interface GetMutationsHistoryResponseOrBuilder extends
       getChangeCaptureOrBuilderList();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>

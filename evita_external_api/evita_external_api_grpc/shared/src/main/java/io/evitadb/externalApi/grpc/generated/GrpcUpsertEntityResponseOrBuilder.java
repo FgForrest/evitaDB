@@ -33,7 +33,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   boolean hasEntityReference();
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -60,7 +60,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -69,7 +69,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   boolean hasEntity();
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -78,7 +78,7 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -87,7 +87,8 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -96,7 +97,8 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   boolean hasEntityReferenceWithAssignedPrimaryKeys();
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -105,7 +107,8 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys getEntityReferenceWithAssignedPrimaryKeys();
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>

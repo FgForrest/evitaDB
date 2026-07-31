@@ -33,7 +33,9 @@ public interface GetTrafficRecordingLabelNamesRequestOrBuilder extends
 
   /**
    * <pre>
-   * The limit of records to return
+   * Maximum number of label names to return, ordered by descending cardinality (most frequently used labels
+   * first). This is a plain result cap, not page-based or offset-based pagination; repeated calls do not support
+   * continuation.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -43,7 +45,7 @@ public interface GetTrafficRecordingLabelNamesRequestOrBuilder extends
 
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -52,7 +54,7 @@ public interface GetTrafficRecordingLabelNamesRequestOrBuilder extends
   boolean hasNameStartsWith();
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -61,7 +63,7 @@ public interface GetTrafficRecordingLabelNamesRequestOrBuilder extends
   com.google.protobuf.StringValue getNameStartsWith();
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>

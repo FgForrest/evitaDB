@@ -109,7 +109,7 @@ private static final long serialVersionUID = 0L;
   private int returnedRecordCount_ = 0;
   /**
    * <pre>
-   * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
+   * The number of records actually returned by the query, i.e. the size of the fetched data chunk after pagination.
    * </pre>
    *
    * <code>int32 returnedRecordCount = 2;</code>
@@ -124,7 +124,7 @@ private static final long serialVersionUID = 0L;
   private int totalRecordCount_ = 0;
   /**
    * <pre>
-   * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
+   * The total number of records matching the query, before pagination is applied.
    * </pre>
    *
    * <code>int32 totalRecordCount = 3;</code>
@@ -692,7 +692,7 @@ private static final long serialVersionUID = 0L;
     private int returnedRecordCount_ ;
     /**
      * <pre>
-     * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
+     * The number of records actually returned by the query, i.e. the size of the fetched data chunk after pagination.
      * </pre>
      *
      * <code>int32 returnedRecordCount = 2;</code>
@@ -704,7 +704,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
+     * The number of records actually returned by the query, i.e. the size of the fetched data chunk after pagination.
      * </pre>
      *
      * <code>int32 returnedRecordCount = 2;</code>
@@ -720,7 +720,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records returned by the query ({&#64;link EvitaResponse#getRecordData()} size)
+     * The number of records actually returned by the query, i.e. the size of the fetched data chunk after pagination.
      * </pre>
      *
      * <code>int32 returnedRecordCount = 2;</code>
@@ -736,7 +736,7 @@ private static final long serialVersionUID = 0L;
     private int totalRecordCount_ ;
     /**
      * <pre>
-     * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
+     * The total number of records matching the query, before pagination is applied.
      * </pre>
      *
      * <code>int32 totalRecordCount = 3;</code>
@@ -748,7 +748,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
+     * The total number of records matching the query, before pagination is applied.
      * </pre>
      *
      * <code>int32 totalRecordCount = 3;</code>
@@ -764,7 +764,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The total number of records calculated by the query ({&#64;link EvitaResponse#getTotalRecordCount()})
+     * The total number of records matching the query, before pagination is applied.
      * </pre>
      *
      * <code>int32 totalRecordCount = 3;</code>

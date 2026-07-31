@@ -29,10 +29,10 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This enumeration controls behavior of the {&#64;link ReferenceContent} related to managed entities.
- * If the target entity is not (yet) present in the database and {&#64;link ManagedReferencesBehaviour#EXISTING} is set,
+ * This enumeration controls behavior of the `ReferenceContent` related to managed entities.
+ * If the target entity is not (yet) present in the database and `EXISTING` is set,
  * the reference will not be returned as if it does not exist.
- * If {&#64;link ManagedReferencesBehaviour#ANY} is set (default behavior), the reference will be returned if defined regardless
+ * If `ANY` is set (default behavior), the reference will be returned if defined regardless
  * of its target entity existence.
  * </pre>
  *

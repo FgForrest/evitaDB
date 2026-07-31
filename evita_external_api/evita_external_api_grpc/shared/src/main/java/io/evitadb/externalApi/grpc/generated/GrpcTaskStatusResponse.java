@@ -71,7 +71,12 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus_;
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -83,7 +88,12 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -95,7 +105,12 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Task status if found
+   * Status of the requested task. If no task exists for the given id, the server currently does
+   * not send this response message at all, rather than sending it with this field unset - for
+   * this unary call, that means the call does not complete normally rather than yielding an empty
+   * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+   * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+   * error, since it returns a normal (possibly empty) response instead.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -461,7 +476,12 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> taskStatusBuilder_;
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -472,7 +492,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -487,7 +512,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -507,7 +537,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -525,7 +560,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -550,7 +590,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -567,7 +612,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -579,7 +629,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -594,7 +649,12 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Task status if found
+     * Status of the requested task. If no task exists for the given id, the server currently does
+     * not send this response message at all, rather than sending it with this field unset - for
+     * this unary call, that means the call does not complete normally rather than yielding an empty
+     * result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+     * status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+     * error, since it returns a normal (possibly empty) response instead.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>

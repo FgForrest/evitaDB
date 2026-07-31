@@ -33,7 +33,7 @@ public interface GrpcAttributeSpecialValueArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an AttributeSpecialValue array.
+   * The individual AttributeSpecialValue values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcAttributeSpecialValueArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue> getValueList();
   /**
    * <pre>
-   * Value that supports storing an AttributeSpecialValue array.
+   * The individual AttributeSpecialValue values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcAttributeSpecialValueArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an AttributeSpecialValue array.
+   * The individual AttributeSpecialValue values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcAttributeSpecialValueArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue getValue(int index);
   /**
    * <pre>
-   * Value that supports storing an AttributeSpecialValue array.
+   * The individual AttributeSpecialValue values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcAttributeSpecialValueArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing an AttributeSpecialValue array.
+   * The individual AttributeSpecialValue values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue value = 1;</code>

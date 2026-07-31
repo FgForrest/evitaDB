@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to DeleteEntity request when hierarchy has been specified in filter.
+ * Response to DeleteEntityAndItsHierarchy, which removes a hierarchical root entity together with every
+ * entity of the same type that transitively references it as a parent.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse}
@@ -113,7 +114,7 @@ private static final long serialVersionUID = 0L;
   private int deletedEntities_ = 0;
   /**
    * <pre>
-   * Count of deleted entities.
+   * Total number of entities deleted (the root plus its whole nested hierarchy).
    * </pre>
    *
    * <code>int32 deletedEntities = 1;</code>
@@ -127,7 +128,8 @@ private static final long serialVersionUID = 0L;
   public static final int DELETEDROOTENTITYREFERENCE_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -139,7 +141,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -154,7 +157,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The deleted root entity reference.
+   * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+   * server - see the message-level comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -170,7 +174,8 @@ private static final long serialVersionUID = 0L;
   public static final int DELETEDROOTENTITY_FIELD_NUMBER = 3;
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -182,7 +187,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -197,7 +203,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The deleted root entity.
+   * The deleted root entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -216,7 +223,8 @@ private static final long serialVersionUID = 0L;
       emptyIntList();
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -229,7 +237,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -240,7 +249,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Deleted entity primary keys.
+   * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+   * own primary key.
    * </pre>
    *
    * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -478,7 +488,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to DeleteEntity request when hierarchy has been specified in filter.
+   * Response to DeleteEntityAndItsHierarchy, which removes a hierarchical root entity together with every
+   * entity of the same type that transitively references it as a parent.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntityAndItsHierarchyResponse}
@@ -747,7 +758,7 @@ private static final long serialVersionUID = 0L;
     private int deletedEntities_ ;
     /**
      * <pre>
-     * Count of deleted entities.
+     * Total number of entities deleted (the root plus its whole nested hierarchy).
      * </pre>
      *
      * <code>int32 deletedEntities = 1;</code>
@@ -759,7 +770,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Count of deleted entities.
+     * Total number of entities deleted (the root plus its whole nested hierarchy).
      * </pre>
      *
      * <code>int32 deletedEntities = 1;</code>
@@ -775,7 +786,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Count of deleted entities.
+     * Total number of entities deleted (the root plus its whole nested hierarchy).
      * </pre>
      *
      * <code>int32 deletedEntities = 1;</code>
@@ -792,7 +803,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> deletedRootEntityReferenceBuilder_;
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -804,7 +816,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -826,7 +839,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -846,7 +860,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -864,7 +879,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -891,7 +907,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -914,7 +931,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -924,7 +942,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -942,7 +961,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity reference.
+     * The deleted root entity as a reference (type + primary key only). Currently never populated by the
+     * server - see the message-level comment above.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference deletedRootEntityReference = 2;</code>
@@ -970,7 +990,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> deletedRootEntityBuilder_;
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -982,7 +1003,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1004,7 +1026,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1024,7 +1047,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1042,7 +1066,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1069,7 +1094,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1092,7 +1118,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1102,7 +1129,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1120,7 +1148,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The deleted root entity.
+     * The deleted root entity, fully fetched (as it was immediately before deletion) per
+     * `GrpcDeleteEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedRootEntity = 3;</code>
@@ -1153,7 +1182,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1166,7 +1196,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1177,7 +1208,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1189,7 +1221,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1208,7 +1241,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1225,7 +1259,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>
@@ -1243,7 +1278,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Deleted entity primary keys.
+     * Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+     * own primary key.
      * </pre>
      *
      * <code>repeated int32 deletedEntityPrimaryKeys = 4;</code>

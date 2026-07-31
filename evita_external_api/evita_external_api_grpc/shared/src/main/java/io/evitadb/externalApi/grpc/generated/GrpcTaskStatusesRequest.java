@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private int pageNumber_ = 0;
   /**
    * <pre>
-   * Page number of the task statuses to be listed.
+   * Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
+   * first page (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
    * </pre>
    *
    * <code>int32 pageNumber = 1;</code>
@@ -87,7 +88,7 @@ private static final long serialVersionUID = 0L;
   private int pageSize_ = 0;
   /**
    * <pre>
-   * Number of task statuses per page.
+   * Number of task statuses per page. No server-side maximum is enforced.
    * </pre>
    *
    * <code>int32 pageSize = 2;</code>
@@ -103,8 +104,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<com.google.protobuf.StringValue> taskType_;
   /**
    * <pre>
-   * Optional taskType of the listed task, passing non-null value
-   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+   * its type is any of the listed values. Empty (the default) means no filtering by type.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -115,8 +116,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional taskType of the listed task, passing non-null value
-   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+   * its type is any of the listed values. Empty (the default) means no filtering by type.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -128,8 +129,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional taskType of the listed task, passing non-null value
-   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+   * its type is any of the listed values. Empty (the default) means no filtering by type.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -140,8 +141,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional taskType of the listed task, passing non-null value
-   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+   * its type is any of the listed values. Empty (the default) means no filtering by type.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -152,8 +153,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional taskType of the listed task, passing non-null value
-   * in this argument filters the returned status to only those that are related to the tasks of specified type
+   * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+   * its type is any of the listed values. Empty (the default) means no filtering by type.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -178,8 +179,9 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * Optional set of simplified task states, passing list of enums in this argument
-   * filters the returned statuses to only those that match this simplified status
+   * Simplified task states to filter by; a task matches if its state is any of the listed values.
+   * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+   * are non-empty, a task must satisfy both filters.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -192,8 +194,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional set of simplified task states, passing list of enums in this argument
-   * filters the returned statuses to only those that match this simplified status
+   * Simplified task states to filter by; a task matches if its state is any of the listed values.
+   * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+   * are non-empty, a task must satisfy both filters.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -205,8 +208,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional set of simplified task states, passing list of enums in this argument
-   * filters the returned statuses to only those that match this simplified status
+   * Simplified task states to filter by; a task matches if its state is any of the listed values.
+   * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+   * are non-empty, a task must satisfy both filters.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -219,8 +223,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional set of simplified task states, passing list of enums in this argument
-   * filters the returned statuses to only those that match this simplified status
+   * Simplified task states to filter by; a task matches if its state is any of the listed values.
+   * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+   * are non-empty, a task must satisfy both filters.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -233,8 +238,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional set of simplified task states, passing list of enums in this argument
-   * filters the returned statuses to only those that match this simplified status
+   * Simplified task states to filter by; a task matches if its state is any of the listed values.
+   * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+   * are non-empty, a task must satisfy both filters.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -733,7 +739,8 @@ private static final long serialVersionUID = 0L;
     private int pageNumber_ ;
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
+     * first page (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -745,7 +752,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
+     * first page (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -761,7 +769,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
+     * first page (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -777,7 +786,7 @@ private static final long serialVersionUID = 0L;
     private int pageSize_ ;
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of task statuses per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -789,7 +798,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of task statuses per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -805,7 +814,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of task statuses per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -832,8 +841,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -847,8 +856,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -862,8 +871,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -877,8 +886,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -899,8 +908,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -918,8 +927,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -939,8 +948,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -961,8 +970,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -980,8 +989,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -999,8 +1008,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1019,8 +1028,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1037,8 +1046,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1055,8 +1064,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1067,8 +1076,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1082,8 +1091,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1098,8 +1107,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1110,8 +1119,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1123,8 +1132,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional taskType of the listed task, passing non-null value
-     * in this argument filters the returned status to only those that are related to the tasks of specified type
+     * Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+     * its type is any of the listed values. Empty (the default) means no filtering by type.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue taskType = 3;</code>
@@ -1158,8 +1167,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1171,8 +1181,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1183,8 +1194,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1196,8 +1208,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1217,8 +1230,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1236,8 +1250,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1255,8 +1270,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1270,8 +1286,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1283,8 +1300,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1296,8 +1314,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1314,8 +1333,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>
@@ -1330,8 +1350,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional set of simplified task states, passing list of enums in this argument
-     * filters the returned statuses to only those that match this simplified status
+     * Simplified task states to filter by; a task matches if its state is any of the listed values.
+     * Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+     * are non-empty, a task must satisfy both filters.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 4;</code>

@@ -28,6 +28,13 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Represents the schema of a single catalog - the top-level container that groups related entity collections
+ * together (analogous to a database / schema in a relational system). Holds the catalog name, its schema version,
+ * optional description, evolution mode settings, catalog-wide (global) attributes shared across entity types,
+ * name variants and the conflict resolution policy inherited by entity schemas that don't override it.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema}
  */
 public final class GrpcCatalogSchema extends
@@ -765,6 +772,13 @@ io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue) {
     return builder;
   }
   /**
+   * <pre>
+   * Represents the schema of a single catalog - the top-level container that groups related entity collections
+   * together (analogous to a database / schema in a relational system). Holds the catalog name, its schema version,
+   * optional description, evolution mode settings, catalog-wide (global) attributes shared across entity types,
+   * name variants and the conflict resolution policy inherited by entity schemas that don't override it.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema}
    */
   public static final class Builder extends

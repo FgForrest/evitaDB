@@ -320,7 +320,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue finishedWithError_;
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -332,7 +333,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -344,7 +346,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -356,6 +359,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int MUTATION_FIELD_NUMBER = 101;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    * @return Whether the mutation field is set.
    */
@@ -364,6 +371,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 101;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    * @return The mutation.
    */
@@ -375,6 +386,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    */
   @java.lang.Override
@@ -387,6 +402,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int QUERY_FIELD_NUMBER = 102;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    * @return Whether the query field is set.
    */
@@ -395,6 +414,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 102;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    * @return The query.
    */
@@ -406,6 +429,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    */
   @java.lang.Override
@@ -418,6 +445,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int ENRICHMENT_FIELD_NUMBER = 103;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    * @return Whether the enrichment field is set.
    */
@@ -426,6 +457,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 103;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    * @return The enrichment.
    */
@@ -437,6 +472,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    */
   @java.lang.Override
@@ -449,6 +488,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int FETCH_FIELD_NUMBER = 104;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    * @return Whether the fetch field is set.
    */
@@ -457,6 +500,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 104;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    * @return The fetch.
    */
@@ -468,6 +515,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    */
   @java.lang.Override
@@ -480,6 +531,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int SESSIONCLOSE_FIELD_NUMBER = 105;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    * @return Whether the sessionClose field is set.
    */
@@ -488,6 +543,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 105;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    * @return The sessionClose.
    */
@@ -499,6 +558,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    */
   @java.lang.Override
@@ -511,6 +574,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int SESSIONSTART_FIELD_NUMBER = 106;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    * @return Whether the sessionStart field is set.
    */
@@ -519,6 +586,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 106;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    * @return The sessionStart.
    */
@@ -530,6 +601,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    */
   @java.lang.Override
@@ -542,6 +617,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int SOURCEQUERY_FIELD_NUMBER = 107;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    * @return Whether the sourceQuery field is set.
    */
@@ -550,6 +629,10 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 107;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    * @return The sourceQuery.
    */
@@ -561,6 +644,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    */
   @java.lang.Override
@@ -573,6 +660,11 @@ private static final long serialVersionUID = 0L;
 
   public static final int SOURCEQUERYSTATISTICS_FIELD_NUMBER = 108;
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    * @return Whether the sourceQueryStatistics field is set.
    */
@@ -581,6 +673,11 @@ private static final long serialVersionUID = 0L;
     return bodyCase_ == 108;
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    * @return The sourceQueryStatistics.
    */
@@ -592,6 +689,11 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    */
   @java.lang.Override
@@ -2153,7 +2255,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> finishedWithErrorBuilder_;
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2164,7 +2267,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2179,7 +2283,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2199,7 +2304,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2217,7 +2323,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2242,7 +2349,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2259,7 +2367,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2271,7 +2380,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2286,7 +2396,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Returns non-null error message if the action the recording relates to finished with an error.
+     * The error message the operation this record represents finished with. If unset, the operation completed
+     * without error.
      * </pre>
      *
      * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -2308,6 +2419,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainerOrBuilder> mutationBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      * @return Whether the mutation field is set.
      */
@@ -2316,6 +2431,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 101;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      * @return The mutation.
      */
@@ -2334,6 +2453,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     public Builder setMutation(io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer value) {
@@ -2350,6 +2473,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     public Builder setMutation(
@@ -2364,6 +2491,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     public Builder mergeMutation(io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer value) {
@@ -2387,6 +2518,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     public Builder clearMutation() {
@@ -2406,12 +2541,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer.Builder getMutationBuilder() {
       return getMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     @java.lang.Override
@@ -2426,6 +2569,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2450,6 +2597,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainerOrBuilder> queryBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      * @return Whether the query field is set.
      */
@@ -2458,6 +2609,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 102;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      * @return The query.
      */
@@ -2476,6 +2631,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     public Builder setQuery(io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer value) {
@@ -2492,6 +2651,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     public Builder setQuery(
@@ -2506,6 +2669,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     public Builder mergeQuery(io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer value) {
@@ -2529,6 +2696,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     public Builder clearQuery() {
@@ -2548,12 +2719,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer.Builder getQueryBuilder() {
       return getQueryFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     @java.lang.Override
@@ -2568,6 +2747,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2592,6 +2775,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainerOrBuilder> enrichmentBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      * @return Whether the enrichment field is set.
      */
@@ -2600,6 +2787,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 103;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      * @return The enrichment.
      */
@@ -2618,6 +2809,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     public Builder setEnrichment(io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer value) {
@@ -2634,6 +2829,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     public Builder setEnrichment(
@@ -2648,6 +2847,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     public Builder mergeEnrichment(io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer value) {
@@ -2671,6 +2874,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     public Builder clearEnrichment() {
@@ -2690,12 +2897,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer.Builder getEnrichmentBuilder() {
       return getEnrichmentFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     @java.lang.Override
@@ -2710,6 +2925,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2734,6 +2953,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainerOrBuilder> fetchBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      * @return Whether the fetch field is set.
      */
@@ -2742,6 +2965,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 104;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      * @return The fetch.
      */
@@ -2760,6 +2987,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     public Builder setFetch(io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer value) {
@@ -2776,6 +3007,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     public Builder setFetch(
@@ -2790,6 +3025,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     public Builder mergeFetch(io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer value) {
@@ -2813,6 +3052,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     public Builder clearFetch() {
@@ -2832,12 +3075,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer.Builder getFetchBuilder() {
       return getFetchFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     @java.lang.Override
@@ -2852,6 +3103,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -2876,6 +3131,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainerOrBuilder> sessionCloseBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      * @return Whether the sessionClose field is set.
      */
@@ -2884,6 +3143,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 105;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      * @return The sessionClose.
      */
@@ -2902,6 +3165,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     public Builder setSessionClose(io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer value) {
@@ -2918,6 +3185,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     public Builder setSessionClose(
@@ -2932,6 +3203,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     public Builder mergeSessionClose(io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer value) {
@@ -2955,6 +3230,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     public Builder clearSessionClose() {
@@ -2974,12 +3253,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer.Builder getSessionCloseBuilder() {
       return getSessionCloseFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     @java.lang.Override
@@ -2994,6 +3281,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -3018,6 +3309,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainerOrBuilder> sessionStartBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      * @return Whether the sessionStart field is set.
      */
@@ -3026,6 +3321,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 106;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      * @return The sessionStart.
      */
@@ -3044,6 +3343,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     public Builder setSessionStart(io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer value) {
@@ -3060,6 +3363,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     public Builder setSessionStart(
@@ -3074,6 +3381,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     public Builder mergeSessionStart(io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer value) {
@@ -3097,6 +3408,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     public Builder clearSessionStart() {
@@ -3116,12 +3431,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer.Builder getSessionStartBuilder() {
       return getSessionStartFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     @java.lang.Override
@@ -3136,6 +3459,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -3160,6 +3487,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainerOrBuilder> sourceQueryBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      * @return Whether the sourceQuery field is set.
      */
@@ -3168,6 +3499,10 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 107;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      * @return The sourceQuery.
      */
@@ -3186,6 +3521,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     public Builder setSourceQuery(io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer value) {
@@ -3202,6 +3541,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     public Builder setSourceQuery(
@@ -3216,6 +3559,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     public Builder mergeSourceQuery(io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer value) {
@@ -3239,6 +3586,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     public Builder clearSourceQuery() {
@@ -3258,12 +3609,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer.Builder getSourceQueryBuilder() {
       return getSourceQueryFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     @java.lang.Override
@@ -3278,6 +3637,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -3302,6 +3665,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer.Builder, io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainerOrBuilder> sourceQueryStatisticsBuilder_;
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      * @return Whether the sourceQueryStatistics field is set.
      */
@@ -3310,6 +3678,11 @@ private static final long serialVersionUID = 0L;
       return bodyCase_ == 108;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      * @return The sourceQueryStatistics.
      */
@@ -3328,6 +3701,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     public Builder setSourceQueryStatistics(io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer value) {
@@ -3344,6 +3722,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     public Builder setSourceQueryStatistics(
@@ -3358,6 +3741,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     public Builder mergeSourceQueryStatistics(io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer value) {
@@ -3381,6 +3769,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     public Builder clearSourceQueryStatistics() {
@@ -3400,12 +3793,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer.Builder getSourceQueryStatisticsBuilder() {
       return getSourceQueryStatisticsFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     @java.lang.Override
@@ -3420,6 +3823,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+     * operations related to a single source query.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

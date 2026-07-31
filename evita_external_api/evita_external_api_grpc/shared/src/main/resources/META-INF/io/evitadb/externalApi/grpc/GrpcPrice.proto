@@ -31,9 +31,9 @@ message GrpcPrice {
   google.protobuf.Int32Value innerRecordId = 4;
   // Price without tax.
   GrpcBigDecimal priceWithoutTax = 5;
-  // Price with tax.
-  GrpcBigDecimal taxRate = 6;
   // Tax rate percentage (i.e. for 19% it'll be 19.00)
+  GrpcBigDecimal taxRate = 6;
+  // Price with tax.
   GrpcBigDecimal priceWithTax = 7;
   // Date and time interval for which the price is valid (inclusive).
   GrpcDateTimeRange validity = 8;

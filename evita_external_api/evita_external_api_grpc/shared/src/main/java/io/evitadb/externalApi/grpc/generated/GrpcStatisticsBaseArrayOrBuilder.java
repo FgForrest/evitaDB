@@ -33,7 +33,7 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a StatisticsBase array.
+   * The individual StatisticsBase values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase> getValueList();
   /**
    * <pre>
-   * Value that supports storing a StatisticsBase array.
+   * The individual StatisticsBase values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a StatisticsBase array.
+   * The individual StatisticsBase values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a StatisticsBase array.
+   * The individual StatisticsBase values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcStatisticsBaseArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a StatisticsBase array.
+   * The individual StatisticsBase values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase value = 1;</code>

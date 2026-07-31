@@ -33,7 +33,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The size of the page.
+   * The page size that was actually applied (echoes the request's `pageSize`).
    * </pre>
    *
    * <code>int32 pageSize = 1;</code>
@@ -43,7 +43,8 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The number of the page.
+   * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+   * `GrpcTaskStatusesRequest.pageNumber` for the paging model.
    * </pre>
    *
    * <code>int32 pageNumber = 2;</code>
@@ -53,7 +54,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
 
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -62,7 +63,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
       getTaskStatusList();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -70,7 +71,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTaskStatus(int index);
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -78,7 +79,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
   int getTaskStatusCount();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -87,7 +88,7 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
       getTaskStatusOrBuilderList();
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -97,7 +98,8 @@ public interface GrpcTaskStatusesResponseOrBuilder extends
 
   /**
    * <pre>
-   * Total number of task statuses.
+   * Total number of task statuses matching the request's filters across all pages, not just this
+   * one.
    * </pre>
    *
    * <code>int32 totalNumberOfRecords = 4;</code>

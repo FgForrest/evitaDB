@@ -33,7 +33,8 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
 
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
   boolean hasPastMoment();
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getPastMoment();
   /**
    * <pre>
-   * The moment in time to which the catalog should be backed up. Might be null for current time.
+   * The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+   * (subject to being overridden by `catalogVersion`, see below).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime pastMoment = 1;</code>
@@ -71,8 +74,9 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
 
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -81,8 +85,9 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
   boolean hasCatalogVersion();
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>
@@ -91,8 +96,9 @@ public interface GrpcBackupCatalogRequestOrBuilder extends
   com.google.protobuf.Int64Value getCatalogVersion();
   /**
    * <pre>
-   * precise catalog version to create backup for, or null to create backup for the latest version,
-   * when set not null, the pastMoment parameter is ignored
+   * Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+   * `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+   * ignored regardless of whether it is also set.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value catalogVersion = 3;</code>

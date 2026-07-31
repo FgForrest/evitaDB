@@ -33,7 +33,7 @@ public interface GrpcQueryPriceModeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a QueryPriceMode array.
+   * The individual QueryPriceMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcQueryPriceModeArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode> getValueList();
   /**
    * <pre>
-   * Value that supports storing a QueryPriceMode array.
+   * The individual QueryPriceMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcQueryPriceModeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a QueryPriceMode array.
+   * The individual QueryPriceMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcQueryPriceModeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a QueryPriceMode array.
+   * The individual QueryPriceMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcQueryPriceModeArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a QueryPriceMode array.
+   * The individual QueryPriceMode values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode value = 1;</code>

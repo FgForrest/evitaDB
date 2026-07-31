@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to get cancel task status by id
+ * Response to a cancel task request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse}
@@ -70,7 +70,8 @@ private static final long serialVersionUID = 0L;
   private boolean success_ = false;
   /**
    * <pre>
-   * true if the task was found and canceled
+   * True if a task with the given id existed and was successfully canceled; false if no such task
+   * exists, or the task could no longer be canceled (e.g. it had already finished).
    * </pre>
    *
    * <code>bool success = 1;</code>
@@ -241,7 +242,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to get cancel task status by id
+   * Response to a cancel task request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCancelTaskResponse}
@@ -414,7 +415,8 @@ private static final long serialVersionUID = 0L;
     private boolean success_ ;
     /**
      * <pre>
-     * true if the task was found and canceled
+     * True if a task with the given id existed and was successfully canceled; false if no such task
+     * exists, or the task could no longer be canceled (e.g. it had already finished).
      * </pre>
      *
      * <code>bool success = 1;</code>
@@ -426,7 +428,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if the task was found and canceled
+     * True if a task with the given id existed and was successfully canceled; false if no such task
+     * exists, or the task could no longer be canceled (e.g. it had already finished).
      * </pre>
      *
      * <code>bool success = 1;</code>
@@ -442,7 +445,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if the task was found and canceled
+     * True if a task with the given id existed and was successfully canceled; false if no such task
+     * exists, or the task could no longer be canceled (e.g. it had already finished).
      * </pre>
      *
      * <code>bool success = 1;</code>

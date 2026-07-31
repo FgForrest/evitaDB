@@ -33,7 +33,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
 
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
   boolean hasFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal from = 1;</code>
@@ -60,7 +63,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
 
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -69,7 +73,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
   boolean hasTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -78,7 +83,8 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal to = 2;</code>
@@ -87,7 +93,9 @@ public interface GrpcBigDecimalNumberRangeOrBuilder extends
 
   /**
    * <pre>
-   * The number of decimal places to compare.
+   * The number of fractional digits retained (rounded half-up) when comparing values against this
+   * range: both bounds and the compared value are scaled to this precision first, so digits beyond
+   * it are ignored for range-membership comparisons.
    * </pre>
    *
    * <code>int32 decimalPlacesToCompare = 3;</code>

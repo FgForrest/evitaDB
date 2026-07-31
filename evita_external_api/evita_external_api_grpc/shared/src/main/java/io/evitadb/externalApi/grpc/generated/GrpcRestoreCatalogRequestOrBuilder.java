@@ -33,8 +33,8 @@ public interface GrpcRestoreCatalogRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -43,8 +43,8 @@ public interface GrpcRestoreCatalogRequestOrBuilder extends
   java.lang.String getCatalogName();
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -55,7 +55,8 @@ public interface GrpcRestoreCatalogRequestOrBuilder extends
 
   /**
    * <pre>
-   * Binary contents of the backup file.
+   * One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+   * stream, in order, to reconstruct the full archive.
    * </pre>
    *
    * <code>bytes backupFile = 2;</code>
