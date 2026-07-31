@@ -113,6 +113,14 @@ import java.util.Random;
  * the schema definition, because a *cold* WARM_UP catalog is the very thing being measured and cannot be reused
  * across invocations. That residue is what the control quantifies.
  *
+ * **Reproducing the #1332 end-to-end figures.** They were measured with `-p entityCount=5000`, **not** at the
+ * `@Param` default of 20 000 committed here - the block widths quoted alongside them (~5 and ~250) only follow from
+ * 5 000, since block width is `entityCount / distinctValues`. They also predate both the trial-scoped batch and the
+ * 16 GiB heap, each of which moves the reported figure, so they belong to that earlier harness and not to this one.
+ * Restated ingest-only - the raw figure minus the fixture measured on the harness they actually ran on - the #1332
+ * reductions are 12.92 % at `distinctValues = 1000` and 15.13 % at 20. The absolute deltas of -3.792 and
+ * -3.943 GB/op are unchanged either way, because the fixture cancels in a subtraction.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @State(Scope.Benchmark)

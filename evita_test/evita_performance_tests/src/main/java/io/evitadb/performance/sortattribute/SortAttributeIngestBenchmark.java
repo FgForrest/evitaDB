@@ -103,8 +103,10 @@ import java.util.concurrent.TimeUnit;
 		"-Xmx16g"
 	}
 )
-// pinned, not merely defaulted: the state is Scope.Benchmark and its Level.Invocation fixture creates and closes a
-// whole Evita instance, so a multi-threaded run would have threads booting and closing the same catalog concurrently
+// declared, but NOT enforced: the state is Scope.Benchmark and its Level.Invocation fixture creates and closes a
+// whole Evita instance, so a multi-threaded run would have threads booting and closing the same catalog
+// concurrently. JMH's command line takes precedence over annotations, so `-t N` still overrides this - it records
+// the intent and the reason, it cannot enforce them. Never pass `-t` to this benchmark.
 @Threads(1)
 public class SortAttributeIngestBenchmark implements EvitaCatalogSetup {
 
