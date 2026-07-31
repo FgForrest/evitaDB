@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Extends the senesi stale-leaf-page-twin reproduction (`specifications/senesi-upsert-index-corruption/`) to the
+ * Extends the senesi stale-leaf-page-twin reproduction (`documentation/adr/2026-07-18-paged-index-corruption-and-flush-failure-boundary/`) to the
  * {@link ChainIndex} paged restore path. Unlike the key-ordered paged indexes, a chain-index element page is positional
  * (an `UnorderedLookupTree` leaf), so there is no ordering invariant to violate — the twin manifests instead as
  * DUPLICATE record ids across pages: `UnorderedLookupTree.assembleFromLeafPages` copies pages verbatim, so a twin's

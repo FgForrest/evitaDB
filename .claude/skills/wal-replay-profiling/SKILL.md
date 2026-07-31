@@ -7,7 +7,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash(mvn *), Bash(rtk *), Bash(jav
 # WAL-replay performance profiling
 
 Distilled from the #760 write-path tuning rounds (2026-07-20 → 07-27; see
-`specifications/write-path-performance-tuning/`). The harness (`WalReplayBenchmark` +
+`documentation/adr/2026-07-27-write-path-performance-tuning/`). The harness (`WalReplayBenchmark` +
 `WalReplayState`, package `io.evitadb.performance.walreplay`) is dataset-agnostic — it takes the
 catalog name as a system property, not baked in — so this skill applies to any future production
 export, not just the original "senesi" one.

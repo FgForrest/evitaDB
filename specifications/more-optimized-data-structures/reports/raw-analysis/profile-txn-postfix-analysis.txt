@@ -1,5 +1,0 @@
-TOTAL SAMPLES: 84102
-BENCHMARK-THREAD (BenchmarkTask.call) SAMPLES: 794 (0.9%)
-TRUNK-INCORPORATION-THREAD SAMPLES: 255 (0.3%)
-
-=== BENCHMARK THREAD: full stacks (grouped by full stack, sorted) ===
