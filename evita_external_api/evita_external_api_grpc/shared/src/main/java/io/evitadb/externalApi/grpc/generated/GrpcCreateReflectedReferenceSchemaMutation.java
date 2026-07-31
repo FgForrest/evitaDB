@@ -356,11 +356,12 @@ private static final long serialVersionUID = 0L;
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=127
+   *     See GrpcReferenceSchemaMutations.proto;l=128
    * @return Whether the faceted field is set.
    */
   @java.lang.Override
@@ -376,11 +377,12 @@ private static final long serialVersionUID = 0L;
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=127
+   *     See GrpcReferenceSchemaMutations.proto;l=128
    * @return The faceted.
    */
   @java.lang.Override
@@ -396,6 +398,7 @@ private static final long serialVersionUID = 0L;
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -526,12 +529,12 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Override
@@ -549,12 +552,12 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return The count of indexedInScopes.
    */
   @java.lang.Override
@@ -571,12 +574,12 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -594,12 +597,12 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Override
@@ -617,12 +620,12 @@ private static final long serialVersionUID = 0L;
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -2906,11 +2909,12 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=127
+     *     See GrpcReferenceSchemaMutations.proto;l=128
      * @return Whether the faceted field is set.
      */
     @java.lang.Deprecated public boolean hasFaceted() {
@@ -2925,11 +2929,12 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=127
+     *     See GrpcReferenceSchemaMutations.proto;l=128
      * @return The faceted.
      */
     @java.lang.Deprecated public com.google.protobuf.BoolValue getFaceted() {
@@ -2948,6 +2953,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -2974,6 +2980,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -2998,6 +3005,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -3029,6 +3037,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -3052,6 +3061,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -3070,6 +3080,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -3091,6 +3102,7 @@ private static final long serialVersionUID = 0L;
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
      * occupies (memory/disk) space in the form of index.
      * Reference that was marked as faceted is called Facet.
+     * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
      * </pre>
      *
      * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -3403,12 +3415,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @return A list containing the indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList() {
@@ -3425,12 +3437,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @return The count of indexedInScopes.
      */
     @java.lang.Deprecated public int getIndexedInScopesCount() {
@@ -3446,12 +3458,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param index The index of the element to return.
      * @return The indexedInScopes at the given index.
      */
@@ -3468,12 +3480,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param index The index to set the value at.
      * @param value The indexedInScopes to set.
      * @return This builder for chaining.
@@ -3498,12 +3510,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param value The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3526,12 +3538,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param values The indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3554,12 +3566,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearIndexedInScopes() {
@@ -3578,12 +3590,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @return A list containing the enum numeric values on the wire for indexedInScopes.
      */
     @java.lang.Deprecated public java.util.List<java.lang.Integer>
@@ -3600,12 +3612,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param index The index of the value to return.
      * @return The enum numeric value on the wire of indexedInScopes at the given index.
      */
@@ -3622,12 +3634,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param index The index to set the value at.
      * @param value The enum numeric value on the wire for indexedInScopes to set.
      * @return This builder for chaining.
@@ -3649,12 +3661,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param value The enum numeric value on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */
@@ -3674,12 +3686,12 @@ private static final long serialVersionUID = 0L;
      * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
      * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
      * alongside other references if requested.
-     * deprecated in favor of `scopedIndexTypes`
+     * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-     *     See GrpcReferenceSchemaMutations.proto;l=145
+     *     See GrpcReferenceSchemaMutations.proto;l=146
      * @param values The enum numeric values on the wire for indexedInScopes to add.
      * @return This builder for chaining.
      */

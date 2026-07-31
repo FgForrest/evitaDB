@@ -389,7 +389,7 @@ private static final long serialVersionUID = 0L;
    * entity but won't be considered when evaluating search. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
-   * RENAMED TO "indexed"
+   * Deprecated since 2024.10 - RENAMED TO "indexed"
    * </pre>
    *
    * <code>bool sellable = 9 [deprecated = true];</code>
@@ -2240,7 +2240,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
@@ -2258,7 +2258,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
@@ -2280,7 +2280,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>

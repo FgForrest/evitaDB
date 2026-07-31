@@ -77,6 +77,15 @@ differ — e.g. "at most one" vs "exactly one" — which one it actually is). St
   applicable, *what to use instead*, in prose — not just the compiler flag. Existing convention,
   keep using it: `// deprecated in favor of \`replacementField\`` or `// RENAMED TO "newName"`.
   A bare `[deprecated = true]` with no reason is not acceptable.
+- State the evitaDB release the element became deprecated in, in `YYYY.MAJOR` form, leading the
+  comment: `// Deprecated since 2024.12 - deprecated in favor of \`replacementField\``. This is the
+  same `since` convention as `@Deprecated(since = "X")` on the Java side (see
+  `.claude/rules/deprecation-policy.md`) - the version whose release first shipped the deprecation
+  notice, never the last version the element was still valid, nor the version it was introduced.
+  Proto has no structured `since` attribute to hold this, so it belongs in the comment prose itself.
+  Find it the same way the Java side does: walk the field/message line's git history to the commit
+  that actually added `[deprecated = true]` (not one that merely reformatted an already-deprecated
+  element), then resolve the first release tag that contains that commit.
 - `// TOBEDONE: <what> (<issue URL>)` is this repo's accepted marker for deprecated-and-scheduled-
   for-removal proto elements, matching the same convention already used on the Java side (see
   `.claude/rules/deprecation-policy.md` and 60+ existing `TOBEDONE` occurrences under

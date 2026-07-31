@@ -141,13 +141,14 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Contains version of this entity and gets increased with any entity type update. Allows to execute
    * optimistic locking i.e. avoiding parallel modifications.
-   * value is deprecated, it was never available in the first place - it was a mistake in the design.
+   * Deprecated since 2024.10 - value is deprecated, it was never available in the first place - it
+   * was a mistake in the design.
    * in order to get the entity version you need to fetch the entity itself (with entity body).
    * </pre>
    *
    * <code>int32 version = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.version is deprecated.
-   *     See GrpcEntity.proto;l=45
+   *     See GrpcEntity.proto;l=46
    * @return The version.
    */
   @java.lang.Override
@@ -768,13 +769,14 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains version of this entity and gets increased with any entity type update. Allows to execute
      * optimistic locking i.e. avoiding parallel modifications.
-     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * Deprecated since 2024.10 - value is deprecated, it was never available in the first place - it
+     * was a mistake in the design.
      * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
      * <code>int32 version = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.version is deprecated.
-     *     See GrpcEntity.proto;l=45
+     *     See GrpcEntity.proto;l=46
      * @return The version.
      */
     @java.lang.Override
@@ -785,13 +787,14 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains version of this entity and gets increased with any entity type update. Allows to execute
      * optimistic locking i.e. avoiding parallel modifications.
-     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * Deprecated since 2024.10 - value is deprecated, it was never available in the first place - it
+     * was a mistake in the design.
      * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
      * <code>int32 version = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.version is deprecated.
-     *     See GrpcEntity.proto;l=45
+     *     See GrpcEntity.proto;l=46
      * @param value The version to set.
      * @return This builder for chaining.
      */
@@ -806,13 +809,14 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Contains version of this entity and gets increased with any entity type update. Allows to execute
      * optimistic locking i.e. avoiding parallel modifications.
-     * value is deprecated, it was never available in the first place - it was a mistake in the design.
+     * Deprecated since 2024.10 - value is deprecated, it was never available in the first place - it
+     * was a mistake in the design.
      * in order to get the entity version you need to fetch the entity itself (with entity body).
      * </pre>
      *
      * <code>int32 version = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithParent.version is deprecated.
-     *     See GrpcEntity.proto;l=45
+     *     See GrpcEntity.proto;l=46
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearVersion() {
