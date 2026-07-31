@@ -34,6 +34,9 @@ memory of *reasoning*; the code only remembers outcomes.
   open follow-ups" of every hit — known traps and deliberately-deferred work live there.
 - **After finishing work that clears the bar**, write the record and delete the assignment/plan it
   replaces. Not optional, and not a follow-up task.
+- **In-flight plans live in `specifications/`, and must leave it when the work finalizes** — merged,
+  abandoned, or decided against. Two exits, no third: it becomes a record, or it is deleted. A plan
+  left behind reads as current intent long after it stopped being true.
 - **The bar defaults to no.** All three must hold: a genuine fork (a reasonable alternative was
   rejected for a reason the code doesn't show), reasoning that outlives the change (it constrains
   work beyond the files you touched), and nothing cheaper that carries it (a commit message or a

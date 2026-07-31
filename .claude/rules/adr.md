@@ -116,13 +116,32 @@ Beyond that:
   table between the `ADR-INDEX` markers — it is overwritten. `--check` verifies it is current and
   is safe to run from CI or a hook.
 
-## Retiring the plan it replaces
+## Plans, and the two ways they end
 
-The record supersedes the assignment/plan/investigation notes it came from — **delete them in the
-same commit** that adds the record. They stay recoverable in git history, and leaving both means
-the next reader finds two documents disagreeing about what shipped.
+In-flight plans, assignments and investigation notes live in **`specifications/`**, one folder per
+line of work. That folder holds *intent*, never outcome: nothing in it is evidence of what shipped,
+and it must never be read as such.
 
-Keep only material with future value that the record cannot absorb: measurements that cannot be
+**Every plan must leave that folder when its work finalizes** — merged, abandoned, or decided
+against. There are exactly two exits, and no third:
+
+1. **It becomes a record**, if the work clears the bar above. Delete the plan in the **same commit**
+   that adds the record.
+2. **It is deleted outright**, if the work does not. The commit message carries anything worth
+   keeping.
+
+**A plan left behind is worse than no plan at all.** It reads as current intent, and the next reader
+cannot tell whether it shipped, half-shipped, or was dropped — they have to re-derive that from git,
+which is the exact cost this whole convention exists to remove. The historical `specifications/`
+folder is what that failure looks like at scale: seventeen folders, several claiming work was
+"uncommitted" or "awaiting go-ahead" for code that had merged weeks earlier.
+
+**A partially-implemented plan is usually a record, not a deletion.** When some items shipped and
+others were dropped, the dropped ones carry a rejection reason that git cannot show and that someone
+will otherwise re-propose — that is a genuine fork, and it clears the bar. Write down *why* they
+lost, not merely that they did.
+
+Keep only material with future value that a record cannot absorb: measurements that cannot be
 regenerated, reproduction scenarios, advisory verdicts that were relied on. Never keep raw profiler
 dumps, JMH JSON or logs — capture their conclusions and drop the bytes.
 

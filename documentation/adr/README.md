@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-07-31 | [Take the four contained bulk-ingest wins, reject the two that trade an invariant or add complexity, and defer the one worth more than all of them](2026-07-31-bulk-ingest-write-path.md) | optimization | accepted | #1342, PR #1348 |
 | 2026-07-27 | [Cut commit-merge latency and write-path allocation by pruning the trunk merge, not inverting it](2026-07-27-write-path-performance-tuning/) | optimization | accepted | #760, PR #1317, PR #1298 |
 | 2026-07-24 | [Attribute post-discard traffic to the real discard reason via a side map, not a session tombstone](2026-07-24-traffic-discard-reason-attribution.md) | fix | accepted | #1314, PR #1315 |
 | 2026-07-23 | [Export operator-named query labels as Prometheus dimensions via a runtime-configured bag, not fixed compile-time fields](2026-07-23-query-label-prometheus-metrics.md) | feature | accepted | PR #1312 |
