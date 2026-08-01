@@ -319,9 +319,12 @@ private static final long serialVersionUID = 0L;
    * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
    * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
    * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-   * history is not an error either - like an explicit `sinceVersion` past the newest available version
-   * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+   * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+   * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+   * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+   * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+   * mutations committed within that same interval on either side of the requested boundary.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -338,9 +341,12 @@ private static final long serialVersionUID = 0L;
    * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
    * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
    * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-   * history is not an error either - like an explicit `sinceVersion` past the newest available version
-   * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+   * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+   * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+   * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+   * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+   * mutations committed within that same interval on either side of the requested boundary.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -357,9 +363,12 @@ private static final long serialVersionUID = 0L;
    * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
    * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
    * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-   * history is not an error either - like an explicit `sinceVersion` past the newest available version
-   * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+   * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+   * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+   * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+   * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+   * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+   * mutations committed within that same interval on either side of the requested boundary.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1942,9 +1951,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1960,9 +1972,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1982,9 +1997,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2009,9 +2027,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2034,9 +2055,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2066,9 +2090,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2090,9 +2117,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2109,9 +2139,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -2131,9 +2164,12 @@ private static final long serialVersionUID = 0L;
      * result, even though the underlying version-resolution lookup it uses is itself inclusive of that
      * moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
      * last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
-     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment past all known
-     * history is not an error either - like an explicit `sinceVersion` past the newest available version
-     * (see above), it simply yields an empty result rather than falling back to the newest mutations.
+     * in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+     * not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+     * it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+     * resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+     * moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+     * mutations committed within that same interval on either side of the requested boundary.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
