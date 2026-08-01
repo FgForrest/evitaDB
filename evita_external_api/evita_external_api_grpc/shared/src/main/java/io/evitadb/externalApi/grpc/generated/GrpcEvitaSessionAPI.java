@@ -445,10 +445,11 @@ public final class GrpcEvitaSessionAPI {
       "adb.externalApi.grpc.generated.GrpcChang" +
       "eCaptureCriteria\022P\n\007content\030\007 \001(\0162?.io.e" +
       "vitadb.externalApi.grpc.generated.GrpcCh" +
-      "angeCaptureContent\"y\n\037GetMutationsHistor" +
-      "yPageResponse\022V\n\rchangeCapture\030\001 \003(\0132?.i" +
-      "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cChangeCatalogCapture\"\246\002\n\032GetMutationsHi" +
+      "angeCaptureContent\"\240\001\n\037GetMutationsHisto" +
+      "ryPageResponse\022V\n\rchangeCapture\030\001 \003(\0132?." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcChangeCatalogCapture\022\017\n\007hasNext\030\002 \001(\010\022" +
+      "\024\n\014sinceVersion\030\003 \001(\003\"\246\002\n\032GetMutationsHi" +
       "storyRequest\0221\n\014sinceVersion\030\001 \001(\0132\033.goo" +
       "gle.protobuf.Int64Value\022/\n\nsinceIndex\030\002 " +
       "\001(\0132\033.google.protobuf.Int32Value\022R\n\010crit" +
@@ -810,8 +811,8 @@ public final class GrpcEvitaSessionAPI {
       "db.externalApi.grpc.generated.GrpcRename" +
       "CollectionRequest\032C.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcRenameCollectionRe" +
-      "sponse\022\236\001\n\021ReplaceCollection\022C.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcReplace",
+      "sponse\022\236\001\n\021ReplaceCollection\022C.io.evitad",
+      "b.externalApi.grpc.generated.GrpcReplace" +
       "CollectionRequest\032D.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcReplaceCollectionR" +
       "esponse\022\252\001\n\027GetEntityCollectionSize\022F.io" +
@@ -917,7 +918,7 @@ public final class GrpcEvitaSessionAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryPageResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryPageResponse_descriptor,
-        new java.lang.String[] { "ChangeCapture", });
+        new java.lang.String[] { "ChangeCapture", "HasNext", "SinceVersion", });
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryRequest_descriptor =
       getDescriptor().getMessageTypes().get(5);
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryRequest_fieldAccessorTable = new

@@ -34,7 +34,9 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -44,7 +46,9 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -53,7 +57,9 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -62,7 +68,9 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -72,11 +80,39 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getChangeCaptureOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+   * </pre>
+   *
+   * <code>bool hasNext = 2;</code>
+   * @return The hasNext.
+   */
+  boolean getHasNext();
+
+  /**
+   * <pre>
+   * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset -
+   * meaning "give me history as of right now" - this reports what version "now" resolved to; no other RPC
+   * reports the catalog's current version (`GetCatalogVersionAt` with no moment set reports the *oldest*
+   * known version, not the newest). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+   * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+   * `sinceVersion` is instead left unset on every call, each page resolves "now" independently, so a commit
+   * landing between page fetches moves the anchor and mutations can be skipped or duplicated across pages.
+   * </pre>
+   *
+   * <code>int64 sinceVersion = 3;</code>
+   * @return The sinceVersion.
+   */
+  long getSinceVersion();
 }

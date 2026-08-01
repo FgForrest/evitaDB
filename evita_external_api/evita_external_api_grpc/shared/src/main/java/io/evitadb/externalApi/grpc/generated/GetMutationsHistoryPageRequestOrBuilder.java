@@ -34,8 +34,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   /**
    * <pre>
    * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
-   * Not rejected when it lands past the last available page - the response is simply empty; see the
-   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
+   * Not rejected when it lands past the last available page - the response is simply empty; see
+   * `GetMutationsHistoryPageResponse.hasNext` for how to detect the last page.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -45,8 +45,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   /**
    * <pre>
    * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
-   * Not rejected when it lands past the last available page - the response is simply empty; see the
-   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
+   * Not rejected when it lands past the last available page - the response is simply empty; see
+   * `GetMutationsHistoryPageResponse.hasNext` for how to detect the last page.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -56,8 +56,8 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   /**
    * <pre>
    * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
-   * Not rejected when it lands past the last available page - the response is simply empty; see the
-   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
+   * Not rejected when it lands past the last available page - the response is simply empty; see
+   * `GetMutationsHistoryPageResponse.hasNext` for how to detect the last page.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -66,8 +66,12 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
-   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
-   * exceeds the number of available mutations; the last page is simply shorter.
+   * The number of records to return per page (see the message-level comment for what a record is - this
+   * is page-based paging over records, not over individual captures). If unset, defaults to 20. Not
+   * rejected or capped when it exceeds the number of available records; the last page is simply shorter.
+   * Because pages are record-aligned, the number of `GrpcChangeCatalogCapture` entries actually returned
+   * can exceed `pageSize` whenever the last included record fans out into several local-mutation
+   * captures - `pageSize` bounds records, not entries.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -76,8 +80,12 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   boolean hasPageSize();
   /**
    * <pre>
-   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
-   * exceeds the number of available mutations; the last page is simply shorter.
+   * The number of records to return per page (see the message-level comment for what a record is - this
+   * is page-based paging over records, not over individual captures). If unset, defaults to 20. Not
+   * rejected or capped when it exceeds the number of available records; the last page is simply shorter.
+   * Because pages are record-aligned, the number of `GrpcChangeCatalogCapture` entries actually returned
+   * can exceed `pageSize` whenever the last included record fans out into several local-mutation
+   * captures - `pageSize` bounds records, not entries.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -86,8 +94,12 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
   com.google.protobuf.Int32Value getPageSize();
   /**
    * <pre>
-   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
-   * exceeds the number of available mutations; the last page is simply shorter.
+   * The number of records to return per page (see the message-level comment for what a record is - this
+   * is page-based paging over records, not over individual captures). If unset, defaults to 20. Not
+   * rejected or capped when it exceeds the number of available records; the last page is simply shorter.
+   * Because pages are record-aligned, the number of `GrpcChangeCatalogCapture` entries actually returned
+   * can exceed `pageSize` whenever the last included record fans out into several local-mutation
+   * captures - `pageSize` bounds records, not entries.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -99,7 +111,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
-   * than rejected.
+   * than rejected. Leave this unset only for the very first page of a traversal; from the second page on,
+   * pass back `GetMutationsHistoryPageResponse.sinceVersion` from the previous page's response verbatim, to
+   * keep the whole traversal anchored to one consistent version - see that field for details.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -111,7 +125,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
-   * than rejected.
+   * than rejected. Leave this unset only for the very first page of a traversal; from the second page on,
+   * pass back `GetMutationsHistoryPageResponse.sinceVersion` from the previous page's response verbatim, to
+   * keep the whole traversal anchored to one consistent version - see that field for details.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -123,7 +139,9 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
    * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
    * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
-   * than rejected.
+   * than rejected. Leave this unset only for the very first page of a traversal; from the second page on,
+   * pass back `GetMutationsHistoryPageResponse.sinceVersion` from the previous page's response verbatim, to
+   * keep the whole traversal anchored to one consistent version - see that field for details.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>

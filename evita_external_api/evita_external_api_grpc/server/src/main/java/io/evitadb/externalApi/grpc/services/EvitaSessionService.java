@@ -44,6 +44,8 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRecords;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -2210,31 +2212,47 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					lastRequestedCatalogVersion = null;
 				}
 				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				final ChangeCatalogCaptureRequest changeCaptureRequest = ChangeCaptureConverter.toChangeCaptureRequest(
+					request,
+					lastRequestedCatalogVersion != null ?
+						lastRequestedCatalogVersion : session.getCatalogVersion(),
+					StreamDirection.REVERSE
+				);
+				// echoed back so the client can pin it as `sinceVersion` on subsequent pages - see the
+				// proto comments on GetMutationsHistoryPageRequest/Response for why that matters
+				builder.setSinceVersion(changeCaptureRequest.sinceVersion());
+				final int firstRecordNumber = PaginatedList.getFirstItemNumberForPage(page, pageSize);
 				try (
-					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-						ChangeCaptureConverter.toChangeCaptureRequest(
-							request,
-							lastRequestedCatalogVersion != null ?
-								lastRequestedCatalogVersion : session.getCatalogVersion(),
-							StreamDirection.REVERSE
-						))) {
-					mutationsHistoryStream
-						.skip(
-							PaginatedList.getFirstItemNumberForPage(
-								page,
-								pageSize
-							)
-						)
+					final Stream<ChangeCatalogCapture> mutationsHistoryStream =
+						session.getMutationsHistory(changeCaptureRequest);
+					final Stream<List<ChangeCatalogCapture>> recordStream =
+						ChangeCatalogCaptureRecords.groupIntoRecords(mutationsHistoryStream)
+				) {
+					// takeWhile before skip: both orders yield the identical result set here (the version
+					// bound is monotone over a stream that is non-increasing in version), but checking it
+					// first lets the traversal stop as soon as the bound is crossed instead of always
+					// paying the cost of skipping to the requested page first
+					final List<List<ChangeCatalogCapture>> fetchedRecords = recordStream
 						.takeWhile(
-							cdcEvent -> firstRequestedCatalogVersion == null ||
-								cdcEvent.version() > firstRequestedCatalogVersion
+							changeCaptureRecord -> firstRequestedCatalogVersion == null ||
+								changeCaptureRecord.get(0).version() > firstRequestedCatalogVersion
 						)
-						.limit(pageSize)
-						.forEach(
+						.skip(firstRecordNumber)
+						// one extra record fetched to detect whether a following page exists
+						.limit(pageSize + 1L)
+						.toList();
+
+					final boolean hasNext = fetchedRecords.size() > pageSize;
+					final List<List<ChangeCatalogCapture>> pageRecords = hasNext ?
+						fetchedRecords.subList(0, pageSize) : fetchedRecords;
+					pageRecords.forEach(
+						changeCaptureRecord -> changeCaptureRecord.forEach(
 							cdcEvent -> builder.addChangeCapture(
 								ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion)
 							)
-						);
+						)
+					);
+					builder.setHasNext(hasNext);
 				}
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();

@@ -29,10 +29,19 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
- * total record count, `hasMore`, or `isLast` field, unlike
- * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
- * page follows without requesting it and checking whether it comes back empty.
+ * Response to GetMutationsHistoryPage request. Unlike `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in
+ * this API, there is no `totalRecordCount` here - a WAL scan cannot produce one cheaply - so `hasNext` is
+ * computed by the server peeking one record past the requested page rather than from a precomputed count,
+ * and there is no `isLast`/`hasPrevious` counterpart either. See `sinceVersion` below for the anchor-echo
+ * mechanism that keeps a multi-page traversal consistent across concurrent commits.
+ *
+ * Pages never split a `(version, index)` group (see `GetMutationsHistoryPageRequest` for what that means -
+ * there is no separate "record level", just the transaction/entity-schema-mutation/local-mutation levels
+ * the CDC model actually has). That guarantee holds at the entity/schema-mutation level only, not at the
+ * transaction level: a page's first group can be a transaction's non-header entity/schema mutation without
+ * that transaction's lead event appearing anywhere in the same page. So the `mutationCount`-based
+ * completeness check available on the unpaged `GetMutationsHistory` RPC is not usable across page
+ * boundaries here.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse}
@@ -76,7 +85,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -88,7 +99,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -101,7 +114,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -113,7 +128,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -125,7 +142,9 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+   * `pageSize` when the last included group fans out into several local-mutation captures; see the
+   * message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -134,6 +153,42 @@ private static final long serialVersionUID = 0L;
   public io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getChangeCaptureOrBuilder(
       int index) {
     return changeCapture_.get(index);
+  }
+
+  public static final int HASNEXT_FIELD_NUMBER = 2;
+  private boolean hasNext_ = false;
+  /**
+   * <pre>
+   * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+   * </pre>
+   *
+   * <code>bool hasNext = 2;</code>
+   * @return The hasNext.
+   */
+  @java.lang.Override
+  public boolean getHasNext() {
+    return hasNext_;
+  }
+
+  public static final int SINCEVERSION_FIELD_NUMBER = 3;
+  private long sinceVersion_ = 0L;
+  /**
+   * <pre>
+   * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset -
+   * meaning "give me history as of right now" - this reports what version "now" resolved to; no other RPC
+   * reports the catalog's current version (`GetCatalogVersionAt` with no moment set reports the *oldest*
+   * known version, not the newest). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+   * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+   * `sinceVersion` is instead left unset on every call, each page resolves "now" independently, so a commit
+   * landing between page fetches moves the anchor and mutations can be skipped or duplicated across pages.
+   * </pre>
+   *
+   * <code>int64 sinceVersion = 3;</code>
+   * @return The sinceVersion.
+   */
+  @java.lang.Override
+  public long getSinceVersion() {
+    return sinceVersion_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -153,6 +208,12 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < changeCapture_.size(); i++) {
       output.writeMessage(1, changeCapture_.get(i));
     }
+    if (hasNext_ != false) {
+      output.writeBool(2, hasNext_);
+    }
+    if (sinceVersion_ != 0L) {
+      output.writeInt64(3, sinceVersion_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -165,6 +226,14 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < changeCapture_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, changeCapture_.get(i));
+    }
+    if (hasNext_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(2, hasNext_);
+    }
+    if (sinceVersion_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(3, sinceVersion_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -183,6 +252,10 @@ private static final long serialVersionUID = 0L;
 
     if (!getChangeCaptureList()
         .equals(other.getChangeCaptureList())) return false;
+    if (getHasNext()
+        != other.getHasNext()) return false;
+    if (getSinceVersion()
+        != other.getSinceVersion()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -198,6 +271,12 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CHANGECAPTURE_FIELD_NUMBER;
       hash = (53 * hash) + getChangeCaptureList().hashCode();
     }
+    hash = (37 * hash) + HASNEXT_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getHasNext());
+    hash = (37 * hash) + SINCEVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getSinceVersion());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -297,10 +376,19 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetMutationsHistoryPage request. Carries only the page's mutations - there is currently no
-   * total record count, `hasMore`, or `isLast` field, unlike
-   * `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in this API. A client cannot reliably tell whether another
-   * page follows without requesting it and checking whether it comes back empty.
+   * Response to GetMutationsHistoryPage request. Unlike `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in
+   * this API, there is no `totalRecordCount` here - a WAL scan cannot produce one cheaply - so `hasNext` is
+   * computed by the server peeking one record past the requested page rather than from a precomputed count,
+   * and there is no `isLast`/`hasPrevious` counterpart either. See `sinceVersion` below for the anchor-echo
+   * mechanism that keeps a multi-page traversal consistent across concurrent commits.
+   *
+   * Pages never split a `(version, index)` group (see `GetMutationsHistoryPageRequest` for what that means -
+   * there is no separate "record level", just the transaction/entity-schema-mutation/local-mutation levels
+   * the CDC model actually has). That guarantee holds at the entity/schema-mutation level only, not at the
+   * transaction level: a page's first group can be a transaction's non-header entity/schema mutation without
+   * that transaction's lead event appearing anywhere in the same page. So the `mutationCount`-based
+   * completeness check available on the unpaged `GetMutationsHistory` RPC is not usable across page
+   * boundaries here.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse}
@@ -343,6 +431,8 @@ private static final long serialVersionUID = 0L;
         changeCaptureBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000001);
+      hasNext_ = false;
+      sinceVersion_ = 0L;
       return this;
     }
 
@@ -389,6 +479,12 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse result) {
       int from_bitField0_ = bitField0_;
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.hasNext_ = hasNext_;
+      }
+      if (((from_bitField0_ & 0x00000004) != 0)) {
+        result.sinceVersion_ = sinceVersion_;
+      }
     }
 
     @java.lang.Override
@@ -461,6 +557,12 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (other.getHasNext() != false) {
+        setHasNext(other.getHasNext());
+      }
+      if (other.getSinceVersion() != 0L) {
+        setSinceVersion(other.getSinceVersion());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -500,6 +602,16 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 10
+            case 16: {
+              hasNext_ = input.readBool();
+              bitField0_ |= 0x00000002;
+              break;
+            } // case 16
+            case 24: {
+              sinceVersion_ = input.readInt64();
+              bitField0_ |= 0x00000004;
+              break;
+            } // case 24
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -532,7 +644,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -547,7 +661,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -562,7 +678,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -577,7 +695,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -599,7 +719,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -618,7 +740,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -639,7 +763,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -661,7 +787,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -680,7 +808,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -699,7 +829,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -719,7 +851,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -737,7 +871,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -755,7 +891,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -767,7 +905,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -782,7 +922,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -798,7 +940,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -810,7 +954,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -823,7 +969,9 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * The mutations on this page, newest first. Can be shorter than the requested page size - including
-     * empty - without that implying it is the last page; see the message-level note above.
+     * empty - and, since a page never splits a `(version, index)` group, can also carry more entries than
+     * `pageSize` when the last included group fans out into several local-mutation captures; see the
+     * message-level comment.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -845,6 +993,112 @@ private static final long serialVersionUID = 0L;
         changeCapture_ = null;
       }
       return changeCaptureBuilder_;
+    }
+
+    private boolean hasNext_ ;
+    /**
+     * <pre>
+     * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+     * </pre>
+     *
+     * <code>bool hasNext = 2;</code>
+     * @return The hasNext.
+     */
+    @java.lang.Override
+    public boolean getHasNext() {
+      return hasNext_;
+    }
+    /**
+     * <pre>
+     * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+     * </pre>
+     *
+     * <code>bool hasNext = 2;</code>
+     * @param value The hasNext to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHasNext(boolean value) {
+
+      hasNext_ = value;
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+     * </pre>
+     *
+     * <code>bool hasNext = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHasNext() {
+      bitField0_ = (bitField0_ & ~0x00000002);
+      hasNext_ = false;
+      onChanged();
+      return this;
+    }
+
+    private long sinceVersion_ ;
+    /**
+     * <pre>
+     * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset -
+     * meaning "give me history as of right now" - this reports what version "now" resolved to; no other RPC
+     * reports the catalog's current version (`GetCatalogVersionAt` with no moment set reports the *oldest*
+     * known version, not the newest). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+     * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+     * `sinceVersion` is instead left unset on every call, each page resolves "now" independently, so a commit
+     * landing between page fetches moves the anchor and mutations can be skipped or duplicated across pages.
+     * </pre>
+     *
+     * <code>int64 sinceVersion = 3;</code>
+     * @return The sinceVersion.
+     */
+    @java.lang.Override
+    public long getSinceVersion() {
+      return sinceVersion_;
+    }
+    /**
+     * <pre>
+     * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset -
+     * meaning "give me history as of right now" - this reports what version "now" resolved to; no other RPC
+     * reports the catalog's current version (`GetCatalogVersionAt` with no moment set reports the *oldest*
+     * known version, not the newest). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+     * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+     * `sinceVersion` is instead left unset on every call, each page resolves "now" independently, so a commit
+     * landing between page fetches moves the anchor and mutations can be skipped or duplicated across pages.
+     * </pre>
+     *
+     * <code>int64 sinceVersion = 3;</code>
+     * @param value The sinceVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSinceVersion(long value) {
+
+      sinceVersion_ = value;
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset -
+     * meaning "give me history as of right now" - this reports what version "now" resolved to; no other RPC
+     * reports the catalog's current version (`GetCatalogVersionAt` with no moment set reports the *oldest*
+     * known version, not the newest). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+     * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+     * `sinceVersion` is instead left unset on every call, each page resolves "now" independently, so a commit
+     * landing between page fetches moves the anchor and mutations can be skipped or duplicated across pages.
+     * </pre>
+     *
+     * <code>int64 sinceVersion = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSinceVersion() {
+      bitField0_ = (bitField0_ & ~0x00000004);
+      sinceVersion_ = 0L;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

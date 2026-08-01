@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaSessionContract;
@@ -2624,6 +2625,273 @@ class EvitaSessionServiceFunctionalTest {
 				"a version unknown to history must never be materialized into an entry"
 			);
 		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should keep a record's entity capture and its local-mutation captures together, never split across a mutations-history page boundary")
+	void shouldKeepARecordIntactAcrossMutationsHistoryPageBoundary(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// the shared dataset's initial 1000-entity generation runs while the catalog is still warming up,
+		// before goLiveAndClose() - mutations committed during warm-up never reach CDC/WAL history, so this
+		// test seeds its own real, committed record rather than assuming any history already exists. One
+		// upsert carrying three local mutations - the entity-level capture plus all three locals share a
+		// single (version, index) pair and must never be split across a page boundary. The LAST entity
+		// matching this filter is picked (rather than findFirst, which
+		// shouldBeAbleMutateEntityAttributesWithReadWriteSession already targets, harmlessly there only
+		// because that test's session is a dry run and never persists) so this real, persisted write cannot
+		// perturb that other test's expectations.
+		final SealedEntity selectedEntity = entities.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
+			.reduce((first, second) -> second)
+			.orElseThrow();
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(selectedEntity.getType(), selectedEntity.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 555L)
+					.setAttribute(ATTRIBUTE_QUANTITY, BigDecimal.valueOf(77))
+					.setAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, "record-alignment-test")
+					.upsertVia(session);
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		// a gRPC session pins to the catalog version visible when it was created, so it must be opened only
+		// after the commit above - otherwise its own implicit "current version" fallback would still point
+		// at the pre-commit snapshot and the explicit sinceVersion below would be clamped back down to it
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// page 1: the transaction header alone - a record of size 1
+		final GetMutationsHistoryPageResponse headerPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(1))
+				.build()
+		);
+		assertEquals(1, headerPage.getChangeCaptureCount());
+		assertTrue(headerPage.getHasNext());
+
+		// page 2: the entity-level capture and its three local-mutation captures together, never split
+		final GetMutationsHistoryPageResponse recordPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.setPage(Int32Value.of(2))
+				.setPageSize(Int32Value.of(1))
+				.build()
+		);
+		final List<GrpcChangeCatalogCapture> recordCaptures = recordPage.getChangeCaptureList();
+		assertEquals(4, recordCaptures.size(), "the entity capture plus its three local mutations must arrive together");
+		final long expectedVersion = recordCaptures.get(0).getVersion().getValue();
+		final int expectedIndex = recordCaptures.get(0).getIndex().getValue();
+		for (final GrpcChangeCatalogCapture capture : recordCaptures) {
+			assertEquals(expectedVersion, capture.getVersion().getValue());
+			assertEquals(expectedIndex, capture.getIndex().getValue());
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should echo a stable paging anchor and keep pages gap/duplicate-free across a mutations-history page boundary")
+	void shouldEchoStableAnchorAcrossMutationsHistoryPages(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// one commit touching three distinct entities - header(V) + three entity-level payload records -
+		// gives this test real, self-contained history spanning more than one page at pageSize 3, without
+		// depending on the warm-up-only generation history described in the sibling test above
+		final List<SealedEntity> targets = entities.subList(entities.size() - 3, entities.size());
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int idx = 0; idx < targets.size(); idx++) {
+					final SealedEntity target = targets.get(idx);
+					session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 1000L + idx)
+						.upsertVia(session);
+				}
+			}
+		);
+		final long expectedAnchorVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		// opened only after the commit above - see the sibling record-alignment test for why order matters
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+		final int pageSize = 3;
+
+		final GetMutationsHistoryPageResponse firstPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(expectedAnchorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertEquals(expectedAnchorVersion, firstPage.getSinceVersion());
+		assertTrue(firstPage.getHasNext(), "one header plus three entity records must not fit a single page of size 3");
+
+		final GetMutationsHistoryPageResponse secondPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				// pinned explicitly, exactly as the proto comment prescribes for page 2 onward
+				.setSinceVersion(Int64Value.of(firstPage.getSinceVersion()))
+				.setPage(Int32Value.of(2))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertEquals(expectedAnchorVersion, secondPage.getSinceVersion());
+
+		final GetMutationsHistoryPageResponse combinedPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(expectedAnchorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize * 2))
+				.build()
+		);
+
+		final List<GrpcChangeCatalogCapture> pagedCaptures = new ArrayList<>(firstPage.getChangeCaptureList());
+		pagedCaptures.addAll(secondPage.getChangeCaptureList());
+		final List<GrpcChangeCatalogCapture> combinedCaptures = combinedPage.getChangeCaptureList();
+
+		assertEquals(
+			combinedCaptures.size(), pagedCaptures.size(),
+			"two pages fetched separately with a pinned anchor must cover exactly the same records as one combined page, with no gap or duplicate at the boundary"
+		);
+		for (int idx = 0; idx < pagedCaptures.size(); idx++) {
+			assertEquals(combinedCaptures.get(idx).getVersion().getValue(), pagedCaptures.get(idx).getVersion().getValue());
+			assertEquals(combinedCaptures.get(idx).getIndex().getValue(), pagedCaptures.get(idx).getIndex().getValue());
+		}
+
+		// well past the end of history: hasNext must flip to false rather than staying (incorrectly) true
+		final GetMutationsHistoryPageResponse pastTheEnd = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(expectedAnchorVersion))
+				.setPage(Int32Value.of(10_000_000))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertTrue(pastTheEnd.getChangeCaptureList().isEmpty());
+		assertFalse(pastTheEnd.getHasNext());
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should keep mutations-history paging stable across a pinned anchor despite a commit landing between page fetches, and drift when the anchor is left unpinned")
+	void shouldPinMutationsHistoryPagingAnchorAcrossAConcurrentCommit(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// the shared dataset's initial generation runs entirely during warm-up, before goLiveAndClose() -
+		// none of it reaches CDC/WAL history, so this test seeds its own baseline first: one commit
+		// touching five distinct entities gives page 1 and page 2 real, stable content to compare against,
+		// independent of whatever mutation history (if any) preceded this test
+		final List<SealedEntity> pool = entities.subList(entities.size() - 6, entities.size());
+		final List<SealedEntity> baselineTargets = pool.subList(0, 5);
+		final SealedEntity concurrentTarget = pool.get(5);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int idx = 0; idx < baselineTargets.size(); idx++) {
+					final SealedEntity target = baselineTargets.get(idx);
+					session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 2000L + idx)
+						.upsertVia(session);
+				}
+			}
+		);
+		// a gRPC session pins to the catalog version visible when it was created, so it is (re-)opened right
+		// after each commit below - see the record-alignment test above for why order matters here
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final int pageSize = 3;
+		final GetMutationsHistoryPageResponse firstPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		final long pinnedAnchor = firstPage.getSinceVersion();
+		assertTrue(firstPage.getHasNext(), "the baseline commit alone must already span more than one page at this size");
+
+		// a second, real commit lands strictly after the anchor above was resolved, simulating a concurrent
+		// writer between two page fetches. A distinct entity from the baseline's pool is used so this
+		// commit is unambiguously "new" relative to everything firstPage/pinnedAnchor already saw.
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(concurrentTarget.getType(), concurrentTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 424242L)
+					.upsertVia(session);
+			}
+		);
+		// re-opened again so its implicit "current version" fallback reflects the commit just above, which
+		// is exactly what lets unpinnedSecondPage below demonstrate real drift
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final GetMutationsHistoryPageResponse pinnedSecondPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(pinnedAnchor))
+				.setPage(Int32Value.of(2))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		final GetMutationsHistoryPageResponse unpinnedSecondPage = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				// sinceVersion deliberately left unset - re-resolves to the post-commit catalog version
+				.setPage(Int32Value.of(2))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+
+		// ground truth: one combined fetch anchored at the pinned version, covering both pages at once
+		final GetMutationsHistoryPageResponse combined = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(pinnedAnchor))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize * 2))
+				.build()
+		);
+		final List<GrpcChangeCatalogCapture> expectedSecondPage = combined.getChangeCaptureList()
+			.subList(firstPage.getChangeCaptureList().size(), combined.getChangeCaptureList().size());
+
+		final List<GrpcChangeCatalogCapture> pinnedCaptures = pinnedSecondPage.getChangeCaptureList();
+		assertEquals(
+			expectedSecondPage.size(), pinnedCaptures.size(),
+			"a pinned anchor must keep page 2 lined up with the ground truth despite the intervening commit"
+		);
+		for (int idx = 0; idx < expectedSecondPage.size(); idx++) {
+			assertEquals(expectedSecondPage.get(idx).getVersion().getValue(), pinnedCaptures.get(idx).getVersion().getValue());
+			assertEquals(expectedSecondPage.get(idx).getIndex().getValue(), pinnedCaptures.get(idx).getIndex().getValue());
+		}
+
+		// an unpinned anchor re-resolves to the post-commit version, so its page-2 window shifts by
+		// however many records the commit added and no longer lines up with the pinned ground truth -
+		// this is exactly the skip/duplicate instability pinning `sinceVersion` exists to prevent
+		final List<GrpcChangeCatalogCapture> unpinnedCaptures = unpinnedSecondPage.getChangeCaptureList();
+		boolean unpinnedWindowDrifted = unpinnedCaptures.size() != expectedSecondPage.size();
+		if (!unpinnedWindowDrifted) {
+			for (int idx = 0; idx < unpinnedCaptures.size(); idx++) {
+				if (unpinnedCaptures.get(idx).getVersion().getValue() != expectedSecondPage.get(idx).getVersion().getValue() ||
+					unpinnedCaptures.get(idx).getIndex().getValue() != expectedSecondPage.get(idx).getIndex().getValue()) {
+					unpinnedWindowDrifted = true;
+					break;
+				}
+			}
+		}
+		assertTrue(
+			unpinnedWindowDrifted,
+			"an unpinned anchor must drift once a commit lands between page fetches - otherwise pinning would be pointless"
+		);
 	}
 
 	public record AssociatedDataComplexObjectExample(
