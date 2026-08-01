@@ -104,6 +104,7 @@ import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils.SemVer;
 import io.grpc.Context;
@@ -130,9 +131,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.LongPredicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.BaseStream;
 import java.util.stream.Stream;
@@ -2176,6 +2179,74 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
+	 * Extracts the {@code sinceVersion} that a paged mutation-history converter ({@link ChangeCaptureConverter#toChangeCaptureRequest(GetMutationsHistoryPageRequest, long, StreamDirection)}
+	 * or {@link ChangeCaptureConverter#toChangeCaptureRequestForward}) resolved, so it can be echoed back on the
+	 * response. Both converters always resolve it to a concrete value; a `null` here would mean one of them was
+	 * changed to leave it unset, which is a programming error, not a state a caller can hit at runtime.
+	 *
+	 * @param changeCaptureRequest request produced by one of the paged mutation-history converters
+	 * @return the resolved catalog version
+	 */
+	private static long echoedSinceVersion(@Nonnull ChangeCatalogCaptureRequest changeCaptureRequest) {
+		final Long sinceVersion = changeCaptureRequest.sinceVersion();
+		Assert.isPremiseValid(
+			sinceVersion != null,
+			() -> new GenericEvitaInternalError(
+				"Paged mutation-history request must always resolve `sinceVersion` to a concrete value!"
+			)
+		);
+		return sinceVersion;
+	}
+
+	/**
+	 * Fetches one page of grouped mutation-history records from an already direction-resolved capture stream,
+	 * writes the corresponding change-capture events onto {@code builder} and sets {@code hasNext} - shared by
+	 * {@link #getMutationsHistoryPage} (reverse) and {@link #getMutationsHistoryPageForward} (forward), which
+	 * differ only in which stream direction they open and where the traversal's stop boundary lies.
+	 *
+	 * @param builder                response builder to populate
+	 * @param mutationsHistoryStream direction-resolved capture stream; opened and closed by the caller
+	 * @param withinBounds           predicate over a record's leading version that keeps the traversal going;
+	 *                                checked before paging so the stream can stop as soon as the bound is crossed
+	 *                                instead of always paying the cost of skipping to the requested page first
+	 * @param firstRecordNumber      zero-based index of the first record to include on this page
+	 * @param pageSize               maximum number of records to include on this page
+	 * @param clientVersion          requesting client's protocol version, or `null` if unknown
+	 */
+	private static void populateMutationsHistoryPage(
+		@Nonnull GetMutationsHistoryPageResponse.Builder builder,
+		@Nonnull Stream<ChangeCatalogCapture> mutationsHistoryStream,
+		@Nonnull LongPredicate withinBounds,
+		int firstRecordNumber,
+		int pageSize,
+		@Nullable SemVer clientVersion
+	) {
+		try (
+			final Stream<List<ChangeCatalogCapture>> recordStream =
+				ChangeCatalogCaptureRecords.groupIntoRecords(mutationsHistoryStream)
+		) {
+			final List<List<ChangeCatalogCapture>> fetchedRecords = recordStream
+				.takeWhile(changeCaptureRecord -> withinBounds.test(changeCaptureRecord.get(0).version()))
+				.skip(firstRecordNumber)
+				// one extra record fetched to detect whether a following page exists
+				.limit(pageSize + 1L)
+				.toList();
+
+			final boolean hasNext = fetchedRecords.size() > pageSize;
+			final List<List<ChangeCatalogCapture>> pageRecords = hasNext ?
+				fetchedRecords.subList(0, pageSize) : fetchedRecords;
+			pageRecords.forEach(
+				changeCaptureRecord -> changeCaptureRecord.forEach(
+					cdcEvent -> builder.addChangeCapture(
+						ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion)
+					)
+				)
+			);
+			builder.setHasNext(hasNext);
+		}
+	}
+
+	/**
 	 * Method returns page of historical mutations in the form of change capture events that match given criteria and
 	 * pagination settings.
 	 *
@@ -2199,12 +2270,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
 					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
 						session.getFirstCatalogVersionAfter(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
+					// `.endVersion()`, not `.startVersion()`: a checkpoint block can batch several catalog
+					// versions together (default checkpoint interval is 1000ms), and `endVersion` is the one
+					// actually current as of that checkpoint - `startVersion` is only the lowest version in the
+					// same batch, which would silently drop the later versions in that batch from the result
 					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
 						(firstRequestedCatalogVersion == null ?
-							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion() :
+							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).endVersion() :
 							Math.max(
 								firstRequestedCatalogVersion + 1,
-								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion()
+								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).endVersion()
 							)
 						) : null;
 				} else {
@@ -2220,41 +2295,169 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				);
 				// echoed back so the client can pin it as `sinceVersion` on subsequent pages - see the
 				// proto comments on GetMutationsHistoryPageRequest/Response for why that matters
-				builder.setSinceVersion(changeCaptureRequest.sinceVersion());
+				builder.setSinceVersion(echoedSinceVersion(changeCaptureRequest));
 				final int firstRecordNumber = PaginatedList.getFirstItemNumberForPage(page, pageSize);
 				try (
 					final Stream<ChangeCatalogCapture> mutationsHistoryStream =
-						session.getMutationsHistory(changeCaptureRequest);
-					final Stream<List<ChangeCatalogCapture>> recordStream =
-						ChangeCatalogCaptureRecords.groupIntoRecords(mutationsHistoryStream)
+						session.getMutationsHistoryReversed(changeCaptureRequest)
 				) {
-					// takeWhile before skip: both orders yield the identical result set here (the version
-					// bound is monotone over a stream that is non-increasing in version), but checking it
-					// first lets the traversal stop as soon as the bound is crossed instead of always
-					// paying the cost of skipping to the requested page first
-					final List<List<ChangeCatalogCapture>> fetchedRecords = recordStream
-						.takeWhile(
-							changeCaptureRecord -> firstRequestedCatalogVersion == null ||
-								changeCaptureRecord.get(0).version() > firstRequestedCatalogVersion
-						)
-						.skip(firstRecordNumber)
-						// one extra record fetched to detect whether a following page exists
-						.limit(pageSize + 1L)
-						.toList();
-
-					final boolean hasNext = fetchedRecords.size() > pageSize;
-					final List<List<ChangeCatalogCapture>> pageRecords = hasNext ?
-						fetchedRecords.subList(0, pageSize) : fetchedRecords;
-					pageRecords.forEach(
-						changeCaptureRecord -> changeCaptureRecord.forEach(
-							cdcEvent -> builder.addChangeCapture(
-								ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent, clientVersion)
-							)
-						)
+					populateMutationsHistoryPage(
+						builder,
+						mutationsHistoryStream,
+						version -> firstRequestedCatalogVersion == null || version > firstRequestedCatalogVersion,
+						firstRecordNumber,
+						pageSize,
+						clientVersion
 					);
-					builder.setHasNext(hasNext);
 				}
 				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Method returns page of historical mutations in the form of change capture events that match given criteria and
+	 * pagination settings, in chronological (oldest-first) order - the forward counterpart of
+	 * {@link #getMutationsHistoryPage}.
+	 *
+	 * @param request          request containing the criteria and pagination settings
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 */
+	@Override
+	public void getMutationsHistoryPageForward(
+		GetMutationsHistoryPageRequest request,
+		StreamObserver<GetMutationsHistoryPageResponse> responseObserver
+	) {
+		executeWithClientContext(
+			session -> {
+				final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse
+					.newBuilder();
+				final int page = request.hasPage() ? request.getPage().getValue() : 1;
+				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
+				// unlike the reverse handler, `from` resolves the anchor (floor) here and `to` resolves the
+				// stop bound - forward traversal starts at the lower time-frame edge and stops at the upper one,
+				// the opposite pairing of roles from the reverse handler above
+				final Long anchorCatalogVersion;
+				final Long stopCatalogVersion;
+				if (request.hasTimeFrame()) {
+					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
+					final OffsetDateTime preciseFrom = requestedTimeFrame.getPreciseFrom();
+					final MaterializedVersionBlock anchorBlock = preciseFrom != null ?
+						session.getFirstCatalogVersionAfter(preciseFrom) : null;
+					anchorCatalogVersion = anchorBlock == null ? null :
+						// a `from` in the future can never have any committed data - push the anchor past the
+						// end of *known* history so the WAL reader naturally yields an empty result, instead of
+						// the checkpoint-based version index's usual clamp to the newest known block. A `from`
+						// in the past that also resolves to the newest block is left as `startVersion()` as-is:
+						// checkpointing lags real commits by up to the configured checkpoint interval, and
+						// there is no lag-free way to tell "nothing was ever committed after this" apart from
+						// "committed after this but not yet checkpointed" - time-to-version resolution here is
+						// inherently checkpoint-granular, not exact, matching the reverse RPC's same limitation
+						preciseFrom.isAfter(OffsetDateTime.now()) ?
+							anchorBlock.endVersion() + 1 : anchorBlock.startVersion();
+					// `.endVersion()`, not `.startVersion()` - see the identical comment in the reverse handler
+					// above for why: a checkpoint block can batch several catalog versions together, and
+					// `endVersion` is the one actually current as of that checkpoint
+					stopCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
+						(anchorCatalogVersion == null ?
+							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).endVersion() :
+							Math.max(
+								anchorCatalogVersion,
+								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).endVersion()
+							)
+						) : null;
+				} else {
+					anchorCatalogVersion = null;
+					stopCatalogVersion = null;
+				}
+				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+				final ChangeCatalogCaptureRequest changeCaptureRequest = ChangeCaptureConverter.toChangeCaptureRequestForward(
+					request,
+					anchorCatalogVersion != null ?
+						anchorCatalogVersion : session.getFirstCatalogVersionAfter(null).startVersion()
+				);
+				// echoed back so the client can pin it as `sinceVersion` on subsequent pages - see the
+				// proto comments on GetMutationsHistoryPageRequest/Response for why that matters
+				builder.setSinceVersion(echoedSinceVersion(changeCaptureRequest));
+				final int firstRecordNumber = PaginatedList.getFirstItemNumberForPage(page, pageSize);
+				try (
+					final Stream<ChangeCatalogCapture> mutationsHistoryStream =
+						session.getMutationsHistoryForward(changeCaptureRequest)
+				) {
+					populateMutationsHistoryPage(
+						builder,
+						mutationsHistoryStream,
+						version -> stopCatalogVersion == null || version <= stopCatalogVersion,
+						firstRecordNumber,
+						pageSize,
+						clientVersion
+					);
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Streams all historical mutations in the form of change capture events that match the given criteria - shared
+	 * by {@link #getMutationsHistory} (reverse) and {@link #getMutationsHistoryForward} (forward), which differ
+	 * only in which direction-resolved session method supplies the underlying capture stream.
+	 *
+	 * @param request                request containing the criteria
+	 * @param responseObserver       observer on which errors might be thrown and result returned
+	 * @param mutationsHistoryStream direction-resolved session method to open the capture stream with
+	 */
+	private void streamMutationsHistory(
+		@Nonnull GetMutationsHistoryRequest request,
+		@Nonnull StreamObserver<GetMutationsHistoryResponse> responseObserver,
+		@Nonnull BiFunction<EvitaInternalSessionContract, ChangeCatalogCaptureRequest, Stream<ChangeCatalogCapture>> mutationsHistoryStream
+	) {
+		final ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
+			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
+
+		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
+
+		// avoid returning error when client cancels the stream
+		serverCallStreamObserver.setOnCancelHandler(
+			() -> {
+				log.info("Client cancelled the mutation history request.");
+				ofNullable(mutationsHistoryStreamRef.get())
+					.ifPresent(BaseStream::close);
+			}
+		);
+
+		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
+		executeWithClientContext(
+			session -> {
+				try (
+					final Stream<ChangeCatalogCapture> capturedMutations = mutationsHistoryStream.apply(
+						session, ChangeCaptureConverter.toChangeCaptureRequest(request)
+					)
+				) {
+					mutationsHistoryStreamRef.set(capturedMutations);
+					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+
+					capturedMutations.forEach(
+						cdcEvent -> {
+							final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse
+								.newBuilder();
+							final GrpcChangeCatalogCapture event = ChangeCaptureConverter
+								.toGrpcChangeCatalogCapture(cdcEvent, clientVersion);
+							// we send mutations one by one, but we may want to send them in batches in the future
+							builder.addChangeCapture(event);
+							responseObserver.onNext(builder.build());
+							GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
+						}
+					);
+				}
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),
@@ -2275,47 +2478,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	public void getMutationsHistory(
 		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
 	) {
-		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
-			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
+		streamMutationsHistory(request, responseObserver, EvitaInternalSessionContract::getMutationsHistoryReversed);
+	}
 
-		final AtomicReference<Stream<ChangeCatalogCapture>> mutationsHistoryStreamRef = new AtomicReference<>();
-
-		// avoid returning error when client cancels the stream
-		serverCallStreamObserver.setOnCancelHandler(
-			() -> {
-				log.info("Client cancelled the mutation history request.");
-				ofNullable(mutationsHistoryStreamRef.get())
-					.ifPresent(BaseStream::close);
-			}
-		);
-
-		final ServiceRequestContext serviceContext = ServiceRequestContext.current();
-		executeWithClientContext(
-			session -> {
-				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-					ChangeCaptureConverter.toChangeCaptureRequest(request)
-				);
-				mutationsHistoryStreamRef.set(mutationsHistoryStream);
-				final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
-
-				mutationsHistoryStream.forEach(
-					cdcEvent -> {
-						final GetMutationsHistoryResponse.Builder builder = GetMutationsHistoryResponse
-							.newBuilder();
-						final GrpcChangeCatalogCapture event = ChangeCaptureConverter
-							.toGrpcChangeCatalogCapture(cdcEvent, clientVersion);
-						// we send mutations one by one, but we may want to send them in batches in the future
-						builder.addChangeCapture(event);
-						responseObserver.onNext(builder.build());
-						GrpcTimeoutUtil.reArmRequestTimeoutIfEnabled(serviceContext, serviceContext.requestTimeoutMillis());
-					}
-				);
-				responseObserver.onCompleted();
-			},
-			this.evita.getRequestExecutor(),
-			responseObserver,
-			this.tracingContext
-		);
+	/**
+	 * Method returns all historical mutations in the form of change capture events that match given criteria, in
+	 * chronological (oldest-first) order - the forward counterpart of {@link #getMutationsHistory}.
+	 *
+	 * @param request          request containing the criteria
+	 * @param responseObserver observer on which errors might be thrown and result
+	 *                         returned
+	 */
+	@Override
+	public void getMutationsHistoryForward(
+		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
+	) {
+		streamMutationsHistory(request, responseObserver, EvitaInternalSessionContract::getMutationsHistoryForward);
 	}
 
 	/**

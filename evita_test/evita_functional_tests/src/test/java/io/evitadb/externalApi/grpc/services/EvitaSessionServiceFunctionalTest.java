@@ -57,6 +57,7 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
@@ -2892,6 +2893,323 @@ class EvitaSessionServiceFunctionalTest {
 			unpinnedWindowDrifted,
 			"an unpinned anchor must drift once a commit lands between page fetches - otherwise pinning would be pointless"
 		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should stream mutations history in chronological (oldest-first) order via the forward RPC")
+	void shouldStreamMutationsHistoryForwardInChronologicalOrder(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// the shared dataset's initial generation runs during warm-up and never reaches CDC/WAL history (see
+		// the sibling paged tests above), so this test seeds its own real, committed history: one commit
+		// touching two distinct entities gives a single transaction of known, checkable shape
+		final List<SealedEntity> targets = entities.subList(entities.size() - 20, entities.size() - 18);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int idx = 0; idx < targets.size(); idx++) {
+					final SealedEntity target = targets.get(idx);
+					session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 3000L + idx)
+						.upsertVia(session);
+				}
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		// opened only after the commit above - see the record-alignment paged test for why order matters
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final Iterator<GetMutationsHistoryResponse> stream = evitaSessionBlockingStub.getMutationsHistoryForward(
+			GetMutationsHistoryRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.build()
+		);
+		final List<GrpcChangeCatalogCapture> captures = new ArrayList<>();
+		stream.forEachRemaining(response -> captures.addAll(response.getChangeCaptureList()));
+
+		// header(V) + two entity records, each an entity-level capture plus the one local mutation it fanned
+		// out into - 1 + 2 * 2 = 5 captures total, the header (index 0) leading the forward stream
+		assertEquals(5, captures.size());
+		assertEquals(recordVersion, captures.get(0).getVersion().getValue());
+		assertEquals(0, captures.get(0).getIndex().getValue(), "the transaction header occupies index 0 and must lead the forward stream");
+
+		int previousIndex = -1;
+		for (final GrpcChangeCatalogCapture capture : captures) {
+			assertEquals(recordVersion, capture.getVersion().getValue());
+			assertTrue(
+				capture.getIndex().getValue() >= previousIndex,
+				"index must be non-decreasing in forward order, was " + capture.getIndex().getValue() + " after " + previousIndex
+			);
+			previousIndex = capture.getIndex().getValue();
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should page mutations history in chronological (oldest-first) order via the forward RPC, record-aligned")
+	void shouldPageMutationsHistoryForward(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// one commit touching three distinct entities - header(V) + three entity-level payload records -
+		// gives this test real, self-contained history spanning more than one page at pageSize 1
+		final List<SealedEntity> targets = entities.subList(entities.size() - 23, entities.size() - 20);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int idx = 0; idx < targets.size(); idx++) {
+					final SealedEntity target = targets.get(idx);
+					session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 4000L + idx)
+						.upsertVia(session);
+				}
+			}
+		);
+		final long floorVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final int pageSize = 1;
+		final GetMutationsHistoryPageResponse firstPage = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(floorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertEquals(floorVersion, firstPage.getSinceVersion());
+		assertEquals(1, firstPage.getChangeCaptureCount(), "page 1 is the transaction header alone - a record of size 1");
+		assertEquals(0, firstPage.getChangeCapture(0).getIndex().getValue());
+		assertTrue(firstPage.getHasNext());
+
+		// keep fetching pages, pinned to the same floor, until exhausted, and reassemble
+		final List<GrpcChangeCatalogCapture> pagedCaptures = new ArrayList<>(firstPage.getChangeCaptureList());
+		boolean hasNext = firstPage.getHasNext();
+		int page = 2;
+		while (hasNext) {
+			final GetMutationsHistoryPageResponse nextPage = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+				GetMutationsHistoryPageRequest.newBuilder()
+					.setSinceVersion(Int64Value.of(floorVersion))
+					.setPage(Int32Value.of(page))
+					.setPageSize(Int32Value.of(pageSize))
+					.build()
+			);
+			pagedCaptures.addAll(nextPage.getChangeCaptureList());
+			hasNext = nextPage.getHasNext();
+			page++;
+		}
+
+		final GetMutationsHistoryPageResponse combinedPage = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(floorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pagedCaptures.size()))
+				.build()
+		);
+		final List<GrpcChangeCatalogCapture> combinedCaptures = combinedPage.getChangeCaptureList();
+		assertFalse(combinedPage.getHasNext());
+		assertEquals(
+			combinedCaptures.size(), pagedCaptures.size(),
+			"records paged one at a time with a pinned floor must cover exactly the same captures as one combined page"
+		);
+		for (int idx = 0; idx < pagedCaptures.size(); idx++) {
+			assertEquals(combinedCaptures.get(idx).getVersion().getValue(), pagedCaptures.get(idx).getVersion().getValue());
+			assertEquals(combinedCaptures.get(idx).getIndex().getValue(), pagedCaptures.get(idx).getIndex().getValue());
+		}
+		// chronological order: non-decreasing index (only one catalog version is involved in this commit)
+		int previousIndex = -1;
+		for (final GrpcChangeCatalogCapture capture : pagedCaptures) {
+			assertTrue(capture.getIndex().getValue() >= previousIndex);
+			previousIndex = capture.getIndex().getValue();
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should include the last eligible version at an inclusive time-frame upper bound while paging mutations history forward")
+	void shouldIncludeLastEligibleVersionAtTimeFrameUpperBoundWhenPagingMutationsHistoryForward(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		final SealedEntity target = entities.get(entities.size() - 27);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 6000L)
+					.upsertVia(session);
+			}
+		);
+		final long lastVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// `to` set safely after the commit's own timestamp, so `getLastCatalogVersionBefore(to)` unambiguously
+		// resolves to `lastVersion` - the regression: an exclusive `<` on the resolved stop bound used to drop
+		// this very version's records from the page instead of including them, even though `lastVersion` is
+		// itself anchored at as `sinceVersion` below
+		final OffsetDateTime to = OffsetDateTime.now().plusMinutes(1);
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(lastVersion))
+				.setTimeFrame(EvitaDataTypesConverter.toGrpcDateTimeRange(DateTimeRange.until(to)))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		assertFalse(page.getHasNext());
+		assertTrue(
+			page.getChangeCaptureList().stream().anyMatch(capture -> capture.getVersion().getValue() == lastVersion),
+			"the last committed version, exactly at the resolved `to` boundary, must be included in the result"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should return an empty page instead of the newest mutations when the time-frame floor lies in the future")
+	void shouldReturnEmptyPageWhenTimeFrameFloorIsInTheFuture(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// seed real WAL history first - the shared dataset has none until a post-goLive commit lands (all
+		// its entities are generated during warm-up), and without any committed history at all, a `from`
+		// in the future and a `from` right now look identical, defeating the point of this test
+		final SealedEntity target = entities.get(entities.size() - 28);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 6100L)
+					.upsertVia(session);
+			}
+		);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// the regression: `getFirstCatalogVersionAfter` clamps a future moment down to the newest known
+		// block instead of signalling "no such version", so a naive implementation would surface the newest
+		// mutations here instead of correctly finding nothing - only a future `from` is checked this way,
+		// since the checkpoint-based version index has no lag-free way to tell "nothing was ever committed
+		// after this past moment" apart from "committed after it but not yet checkpointed"
+		final OffsetDateTime from = OffsetDateTime.now().plusYears(10);
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setTimeFrame(EvitaDataTypesConverter.toGrpcDateTimeRange(DateTimeRange.since(from)))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(20))
+				.build()
+		);
+
+		assertEquals(0, page.getChangeCaptureCount());
+		assertFalse(page.getHasNext());
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should reach a commit that lands after the pinned floor while paging mutations history forward")
+	void shouldReachConcurrentlyCommittedDataWhenPagingMutationsHistoryForward(Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		final List<SealedEntity> pool = entities.subList(entities.size() - 26, entities.size() - 23);
+		final SealedEntity baselineTarget = pool.get(0);
+		final SealedEntity concurrentTarget = pool.get(1);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(baselineTarget.getType(), baselineTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 5000L)
+					.upsertVia(session);
+			}
+		);
+		final long floorVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// pageSize matches the baseline transaction's own record count exactly (header + one entity-upsert
+		// record = 2 records), so it fits entirely on page 1 - and the peek-ahead naturally flips hasNext
+		// from false to true the moment anything more is appended
+		final int pageSize = 2;
+		final GetMutationsHistoryPageResponse baselinePage = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(floorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertFalse(baselinePage.getHasNext(), "the single baseline commit must fit entirely on page 1 at this page size");
+		final int baselineCaptureCount = baselinePage.getChangeCaptureCount();
+
+		// a second, real commit lands strictly after the floor above was resolved, appended to the WAL's
+		// tail - simulating a concurrent writer while a forward ("load newer") traversal is in progress
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(concurrentTarget.getType(), concurrentTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 5001L)
+					.upsertVia(session);
+			}
+		);
+		// re-opened so the session reflects the commit just made - see the record-alignment paged test above
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// page 1, re-fetched with the SAME pinned floor as before: the append-only WAL means a forward floor
+		// never drifts on its own (unlike the reverse RPC's ceiling, which drifts every time "current version"
+		// advances) - this must return exactly the same baseline content, now with hasNext flipped to true,
+		// since the new commit is reachable as a further page rather than folded in or lost
+		final GetMutationsHistoryPageResponse baselinePageAfterConcurrentCommit = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(floorVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertEquals(floorVersion, baselinePageAfterConcurrentCommit.getSinceVersion());
+		assertEquals(baselineCaptureCount, baselinePageAfterConcurrentCommit.getChangeCaptureCount());
+		assertTrue(
+			baselinePageAfterConcurrentCommit.getHasNext(),
+			"the concurrently committed record must now be reachable as a further page"
+		);
+
+		// page 2, same pinned floor: must contain exactly the new commit's captures - proving the forward
+		// traversal's peek-ahead (hasNext) mechanism picks up data appended to the WAL after the floor was
+		// first resolved, rather than caching a stale view of how much history existed at that time
+		final GetMutationsHistoryPageResponse newCommitPage = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(floorVersion))
+				.setPage(Int32Value.of(2))
+				.setPageSize(Int32Value.of(pageSize))
+				.build()
+		);
+		assertFalse(newCommitPage.getChangeCaptureList().isEmpty(), "the concurrently committed record must appear on the next page");
+		assertFalse(newCommitPage.getHasNext());
+		for (final GrpcChangeCatalogCapture capture : newCommitPage.getChangeCaptureList()) {
+			assertTrue(
+				capture.getVersion().getValue() > floorVersion,
+				"every capture beyond the baseline page must belong to the newer, concurrently committed version"
+			);
+		}
 	}
 
 	public record AssociatedDataComplexObjectExample(

@@ -92,6 +92,42 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
+	 * Converts a {@link GetMutationsHistoryPageRequest} to a {@link ChangeCatalogCaptureRequest} anchored at a
+	 * lower-bound (floor) catalog version, for use with
+	 * {@link io.evitadb.api.EvitaSessionContract#getMutationsHistoryForward}.
+	 * Unlike the reverse overload above, an explicit {@code sinceVersion} above the floor is not clamped down -
+	 * it is a legitimate, narrower request (e.g. "start me at version 900, not at the oldest"). Only a value
+	 * below the floor is clamped up to it; there is no clamp at the other end, since a floor past the newest
+	 * available version simply yields an empty result rather than being an error. Whenever the version gets
+	 * clamped up this way (including when {@code sinceVersion} was left unset entirely), {@code sinceIndex} is
+	 * reset to `0` - a client-supplied index refers to a position within the client's originally requested
+	 * version, so carrying it over onto a different, clamped-up version would silently skip that version's
+	 * header and early records.
+	 *
+	 * @param request             the request to convert
+	 * @param floorCatalogVersion the lower bound to anchor at when the request leaves {@code sinceVersion} unset,
+	 *                            or when the requested value falls below it
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static ChangeCatalogCaptureRequest toChangeCaptureRequestForward(
+		@Nonnull GetMutationsHistoryPageRequest request,
+		long floorCatalogVersion
+	) {
+		final boolean versionClamped = !request.hasSinceVersion() ||
+			request.getSinceVersion().getValue() < floorCatalogVersion;
+		return new ChangeCatalogCaptureRequest(
+			versionClamped ? floorCatalogVersion : request.getSinceVersion().getValue(),
+			!versionClamped && request.hasSinceIndex() ? request.getSinceIndex().getValue() : 0,
+			request.getCriteriaList()
+			       .stream()
+			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
+			       .toArray(ChangeCatalogCaptureCriteria[]::new),
+			EvitaEnumConverter.toCaptureContent(request.getContent())
+		);
+	}
+
+	/**
 	 * Converts a {@link GetMutationsHistoryRequest} to a {@link ChangeCatalogCaptureRequest}.
 	 *
 	 * @param request the request to convert

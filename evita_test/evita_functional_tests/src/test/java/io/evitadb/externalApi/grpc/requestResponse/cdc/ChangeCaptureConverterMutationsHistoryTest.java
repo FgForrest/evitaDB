@@ -195,6 +195,86 @@ class ChangeCaptureConverterMutationsHistoryTest {
 	}
 
 	@Nested
+	@DisplayName("forward paged request anchor resolution")
+	class ForwardPagedRequestAnchor {
+
+		/**
+		 * Catalog version the forward paged handler resolves as the lower-bound floor of the request.
+		 */
+		private static final long FLOOR_CATALOG_VERSION = 100L;
+
+		@Test
+		@DisplayName("should reset sinceIndex to 0 when an explicit sinceVersion is clamped up to the floor")
+		void shouldResetIndexWhenVersionIsClampedUpToFloor() {
+			// the regression: a stale index meant for the client's requested (too-low) version was carried
+			// over onto the clamped floor version, silently skipping that version's header and early records
+			final GetMutationsHistoryPageRequest request = GetMutationsHistoryPageRequest
+				.newBuilder()
+				.setSinceVersion(Int64Value.of(FLOOR_CATALOG_VERSION - 10L))
+				.setSinceIndex(Int32Value.of(7))
+				.build();
+
+			final ChangeCatalogCaptureRequest converted = ChangeCaptureConverter.toChangeCaptureRequestForward(
+				request, FLOOR_CATALOG_VERSION
+			);
+
+			assertEquals(FLOOR_CATALOG_VERSION, converted.sinceVersion());
+			assertEquals(0, converted.sinceIndex());
+		}
+
+		@Test
+		@DisplayName("should reset sinceIndex to 0 when sinceVersion is left unset entirely")
+		void shouldResetIndexWhenVersionIsUnset() {
+			final GetMutationsHistoryPageRequest request = GetMutationsHistoryPageRequest
+				.newBuilder()
+				.setSinceIndex(Int32Value.of(7))
+				.build();
+
+			final ChangeCatalogCaptureRequest converted = ChangeCaptureConverter.toChangeCaptureRequestForward(
+				request, FLOOR_CATALOG_VERSION
+			);
+
+			assertEquals(FLOOR_CATALOG_VERSION, converted.sinceVersion());
+			assertEquals(0, converted.sinceIndex());
+		}
+
+		@Test
+		@DisplayName("should honour an explicit sinceIndex when sinceVersion is above the floor, unclamped")
+		void shouldHonourIndexWhenVersionIsUnclamped() {
+			final GetMutationsHistoryPageRequest request = GetMutationsHistoryPageRequest
+				.newBuilder()
+				.setSinceVersion(Int64Value.of(FLOOR_CATALOG_VERSION + 10L))
+				.setSinceIndex(Int32Value.of(7))
+				.build();
+
+			final ChangeCatalogCaptureRequest converted = ChangeCaptureConverter.toChangeCaptureRequestForward(
+				request, FLOOR_CATALOG_VERSION
+			);
+
+			assertEquals(FLOOR_CATALOG_VERSION + 10L, converted.sinceVersion());
+			assertEquals(7, converted.sinceIndex());
+		}
+
+		@Test
+		@DisplayName("should honour an explicit sinceIndex when sinceVersion exactly equals the floor")
+		void shouldHonourIndexWhenVersionEqualsFloor() {
+			final GetMutationsHistoryPageRequest request = GetMutationsHistoryPageRequest
+				.newBuilder()
+				.setSinceVersion(Int64Value.of(FLOOR_CATALOG_VERSION))
+				.setSinceIndex(Int32Value.of(7))
+				.build();
+
+			final ChangeCatalogCaptureRequest converted = ChangeCaptureConverter.toChangeCaptureRequestForward(
+				request, FLOOR_CATALOG_VERSION
+			);
+
+			assertEquals(FLOOR_CATALOG_VERSION, converted.sinceVersion());
+			assertEquals(7, converted.sinceIndex());
+		}
+
+	}
+
+	@Nested
 	@DisplayName("transaction header body round-trip")
 	class TransactionHeaderRoundTrip {
 
