@@ -268,6 +268,7 @@ Příklad nastavení zachytávání změn na úrovni engine v REST přes WebSock
 Subscriber začne přijímat události změn, jakmile k nim v engine dojde. Metoda `Complete` subscriberu se nikdy nevolá, protože stream změn je nekonečný.
 
 </LS>
+</LS>
 <LS to="g">
 
 Stream zachytávání na úrovni engine umožňuje klientům přihlásit se k odběru instancí `ChangeSystemCapture` (nebo `GenericChangeSystemCapture`,
@@ -320,8 +321,6 @@ Události zachytávání na úrovni engine jsou reprezentovány objektem `Change
     Tělo události. Tělo je union — pro oblast `ENGINE` obsahuje hodnotu `EngineMutationUnion`; pro oblast `HOST` obsahuje hodnotu `HostSystemEventUnion` (viz [Události systémového hostitele](#události-hostitelského-systému) níže).
   </dd>
 </dl>
-
-</LS>
 
 ### Jak nastavit nové zachytávání změn na úrovni engine
 
