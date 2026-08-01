@@ -1,12 +1,12 @@
 ---
 title: Zachytávání změn dat
-perex: Zachytávání změn dat (CDC) je návrhový vzor používaný ke sledování a zachycování změn provedených ve schématu a datech v databázi. evitaDB podporuje CDC prostřednictvím všech svých API, což vývojářům umožňuje velmi snadno monitorovat a reagovat na změny dat téměř v reálném čase ve svém preferovaném programovacím jazyce. Tento dokument vysvětluje, jak implementovat CDC pomocí našeho API.
+perex: Zachytávání změn dat (CDC) je návrhový vzor používaný ke sledování a zachycování změn provedených ve schématu a datech v databázi. evitaDB podporuje CDC prostřednictvím všech svých API, což umožňuje vývojářům velmi snadno monitorovat a reagovat na změny dat téměř v reálném čase v jejich preferovaném programovacím jazyce. Tento dokument vysvětluje, jak implementovat CDC pomocí našeho API.
 date: '21.10.2025'
 author: Ing. Jan Novotný
-proofreading: needed
+proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '4efe27359c0fe06993ff265eae9305969f91fe50'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Databáze udržuje takzvaný [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging), který zaznamenává všechny změny provedené v databázi. Tento log slouží k zajištění integrity a trvanlivosti dat, ale může být také využit k implementaci funkce zachytávání změn dat (CDC). Jakmile je katalog přepnut do fáze `ACTIVE` (transakční), klienti mohou začít konzumovat informace o změnách provedených jak ve schématu, tak v datech katalogu.
 
@@ -52,11 +52,11 @@ Jak vidíte, existuje mnoho důvodů, proč může odběr skončit. Klienti by p
 Ne všechny mutace fungují na stejné úrovni a některé mutace mohou zahrnovat jiné. Například při upsertu entity může obsahovat více mutací uvnitř sebe (více operací s atributy, asociovanými daty, cenami atd.). Hierarchie mutací je následující:
 
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> ([úplný výpis](control-engine.md), dostupné v [engine change capture](#zachytávání-změn-na-úrovni-engine))
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([úplný výpis](../schema.md), dostupné v [catalog schema change capture](#zachytávání-změn-na-úrovni-engine))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([úplný výpis](../schema.md), dostupné v [catalog schema change capture](#zachytávání-změn-na-úrovni-katalogu))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalCatalogSchemaMutation.java</SourceClass>
             - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalEntitySchemaMutation.java</SourceClass>
                 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass> 
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([úplný výpis](../data-model.md), dostupné v [catalog data change capture](#zachytávání-změn-na-úrovni-engine))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([úplný výpis](../data-model.md), dostupné v [catalog data change capture](#zachytávání-změn-na-úrovni-katalogu))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/LocalMutation.java</SourceClass>
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> (dostupné ve všech streamech zachytávání změn)
 
@@ -376,64 +376,64 @@ Události hostitelského systému mají záměrně užší garance doručení ne
 - **Volitelné.** Jak je popsáno výše v parametru `criteria`, události hostitelského systému jsou doručovány pouze tehdy, pokud předplatné explicitně zahrnuje oblast `HOST` ve svých kritériích. Výchozí nastavení (vynechaná kritéria) je pouze `ENGINE`.
 - **Pouze pro korelaci — ne jako kurzor verze.** Každý záznam zachycující událost hostitelského systému uvádí verzi engine pozorovanou v okamžiku vyslání pro korelaci s okolním tokem mutací engine, ale vyslání události hostitelského systému neposouvá čítač verzí engine.
 
-## Zachycení změn katalogu
+## Zachytávání změn na úrovni katalogu
 
 <LS to="j,r">
 
 <LS to="j">
 
-Stream pro zachycení změn na úrovni katalogu přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
-pro vytvoření [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). Jeden nebo více klientů se poté může přihlásit k tomuto publisheru, aby obdrželi 
-instance <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
-reprezentující změny provedené v katalogu.
+Stream zachytávání na úrovni katalogu přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
+pro vytvoření [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). Jeden nebo více klientů se pak může přihlásit k tomuto publisheru a přijímat
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
+instance reprezentující změny provedené v katalogu.
 
 </LS>
 <LS to="r">
 
-Stream pro zachycení změn na úrovni katalogu přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
-pro vytvoření CDC streamu. Klienti poté obdrží
-instance <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
-reprezentující změny provedené v katalogu.
+Stream zachytávání na úrovni katalogu přijímá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
+pro vytvoření CDC streamu. Klienti pak přijímají
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
+instance reprezentující změny provedené v katalogu.
 
 </LS>
 
-Požadavek umožňuje specifikovat následující parametry:
+Požadavek umožňuje zadat následující parametry:
 
 <dl>
   <dt>long `sinceVersion` (volitelné)</dt>
   <dd>
-    Verze katalogu (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od další verze katalogu (tj. změny provedené v katalogu v budoucnosti).
+    Verze katalogu (včetně), od které chcete začít přijímat změny. Pokud není zadáno, stream změn začne od další verze katalogu (tj. změny provedené v katalogu v budoucnu).
   </dd>
   <dt>int `sinceIndex` (volitelné)</dt>
   <dd>
-    Index mutace v rámci stejné transakce, od kterého chcete začít přijímat změny. Pokud není zadáno, stream změn začne od první mutace zadané verze. Index vám umožňuje přesně určit počáteční bod v případě, že jste již některé mutace dané verze zpracovali.
+    Index mutace v rámci stejné transakce, od kterého chcete začít přijímat změny. Pokud není zadáno, stream změn začne od první mutace zadané verze. Index vám umožňuje přesně určit výchozí bod v případě, že jste již některé mutace dané verze zpracovali.
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureCriteria.java</SourceClass>[] `criteria` (volitelné)</dt>
   <dd>
-    Pole kritérií, která určují, o jaké změny máte zájem. Pokud není zadáno, jsou zachyceny všechny změny. Pokud je zadáno více kritérií, stačí splnit alespoň jedno z nich (logika OR). Každé kritérium se skládá z:
+    Pole kritérií, která určují, o jaké změny máte zájem. Pokud není zadáno, zachytávají se všechny změny. Pokud je zadáno více kritérií, stačí splnit alespoň jedno z nich (logika OR). Každé kritérium se skládá z:
     <ul>
-        <li>`area` – oblast zachycení (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)</li>
-        <li>`site` – místo zachycení (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) umožňující detailní filtrování</li>
+        <li>`area` - oblast zachytávání (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)</li>
+        <li>`site` - místo zachytávání (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) pro jemnější filtrování</li>
     </ul>
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass> `content`</dt>
   <dd>
-    Výčtový typ určující, zda klient požaduje detailní informace o každé mutaci, nebo pouze základní informaci, že došlo k určitému typu mutace. Výčtový typ má následující hodnoty:
+    Výčtový typ, který určuje, zda klient chce detailní informace o každé mutaci, nebo pouze informace na vyšší úrovni o tom, že došlo k určitému typu mutace. Výčtový typ má následující hodnoty:
     <ul>
-        <li>`HEADER` – odesílá se pouze hlavička události</li>
-        <li>`BODY` – odesílá se celé tělo mutace, která událost vyvolala</li>
+        <li>`HEADER` - odesílá se pouze hlavička události</li>
+        <li>`BODY` - odesílá se celé tělo mutace, která událost vyvolala</li>
     </ul>
   </dd>
 </dl>
 
-Události zachycení změn katalogu jsou reprezentovány instancemi <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>, které obsahují následující informace:
+Události zachytávání katalogu jsou reprezentovány instancemi <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>, které obsahují následující informace:
 
 <LS to="j">
 
 <dl>
   <dt>long `version`</dt>
   <dd>
-    Verze katalogu, ve které mutace nastala.
+    Verze katalogu, ve které k mutaci dochází.
   </dd>
   <dt>int `index`</dt>
   <dd>
@@ -443,31 +443,31 @@ Události zachycení změn katalogu jsou reprezentovány instancemi <SourceClass
   <dd>
     Oblast operace, která byla provedena:
     <ul>
-        <li>`SCHEMA` – jsou zachyceny změny ve schématu</li>
-        <li>`DATA` – jsou zachyceny změny v datech</li>
-        <li>`INFRASTRUCTURE` – infrastrukturní mutace, které nejsou ani schéma, ani data</li>
+        <li>`SCHEMA` - zachycují se změny ve schématu</li>
+        <li>`DATA` - zachycují se změny v datech</li>
+        <li>`INFRASTRUCTURE` - infrastrukturní mutace, které nejsou ani schéma, ani data</li>
     </ul>
   </dd>
   <dt>String `entityType` (volitelné)</dt>
   <dd>
-    Název typu entity, který byl ovlivněn operací. Toto pole je null, pokud je operace provedena přímo na schématu katalogu.
+    Název typu entity, který byl operací ovlivněn. Toto pole je null, pokud byla operace provedena přímo na schématu katalogu.
   </dd>
   <dt>Integer `entityPrimaryKey` (volitelné)</dt>
   <dd>
-    Primární klíč entity, která byla ovlivněna operací. Přítomno pouze u operací v oblasti dat.
+    Primární klíč entity, která byla operací ovlivněna. Přítomno pouze u operací v oblasti dat.
   </dd>
   <dt>`operation`</dt>
   <dd>
-    Klasifikace mutace definovaná výčtovým typem:
+    Klasifikace mutace definovaná výčtem:
     <ul>
-        <li>`UPSERT` – Vytvoření nebo aktualizace. Pokud již data s touto identitou existovala, byla aktualizována. Pokud ne, byla vytvořena.</li>
-        <li>`REMOVE` – Odstranění – tj. data s touto identitou existovala a byla odstraněna.</li>
-        <li>`TRANSACTION` – Vymezující operace signalizující začátek transakce.</li>
+        <li>`UPSERT` - Vytvoření nebo aktualizace. Pokud již existovala data s touto identitou, byla aktualizována. Pokud ne, byla vytvořena.</li>
+        <li>`REMOVE` - Odebrání – tj. předtím existovala data s touto identitou a byla odstraněna.</li>
+        <li>`TRANSACTION` - Omezující operace signalizující začátek transakce.</li>
     </ul>
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> `body` (volitelné)</dt>
   <dd>
-    Volitelné tělo operace, pokud je požadováno nastavením <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Volitelné tělo operace, pokud je požadováno zvoleným <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
   </dd>
 </dl>
 
@@ -477,7 +477,7 @@ Události zachycení změn katalogu jsou reprezentovány instancemi <SourceClass
 <dl>
   <dt>long `version`</dt>
   <dd>
-    Verze katalogu, ve které mutace nastala.
+    Verze katalogu, ve které k mutaci dochází.
   </dd>
   <dt>int `index`</dt>
   <dd>
@@ -487,179 +487,156 @@ Události zachycení změn katalogu jsou reprezentovány instancemi <SourceClass
   <dd>
     Oblast operace, která byla provedena:
     <ul>
-        <li>`SCHEMA` – jsou zachyceny změny ve schématu</li>
-        <li>`DATA` – jsou zachyceny změny v datech</li>
-        <li>`INFRASTRUCTURE` – infrastrukturní mutace, které nejsou ani schéma, ani data</li>
+        <li>`SCHEMA` - zachycují se změny ve schématu</li>
+        <li>`DATA` - zachycují se změny v datech</li>
+        <li>`INFRASTRUCTURE` - infrastrukturní mutace, které nejsou ani schéma, ani data</li>
     </ul>
   </dd>
   <dt>String `entityType` (volitelné)</dt>
   <dd>
-    Název typu entity, který byl ovlivněn operací. Toto pole je null, pokud je operace provedena přímo na schématu katalogu.
+    Název typu entity, který byl operací ovlivněn. Toto pole je null, pokud byla operace provedena přímo na schématu katalogu.
   </dd>
   <dt>Integer `entityPrimaryKey` (volitelné)</dt>
   <dd>
-    Primární klíč entity, která byla ovlivněna operací. Přítomno pouze u operací v oblasti dat.
+    Primární klíč entity, která byla operací ovlivněna. Přítomno pouze u operací v oblasti dat.
   </dd>
   <dt>`operation`</dt>
   <dd>
-    Klasifikace mutace definovaná výčtovým typem:
+    Klasifikace mutace definovaná výčtem:
     <ul>
-        <li>`UPSERT` – Vytvoření nebo aktualizace. Pokud již data s touto identitou existovala, byla aktualizována. Pokud ne, byla vytvořena.</li>
-        <li>`REMOVE` – Odstranění – tj. data s touto identitou existovala a byla odstraněna.</li>
-        <li>`TRANSACTION` – Vymezující operace signalizující začátek transakce.</li>
+        <li>`UPSERT` - Vytvoření nebo aktualizace. Pokud již existovala data s touto identitou, byla aktualizována. Pokud ne, byla vytvořena.</li>
+        <li>`REMOVE` - Odebrání – tj. předtím existovala data s touto identitou a byla odstraněna.</li>
+        <li>`TRANSACTION` - Omezující operace signalizující začátek transakce.</li>
     </ul>
   </dd>
   <dt>`CatalogBoundMutationUnion` `body` (volitelné)</dt>
   <dd>
-    Volitelné tělo operace, pokud je požadováno nastavením <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Volitelné tělo operace, pokud je požadováno zvoleným <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
   </dd>
 </dl>
 
 </LS>
 
-### Záruky pořadí
+### Oblasti a místa zachytávání
 
-V celém streamu zachycení změn jsou změny doručovány ve striktně monotónním pořadí verzí katalogu — nikdy nejsou doručeny ve špatném pořadí a nikdy nejsou přeskočeny, odpovídají pořadí, ve kterém byly transakce potvrzeny.
+Katalogové CDC rozlišuje tři různé **oblasti zachytávání**, které odpovídají různým typům operací:
 
-V rámci jedné transakce (jedna verze katalogu):
+#### Oblast zachytávání schématu
 
-- Mutace, která vymezuje transakci — `operation = TRANSACTION`, vždy na `index = 0` — je vždy doručena jako první.
-- `index` identifikuje jeden fyzický záznam mutace uvnitř transakce. Jedna mutace entity nebo schématu se může rozšířit do několika událostí zachycení — například upsert entity je zachycen jednou jako změna na úrovni entity a znovu pro každou změnu atributu, ceny nebo reference, kterou obsahuje — a všechny tyto události sdílejí stejný pár `(version, index)`. Považujte `(version, index)` za identifikátor jedné změny na úrovni entity nebo schématu spolu se vším, co z ní vychází, nikoli jednoho doručeného eventu.
-- `index` je přiřazen před aplikací jakýchkoliv filtračních kritérií, takže zůstává stabilní bez ohledu na to, jak úzce filtrujete — obnovení od konkrétního `(version, index)` se chová stejně, ať už vaše kritéria odpovídají všemu, nebo jen jednomu atributu.
+Oblast zachytávání schématu sleduje změny ve schématu katalogu a schématech entit. To zahrnuje operace jako:
 
-### Kontrola úplnosti
-
-Protože jeden pár `(version, index)` může nést několik událostí zachycení, počítání doručených událostí vám neřekne, zda jste obdrželi vše, co transakce nebo mutace vytvořila. Místo toho to umožňují dva čítače:
-
-- `TransactionMutation.mutationCount`, obsažený v těle zachycení s `operation = TRANSACTION`, je počet záznamů mutací na nejvyšší úrovni, které transakce obsahuje.
-- velikost lokálního seznamu mutací obsaženého v těle zachycení na úrovni entity říká, kolik událostí zachycení sdílí daný pár `(version, index)` entity.
-
-Obojí vyžaduje `content = BODY` — v režimu `HEADER` není k dispozici žádný z těchto čítačů.
-
-Obojí je také pevnou vlastností *nefiltrované* transakce, nikoli toho, co vaše kritéria propustí. `mutationCount` je zapsán jednou, v době potvrzení, před tím, než se kdokoli přihlásí — stejná hodnota je předána každému odběrateli bez ohledu na jeho kritéria, takže vždy počítá všechny záznamy mutací na nejvyšší úrovni, které transakce vytvořila, nikdy jen ty, které odpovídají vašemu filtru. Totéž platí pro lokální seznam mutací entity. To znamená, že výše uvedená kontrola je spolehlivá pouze tehdy, když vaše kritéria nic nefiltrují — žádná oblast užší než všechny tři, a žádné omezení na úrovni místa jako `entityType`.
-
-Filtr pouze na oblast `SCHEMA` nebo `DATA` to ještě komplikuje: také úplně odstraní událost hlavičky oblasti `INFRASTRUCTURE`, takže nemůžete ani přečíst `mutationCount`. Přidání explicitního kritéria `CaptureArea.INFRASTRUCTURE` (bez místa zachycení) do vašeho seznamu kritérií způsobí, že bude hlavička opět doručena — filtrování oblasti zůstává záměrně doslovné a neuděluje výjimky implicitně, takže toto je podporovaný způsob, jak se znovu přihlásit — ale tím pouze obnovíte možnost *číst* čítač. Samotný čítač však stále nebude odpovídat streamu, který jinak filtrujete (např. na jeden typ entity nebo jméno atributu), protože nikdy nebyl omezen na kritéria jednoho odběratele.
-
-### Oblasti a místa zachycení
-
-Katalogové CDC rozlišuje tři různé **oblasti zachycení**, které odpovídají různým typům operací:
-
-#### Oblast zachycení schématu
-
-Oblast zachycení schématu sleduje změny schématu katalogu a schémat entit. Zahrnuje operace jako:
-
-- Vytváření, aktualizace nebo odstraňování schémat entit
-- Úpravy atributů entit, referencí a definic přidružených dat
+- Vytváření, aktualizace nebo mazání schémat entit
+- Úpravy definic atributů, referencí a asociovaných dat entit
 - Změny nastavení schématu na úrovni katalogu
 
-Oblast schématu používá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SchemaSite.java</SourceClass> pro filtrování, což umožňuje zadat:
+Oblast schématu využívá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SchemaSite.java</SourceClass> pro filtrování, což umožňuje zadat:
 
 <dl>
   <dt>String `entityType` (volitelné)</dt>
   <dd>
-    Filtrování podle konkrétního názvu typu entity. Pokud není zadáno, jsou zachyceny změny všech typů entit.
+    Filtrování podle konkrétního názvu typu entity. Pokud není zadáno, zachycují se změny všech typů entit.
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] `operation` (volitelné)</dt>
   <dd>
-    Filtrování podle typu operace. Pokud není zadáno, jsou zachyceny všechny operace. Možné hodnoty:
+    Filtrování podle typu operace. Pokud není zadáno, zachycují se všechny operace. Možné hodnoty:
     <ul>
-      <li>`UPSERT` – Vytvoření nebo aktualizace</li>
-      <li>`REMOVE` – Odstranění</li>
+      <li>`UPSERT` - Vytvoření nebo aktualizace</li>
+      <li>`REMOVE` - Odebrání</li>
     </ul>
   </dd>
   <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] `containerType` (volitelné)</dt>
   <dd>
-    Filtrování podle typu kontejneru. Pokud není zadáno, jsou zachyceny změny všech typů kontejnerů. Možné hodnoty:
+    Filtrování podle typu kontejneru. Pokud není zadáno, zachycují se změny všech typů kontejnerů. Možné hodnoty:
     <ul>
-      <li>`CATALOG` – Změny schématu na úrovni katalogu</li>
-      <li>`ENTITY` – Změny schématu entity</li>
-      <li>`ATTRIBUTE` – Změny schématu atributu</li>
-      <li>`ASSOCIATED_DATA` – Změny schématu přidružených dat</li>
-      <li>`PRICE` – Změny schématu ceny</li>
-      <li>`REFERENCE` – Změny schématu reference</li>
+      <li>`CATALOG` - Změny schématu na úrovni katalogu</li>
+      <li>`ENTITY` - Změny schématu entity</li>
+      <li>`ATTRIBUTE` - Změny schématu atributu</li>
+      <li>`ASSOCIATED_DATA` - Změny schématu asociovaných dat</li>
+      <li>`PRICE` - Změny schématu cen</li>
+      <li>`REFERENCE` - Změny schématu referencí</li>
     </ul>
   </dd>
 </dl>
 
-#### Oblast zachycení dat
+#### Oblast zachytávání dat
 
-Oblast zachycení dat sleduje změny dat entit v rámci katalogu. Zahrnuje operace jako:
+Oblast zachytávání dat sleduje změny v datech entit v rámci katalogu. To zahrnuje operace jako:
 
-- Vytváření, aktualizace nebo odstraňování entit
-- Úpravy atributů entit, referencí a hodnot přidružených dat
-- Aktualizace cen a hierarchického umístění
+- Vytváření, aktualizace nebo mazání entit
+- Úpravy hodnot atributů, referencí a asociovaných dat entit
+- Aktualizace cen a hierarchického zařazení
 
-Oblast dat používá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/DataSite.java</SourceClass> pro filtrování, což umožňuje zadat:
+Oblast dat využívá <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/DataSite.java</SourceClass> pro filtrování, což umožňuje zadat:
 
 <dl>
   <dt>String `entityType` (volitelné)</dt>
   <dd>
-    Filtrování podle konkrétního názvu typu entity. Pokud není zadáno, jsou zachyceny změny všech typů entit.
+    Filtrování podle konkrétního názvu typu entity. Pokud není zadáno, zachycují se změny všech typů entit.
   </dd>
   <dt>Integer `entityPrimaryKey` (volitelné)</dt>
   <dd>
-    Filtrování podle konkrétního primárního klíče entity. Pokud není zadáno, jsou zachyceny změny všech entit.
+    Filtrování podle konkrétního primárního klíče entity. Pokud není zadáno, zachycují se změny všech entit.
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] `operation` (volitelné)</dt>
   <dd>
-    Filtrování podle typu operace. Pokud není zadáno, jsou zachyceny všechny operace. Možné hodnoty:
+    Filtrování podle typu operace. Pokud není zadáno, zachycují se všechny operace. Možné hodnoty:
     <ul>
-      <li>`UPSERT` – Vytvoření nebo aktualizace</li>
-      <li>`REMOVE` – Odstranění</li>
+      <li>`UPSERT` - Vytvoření nebo aktualizace</li>
+      <li>`REMOVE` - Odebrání</li>
     </ul>
   </dd>
   <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] `containerType` (volitelné)</dt>
   <dd>
-    Filtrování podle typu kontejneru. Pokud není zadáno, jsou zachyceny změny všech typů kontejnerů. Možné hodnoty:
+    Filtrování podle typu kontejneru. Pokud není zadáno, zachycují se změny všech typů kontejnerů. Možné hodnoty:
     <ul>
-      <li>`ENTITY` – Změny na úrovni entity</li>
-      <li>`ATTRIBUTE` – Změny hodnoty atributu</li>
-      <li>`ASSOCIATED_DATA` – Změny hodnoty přidružených dat</li>
-      <li>`PRICE` – Změny ceny</li>
-      <li>`REFERENCE` – Změny reference</li>
+      <li>`ENTITY` - Změny na úrovni entity</li>
+      <li>`ATTRIBUTE` - Změny hodnot atributů</li>
+      <li>`ASSOCIATED_DATA` - Změny hodnot asociovaných dat</li>
+      <li>`PRICE` - Změny cen</li>
+      <li>`REFERENCE` - Změny referencí</li>
     </ul>
   </dd>
   <dt>String[] `containerName` (volitelné)</dt>
   <dd>
-    Filtrování podle konkrétního názvu kontejneru (např. konkrétní název atributu jako `name`, `code`). Pokud není zadáno, jsou zachyceny změny všech kontejnerů.
+    Filtrování podle konkrétního názvu kontejneru (např. konkrétní název atributu jako `name`, `code`). Pokud není zadáno, zachycují se změny všech kontejnerů.
   </dd>
 </dl>
 
-#### Oblast zachycení infrastruktury
+#### Oblast zachytávání infrastruktury
 
-Oblast zachycení infrastruktury sleduje transakční a další infrastrukturní mutace, které nespadají do kategorií schéma nebo data. Zahrnuje:
+Oblast zachytávání infrastruktury sleduje transakční a další infrastrukturní mutace, které nespadají do kategorií schéma nebo data. To zahrnuje:
 
-- Vymezující operace transakcí
-- Operace na úrovni systému
+- Omezující operace transakcí
+- Systémové operace
 
-Oblast infrastruktury nepoužívá žádné místo zachycení pro filtrování — aktuálně zachycuje všechny infrastrukturní mutace reprezentované <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
+Oblast infrastruktury nepoužívá žádné místo zachytávání pro filtrování — aktuálně zachycuje všechny infrastrukturní mutace reprezentované <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
 
 <dl>
   <dt>Žádné filtrační parametry</dt>
   <dd>
-    Oblast infrastruktury zachycuje všechny transakční a systémové mutace bez jakýchkoli možností filtrování. Pro zachycení infrastrukturních mutací zadejte `CaptureArea.INFRASTRUCTURE` do vašich kritérií bez místa zachycení.
+    Oblast infrastruktury zachycuje všechny transakční a systémové mutace bez jakýchkoli filtračních možností. Pro zachycení infrastrukturních mutací zadejte `CaptureArea.INFRASTRUCTURE` ve svých kritériích bez capture site.
   </dd>
 </dl>
 
 Tato oblast existuje samostatně, protože hranice transakcí a systémové operace jsou ortogonální ke změnám schématu i dat a klienti mohou potřebovat sledovat hranice transakcí nezávisle pro správné seskupování událostí a zajištění konzistence.
 
-### Jak nastavit nové zachycení změn katalogu
+### Jak nastavit nové zachytávání změn na úrovni katalogu
 
-Nastavení zachycení změn katalogu se liší od zachycení změn engine v tom, že funguje na úrovni katalogu.
+Nastavení zachytávání změn na úrovni katalogu se liší od zachytávání na úrovni engine tím, že funguje na úrovni katalogu.
 
 <LS to="j">
 
 Nastavení se skládá z:
 
-1. Otevření relace (read-only nebo read-write) ke katalogu
-2. Zavolání `registerChangeCatalogCapture` s <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
-3. Zpracování vráceného streamu událostí <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
+1. Otevřete session (read-only nebo read-write) ke katalogu
+2. Zavolejte `registerChangeCatalogCapture` s <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
+3. Zpracujte vrácený stream událostí <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass>
 
 Příklad získání historie změn katalogu v Javě:
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
-[Nastavení minimálního zachycení změn katalogu](/documentation/user/en/use/api/example/catalog-change-capture.java)
+[Nastavení minimálního zachytávání změn katalogu](/documentation/user/en/use/api/example/catalog-change-capture.java)
 
 </SourceCodeTabs>
 
@@ -669,11 +646,11 @@ Níže naleznete také další užitečné příklady:
 
 <NoteTitle toggles="true">
 
-##### Získání vymezujících transakcí a změn pro všechny entity konkrétního typu
+##### Získání transakčních oddělovačů a změn pro všechny entity určitého typu
 
 </NoteTitle>
 
-Tento publisher doručí všechny vymezující transakce a všechny změny provedené na entitách typu `Product` počínaje
+Tento publisher bude doručovat všechny transakční oddělovače a všechny změny provedené na entitách typu `Product` počínaje
 další verzí katalogu.
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
@@ -692,7 +669,7 @@ další verzí katalogu.
 
 </NoteTitle>
 
-Následující publisher doručí všechny změny provedené na atributu `quantityOnStock` entity typu `Product` s primárním
+Následující publisher bude doručovat všechny změny provedené na atributu `quantityOnStock` entity typu `Product` s primárním
 klíčem `745` počínaje další verzí katalogu.
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
@@ -706,13 +683,13 @@ klíčem `745` počínaje další verzí katalogu.
 </LS>
 <LS to="r">
 
-Stream pro zachycení změn na úrovni katalogu je dostupný v katalogovém API přes endpoint `/rest/{catalogName}/change-captures`.
+Stream zachytávání na úrovni katalogu je dostupný v catalog API přes endpoint `/rest/{catalogName}/change-captures`.
 
 Nastavení je velmi jednoduché:
 1. otevřete WebSocket spojení odesláním `GET` požadavku s požadavkem na upgrade spojení
 2. odešlete zprávu `connection_init` v rámci WebSocket spojení
-3. odešlete zprávu `subscribe` v rámci WebSocket spojení s objektem `ChangeCatalogCaptureRequest` definujícím
-   strategii filtrování (jak je specifikováno v
+3. odešlete zprávu `subscribe` v rámci WebSocket spojení s `ChangeCatalogCaptureRequest` definujícím
+   filtrační strategii (jak je specifikováno ve
    [specifikaci WebSocket](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
 
 CDC stream nyní bude klientovi zasílat objekty `ChangeCatalogCapture` zabalené do zpráv `next`.
@@ -721,7 +698,7 @@ Příklad získání historie změn katalogu v protokolu WebSocket pro REST:
 
 <SourceAlternativeTabs variants="rest">
 
-[Nastavení minimálního zachycení změn katalogu](/documentation/user/en/use/api/example/catalog-change-capture-rest.json)
+[Nastavení minimálního zachytávání změn katalogu](/documentation/user/en/use/api/example/catalog-change-capture-rest.json)
 
 </SourceAlternativeTabs>
 
@@ -731,11 +708,11 @@ Níže naleznete také další užitečné příklady:
 
 <NoteTitle toggles="true">
 
-##### Získání vymezujících transakcí a změn pro všechny entity konkrétního typu
+##### Získání transakčních oddělovačů a změn pro všechny entity určitého typu
 
 </NoteTitle>
 
-Tento subscription doručí všechny vymezující transakce a všechny změny provedené na entitách typu `Product` počínaje
+Tento odběr bude doručovat všechny transakční oddělovače a všechny změny provedené na entitách typu `Product` počínaje
 další verzí katalogu.
 
 <SourceAlternativeTabs variants="rest">
@@ -754,7 +731,7 @@ další verzí katalogu.
 
 </NoteTitle>
 
-Následující subscription doručí všechny změny provedené na atributu `quantityOnStock` entity typu `Product` s primárním
+Následující odběr bude doručovat všechny změny provedené na atributu `quantityOnStock` entity typu `Product` s primárním
 klíčem `745` počínaje další verzí katalogu.
 
 <SourceAlternativeTabs variants="rest">
@@ -769,50 +746,7 @@ klíčem `745` počínaje další verzí katalogu.
 
 <LS to="j">
 
-### Získání historie mutací
-
-Kromě přihlášení k živému streamu budoucích změn může relace také požádat o omezený,
-jednorázový pohled na mutace již zaznamenané v write-ahead logu katalogu, prostřednictvím
-<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>:
-
-<dl>
-  <dt>`getMutationsHistoryForward`</dt>
-  <dd>
-    Vrací `Stream<ChangeCatalogCapture>` v chronologickém pořadí vpřed. `sinceVersion` je
-    inkluzivní dolní mez; pokud není nastavena, stream začíná u nejstarší verze známé v
-    historii mutací katalogu.
-  </dd>
-  <dt>`getMutationsHistoryReversed`</dt>
-  <dd>
-    Vrací stejný typ streamu v opačném chronologickém pořadí. `sinceVersion` je tentokrát inkluzivní
-    horní mez; pokud není nastavena, stream začíná u nejnověji potvrzené verze.
-  </dd>
-</dl>
-
-Obě metody přijímají stejný <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
-jako pro otevření živého odběru a obě vrací uzavíratelný stream — vždy jej spotřebujte uvnitř
-try-with-resources bloku, protože po dobu otevření drží otevřený file handle na write-ahead log.
-
-Tato funkce je dostupná pouze přes Java driver — neexistuje ekvivalent v GraphQL ani REST.
-
-Směr ovlivňuje víc než jen pořadí iterace:
-
-- Hlavička transakce (`operation = TRANSACTION`, `index = 0`) je doručena jako první bez ohledu na
-  směr.
-- `index` je směr-stabilní fyzická pozice — stejný záznam mutace má stejný index bez ohledu na směr
-  čtení — ale v rámci transakce není v opačném směru monotónní: zpětný stream navštíví `index = 0`,
-  pak `mutationCount` odpočítává dolů k `1`.
-- Vnořené pořadí mutace entity a lokálních mutací sdílejících její `(version, index)`
-  se také obrací: vpřed je nejprve doručena událost na úrovni entity, pak její lokální mutace; zpětně
-  jsou nejprve doručeny lokální mutace, pak událost na úrovni entity.
-
-<Note type="warning">
-
-Zastavení uprostřed zpracování zachycení jedné transakce — například po určité velikosti dávky — vás může nechat pouze s hlavičkou bez jejího obsahu, nebo s obsahem bez toho, abyste někdy viděli hlavičku. [Kontrola úplnosti](#kontrola-úplnosti) výše vám něco řekne až poté, co jste skutečně viděli zachycení hlavičky transakce.
-
-</Note>
-
-### Často kladené dotazy ohledně mechanismu zachycení změn
+### Často kladené otázky ohledně mechanismu zachytávání změn
 
 <Note type="question">
 
@@ -822,21 +756,9 @@ Zastavení uprostřed zpracování zachycení jedné transakce — například p
 
 </NoteTitle>
 
-Ne — můžete ji nechat garbage collectnout. Publisher je pouze továrna na vytváření subscriberů. Jakmile je subscriber vytvořen a přihlášen, udržuje si svůj vlastní stav a spojení s enginem. Reference na subscriber je uchovávána v instanci evitaDB (client), což brání jeho garbage collectnutí, dokud je instance aktivní.
+Ne — můžete ji nechat garbage collectnout. Publisher je pouze továrna pro vytváření subscriberů. Jakmile je subscriber vytvořen a přihlášen, udržuje si svůj vlastní stav a spojení s engine. Reference na subscriber je uchovávána v instanci evitaDB (client), což brání jeho garbage collectnutí, dokud je instance aktivní.
 
-Reference na publisher musíte uchovávat pouze v případě, že plánujete přihlásit více subscriberů.
-
-</Note>
-
-<Note type="question">
-
-<NoteTitle toggles="true">
-
-##### Potřebuji platnou relaci pro přihlášení k zachycení změn katalogu?
-
-</NoteTitle>
-
-Ne, relaci potřebujete pouze pro vytvoření publisheru. Jakmile je publisher vytvořen, subscribeři se k němu mohou přihlásit i bez aktivní relace. Publisher interně otevře dedikovanou relaci pro každého subscriber, pokud není subscription vytvořeno v rámci aktivní relace.
+Reference na publisher potřebujete uchovávat pouze v případě, že plánujete k němu přihlásit více subscriberů.
 
 </Note>
 
@@ -844,11 +766,23 @@ Ne, relaci potřebujete pouze pro vytvoření publisheru. Jakmile je publisher v
 
 <NoteTitle toggles="true">
 
-##### Co když se k publisheru přihlásím později — od jakého bodu budu přijímat změny?
+##### Potřebuji platnou session pro odběr změn katalogu?
 
 </NoteTitle>
 
-Publisher zmrazí parametry CDC požadavku (včetně počáteční verze) v okamžiku svého vytvoření. Pokud požadavek obsahuje počáteční verzi katalogu, každý subscriber bude přijímat změny počínaje verzí uvedenou v CDC požadavku použitém při vytvoření publisheru, bez ohledu na to, kdy se subscriber přihlásí. Pokud požadavek neobsahuje počáteční verzi, každý subscriber bude přijímat změny počínaje další verzí katalogu v okamžiku své subscription.
+Ne, session potřebujete pouze pro vytvoření publisheru. Jakmile je publisher vytvořen, subscribeři se k němu mohou přihlásit i bez aktivní session. Publisher interně otevře dedikovanou session pro každého subscriberu, pokud odběr není vytvořen v rámci aktivní session.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Co když se k publisheru přihlásím později – od jakého bodu budu přijímat změny?
+
+</NoteTitle>
+
+Publisher "zmrazí" parametry CDC požadavku (včetně výchozí verze) v okamžiku svého vytvoření. Pokud požadavek obsahuje výchozí verzi katalogu, každý subscriber obdrží změny od verze uvedené v CDC požadavku použitém k vytvoření publisheru, bez ohledu na to, kdy se k publisheru přihlásí. Pokud požadavek neobsahuje výchozí verzi, každý subscriber obdrží změny od další verze katalogu v okamžiku svého přihlášení.
 
 </Note>
 
@@ -860,7 +794,7 @@ Publisher zmrazí parametry CDC požadavku (včetně počáteční verze) v okam
 
 </NoteTitle>
 
-Pokud vaše třída subscriber implementuje rozhraní [AutoCloseable](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/AutoCloseable.html), můžete se spolehnout na to, že instance evitaDB (client) ji automaticky uzavře při uzavření klientské instance. Close bude automaticky zavoláno při zrušení subscription nebo při uzavření klientské instance.
+Pokud vaše třída subscriber implementuje rozhraní [AutoCloseable](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/AutoCloseable.html), můžete se spolehnout na to, že instance evitaDB (client) ji automaticky uzavře při uzavření instance klienta. Metoda close bude automaticky zavolána při zrušení odběru nebo při uzavření instance klienta.
 
 </Note>
 
