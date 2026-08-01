@@ -2610,11 +2610,75 @@ class TransactionalBucketBPlusTreeTest {
 			final TransactionalBucketBPlusTree.Cursor<Integer> cursor = tree.createCursor(6);
 			// the actual 0->1 key (6) is sound: both checks run and pass. Index 0 on a leaf whose peek is 0 is the
 			// 0->1 shape the production caller passes here, and it satisfies both branch conditions at once
-			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, 6, 0));
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(tree.findLeafNodeWithBoundaryContext(6), 6, 0));
 			// the SAME single-key leaf is subject to the head check (a smaller key undercuts L_pred's last key 4)
 			assertThrows(GenericEvitaInternalError.class, () -> tree.assertHeadBoundary(cursor, 3));
 			// ...and to the tail check (a larger key reaches L_succ's first key 8)
 			assertThrows(GenericEvitaInternalError.class, () -> tree.assertTailBoundary(cursor, 8));
+		}
+
+		@Test
+		@DisplayName("the insert-path descent resolves the same operands as a captured cursor")
+		void shouldResolveSameBoundaryOperandsAsCursorPath() {
+			// the five-leaf spine covers every shape at once: L0 has no predecessor, L4 has no fence, L2/L3 straddle
+			// the parent seam (fence at the ROOT, predecessor reached by a right-spine walk), the rest are
+			// same-parent neighbours. Probes include keys absent from the tree, which route just like present ones.
+			final TransactionalBucketBPlusTree<Integer> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(3, 4), singleLeaf(5, 6), singleLeaf(8, 9), singleLeaf(10, 11)
+			));
+			for (final int probe : new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}) {
+				final TransactionalBucketBPlusTree.Cursor<Integer> cursor = tree.createCursor(probe);
+				final TransactionalBucketBPlusTree.BoundaryContext<Integer> context =
+					tree.findLeafNodeWithBoundaryContext(probe);
+				assertSame(cursor.leafNode(), context.leaf(), "Descent reached a different leaf for key " + probe);
+				assertEquals(tree.fenceOf(cursor), context.fence(), "Fence differs for key " + probe);
+				assertSame(
+					tree.predecessorLeaf(cursor), context.predecessor(),
+					"Predecessor differs for key " + probe
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("descent-resolved operands are populated, and the asserts built on them still fire")
+		void shouldPopulateBoundaryOperandsFromDescent() {
+			// a descent that always answered "no fence" / "no predecessor" would keep every other test green, because
+			// in a sound tree the asserts never fire — so pin the operands themselves, then prove they still bite
+			final TransactionalBucketBPlusTree<Integer> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(3, 4), singleLeaf(5, 6), singleLeaf(8, 9), singleLeaf(10, 11)
+			));
+			assertEquals(
+				Integer.valueOf(8), tree.findLeafNodeWithBoundaryContext(5).fence(),
+				"L2 is the rightmost child of P1, so its fence is the ROOT separator (L3's first key)."
+			);
+			assertEquals(
+				Integer.valueOf(3), tree.findLeafNodeWithBoundaryContext(1).fence(),
+				"L0's fence is its same-parent successor's first key."
+			);
+			assertNull(
+				tree.findLeafNodeWithBoundaryContext(10).fence(),
+				"The rightmost leaf has no successor, hence no fence."
+			);
+			assertNull(
+				tree.findLeafNodeWithBoundaryContext(1).predecessor(),
+				"The leftmost leaf has no predecessor."
+			);
+			assertNotNull(
+				tree.findLeafNodeWithBoundaryContext(8).predecessor(),
+				"L3 is the leftmost child of P2, so its predecessor is reached across the parent seam."
+			);
+			// L2 = [5,6] (peek 1): an insert landing at index 1 becomes the new last key and must stay below the fence
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.assertInsertBoundaries(tree.findLeafNodeWithBoundaryContext(5), 8, 1),
+				"A tail insert reaching the successor leaf's first key must be rejected."
+			);
+			// L3 = [8,9]: an insert landing at index 0 becomes the new first key and must stay above the predecessor
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> tree.assertInsertBoundaries(tree.findLeafNodeWithBoundaryContext(8), 5, 0),
+				"A head insert undercutting the cross-parent predecessor must be rejected."
+			);
 		}
 
 		@Test
@@ -2766,8 +2830,9 @@ class TransactionalBucketBPlusTreeTest {
 				Collections.shuffle(shuffled, random);
 				int pk = 0;
 				for (final String key : shuffled) {
-					final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(key);
-					final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+					final TransactionalBucketBPlusTree.BoundaryContext<String> context =
+						tree.findLeafNodeWithBoundaryContext(key);
+					final BPlusLeafTreeNode<String> leaf = context.leaf();
 					final int insertedAt = leaf.addRecord(key, pk++);
 					assertNotEquals(
 						NO_NEW_BUCKET, insertedAt,
@@ -2775,7 +2840,7 @@ class TransactionalBucketBPlusTreeTest {
 					);
 					assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
 					// the production entry point must accept the index and validate the sound leaf without complaint
-					assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, key, insertedAt));
+					assertDoesNotThrow(() -> tree.assertInsertBoundaries(context, key, insertedAt));
 				}
 			}
 		}
@@ -2794,12 +2859,13 @@ class TransactionalBucketBPlusTreeTest {
 				tested -> {
 					int pk = 100;
 					for (final String key : new String[]{"Zebre", "Ëtude", "Abricot", "éclair"}) {
-						final TransactionalBucketBPlusTree.Cursor<String> cursor = tested.createCursor(key);
-						final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+						final TransactionalBucketBPlusTree.BoundaryContext<String> context =
+							tested.findLeafNodeWithBoundaryContext(key);
+						final BPlusLeafTreeNode<String> leaf = context.leaf();
 						final int insertedAt = leaf.addRecord(key, pk++);
 						assertNotEquals(NO_NEW_BUCKET, insertedAt);
 						assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
-						assertDoesNotThrow(() -> tested.assertInsertBoundaries(cursor, key, insertedAt));
+						assertDoesNotThrow(() -> tested.assertInsertBoundaries(context, key, insertedAt));
 					}
 				},
 				(original, committed) -> {
@@ -2840,12 +2906,13 @@ class TransactionalBucketBPlusTreeTest {
 			final TransactionalBucketBPlusTree<String> tree = collatedLongPayloadTree(collator);
 			long payload = 1L;
 			for (final String key : COLLATION_SENSITIVE_KEYS) {
-				final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(key);
-				final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+				final TransactionalBucketBPlusTree.BoundaryContext<String> context =
+					tree.findLeafNodeWithBoundaryContext(key);
+				final BPlusLeafTreeNode<String> leaf = context.leaf();
 				final int insertedAt = leaf.addLongRecord(key, payload++);
 				assertNotEquals(NO_NEW_BUCKET, insertedAt, "A long-payload add always inserts a new bucket.");
 				assertIndexAgreesWithKeyComparison(leaf, key, insertedAt, collator);
-				assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, key, insertedAt));
+				assertDoesNotThrow(() -> tree.assertInsertBoundaries(context, key, insertedAt));
 			}
 		}
 
@@ -2881,8 +2948,9 @@ class TransactionalBucketBPlusTreeTest {
 				// therefore targets the leaf holding it — spreading the probes over EVERY leaf instead of piling
 				// them all onto the few leaves that happen to hold the tail of the key space
 				final String probe = built[i] + "m";
-				final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor(probe);
-				final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+				final TransactionalBucketBPlusTree.BoundaryContext<String> context =
+					tree.findLeafNodeWithBoundaryContext(probe);
+				final BPlusLeafTreeNode<String> leaf = context.leaf();
 				if (leaf.isFull()) {
 					// a direct leaf insert cannot trigger the split the tree API would run, so skip rather than
 					// corrupt the fixture — the assertion below pins that most probes still landed
@@ -2892,7 +2960,7 @@ class TransactionalBucketBPlusTreeTest {
 				final int insertedAt = leaf.addRecord(probe, 10_000 + i);
 				assertNotEquals(NO_NEW_BUCKET, insertedAt);
 				assertIndexAgreesWithKeyComparison(leaf, probe, insertedAt, collator);
-				assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, probe, insertedAt));
+				assertDoesNotThrow(() -> tree.assertInsertBoundaries(context, probe, insertedAt));
 				probedLeaves.add(leaf);
 				probed++;
 			}
@@ -2909,8 +2977,9 @@ class TransactionalBucketBPlusTreeTest {
 		void shouldReportIndexZeroForInsertIntoEmptyLeaf() {
 			final Comparator<String> collator = new LocalizedStringComparator(Locale.FRENCH);
 			final TransactionalBucketBPlusTree<String> tree = collatedTree(collator);
-			final TransactionalBucketBPlusTree.Cursor<String> cursor = tree.createCursor("éclair");
-			final BPlusLeafTreeNode<String> leaf = cursor.leafNode();
+			final TransactionalBucketBPlusTree.BoundaryContext<String> context =
+				tree.findLeafNodeWithBoundaryContext("éclair");
+			final BPlusLeafTreeNode<String> leaf = context.leaf();
 			assertEquals(-1, leaf.getPeek(), "Fixture precondition: the leaf must start empty.");
 
 			final int insertedAt = leaf.addRecord("éclair", 1);
@@ -2918,7 +2987,7 @@ class TransactionalBucketBPlusTreeTest {
 			assertEquals(0, leaf.getPeek());
 			// both branch conditions hold at once, which is what the head/tail asserts require of this transition
 			assertIndexAgreesWithKeyComparison(leaf, "éclair", insertedAt, collator);
-			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, "éclair", insertedAt));
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(context, "éclair", insertedAt));
 		}
 
 	}

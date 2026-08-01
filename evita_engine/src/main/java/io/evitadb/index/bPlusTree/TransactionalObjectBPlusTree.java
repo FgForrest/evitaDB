@@ -510,16 +510,43 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 * @param value the value associated with the key, must not be null
 	 */
 	public void insert(@Nonnull K key, @Nonnull V value) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<K, V> leaf = cursor.leafNode();
+		// the cursor path exists ONLY to cascade a split upward, yet it used to be allocated on every insert.
+		// `findLeafNode` reaches the same leaf by the identical `searchIndex` descent without capturing anything, so
+		// the path is now built only when this insert can actually overflow the leaf. This tree carries no boundary
+		// asserts and no dirty-scope registration, so nothing else consumes the path.
+		final BPlusLeafTreeNode<K, V> leaf = findLeafNode(key);
+		// captured BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
+		// the pre-mutation tree
+		final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
 		}
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw missingSplitPathError(leaf);
+			}
 			splitLeafNode(leaf, cursor);
 		}
+	}
+
+	/**
+	 * Builds the error raised when a leaf turns out to be {@link BPlusLeafTreeNode#isFull()} although the
+	 * {@link BPlusLeafTreeNode#isNearlyFull()} guard decided no cursor path was needed — an unreachable state that
+	 * would otherwise surface as a bare `NullPointerException` inside the split.
+	 *
+	 * @param leaf the leaf whose split has no captured path
+	 * @return the error describing the broken invariant
+	 */
+	@Nonnull
+	private GenericEvitaInternalError missingSplitPathError(@Nonnull BPlusLeafTreeNode<K, V> leaf) {
+		return new GenericEvitaInternalError(
+			"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
+				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getValues().length +
+				", tree block size: " + this.valueBlockSize + ")!",
+			"Leaf is full but no cursor path was captured!"
+		);
 	}
 
 	/**
@@ -532,8 +559,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 * @param updater a function to compute a new value, must not be null
 	 */
 	public void upsert(@Nonnull K key, @Nonnull UnaryOperator<V> updater) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<K, V> leaf = cursor.leafNode();
+		// see insert(K, V) — the update branch below replaces a value in place and can never overflow the leaf, so the
+		// guard sits inside the key-absent branch and is exact there
+		final BPlusLeafTreeNode<K, V> leaf = findLeafNode(key);
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -550,6 +578,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			}
 			values[existingIndex] = newValue;
 		} else {
+			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 			// insert the new value
 			if (leaf.insert(key, updater.apply(null))) {
 				this.size.set(size() + 1);
@@ -557,6 +586,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 
 			// Split the leaf node if it exceeds the block size
 			if (leaf.isFull()) {
+				if (cursor == null) {
+					throw missingSplitPathError(leaf);
+				}
 				splitLeafNode(leaf, cursor);
 			}
 		}
@@ -596,8 +628,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 */
 	@Nonnull
 	public Optional<V> search(@Nonnull K key) {
-		final Cursor cursor = createCursor(key);
-		return cursor.<BPlusLeafTreeNode<K, V>>leafNode().getValue(key);
+		return findLeafNode(key).getValue(key);
 	}
 
 	/**
@@ -856,8 +887,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 	 */
 	@Nonnull
 	private Cursor createCursor(@Nonnull K key) {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(
-			this.size()) + 1));
+		final ArrayList<CursorLevel> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<?> theRoot = this.getRoot();
 		final BPlusTreeNode<?>[] rootSiblings = (BPlusTreeNode<?>[]) new BPlusTreeNode[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));
@@ -868,6 +898,31 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 
 		}
 		return new Cursor(path);
+	}
+
+	/**
+	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
+	 * {@link BPlusInternalTreeNode#searchIndex} rule {@link #addCursorLevels} uses, but WITHOUT capturing the cursor
+	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). It reads the transaction-aware
+	 * `getChildren()` accessor exactly like the cursor descent, so it resolves the same nodes.
+	 *
+	 * Measured on this family, a captured path costs ~208 B per descent against ~0 B here, so every lookup that uses
+	 * nothing but {@code cursor.leafNode()} takes this route. Structural operations (splits, deletes, consolidation,
+	 * parent-key updates) mutate the captured path and must keep using {@link #createCursor(Comparable)}.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf node that should hold the key (it may not actually contain it)
+	 */
+	@Nonnull
+	private BPlusLeafTreeNode<K, V> findLeafNode(@Nonnull K key) {
+		BPlusTreeNode<?> node = this.getRoot();
+		while (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			node = internalNode.getChildren()[internalNode.searchIndex(key)];
+		}
+		//noinspection unchecked
+		return (BPlusLeafTreeNode<K, V>) node;
 	}
 
 	/**
@@ -2136,6 +2191,28 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 				return this.peek == this.values.length - 1;
 			} else {
 				return layer.peek == layer.values.length - 1;
+			}
+		}
+
+		/**
+		 * Whether a single insert of a **new** key could make this leaf {@link #isFull()} — i.e. whether the caller
+		 * must capture a cursor path before mutating, so a split has one.
+		 *
+		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and the capacity from the **same** resolved state,
+		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would hold
+		 * only while every leaf array happens to be allocated at exactly that size, and nothing enforces that
+		 * coupling — a shorter array would reach {@link #isFull()} without ever tripping the guard.
+		 *
+		 * @return true when one more key could fill this leaf
+		 */
+		public boolean isNearlyFull() {
+			final BPlusLeafTreeNode<M, N> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.peek >= this.values.length - 2;
+			} else {
+				return layer.peek >= layer.values.length - 2;
 			}
 		}
 

@@ -32,13 +32,18 @@ decomposition covered here. Different code areas, same issue, overlapping cast o
   committed-snapshot cache, Option-B generalized stage-1 results.
 - **performance/** (3 files) — B+ tree shared-base extraction plan, decodoma dataset gate
   analysis, PriceSuper page-chunk design.
-- **reports/** (15 files + `raw-analysis/`) — final write-ups: FrontCoded remeasures,
+- **decisions/** (1 file) — architecture decision records. `2026-08-01-bplustree-cursor-free-insert-path.md`
+  records why the B+ tree insert path stopped capturing a cursor and answers the boundary asserts from
+  the descent instead. The repository has no repo-wide ADR convention; this folder is a local one.
+- **reports/** (16 files + `raw-analysis/`) — final write-ups: FrontCoded remeasures,
   InvertedIndex bucket-flyweight remeasure, SortIndex cache E2E findings, warmup-test
   remeasure, write-and-query throughput remeasure, attrfilter fromArray fix results,
   async-profiler attrfilter summary, `optimization-recommendations.md`,
   `write-churn-findings.md`, the unique/ALIVE churn `warmup-bench-diagnosis.md`/
   `warmup-bench-results.md` (FrontCodedStringColumn byte[] churn made unique-attribute ALIVE
-  commits 3.4x slower than range/chain), and `sortindex-benchmark-baseline-vs-optimized.md`.
+  commits 3.4x slower than range/chain), `sortindex-benchmark-baseline-vs-optimized.md`, and
+  `2026-07-31-bplustree-optimization-portability-census.md` (which of the recent B+ tree
+  optimizations port to the rest of the family, measured — also *current* work, not a snapshot).
   `raw-analysis/` holds short analysis.txt notes pulled out of otherwise-omitted raw-profile
   directories. The raw `.jfr`/`.collapsed`/`.csv`/JMH-json/log data behind these reports
   (~200MB) was NOT carried over — regenerate via the same benchmark harnesses if needed.

@@ -1,0 +1,2606 @@
+LOAD_AT_START: 1.76 8.19 9.73 4/4969 505163
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket
+# Parameters: (blockSize = 64)
+
+# Run progress: 0.00% complete, ETA 00:04:32
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.191 ms/op
+# Warmup Iteration   2: 1.167 ms/op
+# Warmup Iteration   3: 1.157 ms/op
+Iteration   1: 1.153 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.935 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.170 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.047 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.154 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.945 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.177 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.104 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.172 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.066 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket":
+  1.165 ±(99.9%) 0.043 ms/op [Average]
+  (min, avg, max) = (1.153, 1.165, 1.177), stdev = 0.011
+  CI (99.9%): [1.122, 1.208] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate.norm":
+  8.019 ±(99.9%) 0.289 B/op [Average]
+  (min, avg, max) = (7.935, 8.019, 8.104), stdev = 0.075
+  CI (99.9%): [7.730, 8.309] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket
+# Parameters: (blockSize = 256)
+
+# Run progress: 2.94% complete, ETA 00:04:44
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.077 ms/op
+# Warmup Iteration   2: 1.053 ms/op
+# Warmup Iteration   3: 1.045 ms/op
+Iteration   1: 1.050 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.261 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.044 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.190 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.122 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.722 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.042 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.142 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.095 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.536 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket":
+  1.070 ±(99.9%) 0.139 ms/op [Average]
+  (min, avg, max) = (1.042, 1.070, 1.122), stdev = 0.036
+  CI (99.9%): [0.932, 1.209] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.006, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate.norm":
+  7.370 ±(99.9%) 0.958 B/op [Average]
+  (min, avg, max) = (7.142, 7.370, 7.722), stdev = 0.249
+  CI (99.9%): [6.412, 8.329] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement
+# Parameters: (blockSize = 64)
+
+# Run progress: 5.88% complete, ETA 00:04:36
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.138 ms/op
+# Warmup Iteration   2: 1.037 ms/op
+# Warmup Iteration   3: 1.053 ms/op
+Iteration   1: 1.077 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.414 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.051 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.269 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.041 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.168 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.148 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.899 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.105 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.611 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement":
+  1.085 ±(99.9%) 0.167 ms/op [Average]
+  (min, avg, max) = (1.041, 1.085, 1.148), stdev = 0.043
+  CI (99.9%): [0.918, 1.251] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate.norm":
+  7.472 ±(99.9%) 1.121 B/op [Average]
+  (min, avg, max) = (7.168, 7.472, 7.899), stdev = 0.291
+  CI (99.9%): [6.351, 8.593] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement
+# Parameters: (blockSize = 256)
+
+# Run progress: 8.82% complete, ETA 00:04:26
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.162 ms/op
+# Warmup Iteration   2: 1.152 ms/op
+# Warmup Iteration   3: 1.168 ms/op
+Iteration   1: 1.162 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.000 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.151 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.926 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.167 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.037 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.165 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.019 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.148 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 7.899 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement":
+  1.159 ±(99.9%) 0.033 ms/op [Average]
+  (min, avg, max) = (1.148, 1.159, 1.167), stdev = 0.009
+  CI (99.9%): [1.126, 1.192] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate.norm":
+  7.976 ±(99.9%) 0.232 B/op [Average]
+  (min, avg, max) = (7.899, 7.976, 8.037), stdev = 0.060
+  CI (99.9%): [7.744, 8.208] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree
+# Parameters: (blockSize = 64)
+
+# Run progress: 11.76% complete, ETA 00:04:16
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.984 ms/op
+# Warmup Iteration   2: 0.900 ms/op
+# Warmup Iteration   3: 0.899 ms/op
+Iteration   1: 0.911 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.268 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.908 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.250 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.905 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.233 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.904 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.222 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.911 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.268 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree":
+  0.908 ±(99.9%) 0.012 ms/op [Average]
+  (min, avg, max) = (0.904, 0.908, 0.911), stdev = 0.003
+  CI (99.9%): [0.896, 0.920] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate.norm":
+  6.248 ±(99.9%) 0.078 B/op [Average]
+  (min, avg, max) = (6.222, 6.248, 6.268), stdev = 0.020
+  CI (99.9%): [6.170, 6.326] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree
+# Parameters: (blockSize = 256)
+
+# Run progress: 14.71% complete, ETA 00:04:07
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.825 ms/op
+# Warmup Iteration   2: 0.833 ms/op
+# Warmup Iteration   3: 0.834 ms/op
+Iteration   1: 0.824 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.674 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.824 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.674 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.822 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.660 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.827 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.693 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.821 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.651 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree":
+  0.824 ±(99.9%) 0.009 ms/op [Average]
+  (min, avg, max) = (0.821, 0.824, 0.827), stdev = 0.002
+  CI (99.9%): [0.815, 0.832] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate.norm":
+  5.670 ±(99.9%) 0.062 B/op [Average]
+  (min, avg, max) = (5.651, 5.670, 5.693), stdev = 0.016
+  CI (99.9%): [5.609, 5.732] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor
+# Parameters: (blockSize = 64)
+
+# Run progress: 17.65% complete, ETA 00:03:58
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.884 ms/op
+# Warmup Iteration   2: 0.868 ms/op
+# Warmup Iteration   3: 0.858 ms/op
+Iteration   1: 0.858 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.907 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.882 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.074 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.868 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.979 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.870 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.990 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.863 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.943 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor":
+  0.868 ±(99.9%) 0.035 ms/op [Average]
+  (min, avg, max) = (0.858, 0.868, 0.882), stdev = 0.009
+  CI (99.9%): [0.834, 0.903] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate.norm":
+  5.979 ±(99.9%) 0.240 B/op [Average]
+  (min, avg, max) = (5.907, 5.979, 6.074), stdev = 0.062
+  CI (99.9%): [5.738, 6.219] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor
+# Parameters: (blockSize = 256)
+
+# Run progress: 20.59% complete, ETA 00:03:49
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.814 ms/op
+# Warmup Iteration   2: 0.803 ms/op
+# Warmup Iteration   3: 0.811 ms/op
+Iteration   1: 0.798 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.493 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.798 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.497 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.799 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.502 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.804 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.537 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.804 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 5.533 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor":
+  0.801 ±(99.9%) 0.012 ms/op [Average]
+  (min, avg, max) = (0.798, 0.801, 0.804), stdev = 0.003
+  CI (99.9%): [0.789, 0.813] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate.norm":
+  5.512 ±(99.9%) 0.080 B/op [Average]
+  (min, avg, max) = (5.493, 5.512, 5.537), stdev = 0.021
+  CI (99.9%): [5.432, 5.593] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong
+# Parameters: (blockSize = 64)
+
+# Run progress: 23.53% complete, ETA 00:03:41
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.959 ms/op
+# Warmup Iteration   2: 0.937 ms/op
+# Warmup Iteration   3: 0.942 ms/op
+Iteration   1: 0.941 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.474 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.940 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.474 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.945 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.504 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.939 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.462 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.951 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.548 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong":
+  0.943 ±(99.9%) 0.020 ms/op [Average]
+  (min, avg, max) = (0.939, 0.943, 0.951), stdev = 0.005
+  CI (99.9%): [0.924, 0.963] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate.norm":
+  6.492 ±(99.9%) 0.134 B/op [Average]
+  (min, avg, max) = (6.462, 6.492, 6.548), stdev = 0.035
+  CI (99.9%): [6.358, 6.626] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong
+# Parameters: (blockSize = 256)
+
+# Run progress: 26.47% complete, ETA 00:03:32
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.899 ms/op
+# Warmup Iteration   2: 0.903 ms/op
+# Warmup Iteration   3: 0.899 ms/op
+Iteration   1: 0.892 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.139 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 0.898 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.183 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 0.909 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.262 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 0.885 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.096 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 0.887 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 6.112 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong":
+  0.894 ±(99.9%) 0.037 ms/op [Average]
+  (min, avg, max) = (0.885, 0.894, 0.909), stdev = 0.010
+  CI (99.9%): [0.857, 0.932] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate.norm":
+  6.158 ±(99.9%) 0.257 B/op [Average]
+  (min, avg, max) = (6.096, 6.158, 6.262), stdev = 0.067
+  CI (99.9%): [5.901, 6.415] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject
+# Parameters: (blockSize = 64)
+
+# Run progress: 29.41% complete, ETA 00:03:23
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.358 ms/op
+# Warmup Iteration   2: 1.387 ms/op
+# Warmup Iteration   3: 1.293 ms/op
+Iteration   1: 1.282 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.831 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.318 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.063 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.305 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.980 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.291 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.888 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.284 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 8.831 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject":
+  1.296 ±(99.9%) 0.058 ms/op [Average]
+  (min, avg, max) = (1.282, 1.296, 1.318), stdev = 0.015
+  CI (99.9%): [1.238, 1.354] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate.norm":
+  8.919 ±(99.9%) 0.390 B/op [Average]
+  (min, avg, max) = (8.831, 8.919, 9.063), stdev = 0.101
+  CI (99.9%): [8.528, 9.309] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject
+# Parameters: (blockSize = 256)
+
+# Run progress: 32.35% complete, ETA 00:03:15
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.402 ms/op
+# Warmup Iteration   2: 1.369 ms/op
+# Warmup Iteration   3: 1.378 ms/op
+Iteration   1: 1.386 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.540 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 1.376 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.475 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 1.375 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.505 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 1.377 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.475 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 1.399 ms/op
+                 gc.alloc.rate:      0.007 MB/sec
+                 gc.alloc.rate.norm: 9.634 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject":
+  1.383 ±(99.9%) 0.039 ms/op [Average]
+  (min, avg, max) = (1.375, 1.383, 1.399), stdev = 0.010
+  CI (99.9%): [1.343, 1.422] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate":
+  0.007 ±(99.9%) 0.001 MB/sec [Average]
+  (min, avg, max) = (0.007, 0.007, 0.007), stdev = 0.001
+  CI (99.9%): [0.007, 0.007] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate.norm":
+  9.526 ±(99.9%) 0.255 B/op [Average]
+  (min, avg, max) = (9.475, 9.526, 9.634), stdev = 0.066
+  CI (99.9%): [9.271, 9.780] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject:gc.count":
+  ≈ 0 counts
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 35.29% complete, ETA 00:03:06
+# Fork: 1 of 1
+# Warmup Iteration   1: 15.755 ms/op
+# Warmup Iteration   2: 11.245 ms/op
+# Warmup Iteration   3: 11.194 ms/op
+Iteration   1: 11.248 ms/op
+                 gc.alloc.rate:      2328.568 MB/sec
+                 gc.alloc.rate.norm: 27470886.022 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 11.158 ms/op
+                 gc.alloc.rate:      2347.338 MB/sec
+                 gc.alloc.rate.norm: 27470885.156 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   3: 11.175 ms/op
+                 gc.alloc.rate:      2343.748 MB/sec
+                 gc.alloc.rate.norm: 27470885.511 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 11.115 ms/op
+                 gc.alloc.rate:      2356.488 MB/sec
+                 gc.alloc.rate.norm: 27470885.511 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   5: 11.091 ms/op
+                 gc.alloc.rate:      2361.455 MB/sec
+                 gc.alloc.rate.norm: 27470884.659 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            4.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  11.157 ±(99.9%) 0.235 ms/op [Average]
+  (min, avg, max) = (11.091, 11.157, 11.248), stdev = 0.061
+  CI (99.9%): [10.922, 11.392] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate":
+  2347.519 ±(99.9%) 49.012 MB/sec [Average]
+  (min, avg, max) = (2328.568, 2347.519, 2361.455), stdev = 12.728
+  CI (99.9%): [2298.508, 2396.531] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm":
+  27470885.372 ±(99.9%) 1.941 B/op [Average]
+  (min, avg, max) = (27470884.659, 27470885.372, 27470886.022), stdev = 0.504
+  CI (99.9%): [27470883.431, 27470887.313] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count":
+  22.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (4.000, 4.400, 5.000), stdev = 0.548
+  CI (99.9%): [22.000, 22.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time":
+  22.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (4.000, 4.400, 5.000), stdev = 0.548
+  CI (99.9%): [22.000, 22.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 38.24% complete, ETA 00:02:57
+# Fork: 1 of 1
+# Warmup Iteration   1: 44.866 ms/op
+# Warmup Iteration   2: 35.493 ms/op
+# Warmup Iteration   3: 35.500 ms/op
+Iteration   1: 35.081 ms/op
+                 gc.alloc.rate:      647.461 MB/sec
+                 gc.alloc.rate.norm: 23821462.345 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   2: 34.679 ms/op
+                 gc.alloc.rate:      654.943 MB/sec
+                 gc.alloc.rate.norm: 23821464.552 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 34.914 ms/op
+                 gc.alloc.rate:      650.541 MB/sec
+                 gc.alloc.rate.norm: 23821464.552 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 34.974 ms/op
+                 gc.alloc.rate:      649.419 MB/sec
+                 gc.alloc.rate.norm: 23821462.345 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            ≈ 0 ms
+
+Iteration   5: 35.390 ms/op
+                 gc.alloc.rate:      641.786 MB/sec
+                 gc.alloc.rate.norm: 23821463.448 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  35.008 ±(99.9%) 1.000 ms/op [Average]
+  (min, avg, max) = (34.679, 35.008, 35.390), stdev = 0.260
+  CI (99.9%): [34.008, 36.008] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate":
+  648.830 ±(99.9%) 18.481 MB/sec [Average]
+  (min, avg, max) = (641.786, 648.830, 654.943), stdev = 4.800
+  CI (99.9%): [630.349, 667.311] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm":
+  23821463.448 ±(99.9%) 4.249 B/op [Average]
+  (min, avg, max) = (23821462.345, 23821463.448, 23821464.552), stdev = 1.103
+  CI (99.9%): [23821459.199, 23821467.697] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count":
+  6.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.200, 2.000), stdev = 0.447
+  CI (99.9%): [6.000, 6.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time":
+  9.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 1.800, 4.000), stdev = 1.483
+  CI (99.9%): [9.000, 9.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 41.18% complete, ETA 00:02:49
+# Fork: 1 of 1
+# Warmup Iteration   1: 15.669 ms/op
+# Warmup Iteration   2: 10.359 ms/op
+# Warmup Iteration   3: 10.420 ms/op
+Iteration   1: 10.361 ms/op
+                 gc.alloc.rate:      2281.542 MB/sec
+                 gc.alloc.rate.norm: 24792319.588 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   2: 10.309 ms/op
+                 gc.alloc.rate:      2293.124 MB/sec
+                 gc.alloc.rate.norm: 24792318.857 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   3: 10.428 ms/op
+                 gc.alloc.rate:      2266.787 MB/sec
+                 gc.alloc.rate.norm: 24792320.333 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 11.069 ms/op
+                 gc.alloc.rate:      2135.739 MB/sec
+                 gc.alloc.rate.norm: 24792324.308 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 10.395 ms/op
+                 gc.alloc.rate:      2274.054 MB/sec
+                 gc.alloc.rate.norm: 24792319.588 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  10.512 ±(99.9%) 1.209 ms/op [Average]
+  (min, avg, max) = (10.309, 10.512, 11.069), stdev = 0.314
+  CI (99.9%): [9.303, 11.722] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate":
+  2250.249 ±(99.9%) 249.329 MB/sec [Average]
+  (min, avg, max) = (2135.739, 2250.249, 2293.124), stdev = 64.750
+  CI (99.9%): [2000.920, 2499.578] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm":
+  24792320.535 ±(99.9%) 8.367 B/op [Average]
+  (min, avg, max) = (24792318.857, 24792320.535, 24792324.308), stdev = 2.173
+  CI (99.9%): [24792312.168, 24792328.901] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count":
+  15.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (3.000, 3.000, 3.000), stdev = 0.001
+  CI (99.9%): [15.000, 15.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time":
+  16.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 3.200, 4.000), stdev = 0.837
+  CI (99.9%): [16.000, 16.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 44.12% complete, ETA 00:02:40
+# Fork: 1 of 1
+# Warmup Iteration   1: 44.097 ms/op
+# Warmup Iteration   2: 34.692 ms/op
+# Warmup Iteration   3: 33.387 ms/op
+Iteration   1: 33.109 ms/op
+                 gc.alloc.rate:      622.488 MB/sec
+                 gc.alloc.rate.norm: 21614838.968 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   2: 33.130 ms/op
+                 gc.alloc.rate:      622.085 MB/sec
+                 gc.alloc.rate.norm: 21614840.000 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 33.409 ms/op
+                 gc.alloc.rate:      616.865 MB/sec
+                 gc.alloc.rate.norm: 21614847.467 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   4: 33.232 ms/op
+                 gc.alloc.rate:      620.161 MB/sec
+                 gc.alloc.rate.norm: 21614840.000 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 33.756 ms/op
+                 gc.alloc.rate:      610.481 MB/sec
+                 gc.alloc.rate.norm: 21614847.467 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  33.327 ±(99.9%) 1.029 ms/op [Average]
+  (min, avg, max) = (33.109, 33.327, 33.756), stdev = 0.267
+  CI (99.9%): [32.298, 34.356] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate":
+  618.416 ±(99.9%) 19.105 MB/sec [Average]
+  (min, avg, max) = (610.481, 618.416, 622.488), stdev = 4.961
+  CI (99.9%): [599.311, 637.521] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm":
+  21614842.780 ±(99.9%) 16.553 B/op [Average]
+  (min, avg, max) = (21614838.968, 21614842.780, 21614847.467), stdev = 4.299
+  CI (99.9%): [21614826.227, 21614859.333] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count":
+  6.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.200, 2.000), stdev = 0.447
+  CI (99.9%): [6.000, 6.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time":
+  6.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (1.000, 1.200, 2.000), stdev = 0.447
+  CI (99.9%): [6.000, 6.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction
+# Parameters: (blockSize = 64)
+
+# Run progress: 47.06% complete, ETA 00:02:32
+# Fork: 1 of 1
+# Warmup Iteration   1: 3.073 ms/op
+# Warmup Iteration   2: 2.233 ms/op
+# Warmup Iteration   3: 2.215 ms/op
+Iteration   1: 2.226 ms/op
+                 gc.alloc.rate:      1866.857 MB/sec
+                 gc.alloc.rate.norm: 4359511.431 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 2.227 ms/op
+                 gc.alloc.rate:      1866.732 MB/sec
+                 gc.alloc.rate.norm: 4359511.431 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   3: 2.204 ms/op
+                 gc.alloc.rate:      1885.802 MB/sec
+                 gc.alloc.rate.norm: 4359511.225 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 2.255 ms/op
+                 gc.alloc.rate:      1842.738 MB/sec
+                 gc.alloc.rate.norm: 4359482.180 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 2.190 ms/op
+                 gc.alloc.rate:      1897.461 MB/sec
+                 gc.alloc.rate.norm: 4359471.195 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction":
+  2.221 ±(99.9%) 0.095 ms/op [Average]
+  (min, avg, max) = (2.190, 2.221, 2.255), stdev = 0.025
+  CI (99.9%): [2.125, 2.316] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate":
+  1871.918 ±(99.9%) 80.524 MB/sec [Average]
+  (min, avg, max) = (1842.738, 1871.918, 1897.461), stdev = 20.912
+  CI (99.9%): [1791.394, 1952.442] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate.norm":
+  4359497.492 ±(99.9%) 74.646 B/op [Average]
+  (min, avg, max) = (4359471.195, 4359497.492, 4359511.431), stdev = 19.385
+  CI (99.9%): [4359422.846, 4359572.139] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.count":
+  13.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.600, 3.000), stdev = 0.548
+  CI (99.9%): [13.000, 13.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.time":
+  18.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 3.600, 5.000), stdev = 1.140
+  CI (99.9%): [18.000, 18.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction
+# Parameters: (blockSize = 256)
+
+# Run progress: 50.00% complete, ETA 00:02:23
+# Fork: 1 of 1
+# Warmup Iteration   1: 3.526 ms/op
+# Warmup Iteration   2: 2.509 ms/op
+# Warmup Iteration   3: 2.507 ms/op
+Iteration   1: 2.514 ms/op
+                 gc.alloc.rate:      2089.162 MB/sec
+                 gc.alloc.rate.norm: 5509497.447 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   2: 2.474 ms/op
+                 gc.alloc.rate:      2122.965 MB/sec
+                 gc.alloc.rate.norm: 5509497.067 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   3: 2.495 ms/op
+                 gc.alloc.rate:      2105.691 MB/sec
+                 gc.alloc.rate.norm: 5509497.317 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   4: 2.488 ms/op
+                 gc.alloc.rate:      2111.335 MB/sec
+                 gc.alloc.rate.norm: 5509497.791 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 2.603 ms/op
+                 gc.alloc.rate:      2017.763 MB/sec
+                 gc.alloc.rate.norm: 5509458.140 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction":
+  2.515 ±(99.9%) 0.198 ms/op [Average]
+  (min, avg, max) = (2.474, 2.515, 2.603), stdev = 0.051
+  CI (99.9%): [2.317, 2.713] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate":
+  2089.383 ±(99.9%) 161.142 MB/sec [Average]
+  (min, avg, max) = (2017.763, 2089.383, 2122.965), stdev = 41.848
+  CI (99.9%): [1928.241, 2250.526] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate.norm":
+  5509489.552 ±(99.9%) 67.624 B/op [Average]
+  (min, avg, max) = (5509458.140, 5509489.552, 5509497.791), stdev = 17.562
+  CI (99.9%): [5509421.928, 5509557.177] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.count":
+  12.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.400, 3.000), stdev = 0.548
+  CI (99.9%): [12.000, 12.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.time":
+  11.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 2.200, 3.000), stdev = 0.447
+  CI (99.9%): [11.000, 11.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 52.94% complete, ETA 00:02:15
+# Fork: 1 of 1
+# Warmup Iteration   1: 14.332 ms/op
+# Warmup Iteration   2: 10.363 ms/op
+# Warmup Iteration   3: 10.341 ms/op
+Iteration   1: 10.413 ms/op
+                 gc.alloc.rate:      1232.350 MB/sec
+                 gc.alloc.rate.norm: 13458559.258 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   2: 10.327 ms/op
+                 gc.alloc.rate:      1242.583 MB/sec
+                 gc.alloc.rate.norm: 13458559.588 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   3: 10.334 ms/op
+                 gc.alloc.rate:      1241.750 MB/sec
+                 gc.alloc.rate.norm: 13458559.588 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   4: 10.231 ms/op
+                 gc.alloc.rate:      1254.351 MB/sec
+                 gc.alloc.rate.norm: 13458559.184 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 10.290 ms/op
+                 gc.alloc.rate:      1247.077 MB/sec
+                 gc.alloc.rate.norm: 13458558.857 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  10.319 ±(99.9%) 0.256 ms/op [Average]
+  (min, avg, max) = (10.231, 10.319, 10.413), stdev = 0.066
+  CI (99.9%): [10.063, 10.575] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate":
+  1243.622 ±(99.9%) 30.966 MB/sec [Average]
+  (min, avg, max) = (1232.350, 1243.622, 1254.351), stdev = 8.042
+  CI (99.9%): [1212.656, 1274.588] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm":
+  13458559.295 ±(99.9%) 1.182 B/op [Average]
+  (min, avg, max) = (13458558.857, 13458559.295, 13458559.588), stdev = 0.307
+  CI (99.9%): [13458558.113, 13458560.477] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.count":
+  12.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.400, 3.000), stdev = 0.548
+  CI (99.9%): [12.000, 12.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.time":
+  11.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 2.200, 3.000), stdev = 0.447
+  CI (99.9%): [11.000, 11.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 55.88% complete, ETA 00:02:06
+# Fork: 1 of 1
+# Warmup Iteration   1: 46.271 ms/op
+# Warmup Iteration   2: 36.902 ms/op
+# Warmup Iteration   3: 34.907 ms/op
+Iteration   1: 34.461 ms/op
+                 gc.alloc.rate:      338.630 MB/sec
+                 gc.alloc.rate.norm: 12239430.400 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   2: 34.375 ms/op
+                 gc.alloc.rate:      339.434 MB/sec
+                 gc.alloc.rate.norm: 12239428.533 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 34.358 ms/op
+                 gc.alloc.rate:      339.630 MB/sec
+                 gc.alloc.rate.norm: 12239430.400 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   4: 34.402 ms/op
+                 gc.alloc.rate:      339.193 MB/sec
+                 gc.alloc.rate.norm: 12239430.400 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 34.302 ms/op
+                 gc.alloc.rate:      340.153 MB/sec
+                 gc.alloc.rate.norm: 12239429.600 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  34.380 ±(99.9%) 0.224 ms/op [Average]
+  (min, avg, max) = (34.302, 34.380, 34.461), stdev = 0.058
+  CI (99.9%): [34.155, 34.604] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate":
+  339.408 ±(99.9%) 2.158 MB/sec [Average]
+  (min, avg, max) = (338.630, 339.408, 340.153), stdev = 0.560
+  CI (99.9%): [337.250, 341.566] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm":
+  12239429.867 ±(99.9%) 3.165 B/op [Average]
+  (min, avg, max) = (12239428.533, 12239429.867, 12239430.400), stdev = 0.822
+  CI (99.9%): [12239426.702, 12239433.032] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.count":
+  3.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (≈ 0, 0.600, 1.000), stdev = 0.548
+  CI (99.9%): [3.000, 3.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.time":
+  4.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 0.800, 2.000), stdev = 0.837
+  CI (99.9%): [4.000, 4.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 58.82% complete, ETA 00:01:58
+# Fork: 1 of 1
+# Warmup Iteration   1: 13.758 ms/op
+# Warmup Iteration   2: 10.202 ms/op
+# Warmup Iteration   3: 10.011 ms/op
+Iteration   1: 10.076 ms/op
+                 gc.alloc.rate:      1103.239 MB/sec
+                 gc.alloc.rate.norm: 11659909.760 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   2: 10.077 ms/op
+                 gc.alloc.rate:      1103.276 MB/sec
+                 gc.alloc.rate.norm: 11659909.440 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   3: 10.037 ms/op
+                 gc.alloc.rate:      1107.600 MB/sec
+                 gc.alloc.rate.norm: 11659909.069 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   4: 9.982 ms/op
+                 gc.alloc.rate:      1113.793 MB/sec
+                 gc.alloc.rate.norm: 11659909.069 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   5: 9.997 ms/op
+                 gc.alloc.rate:      1111.924 MB/sec
+                 gc.alloc.rate.norm: 11659908.752 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  10.034 ±(99.9%) 0.169 ms/op [Average]
+  (min, avg, max) = (9.982, 10.034, 10.077), stdev = 0.044
+  CI (99.9%): [9.865, 10.203] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate":
+  1107.966 ±(99.9%) 18.676 MB/sec [Average]
+  (min, avg, max) = (1103.239, 1107.966, 1113.793), stdev = 4.850
+  CI (99.9%): [1089.290, 1126.643] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm":
+  11659909.218 ±(99.9%) 1.496 B/op [Average]
+  (min, avg, max) = (11659908.752, 11659909.218, 11659909.760), stdev = 0.389
+  CI (99.9%): [11659907.722, 11659910.715] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.count":
+  11.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.200, 3.000), stdev = 0.447
+  CI (99.9%): [11.000, 11.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.time":
+  13.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 2.600, 4.000), stdev = 0.894
+  CI (99.9%): [13.000, 13.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 61.76% complete, ETA 00:01:49
+# Fork: 1 of 1
+# Warmup Iteration   1: 43.190 ms/op
+# Warmup Iteration   2: 38.219 ms/op
+# Warmup Iteration   3: 37.841 ms/op
+Iteration   1: 35.992 ms/op
+                 gc.alloc.rate:      292.830 MB/sec
+                 gc.alloc.rate.norm: 11053974.000 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 36.105 ms/op
+                 gc.alloc.rate:      291.923 MB/sec
+                 gc.alloc.rate.norm: 11053977.143 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 35.974 ms/op
+                 gc.alloc.rate:      293.000 MB/sec
+                 gc.alloc.rate.norm: 11053976.000 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   4: 36.042 ms/op
+                 gc.alloc.rate:      292.427 MB/sec
+                 gc.alloc.rate.norm: 11053975.143 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   5: 35.926 ms/op
+                 gc.alloc.rate:      293.349 MB/sec
+                 gc.alloc.rate.norm: 11053976.000 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  36.008 ±(99.9%) 0.263 ms/op [Average]
+  (min, avg, max) = (35.926, 36.008, 36.105), stdev = 0.068
+  CI (99.9%): [35.745, 36.271] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate":
+  292.706 ±(99.9%) 2.114 MB/sec [Average]
+  (min, avg, max) = (291.923, 292.706, 293.349), stdev = 0.549
+  CI (99.9%): [290.592, 294.819] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm":
+  11053975.657 ±(99.9%) 4.496 B/op [Average]
+  (min, avg, max) = (11053974.000, 11053975.657, 11053977.143), stdev = 1.168
+  CI (99.9%): [11053971.161, 11053980.153] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.count":
+  3.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (≈ 0, 0.600, 1.000), stdev = 0.548
+  CI (99.9%): [3.000, 3.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement:gc.time":
+  4.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 0.800, 2.000), stdev = 0.837
+  CI (99.9%): [4.000, 4.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 64.71% complete, ETA 00:01:41
+# Fork: 1 of 1
+# Warmup Iteration   1: 10.025 ms/op
+# Warmup Iteration   2: 7.626 ms/op
+# Warmup Iteration   3: 7.595 ms/op
+Iteration   1: 7.630 ms/op
+                 gc.alloc.rate:      2520.425 MB/sec
+                 gc.alloc.rate.norm: 20167572.606 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 7.582 ms/op
+                 gc.alloc.rate:      2536.277 MB/sec
+                 gc.alloc.rate.norm: 20167572.606 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   3: 7.587 ms/op
+                 gc.alloc.rate:      2534.659 MB/sec
+                 gc.alloc.rate.norm: 20167572.606 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 7.588 ms/op
+                 gc.alloc.rate:      2534.231 MB/sec
+                 gc.alloc.rate.norm: 20167572.606 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   5: 7.583 ms/op
+                 gc.alloc.rate:      2535.914 MB/sec
+                 gc.alloc.rate.norm: 20167572.606 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            3.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  7.594 ±(99.9%) 0.078 ms/op [Average]
+  (min, avg, max) = (7.582, 7.594, 7.630), stdev = 0.020
+  CI (99.9%): [7.516, 7.671] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate":
+  2532.301 ±(99.9%) 25.773 MB/sec [Average]
+  (min, avg, max) = (2520.425, 2532.301, 2536.277), stdev = 6.693
+  CI (99.9%): [2506.528, 2558.074] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm":
+  20167572.606 ±(99.9%) 0.001 B/op [Average]
+  (min, avg, max) = (20167572.606, 20167572.606, 20167572.606), stdev = 0.001
+  CI (99.9%): [20167572.606, 20167572.606] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count":
+  24.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (4.000, 4.800, 5.000), stdev = 0.447
+  CI (99.9%): [24.000, 24.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time":
+  20.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (3.000, 4.000, 5.000), stdev = 1.000
+  CI (99.9%): [20.000, 20.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 67.65% complete, ETA 00:01:32
+# Fork: 1 of 1
+# Warmup Iteration   1: 30.851 ms/op
+# Warmup Iteration   2: 24.745 ms/op
+# Warmup Iteration   3: 24.393 ms/op
+Iteration   1: 24.627 ms/op
+                 gc.alloc.rate:      649.174 MB/sec
+                 gc.alloc.rate.norm: 16767337.366 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   2: 24.371 ms/op
+                 gc.alloc.rate:      656.002 MB/sec
+                 gc.alloc.rate.norm: 16767333.333 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 24.270 ms/op
+                 gc.alloc.rate:      658.728 MB/sec
+                 gc.alloc.rate.norm: 16767332.571 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   4: 24.433 ms/op
+                 gc.alloc.rate:      654.351 MB/sec
+                 gc.alloc.rate.norm: 16767337.366 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 24.432 ms/op
+                 gc.alloc.rate:      654.316 MB/sec
+                 gc.alloc.rate.norm: 16767337.366 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            ≈ 0 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  24.427 ±(99.9%) 0.501 ms/op [Average]
+  (min, avg, max) = (24.270, 24.427, 24.627), stdev = 0.130
+  CI (99.9%): [23.926, 24.928] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate":
+  654.514 ±(99.9%) 13.415 MB/sec [Average]
+  (min, avg, max) = (649.174, 654.514, 658.728), stdev = 3.484
+  CI (99.9%): [641.099, 667.929] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm":
+  16767335.600 ±(99.9%) 9.366 B/op [Average]
+  (min, avg, max) = (16767332.571, 16767335.600, 16767337.366), stdev = 2.432
+  CI (99.9%): [16767326.234, 16767344.966] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count":
+  6.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.200, 2.000), stdev = 0.447
+  CI (99.9%): [6.000, 6.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time":
+  5.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 1.000, 2.000), stdev = 0.707
+  CI (99.9%): [5.000, 5.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 70.59% complete, ETA 00:01:24
+# Fork: 1 of 1
+# Warmup Iteration   1: 10.885 ms/op
+# Warmup Iteration   2: 7.942 ms/op
+# Warmup Iteration   3: 7.953 ms/op
+Iteration   1: 7.946 ms/op
+                 gc.alloc.rate:      2180.088 MB/sec
+                 gc.alloc.rate.norm: 18167167.111 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 7.947 ms/op
+                 gc.alloc.rate:      2179.793 MB/sec
+                 gc.alloc.rate.norm: 18167167.111 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   3: 7.916 ms/op
+                 gc.alloc.rate:      2188.275 MB/sec
+                 gc.alloc.rate.norm: 18167166.425 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   4: 7.930 ms/op
+                 gc.alloc.rate:      2184.457 MB/sec
+                 gc.alloc.rate.norm: 18167166.929 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   5: 7.944 ms/op
+                 gc.alloc.rate:      2180.080 MB/sec
+                 gc.alloc.rate.norm: 18167167.111 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            4.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  7.937 ±(99.9%) 0.052 ms/op [Average]
+  (min, avg, max) = (7.916, 7.937, 7.947), stdev = 0.013
+  CI (99.9%): [7.885, 7.988] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate":
+  2182.539 ±(99.9%) 14.431 MB/sec [Average]
+  (min, avg, max) = (2179.793, 2182.539, 2188.275), stdev = 3.748
+  CI (99.9%): [2168.108, 2196.970] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm":
+  18167166.938 ±(99.9%) 1.144 B/op [Average]
+  (min, avg, max) = (18167166.425, 18167166.938, 18167167.111), stdev = 0.297
+  CI (99.9%): [18167165.794, 18167168.081] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count":
+  21.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (4.000, 4.200, 5.000), stdev = 0.447
+  CI (99.9%): [21.000, 21.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time":
+  20.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (3.000, 4.000, 5.000), stdev = 0.707
+  CI (99.9%): [20.000, 20.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 73.53% complete, ETA 00:01:15
+# Fork: 1 of 1
+# Warmup Iteration   1: 32.163 ms/op
+# Warmup Iteration   2: 27.563 ms/op
+# Warmup Iteration   3: 25.827 ms/op
+Iteration   1: 26.127 ms/op
+                 gc.alloc.rate:      550.521 MB/sec
+                 gc.alloc.rate.norm: 15084402.051 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   2: 26.011 ms/op
+                 gc.alloc.rate:      552.949 MB/sec
+                 gc.alloc.rate.norm: 15084402.051 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 26.129 ms/op
+                 gc.alloc.rate:      550.456 MB/sec
+                 gc.alloc.rate.norm: 15084402.051 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   4: 25.831 ms/op
+                 gc.alloc.rate:      556.823 MB/sec
+                 gc.alloc.rate.norm: 15084402.051 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 26.132 ms/op
+                 gc.alloc.rate:      550.342 MB/sec
+                 gc.alloc.rate.norm: 15084402.051 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  26.046 ±(99.9%) 0.503 ms/op [Average]
+  (min, avg, max) = (25.831, 26.046, 26.132), stdev = 0.131
+  CI (99.9%): [25.543, 26.549] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate":
+  552.218 ±(99.9%) 10.763 MB/sec [Average]
+  (min, avg, max) = (550.342, 552.218, 556.823), stdev = 2.795
+  CI (99.9%): [541.455, 562.981] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm":
+  15084402.051 ±(99.9%) 0.001 B/op [Average]
+  (min, avg, max) = (15084402.051, 15084402.051, 15084402.051), stdev = 0.001
+  CI (99.9%): [15084402.051, 15084402.051] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count":
+  5.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.000, 1.000), stdev = 0.001
+  CI (99.9%): [5.000, 5.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time":
+  5.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (1.000, 1.000, 1.000), stdev = 0.001
+  CI (99.9%): [5.000, 5.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 76.47% complete, ETA 00:01:07
+# Fork: 1 of 1
+# Warmup Iteration   1: 16.504 ms/op
+# Warmup Iteration   2: 11.398 ms/op
+# Warmup Iteration   3: 11.064 ms/op
+Iteration   1: 10.991 ms/op
+                 gc.alloc.rate:      3687.027 MB/sec
+                 gc.alloc.rate.norm: 42497460.308 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 11.008 ms/op
+                 gc.alloc.rate:      3681.116 MB/sec
+                 gc.alloc.rate.norm: 42497460.308 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            6.000 ms
+
+Iteration   3: 11.014 ms/op
+                 gc.alloc.rate:      3679.127 MB/sec
+                 gc.alloc.rate.norm: 42497460.308 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 11.014 ms/op
+                 gc.alloc.rate:      3679.081 MB/sec
+                 gc.alloc.rate.norm: 42497460.308 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   5: 11.074 ms/op
+                 gc.alloc.rate:      3658.996 MB/sec
+                 gc.alloc.rate.norm: 42497460.308 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            6.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  11.020 ±(99.9%) 0.121 ms/op [Average]
+  (min, avg, max) = (10.991, 11.020, 11.074), stdev = 0.032
+  CI (99.9%): [10.899, 11.142] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate":
+  3677.069 ±(99.9%) 40.863 MB/sec [Average]
+  (min, avg, max) = (3658.996, 3677.069, 3687.027), stdev = 10.612
+  CI (99.9%): [3636.207, 3717.932] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm":
+  42497460.308 ±(99.9%) 0.001 B/op [Average]
+  (min, avg, max) = (42497460.308, 42497460.308, 42497460.308), stdev = 0.001
+  CI (99.9%): [42497460.308, 42497460.308] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.count":
+  25.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (5.000, 5.000, 5.000), stdev = 0.001
+  CI (99.9%): [25.000, 25.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.time":
+  25.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (4.000, 5.000, 6.000), stdev = 1.000
+  CI (99.9%): [25.000, 25.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 79.41% complete, ETA 00:00:58
+# Fork: 1 of 1
+# Warmup Iteration   1: 39.246 ms/op
+# Warmup Iteration   2: 27.657 ms/op
+# Warmup Iteration   3: 27.670 ms/op
+Iteration   1: 27.683 ms/op
+                 gc.alloc.rate:      1330.555 MB/sec
+                 gc.alloc.rate.norm: 38634131.676 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   2: 28.411 ms/op
+                 gc.alloc.rate:      1296.567 MB/sec
+                 gc.alloc.rate.norm: 38634136.000 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   3: 27.424 ms/op
+                 gc.alloc.rate:      1343.244 MB/sec
+                 gc.alloc.rate.norm: 38634131.676 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   4: 27.535 ms/op
+                 gc.alloc.rate:      1337.851 MB/sec
+                 gc.alloc.rate.norm: 38634130.811 B/op
+                 gc.count:           3.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 27.547 ms/op
+                 gc.alloc.rate:      1337.145 MB/sec
+                 gc.alloc.rate.norm: 38634131.676 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  27.720 ±(99.9%) 1.528 ms/op [Average]
+  (min, avg, max) = (27.424, 27.720, 28.411), stdev = 0.397
+  CI (99.9%): [26.192, 29.248] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate":
+  1329.072 ±(99.9%) 72.087 MB/sec [Average]
+  (min, avg, max) = (1296.567, 1329.072, 1343.244), stdev = 18.721
+  CI (99.9%): [1256.985, 1401.159] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm":
+  38634132.368 ±(99.9%) 7.951 B/op [Average]
+  (min, avg, max) = (38634130.811, 38634132.368, 38634136.000), stdev = 2.065
+  CI (99.9%): [38634124.417, 38634140.319] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.count":
+  13.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.600, 3.000), stdev = 0.548
+  CI (99.9%): [13.000, 13.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.time":
+  12.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 2.400, 3.000), stdev = 0.548
+  CI (99.9%): [12.000, 12.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 82.35% complete, ETA 00:00:50
+# Fork: 1 of 1
+# Warmup Iteration   1: 14.184 ms/op
+# Warmup Iteration   2: 10.711 ms/op
+# Warmup Iteration   3: 11.461 ms/op
+Iteration   1: 10.860 ms/op
+                 gc.alloc.rate:      2308.177 MB/sec
+                 gc.alloc.rate.norm: 26288226.323 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   2: 10.689 ms/op
+                 gc.alloc.rate:      2345.018 MB/sec
+                 gc.alloc.rate.norm: 26288226.213 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   3: 10.744 ms/op
+                 gc.alloc.rate:      2332.840 MB/sec
+                 gc.alloc.rate.norm: 26288225.532 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            7.000 ms
+
+Iteration   4: 10.717 ms/op
+                 gc.alloc.rate:      2338.631 MB/sec
+                 gc.alloc.rate.norm: 26288225.532 B/op
+                 gc.count:           4.000 counts
+                 gc.time:            5.000 ms
+
+Iteration   5: 10.685 ms/op
+                 gc.alloc.rate:      2345.734 MB/sec
+                 gc.alloc.rate.norm: 26288225.872 B/op
+                 gc.count:           5.000 counts
+                 gc.time:            4.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  10.739 ±(99.9%) 0.276 ms/op [Average]
+  (min, avg, max) = (10.685, 10.739, 10.860), stdev = 0.072
+  CI (99.9%): [10.463, 11.015] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate":
+  2334.080 ±(99.9%) 59.302 MB/sec [Average]
+  (min, avg, max) = (2308.177, 2334.080, 2345.734), stdev = 15.400
+  CI (99.9%): [2274.779, 2393.382] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm":
+  26288225.894 ±(99.9%) 1.425 B/op [Average]
+  (min, avg, max) = (26288225.532, 26288225.894, 26288226.323), stdev = 0.370
+  CI (99.9%): [26288224.469, 26288227.320] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.count":
+  23.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (4.000, 4.600, 5.000), stdev = 0.548
+  CI (99.9%): [23.000, 23.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.time":
+  26.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (4.000, 5.200, 7.000), stdev = 1.095
+  CI (99.9%): [26.000, 26.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 85.29% complete, ETA 00:00:42
+# Fork: 1 of 1
+# Warmup Iteration   1: 37.527 ms/op
+# Warmup Iteration   2: 28.993 ms/op
+# Warmup Iteration   3: 28.906 ms/op
+Iteration   1: 29.090 ms/op
+                 gc.alloc.rate:      758.513 MB/sec
+                 gc.alloc.rate.norm: 23140877.486 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   2: 28.818 ms/op
+                 gc.alloc.rate:      765.663 MB/sec
+                 gc.alloc.rate.norm: 23140877.486 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 29.019 ms/op
+                 gc.alloc.rate:      760.313 MB/sec
+                 gc.alloc.rate.norm: 23140878.400 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            4.000 ms
+
+Iteration   4: 28.931 ms/op
+                 gc.alloc.rate:      762.640 MB/sec
+                 gc.alloc.rate.norm: 23140879.314 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 28.968 ms/op
+                 gc.alloc.rate:      761.579 MB/sec
+                 gc.alloc.rate.norm: 23140878.400 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  28.965 ±(99.9%) 0.391 ms/op [Average]
+  (min, avg, max) = (28.818, 28.965, 29.090), stdev = 0.102
+  CI (99.9%): [28.575, 29.356] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate":
+  761.741 ±(99.9%) 10.309 MB/sec [Average]
+  (min, avg, max) = (758.513, 761.741, 765.663), stdev = 2.677
+  CI (99.9%): [751.432, 772.051] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm":
+  23140878.217 ±(99.9%) 2.946 B/op [Average]
+  (min, avg, max) = (23140877.486, 23140878.217, 23140879.314), stdev = 0.765
+  CI (99.9%): [23140875.272, 23140881.163] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.count":
+  8.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.600, 2.000), stdev = 0.548
+  CI (99.9%): [8.000, 8.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong:gc.time":
+  12.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (1.000, 2.400, 4.000), stdev = 1.517
+  CI (99.9%): [12.000, 12.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 88.24% complete, ETA 00:00:33
+# Fork: 1 of 1
+# Warmup Iteration   1: 16.520 ms/op
+# Warmup Iteration   2: 11.757 ms/op
+# Warmup Iteration   3: 11.778 ms/op
+Iteration   1: 12.016 ms/op
+                 gc.alloc.rate:      960.850 MB/sec
+                 gc.alloc.rate.norm: 12108074.667 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   2: 11.870 ms/op
+                 gc.alloc.rate:      972.633 MB/sec
+                 gc.alloc.rate.norm: 12108073.694 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   3: 11.802 ms/op
+                 gc.alloc.rate:      978.211 MB/sec
+                 gc.alloc.rate.norm: 12108073.694 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   4: 11.702 ms/op
+                 gc.alloc.rate:      986.540 MB/sec
+                 gc.alloc.rate.norm: 12108073.116 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 11.763 ms/op
+                 gc.alloc.rate:      981.286 MB/sec
+                 gc.alloc.rate.norm: 12108072.744 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  11.831 ±(99.9%) 0.462 ms/op [Average]
+  (min, avg, max) = (11.702, 11.831, 12.016), stdev = 0.120
+  CI (99.9%): [11.368, 12.293] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate":
+  975.904 ±(99.9%) 37.765 MB/sec [Average]
+  (min, avg, max) = (960.850, 975.904, 986.540), stdev = 9.807
+  CI (99.9%): [938.139, 1013.669] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm":
+  12108073.583 ±(99.9%) 2.804 B/op [Average]
+  (min, avg, max) = (12108072.744, 12108073.583, 12108074.667), stdev = 0.728
+  CI (99.9%): [12108070.779, 12108076.387] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.count":
+  10.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (2.000, 2.000, 2.000), stdev = 0.001
+  CI (99.9%): [10.000, 10.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.time":
+  11.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (2.000, 2.200, 3.000), stdev = 0.447
+  CI (99.9%): [11.000, 11.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 91.18% complete, ETA 00:00:25
+# Fork: 1 of 1
+# Warmup Iteration   1: 42.121 ms/op
+# Warmup Iteration   2: 36.324 ms/op
+# Warmup Iteration   3: 35.139 ms/op
+Iteration   1: 34.447 ms/op
+                 gc.alloc.rate:      265.904 MB/sec
+                 gc.alloc.rate.norm: 9607013.600 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   2: 34.387 ms/op
+                 gc.alloc.rate:      266.391 MB/sec
+                 gc.alloc.rate.norm: 9607015.467 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   3: 34.232 ms/op
+                 gc.alloc.rate:      267.601 MB/sec
+                 gc.alloc.rate.norm: 9607013.600 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 34.292 ms/op
+                 gc.alloc.rate:      267.128 MB/sec
+                 gc.alloc.rate.norm: 9607014.400 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   5: 34.461 ms/op
+                 gc.alloc.rate:      265.811 MB/sec
+                 gc.alloc.rate.norm: 9607013.600 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  34.364 ±(99.9%) 0.383 ms/op [Average]
+  (min, avg, max) = (34.232, 34.364, 34.461), stdev = 0.100
+  CI (99.9%): [33.980, 34.747] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate":
+  266.567 ±(99.9%) 2.998 MB/sec [Average]
+  (min, avg, max) = (265.811, 266.567, 267.601), stdev = 0.779
+  CI (99.9%): [263.569, 269.565] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm":
+  9607014.133 ±(99.9%) 3.165 B/op [Average]
+  (min, avg, max) = (9607013.600, 9607014.133, 9607015.467), stdev = 0.822
+  CI (99.9%): [9607010.968, 9607017.298] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.count":
+  2.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (≈ 0, 0.400, 1.000), stdev = 0.548
+  CI (99.9%): [2.000, 2.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.time":
+  2.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 0.400, 1.000), stdev = 0.548
+  CI (99.9%): [2.000, 2.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 94.12% complete, ETA 00:00:16
+# Fork: 1 of 1
+# Warmup Iteration   1: 12.742 ms/op
+# Warmup Iteration   2: 9.827 ms/op
+# Warmup Iteration   3: 9.830 ms/op
+Iteration   1: 9.752 ms/op
+                 gc.alloc.rate:      996.717 MB/sec
+                 gc.alloc.rate.norm: 10193699.417 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   2: 9.801 ms/op
+                 gc.alloc.rate:      991.638 MB/sec
+                 gc.alloc.rate.norm: 10193699.728 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   3: 9.777 ms/op
+                 gc.alloc.rate:      994.029 MB/sec
+                 gc.alloc.rate.norm: 10193699.417 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+Iteration   4: 9.749 ms/op
+                 gc.alloc.rate:      996.939 MB/sec
+                 gc.alloc.rate.norm: 10193699.728 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 9.728 ms/op
+                 gc.alloc.rate:      999.061 MB/sec
+                 gc.alloc.rate.norm: 10193699.417 B/op
+                 gc.count:           2.000 counts
+                 gc.time:            3.000 ms
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  9.761 ±(99.9%) 0.109 ms/op [Average]
+  (min, avg, max) = (9.728, 9.761, 9.801), stdev = 0.028
+  CI (99.9%): [9.652, 9.870] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate":
+  995.677 ±(99.9%) 11.087 MB/sec [Average]
+  (min, avg, max) = (991.638, 995.677, 999.061), stdev = 2.879
+  CI (99.9%): [984.590, 1006.763] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm":
+  10193699.542 ±(99.9%) 0.655 B/op [Average]
+  (min, avg, max) = (10193699.417, 10193699.542, 10193699.728), stdev = 0.170
+  CI (99.9%): [10193698.886, 10193700.197] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.count":
+  9.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (1.000, 1.800, 2.000), stdev = 0.447
+  CI (99.9%): [9.000, 9.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.time":
+  12.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (1.000, 2.400, 3.000), stdev = 0.894
+  CI (99.9%): [12.000, 12.000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 97.06% complete, ETA 00:00:08
+# Fork: 1 of 1
+# Warmup Iteration   1: 48.920 ms/op
+# Warmup Iteration   2: 40.239 ms/op
+# Warmup Iteration   3: 40.218 ms/op
+Iteration   1: 39.227 ms/op
+                 gc.alloc.rate:      195.784 MB/sec
+                 gc.alloc.rate.norm: 8054475.077 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            1.000 ms
+
+Iteration   2: 38.869 ms/op
+                 gc.alloc.rate:      197.589 MB/sec
+                 gc.alloc.rate.norm: 8054472.923 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   3: 39.235 ms/op
+                 gc.alloc.rate:      195.746 MB/sec
+                 gc.alloc.rate.norm: 8054472.923 B/op
+                 gc.count:           ≈ 0 counts
+
+Iteration   4: 39.315 ms/op
+                 gc.alloc.rate:      195.333 MB/sec
+                 gc.alloc.rate.norm: 8054475.077 B/op
+                 gc.count:           1.000 counts
+                 gc.time:            2.000 ms
+
+Iteration   5: 40.703 ms/op
+                 gc.alloc.rate:      188.664 MB/sec
+                 gc.alloc.rate.norm: 8054483.520 B/op
+                 gc.count:           ≈ 0 counts
+
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  39.470 ±(99.9%) 2.736 ms/op [Average]
+  (min, avg, max) = (38.869, 39.470, 40.703), stdev = 0.711
+  CI (99.9%): [36.734, 42.206] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate":
+  194.623 ±(99.9%) 13.258 MB/sec [Average]
+  (min, avg, max) = (188.664, 194.623, 197.589), stdev = 3.443
+  CI (99.9%): [181.365, 207.881] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm":
+  8054475.904 ±(99.9%) 16.910 B/op [Average]
+  (min, avg, max) = (8054472.923, 8054475.904, 8054483.520), stdev = 4.392
+  CI (99.9%): [8054458.994, 8054492.814] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.count":
+  2.000 ±(99.9%) 0.001 counts [Sum]
+  (min, avg, max) = (≈ 0, 0.400, 1.000), stdev = 0.548
+  CI (99.9%): [2.000, 2.000] (assumes normal distribution)
+
+Secondary result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject:gc.time":
+  3.000 ±(99.9%) 0.001 ms [Sum]
+  (min, avg, max) = (≈ 0, 0.600, 2.000), stdev = 0.894
+  CI (99.9%): [3.000, 3.000] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:04:45
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                                                                         (blockSize)  (keyOrder)  Mode  Cnt         Score     Error   Units
+BPlusTreeCursorAllocationBenchmark.descendBucket                                           64         N/A  avgt    5         1.165 ±   0.043   ms/op
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate                             64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate.norm                        64         N/A  avgt    5         8.019 ±   0.289    B/op
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.count                                  64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendBucket                                          256         N/A  avgt    5         1.070 ±   0.139   ms/op
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate                            256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.alloc.rate.norm                       256         N/A  avgt    5         7.370 ±   0.958    B/op
+BPlusTreeCursorAllocationBenchmark.descendBucket:gc.count                                 256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendElement                                          64         N/A  avgt    5         1.085 ±   0.167   ms/op
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate                            64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate.norm                       64         N/A  avgt    5         7.472 ±   1.121    B/op
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.count                                 64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendElement                                         256         N/A  avgt    5         1.159 ±   0.033   ms/op
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate                           256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.alloc.rate.norm                      256         N/A  avgt    5         7.976 ±   0.232    B/op
+BPlusTreeCursorAllocationBenchmark.descendElement:gc.count                                256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree                              64         N/A  avgt    5         0.908 ±   0.012   ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate                64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate.norm           64         N/A  avgt    5         6.248 ±   0.078    B/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.count                     64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree                             256         N/A  avgt    5         0.824 ±   0.009   ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate               256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.alloc.rate.norm          256         N/A  avgt    5         5.670 ±   0.062    B/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree:gc.count                    256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor                              64         N/A  avgt    5         0.868 ±   0.035   ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate                64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate.norm           64         N/A  avgt    5         5.979 ±   0.240    B/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.count                     64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor                             256         N/A  avgt    5         0.801 ±   0.012   ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate               256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.alloc.rate.norm          256         N/A  avgt    5         5.512 ±   0.080    B/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor:gc.count                    256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendLong                                             64         N/A  avgt    5         0.943 ±   0.020   ms/op
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate                               64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate.norm                          64         N/A  avgt    5         6.492 ±   0.134    B/op
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.count                                    64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendLong                                            256         N/A  avgt    5         0.894 ±   0.037   ms/op
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate                              256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.alloc.rate.norm                         256         N/A  avgt    5         6.158 ±   0.257    B/op
+BPlusTreeCursorAllocationBenchmark.descendLong:gc.count                                   256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendObject                                           64         N/A  avgt    5         1.296 ±   0.058   ms/op
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate                             64         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate.norm                        64         N/A  avgt    5         8.919 ±   0.390    B/op
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.count                                  64         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.descendObject                                          256         N/A  avgt    5         1.383 ±   0.039   ms/op
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate                            256         N/A  avgt    5         0.007 ±   0.001  MB/sec
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.alloc.rate.norm                       256         N/A  avgt    5         9.526 ±   0.255    B/op
+BPlusTreeCursorAllocationBenchmark.descendObject:gc.count                                 256         N/A  avgt    5           ≈ 0            counts
+BPlusTreeCursorAllocationBenchmark.insertBucket                                            64   ASCENDING  avgt    5        11.157 ±   0.235   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate                              64   ASCENDING  avgt    5      2347.519 ±  49.012  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm                         64   ASCENDING  avgt    5  27470885.372 ±   1.941    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count                                   64   ASCENDING  avgt    5        22.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time                                    64   ASCENDING  avgt    5        22.000                ms
+BPlusTreeCursorAllocationBenchmark.insertBucket                                            64      RANDOM  avgt    5        35.008 ±   1.000   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate                              64      RANDOM  avgt    5       648.830 ±  18.481  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm                         64      RANDOM  avgt    5  23821463.448 ±   4.249    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count                                   64      RANDOM  avgt    5         6.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time                                    64      RANDOM  avgt    5         9.000                ms
+BPlusTreeCursorAllocationBenchmark.insertBucket                                           256   ASCENDING  avgt    5        10.512 ±   1.209   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate                             256   ASCENDING  avgt    5      2250.249 ± 249.329  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm                        256   ASCENDING  avgt    5  24792320.535 ±   8.367    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count                                  256   ASCENDING  avgt    5        15.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time                                   256   ASCENDING  avgt    5        16.000                ms
+BPlusTreeCursorAllocationBenchmark.insertBucket                                           256      RANDOM  avgt    5        33.327 ±   1.029   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate                             256      RANDOM  avgt    5       618.416 ±  19.105  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.alloc.rate.norm                        256      RANDOM  avgt    5  21614842.780 ±  16.553    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.count                                  256      RANDOM  avgt    5         6.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucket:gc.time                                   256      RANDOM  avgt    5         6.000                ms
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction                               64         N/A  avgt    5         2.221 ±   0.095   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate                 64         N/A  avgt    5      1871.918 ±  80.524  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate.norm            64         N/A  avgt    5   4359497.492 ±  74.646    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.count                      64         N/A  avgt    5        13.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.time                       64         N/A  avgt    5        18.000                ms
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction                              256         N/A  avgt    5         2.515 ±   0.198   ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate                256         N/A  avgt    5      2089.383 ± 161.142  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.alloc.rate.norm           256         N/A  avgt    5   5509489.552 ±  67.624    B/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.count                     256         N/A  avgt    5        12.000            counts
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction:gc.time                      256         N/A  avgt    5        11.000                ms
+BPlusTreeCursorAllocationBenchmark.insertElement                                           64   ASCENDING  avgt    5        10.319 ±   0.256   ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate                             64   ASCENDING  avgt    5      1243.622 ±  30.966  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm                        64   ASCENDING  avgt    5  13458559.295 ±   1.182    B/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.count                                  64   ASCENDING  avgt    5        12.000            counts
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.time                                   64   ASCENDING  avgt    5        11.000                ms
+BPlusTreeCursorAllocationBenchmark.insertElement                                           64      RANDOM  avgt    5        34.380 ±   0.224   ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate                             64      RANDOM  avgt    5       339.408 ±   2.158  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm                        64      RANDOM  avgt    5  12239429.867 ±   3.165    B/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.count                                  64      RANDOM  avgt    5         3.000            counts
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.time                                   64      RANDOM  avgt    5         4.000                ms
+BPlusTreeCursorAllocationBenchmark.insertElement                                          256   ASCENDING  avgt    5        10.034 ±   0.169   ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate                            256   ASCENDING  avgt    5      1107.966 ±  18.676  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm                       256   ASCENDING  avgt    5  11659909.218 ±   1.496    B/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.count                                 256   ASCENDING  avgt    5        11.000            counts
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.time                                  256   ASCENDING  avgt    5        13.000                ms
+BPlusTreeCursorAllocationBenchmark.insertElement                                          256      RANDOM  avgt    5        36.008 ±   0.263   ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate                            256      RANDOM  avgt    5       292.706 ±   2.114  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.alloc.rate.norm                       256      RANDOM  avgt    5  11053975.657 ±   4.496    B/op
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.count                                 256      RANDOM  avgt    5         3.000            counts
+BPlusTreeCursorAllocationBenchmark.insertElement:gc.time                                  256      RANDOM  avgt    5         4.000                ms
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                                         64   ASCENDING  avgt    5         7.594 ±   0.078   ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate                           64   ASCENDING  avgt    5      2532.301 ±  25.773  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm                      64   ASCENDING  avgt    5  20167572.606 ±   0.001    B/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count                                64   ASCENDING  avgt    5        24.000            counts
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time                                 64   ASCENDING  avgt    5        20.000                ms
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                                         64      RANDOM  avgt    5        24.427 ±   0.501   ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate                           64      RANDOM  avgt    5       654.514 ±  13.415  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm                      64      RANDOM  avgt    5  16767335.600 ±   9.366    B/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count                                64      RANDOM  avgt    5         6.000            counts
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time                                 64      RANDOM  avgt    5         5.000                ms
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                                        256   ASCENDING  avgt    5         7.937 ±   0.052   ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate                          256   ASCENDING  avgt    5      2182.539 ±  14.431  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm                     256   ASCENDING  avgt    5  18167166.938 ±   1.144    B/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count                               256   ASCENDING  avgt    5        21.000            counts
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time                                256   ASCENDING  avgt    5        20.000                ms
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                                        256      RANDOM  avgt    5        26.046 ±   0.503   ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate                          256      RANDOM  avgt    5       552.218 ±  10.763  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.alloc.rate.norm                     256      RANDOM  avgt    5  15084402.051 ±   0.001    B/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.count                               256      RANDOM  avgt    5         5.000            counts
+BPlusTreeCursorAllocationBenchmark.insertIntToLong:gc.time                                256      RANDOM  avgt    5         5.000                ms
+BPlusTreeCursorAllocationBenchmark.insertLong                                              64   ASCENDING  avgt    5        11.020 ±   0.121   ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate                                64   ASCENDING  avgt    5      3677.069 ±  40.863  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm                           64   ASCENDING  avgt    5  42497460.308 ±   0.001    B/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.count                                     64   ASCENDING  avgt    5        25.000            counts
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.time                                      64   ASCENDING  avgt    5        25.000                ms
+BPlusTreeCursorAllocationBenchmark.insertLong                                              64      RANDOM  avgt    5        27.720 ±   1.528   ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate                                64      RANDOM  avgt    5      1329.072 ±  72.087  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm                           64      RANDOM  avgt    5  38634132.368 ±   7.951    B/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.count                                     64      RANDOM  avgt    5        13.000            counts
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.time                                      64      RANDOM  avgt    5        12.000                ms
+BPlusTreeCursorAllocationBenchmark.insertLong                                             256   ASCENDING  avgt    5        10.739 ±   0.276   ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate                               256   ASCENDING  avgt    5      2334.080 ±  59.302  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm                          256   ASCENDING  avgt    5  26288225.894 ±   1.425    B/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.count                                    256   ASCENDING  avgt    5        23.000            counts
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.time                                     256   ASCENDING  avgt    5        26.000                ms
+BPlusTreeCursorAllocationBenchmark.insertLong                                             256      RANDOM  avgt    5        28.965 ±   0.391   ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate                               256      RANDOM  avgt    5       761.741 ±  10.309  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.alloc.rate.norm                          256      RANDOM  avgt    5  23140878.217 ±   2.946    B/op
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.count                                    256      RANDOM  avgt    5         8.000            counts
+BPlusTreeCursorAllocationBenchmark.insertLong:gc.time                                     256      RANDOM  avgt    5        12.000                ms
+BPlusTreeCursorAllocationBenchmark.insertObject                                            64   ASCENDING  avgt    5        11.831 ±   0.462   ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate                              64   ASCENDING  avgt    5       975.904 ±  37.765  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm                         64   ASCENDING  avgt    5  12108073.583 ±   2.804    B/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.count                                   64   ASCENDING  avgt    5        10.000            counts
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.time                                    64   ASCENDING  avgt    5        11.000                ms
+BPlusTreeCursorAllocationBenchmark.insertObject                                            64      RANDOM  avgt    5        34.364 ±   0.383   ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate                              64      RANDOM  avgt    5       266.567 ±   2.998  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm                         64      RANDOM  avgt    5   9607014.133 ±   3.165    B/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.count                                   64      RANDOM  avgt    5         2.000            counts
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.time                                    64      RANDOM  avgt    5         2.000                ms
+BPlusTreeCursorAllocationBenchmark.insertObject                                           256   ASCENDING  avgt    5         9.761 ±   0.109   ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate                             256   ASCENDING  avgt    5       995.677 ±  11.087  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm                        256   ASCENDING  avgt    5  10193699.542 ±   0.655    B/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.count                                  256   ASCENDING  avgt    5         9.000            counts
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.time                                   256   ASCENDING  avgt    5        12.000                ms
+BPlusTreeCursorAllocationBenchmark.insertObject                                           256      RANDOM  avgt    5        39.470 ±   2.736   ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate                             256      RANDOM  avgt    5       194.623 ±  13.258  MB/sec
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.alloc.rate.norm                        256      RANDOM  avgt    5   8054475.904 ±  16.910    B/op
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.count                                  256      RANDOM  avgt    5         2.000            counts
+BPlusTreeCursorAllocationBenchmark.insertObject:gc.time                                   256      RANDOM  avgt    5         3.000                ms
+JMH_EXIT=0
+LOAD_AT_END: 1.58 4.18 7.59 3/4735 508280

@@ -1,0 +1,1854 @@
+LOAD_AT_START: 5.02 3.45 5.47 4/5200 537637
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket
+# Parameters: (blockSize = 64)
+
+# Run progress: 0.00% complete, ETA 00:13:36
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.183 ms/op
+# Warmup Iteration   2: 1.155 ms/op
+# Warmup Iteration   3: 1.157 ms/op
+Iteration   1: 1.420 ms/op
+Iteration   2: 1.282 ms/op
+Iteration   3: 1.485 ms/op
+Iteration   4: 1.238 ms/op
+Iteration   5: 1.190 ms/op
+
+# Run progress: 0.98% complete, ETA 00:14:24
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.186 ms/op
+# Warmup Iteration   2: 1.153 ms/op
+# Warmup Iteration   3: 1.234 ms/op
+Iteration   1: 1.185 ms/op
+Iteration   2: 1.209 ms/op
+Iteration   3: 1.300 ms/op
+Iteration   4: 1.167 ms/op
+Iteration   5: 1.213 ms/op
+
+# Run progress: 1.96% complete, ETA 00:14:10
+# Fork: 3 of 3
+# Warmup Iteration   1: 2.984 ms/op
+# Warmup Iteration   2: 1.545 ms/op
+# Warmup Iteration   3: 1.685 ms/op
+Iteration   1: 1.348 ms/op
+Iteration   2: 1.187 ms/op
+Iteration   3: 1.191 ms/op
+Iteration   4: 1.170 ms/op
+Iteration   5: 1.182 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket":
+  1.251 ±(99.9%) 0.104 ms/op [Average]
+  (min, avg, max) = (1.167, 1.251, 1.485), stdev = 0.098
+  CI (99.9%): [1.147, 1.356] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket
+# Parameters: (blockSize = 256)
+
+# Run progress: 2.94% complete, ETA 00:14:15
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.111 ms/op
+# Warmup Iteration   2: 1.063 ms/op
+# Warmup Iteration   3: 1.099 ms/op
+Iteration   1: 1.330 ms/op
+Iteration   2: 1.059 ms/op
+Iteration   3: 1.172 ms/op
+Iteration   4: 1.071 ms/op
+Iteration   5: 1.050 ms/op
+
+# Run progress: 3.92% complete, ETA 00:14:01
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.146 ms/op
+# Warmup Iteration   2: 1.107 ms/op
+# Warmup Iteration   3: 1.222 ms/op
+Iteration   1: 1.208 ms/op
+Iteration   2: 1.254 ms/op
+Iteration   3: 1.330 ms/op
+Iteration   4: 1.238 ms/op
+Iteration   5: 1.053 ms/op
+
+# Run progress: 4.90% complete, ETA 00:13:50
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.154 ms/op
+# Warmup Iteration   2: 1.116 ms/op
+# Warmup Iteration   3: 1.075 ms/op
+Iteration   1: 1.217 ms/op
+Iteration   2: 1.065 ms/op
+Iteration   3: 1.058 ms/op
+Iteration   4: 1.045 ms/op
+Iteration   5: 1.075 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendBucket":
+  1.148 ±(99.9%) 0.114 ms/op [Average]
+  (min, avg, max) = (1.045, 1.148, 1.330), stdev = 0.106
+  CI (99.9%): [1.035, 1.262] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement
+# Parameters: (blockSize = 64)
+
+# Run progress: 5.88% complete, ETA 00:13:39
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.158 ms/op
+# Warmup Iteration   2: 1.031 ms/op
+# Warmup Iteration   3: 1.104 ms/op
+Iteration   1: 1.029 ms/op
+Iteration   2: 1.231 ms/op
+Iteration   3: 1.090 ms/op
+Iteration   4: 1.176 ms/op
+Iteration   5: 1.178 ms/op
+
+# Run progress: 6.86% complete, ETA 00:13:29
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.614 ms/op
+# Warmup Iteration   2: 1.774 ms/op
+# Warmup Iteration   3: 2.470 ms/op
+Iteration   1: 2.690 ms/op
+Iteration   2: 2.675 ms/op
+Iteration   3: 2.156 ms/op
+Iteration   4: 1.324 ms/op
+Iteration   5: 1.568 ms/op
+
+# Run progress: 7.84% complete, ETA 00:13:21
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.272 ms/op
+# Warmup Iteration   2: 1.138 ms/op
+# Warmup Iteration   3: 1.224 ms/op
+Iteration   1: 1.167 ms/op
+Iteration   2: 1.047 ms/op
+Iteration   3: 1.136 ms/op
+Iteration   4: 1.079 ms/op
+Iteration   5: 1.191 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement":
+  1.449 ±(99.9%) 0.614 ms/op [Average]
+  (min, avg, max) = (1.029, 1.449, 2.690), stdev = 0.574
+  CI (99.9%): [0.835, 2.063] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement
+# Parameters: (blockSize = 256)
+
+# Run progress: 8.82% complete, ETA 00:13:12
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.188 ms/op
+# Warmup Iteration   2: 1.204 ms/op
+# Warmup Iteration   3: 1.227 ms/op
+Iteration   1: 1.154 ms/op
+Iteration   2: 1.139 ms/op
+Iteration   3: 1.162 ms/op
+Iteration   4: 1.298 ms/op
+Iteration   5: 1.145 ms/op
+
+# Run progress: 9.80% complete, ETA 00:13:04
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.206 ms/op
+# Warmup Iteration   2: 1.248 ms/op
+# Warmup Iteration   3: 1.158 ms/op
+Iteration   1: 1.138 ms/op
+Iteration   2: 1.140 ms/op
+Iteration   3: 1.158 ms/op
+Iteration   4: 1.432 ms/op
+Iteration   5: 1.142 ms/op
+
+# Run progress: 10.78% complete, ETA 00:12:56
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.415 ms/op
+# Warmup Iteration   2: 1.296 ms/op
+# Warmup Iteration   3: 1.156 ms/op
+Iteration   1: 1.168 ms/op
+Iteration   2: 1.380 ms/op
+Iteration   3: 1.357 ms/op
+Iteration   4: 1.215 ms/op
+Iteration   5: 1.288 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendElement":
+  1.221 ±(99.9%) 0.109 ms/op [Average]
+  (min, avg, max) = (1.138, 1.221, 1.432), stdev = 0.102
+  CI (99.9%): [1.112, 1.330] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree
+# Parameters: (blockSize = 64)
+
+# Run progress: 11.76% complete, ETA 00:12:47
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.947 ms/op
+# Warmup Iteration   2: 0.917 ms/op
+# Warmup Iteration   3: 0.949 ms/op
+Iteration   1: 0.956 ms/op
+Iteration   2: 0.941 ms/op
+Iteration   3: 0.939 ms/op
+Iteration   4: 1.082 ms/op
+Iteration   5: 0.982 ms/op
+
+# Run progress: 12.75% complete, ETA 00:12:38
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.946 ms/op
+# Warmup Iteration   2: 1.160 ms/op
+# Warmup Iteration   3: 1.168 ms/op
+Iteration   1: 0.931 ms/op
+Iteration   2: 0.929 ms/op
+Iteration   3: 1.016 ms/op
+Iteration   4: 0.945 ms/op
+Iteration   5: 0.943 ms/op
+
+# Run progress: 13.73% complete, ETA 00:12:29
+# Fork: 3 of 3
+# Warmup Iteration   1: 0.950 ms/op
+# Warmup Iteration   2: 0.935 ms/op
+# Warmup Iteration   3: 0.911 ms/op
+Iteration   1: 0.924 ms/op
+Iteration   2: 0.951 ms/op
+Iteration   3: 0.896 ms/op
+Iteration   4: 0.950 ms/op
+Iteration   5: 0.916 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree":
+  0.953 ±(99.9%) 0.048 ms/op [Average]
+  (min, avg, max) = (0.896, 0.953, 1.082), stdev = 0.045
+  CI (99.9%): [0.905, 1.002] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree
+# Parameters: (blockSize = 256)
+
+# Run progress: 14.71% complete, ETA 00:12:21
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.852 ms/op
+# Warmup Iteration   2: 0.945 ms/op
+# Warmup Iteration   3: 0.859 ms/op
+Iteration   1: 0.861 ms/op
+Iteration   2: 0.845 ms/op
+Iteration   3: 0.835 ms/op
+Iteration   4: 0.842 ms/op
+Iteration   5: 0.866 ms/op
+
+# Run progress: 15.69% complete, ETA 00:12:12
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.834 ms/op
+# Warmup Iteration   2: 0.806 ms/op
+# Warmup Iteration   3: 0.817 ms/op
+Iteration   1: 0.805 ms/op
+Iteration   2: 0.815 ms/op
+Iteration   3: 0.854 ms/op
+Iteration   4: 0.826 ms/op
+Iteration   5: 0.800 ms/op
+
+# Run progress: 16.67% complete, ETA 00:12:04
+# Fork: 3 of 3
+# Warmup Iteration   1: 0.806 ms/op
+# Warmup Iteration   2: 0.844 ms/op
+# Warmup Iteration   3: 0.805 ms/op
+Iteration   1: 0.792 ms/op
+Iteration   2: 0.791 ms/op
+Iteration   3: 0.796 ms/op
+Iteration   4: 0.791 ms/op
+Iteration   5: 0.794 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree":
+  0.821 ±(99.9%) 0.029 ms/op [Average]
+  (min, avg, max) = (0.791, 0.821, 0.866), stdev = 0.028
+  CI (99.9%): [0.791, 0.850] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor
+# Parameters: (blockSize = 64)
+
+# Run progress: 17.65% complete, ETA 00:11:55
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.915 ms/op
+# Warmup Iteration   2: 0.875 ms/op
+# Warmup Iteration   3: 0.998 ms/op
+Iteration   1: 1.593 ms/op
+Iteration   2: 0.865 ms/op
+Iteration   3: 0.868 ms/op
+Iteration   4: 0.856 ms/op
+Iteration   5: 0.869 ms/op
+
+# Run progress: 18.63% complete, ETA 00:11:46
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.876 ms/op
+# Warmup Iteration   2: 0.868 ms/op
+# Warmup Iteration   3: 0.889 ms/op
+Iteration   1: 0.880 ms/op
+Iteration   2: 0.871 ms/op
+Iteration   3: 0.886 ms/op
+Iteration   4: 0.871 ms/op
+Iteration   5: 0.877 ms/op
+
+# Run progress: 19.61% complete, ETA 00:11:38
+# Fork: 3 of 3
+# Warmup Iteration   1: 0.873 ms/op
+# Warmup Iteration   2: 0.883 ms/op
+# Warmup Iteration   3: 0.868 ms/op
+Iteration   1: 0.896 ms/op
+Iteration   2: 0.867 ms/op
+Iteration   3: 0.858 ms/op
+Iteration   4: 0.854 ms/op
+Iteration   5: 0.872 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor":
+  0.919 ±(99.9%) 0.200 ms/op [Average]
+  (min, avg, max) = (0.854, 0.919, 1.593), stdev = 0.187
+  CI (99.9%): [0.719, 1.119] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor
+# Parameters: (blockSize = 256)
+
+# Run progress: 20.59% complete, ETA 00:11:30
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.803 ms/op
+# Warmup Iteration   2: 0.791 ms/op
+# Warmup Iteration   3: 0.784 ms/op
+Iteration   1: 0.799 ms/op
+Iteration   2: 0.796 ms/op
+Iteration   3: 0.809 ms/op
+Iteration   4: 0.810 ms/op
+Iteration   5: 0.786 ms/op
+
+# Run progress: 21.57% complete, ETA 00:11:21
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.790 ms/op
+# Warmup Iteration   2: 0.788 ms/op
+# Warmup Iteration   3: 0.787 ms/op
+Iteration   1: 0.787 ms/op
+Iteration   2: 0.806 ms/op
+Iteration   3: 0.791 ms/op
+Iteration   4: 0.805 ms/op
+Iteration   5: 0.788 ms/op
+
+# Run progress: 22.55% complete, ETA 00:11:12
+# Fork: 3 of 3
+# Warmup Iteration   1: 0.791 ms/op
+# Warmup Iteration   2: 0.786 ms/op
+# Warmup Iteration   3: 0.778 ms/op
+Iteration   1: 0.777 ms/op
+Iteration   2: 0.779 ms/op
+Iteration   3: 0.799 ms/op
+Iteration   4: 0.782 ms/op
+Iteration   5: 0.778 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor":
+  0.793 ±(99.9%) 0.012 ms/op [Average]
+  (min, avg, max) = (0.777, 0.793, 0.810), stdev = 0.011
+  CI (99.9%): [0.781, 0.805] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong
+# Parameters: (blockSize = 64)
+
+# Run progress: 23.53% complete, ETA 00:11:03
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.960 ms/op
+# Warmup Iteration   2: 0.934 ms/op
+# Warmup Iteration   3: 1.145 ms/op
+Iteration   1: 0.931 ms/op
+Iteration   2: 0.927 ms/op
+Iteration   3: 0.936 ms/op
+Iteration   4: 0.933 ms/op
+Iteration   5: 0.937 ms/op
+
+# Run progress: 24.51% complete, ETA 00:10:55
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.952 ms/op
+# Warmup Iteration   2: 0.941 ms/op
+# Warmup Iteration   3: 0.940 ms/op
+Iteration   1: 0.940 ms/op
+Iteration   2: 0.978 ms/op
+Iteration   3: 0.927 ms/op
+Iteration   4: 0.943 ms/op
+Iteration   5: 0.932 ms/op
+
+# Run progress: 25.49% complete, ETA 00:10:46
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.045 ms/op
+# Warmup Iteration   2: 1.002 ms/op
+# Warmup Iteration   3: 0.989 ms/op
+Iteration   1: 0.937 ms/op
+Iteration   2: 0.958 ms/op
+Iteration   3: 0.937 ms/op
+Iteration   4: 0.944 ms/op
+Iteration   5: 0.928 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong":
+  0.939 ±(99.9%) 0.014 ms/op [Average]
+  (min, avg, max) = (0.927, 0.939, 0.978), stdev = 0.013
+  CI (99.9%): [0.925, 0.953] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong
+# Parameters: (blockSize = 256)
+
+# Run progress: 26.47% complete, ETA 00:10:37
+# Fork: 1 of 3
+# Warmup Iteration   1: 0.891 ms/op
+# Warmup Iteration   2: 0.883 ms/op
+# Warmup Iteration   3: 0.894 ms/op
+Iteration   1: 0.903 ms/op
+Iteration   2: 0.893 ms/op
+Iteration   3: 0.917 ms/op
+Iteration   4: 0.887 ms/op
+Iteration   5: 0.883 ms/op
+
+# Run progress: 27.45% complete, ETA 00:10:28
+# Fork: 2 of 3
+# Warmup Iteration   1: 0.895 ms/op
+# Warmup Iteration   2: 0.894 ms/op
+# Warmup Iteration   3: 0.886 ms/op
+Iteration   1: 0.901 ms/op
+Iteration   2: 0.901 ms/op
+Iteration   3: 0.902 ms/op
+Iteration   4: 0.898 ms/op
+Iteration   5: 0.889 ms/op
+
+# Run progress: 28.43% complete, ETA 00:10:20
+# Fork: 3 of 3
+# Warmup Iteration   1: 0.915 ms/op
+# Warmup Iteration   2: 0.907 ms/op
+# Warmup Iteration   3: 0.920 ms/op
+Iteration   1: 0.908 ms/op
+Iteration   2: 0.908 ms/op
+Iteration   3: 0.911 ms/op
+Iteration   4: 0.903 ms/op
+Iteration   5: 0.911 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendLong":
+  0.901 ±(99.9%) 0.010 ms/op [Average]
+  (min, avg, max) = (0.883, 0.901, 0.917), stdev = 0.010
+  CI (99.9%): [0.891, 0.911] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject
+# Parameters: (blockSize = 64)
+
+# Run progress: 29.41% complete, ETA 00:10:11
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.319 ms/op
+# Warmup Iteration   2: 1.301 ms/op
+# Warmup Iteration   3: 1.281 ms/op
+Iteration   1: 1.278 ms/op
+Iteration   2: 1.279 ms/op
+Iteration   3: 1.276 ms/op
+Iteration   4: 1.264 ms/op
+Iteration   5: 1.268 ms/op
+
+# Run progress: 30.39% complete, ETA 00:10:02
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.352 ms/op
+# Warmup Iteration   2: 1.360 ms/op
+# Warmup Iteration   3: 1.326 ms/op
+Iteration   1: 1.301 ms/op
+Iteration   2: 1.394 ms/op
+Iteration   3: 1.298 ms/op
+Iteration   4: 1.309 ms/op
+Iteration   5: 1.306 ms/op
+
+# Run progress: 31.37% complete, ETA 00:09:54
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.347 ms/op
+# Warmup Iteration   2: 1.291 ms/op
+# Warmup Iteration   3: 1.292 ms/op
+Iteration   1: 1.295 ms/op
+Iteration   2: 1.293 ms/op
+Iteration   3: 1.292 ms/op
+Iteration   4: 1.289 ms/op
+Iteration   5: 1.319 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject":
+  1.297 ±(99.9%) 0.033 ms/op [Average]
+  (min, avg, max) = (1.264, 1.297, 1.394), stdev = 0.031
+  CI (99.9%): [1.264, 1.330] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject
+# Parameters: (blockSize = 256)
+
+# Run progress: 32.35% complete, ETA 00:09:45
+# Fork: 1 of 3
+# Warmup Iteration   1: 1.440 ms/op
+# Warmup Iteration   2: 1.406 ms/op
+# Warmup Iteration   3: 1.413 ms/op
+Iteration   1: 1.405 ms/op
+Iteration   2: 1.389 ms/op
+Iteration   3: 1.693 ms/op
+Iteration   4: 1.403 ms/op
+Iteration   5: 1.400 ms/op
+
+# Run progress: 33.33% complete, ETA 00:09:37
+# Fork: 2 of 3
+# Warmup Iteration   1: 1.449 ms/op
+# Warmup Iteration   2: 1.402 ms/op
+# Warmup Iteration   3: 1.408 ms/op
+Iteration   1: 1.406 ms/op
+Iteration   2: 1.442 ms/op
+Iteration   3: 1.432 ms/op
+Iteration   4: 1.433 ms/op
+Iteration   5: 1.442 ms/op
+
+# Run progress: 34.31% complete, ETA 00:09:28
+# Fork: 3 of 3
+# Warmup Iteration   1: 1.389 ms/op
+# Warmup Iteration   2: 1.417 ms/op
+# Warmup Iteration   3: 1.406 ms/op
+Iteration   1: 1.418 ms/op
+Iteration   2: 1.429 ms/op
+Iteration   3: 1.402 ms/op
+Iteration   4: 1.406 ms/op
+Iteration   5: 1.394 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.descendObject":
+  1.433 ±(99.9%) 0.079 ms/op [Average]
+  (min, avg, max) = (1.389, 1.433, 1.693), stdev = 0.074
+  CI (99.9%): [1.354, 1.512] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 35.29% complete, ETA 00:09:20
+# Fork: 1 of 3
+# Warmup Iteration   1: 18.537 ms/op
+# Warmup Iteration   2: 11.880 ms/op
+# Warmup Iteration   3: 11.228 ms/op
+Iteration   1: 11.145 ms/op
+Iteration   2: 11.227 ms/op
+Iteration   3: 11.249 ms/op
+Iteration   4: 11.153 ms/op
+Iteration   5: 11.242 ms/op
+
+# Run progress: 36.27% complete, ETA 00:09:11
+# Fork: 2 of 3
+# Warmup Iteration   1: 17.012 ms/op
+# Warmup Iteration   2: 11.083 ms/op
+# Warmup Iteration   3: 10.909 ms/op
+Iteration   1: 10.879 ms/op
+Iteration   2: 11.186 ms/op
+Iteration   3: 10.910 ms/op
+Iteration   4: 10.885 ms/op
+Iteration   5: 10.963 ms/op
+
+# Run progress: 37.25% complete, ETA 00:09:02
+# Fork: 3 of 3
+# Warmup Iteration   1: 17.310 ms/op
+# Warmup Iteration   2: 10.972 ms/op
+# Warmup Iteration   3: 11.056 ms/op
+Iteration   1: 10.972 ms/op
+Iteration   2: 11.438 ms/op
+Iteration   3: 10.964 ms/op
+Iteration   4: 10.922 ms/op
+Iteration   5: 10.955 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  11.073 ±(99.9%) 0.183 ms/op [Average]
+  (min, avg, max) = (10.879, 11.073, 11.438), stdev = 0.171
+  CI (99.9%): [10.889, 11.256] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 38.24% complete, ETA 00:08:53
+# Fork: 1 of 3
+# Warmup Iteration   1: 46.110 ms/op
+# Warmup Iteration   2: 36.754 ms/op
+# Warmup Iteration   3: 34.942 ms/op
+Iteration   1: 34.929 ms/op
+Iteration   2: 34.908 ms/op
+Iteration   3: 34.883 ms/op
+Iteration   4: 34.914 ms/op
+Iteration   5: 34.973 ms/op
+
+# Run progress: 39.22% complete, ETA 00:08:44
+# Fork: 2 of 3
+# Warmup Iteration   1: 44.602 ms/op
+# Warmup Iteration   2: 35.122 ms/op
+# Warmup Iteration   3: 34.271 ms/op
+Iteration   1: 33.870 ms/op
+Iteration   2: 33.896 ms/op
+Iteration   3: 33.925 ms/op
+Iteration   4: 33.966 ms/op
+Iteration   5: 34.566 ms/op
+
+# Run progress: 40.20% complete, ETA 00:08:36
+# Fork: 3 of 3
+# Warmup Iteration   1: 47.693 ms/op
+# Warmup Iteration   2: 35.760 ms/op
+# Warmup Iteration   3: 34.396 ms/op
+Iteration   1: 34.200 ms/op
+Iteration   2: 34.677 ms/op
+Iteration   3: 34.690 ms/op
+Iteration   4: 34.975 ms/op
+Iteration   5: 35.035 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  34.560 ±(99.9%) 0.486 ms/op [Average]
+  (min, avg, max) = (33.870, 34.560, 35.035), stdev = 0.454
+  CI (99.9%): [34.075, 35.046] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 41.18% complete, ETA 00:08:27
+# Fork: 1 of 3
+# Warmup Iteration   1: 14.817 ms/op
+# Warmup Iteration   2: 10.711 ms/op
+# Warmup Iteration   3: 10.716 ms/op
+Iteration   1: 10.665 ms/op
+Iteration   2: 10.640 ms/op
+Iteration   3: 10.658 ms/op
+Iteration   4: 10.632 ms/op
+Iteration   5: 10.599 ms/op
+
+# Run progress: 42.16% complete, ETA 00:08:18
+# Fork: 2 of 3
+# Warmup Iteration   1: 14.769 ms/op
+# Warmup Iteration   2: 10.598 ms/op
+# Warmup Iteration   3: 10.864 ms/op
+Iteration   1: 10.611 ms/op
+Iteration   2: 10.581 ms/op
+Iteration   3: 10.567 ms/op
+Iteration   4: 10.588 ms/op
+Iteration   5: 10.612 ms/op
+
+# Run progress: 43.14% complete, ETA 00:08:10
+# Fork: 3 of 3
+# Warmup Iteration   1: 14.417 ms/op
+# Warmup Iteration   2: 10.453 ms/op
+# Warmup Iteration   3: 10.741 ms/op
+Iteration   1: 10.466 ms/op
+Iteration   2: 10.442 ms/op
+Iteration   3: 10.388 ms/op
+Iteration   4: 10.714 ms/op
+Iteration   5: 10.351 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  10.568 ±(99.9%) 0.114 ms/op [Average]
+  (min, avg, max) = (10.351, 10.568, 10.714), stdev = 0.107
+  CI (99.9%): [10.454, 10.682] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 44.12% complete, ETA 00:08:01
+# Fork: 1 of 3
+# Warmup Iteration   1: 42.347 ms/op
+# Warmup Iteration   2: 34.603 ms/op
+# Warmup Iteration   3: 33.350 ms/op
+Iteration   1: 33.319 ms/op
+Iteration   2: 33.790 ms/op
+Iteration   3: 33.672 ms/op
+Iteration   4: 34.287 ms/op
+Iteration   5: 33.638 ms/op
+
+# Run progress: 45.10% complete, ETA 00:07:52
+# Fork: 2 of 3
+# Warmup Iteration   1: 42.689 ms/op
+# Warmup Iteration   2: 34.104 ms/op
+# Warmup Iteration   3: 33.055 ms/op
+Iteration   1: 33.395 ms/op
+Iteration   2: 33.113 ms/op
+Iteration   3: 32.920 ms/op
+Iteration   4: 33.155 ms/op
+Iteration   5: 33.338 ms/op
+
+# Run progress: 46.08% complete, ETA 00:07:44
+# Fork: 3 of 3
+# Warmup Iteration   1: 42.139 ms/op
+# Warmup Iteration   2: 34.039 ms/op
+# Warmup Iteration   3: 33.064 ms/op
+Iteration   1: 33.777 ms/op
+Iteration   2: 33.114 ms/op
+Iteration   3: 33.172 ms/op
+Iteration   4: 33.119 ms/op
+Iteration   5: 33.239 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucket":
+  33.403 ±(99.9%) 0.387 ms/op [Average]
+  (min, avg, max) = (32.920, 33.403, 34.287), stdev = 0.362
+  CI (99.9%): [33.016, 33.790] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction
+# Parameters: (blockSize = 64)
+
+# Run progress: 47.06% complete, ETA 00:07:35
+# Fork: 1 of 3
+# Warmup Iteration   1: 3.173 ms/op
+# Warmup Iteration   2: 2.355 ms/op
+# Warmup Iteration   3: 2.321 ms/op
+Iteration   1: 2.296 ms/op
+Iteration   2: 2.327 ms/op
+Iteration   3: 2.311 ms/op
+Iteration   4: 2.308 ms/op
+Iteration   5: 2.316 ms/op
+
+# Run progress: 48.04% complete, ETA 00:07:27
+# Fork: 2 of 3
+# Warmup Iteration   1: 3.949 ms/op
+# Warmup Iteration   2: 2.371 ms/op
+# Warmup Iteration   3: 2.317 ms/op
+Iteration   1: 2.298 ms/op
+Iteration   2: 2.305 ms/op
+Iteration   3: 2.299 ms/op
+Iteration   4: 2.425 ms/op
+Iteration   5: 2.645 ms/op
+
+# Run progress: 49.02% complete, ETA 00:07:19
+# Fork: 3 of 3
+# Warmup Iteration   1: 2.898 ms/op
+# Warmup Iteration   2: 2.311 ms/op
+# Warmup Iteration   3: 2.325 ms/op
+Iteration   1: 2.349 ms/op
+Iteration   2: 2.337 ms/op
+Iteration   3: 2.392 ms/op
+Iteration   4: 2.285 ms/op
+Iteration   5: 2.289 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction":
+  2.346 ±(99.9%) 0.098 ms/op [Average]
+  (min, avg, max) = (2.285, 2.346, 2.645), stdev = 0.092
+  CI (99.9%): [2.248, 2.443] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction
+# Parameters: (blockSize = 256)
+
+# Run progress: 50.00% complete, ETA 00:07:10
+# Fork: 1 of 3
+# Warmup Iteration   1: 3.006 ms/op
+# Warmup Iteration   2: 2.552 ms/op
+# Warmup Iteration   3: 2.561 ms/op
+Iteration   1: 2.580 ms/op
+Iteration   2: 2.594 ms/op
+Iteration   3: 2.543 ms/op
+Iteration   4: 2.557 ms/op
+Iteration   5: 2.547 ms/op
+
+# Run progress: 50.98% complete, ETA 00:07:02
+# Fork: 2 of 3
+# Warmup Iteration   1: 3.271 ms/op
+# Warmup Iteration   2: 2.583 ms/op
+# Warmup Iteration   3: 2.883 ms/op
+Iteration   1: 2.806 ms/op
+Iteration   2: 2.530 ms/op
+Iteration   3: 2.506 ms/op
+Iteration   4: 2.527 ms/op
+Iteration   5: 2.516 ms/op
+
+# Run progress: 51.96% complete, ETA 00:06:53
+# Fork: 3 of 3
+# Warmup Iteration   1: 3.220 ms/op
+# Warmup Iteration   2: 2.424 ms/op
+# Warmup Iteration   3: 2.416 ms/op
+Iteration   1: 2.423 ms/op
+Iteration   2: 2.450 ms/op
+Iteration   3: 2.421 ms/op
+Iteration   4: 2.437 ms/op
+Iteration   5: 2.421 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction":
+  2.524 ±(99.9%) 0.105 ms/op [Average]
+  (min, avg, max) = (2.421, 2.524, 2.806), stdev = 0.098
+  CI (99.9%): [2.419, 2.629] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 52.94% complete, ETA 00:06:45
+# Fork: 1 of 3
+# Warmup Iteration   1: 13.804 ms/op
+# Warmup Iteration   2: 10.675 ms/op
+# Warmup Iteration   3: 10.373 ms/op
+Iteration   1: 10.457 ms/op
+Iteration   2: 10.320 ms/op
+Iteration   3: 10.166 ms/op
+Iteration   4: 10.203 ms/op
+Iteration   5: 10.160 ms/op
+
+# Run progress: 53.92% complete, ETA 00:06:36
+# Fork: 2 of 3
+# Warmup Iteration   1: 15.305 ms/op
+# Warmup Iteration   2: 11.216 ms/op
+# Warmup Iteration   3: 10.858 ms/op
+Iteration   1: 10.850 ms/op
+Iteration   2: 10.856 ms/op
+Iteration   3: 10.843 ms/op
+Iteration   4: 10.828 ms/op
+Iteration   5: 11.021 ms/op
+
+# Run progress: 54.90% complete, ETA 00:06:28
+# Fork: 3 of 3
+# Warmup Iteration   1: 13.933 ms/op
+# Warmup Iteration   2: 10.350 ms/op
+# Warmup Iteration   3: 10.099 ms/op
+Iteration   1: 10.103 ms/op
+Iteration   2: 10.633 ms/op
+Iteration   3: 10.134 ms/op
+Iteration   4: 10.143 ms/op
+Iteration   5: 10.164 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  10.459 ±(99.9%) 0.364 ms/op [Average]
+  (min, avg, max) = (10.103, 10.459, 11.021), stdev = 0.340
+  CI (99.9%): [10.095, 10.822] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 55.88% complete, ETA 00:06:19
+# Fork: 1 of 3
+# Warmup Iteration   1: 67.328 ms/op
+# Warmup Iteration   2: 39.413 ms/op
+# Warmup Iteration   3: 38.647 ms/op
+Iteration   1: 35.948 ms/op
+Iteration   2: 36.485 ms/op
+Iteration   3: 35.430 ms/op
+Iteration   4: 34.974 ms/op
+Iteration   5: 34.705 ms/op
+
+# Run progress: 56.86% complete, ETA 00:06:11
+# Fork: 2 of 3
+# Warmup Iteration   1: 41.809 ms/op
+# Warmup Iteration   2: 37.351 ms/op
+# Warmup Iteration   3: 35.604 ms/op
+Iteration   1: 35.603 ms/op
+Iteration   2: 33.750 ms/op
+Iteration   3: 34.817 ms/op
+Iteration   4: 33.817 ms/op
+Iteration   5: 33.756 ms/op
+
+# Run progress: 57.84% complete, ETA 00:06:02
+# Fork: 3 of 3
+# Warmup Iteration   1: 38.875 ms/op
+# Warmup Iteration   2: 33.526 ms/op
+# Warmup Iteration   3: 30.414 ms/op
+Iteration   1: 30.341 ms/op
+Iteration   2: 30.328 ms/op
+Iteration   3: 30.193 ms/op
+Iteration   4: 30.045 ms/op
+Iteration   5: 30.280 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  33.365 ±(99.9%) 2.582 ms/op [Average]
+  (min, avg, max) = (30.045, 33.365, 36.485), stdev = 2.415
+  CI (99.9%): [30.783, 35.946] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 58.82% complete, ETA 00:05:54
+# Fork: 1 of 3
+# Warmup Iteration   1: 12.388 ms/op
+# Warmup Iteration   2: 9.095 ms/op
+# Warmup Iteration   3: 9.157 ms/op
+Iteration   1: 9.082 ms/op
+Iteration   2: 9.061 ms/op
+Iteration   3: 9.109 ms/op
+Iteration   4: 9.058 ms/op
+Iteration   5: 9.047 ms/op
+
+# Run progress: 59.80% complete, ETA 00:05:45
+# Fork: 2 of 3
+# Warmup Iteration   1: 12.382 ms/op
+# Warmup Iteration   2: 9.058 ms/op
+# Warmup Iteration   3: 9.087 ms/op
+Iteration   1: 9.317 ms/op
+Iteration   2: 9.054 ms/op
+Iteration   3: 9.076 ms/op
+Iteration   4: 9.054 ms/op
+Iteration   5: 9.603 ms/op
+
+# Run progress: 60.78% complete, ETA 00:05:37
+# Fork: 3 of 3
+# Warmup Iteration   1: 12.568 ms/op
+# Warmup Iteration   2: 9.342 ms/op
+# Warmup Iteration   3: 9.267 ms/op
+Iteration   1: 9.398 ms/op
+Iteration   2: 9.259 ms/op
+Iteration   3: 9.162 ms/op
+Iteration   4: 9.178 ms/op
+Iteration   5: 9.158 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  9.175 ±(99.9%) 0.171 ms/op [Average]
+  (min, avg, max) = (9.047, 9.175, 9.603), stdev = 0.159
+  CI (99.9%): [9.004, 9.345] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 61.76% complete, ETA 00:05:28
+# Fork: 1 of 3
+# Warmup Iteration   1: 42.693 ms/op
+# Warmup Iteration   2: 37.801 ms/op
+# Warmup Iteration   3: 36.924 ms/op
+Iteration   1: 36.117 ms/op
+Iteration   2: 36.876 ms/op
+Iteration   3: 36.015 ms/op
+Iteration   4: 36.228 ms/op
+Iteration   5: 36.219 ms/op
+
+# Run progress: 62.75% complete, ETA 00:05:20
+# Fork: 2 of 3
+# Warmup Iteration   1: 42.676 ms/op
+# Warmup Iteration   2: 38.581 ms/op
+# Warmup Iteration   3: 36.979 ms/op
+Iteration   1: 36.726 ms/op
+Iteration   2: 36.094 ms/op
+Iteration   3: 36.007 ms/op
+Iteration   4: 36.077 ms/op
+Iteration   5: 36.007 ms/op
+
+# Run progress: 63.73% complete, ETA 00:05:11
+# Fork: 3 of 3
+# Warmup Iteration   1: 41.420 ms/op
+# Warmup Iteration   2: 36.041 ms/op
+# Warmup Iteration   3: 34.408 ms/op
+Iteration   1: 34.364 ms/op
+Iteration   2: 34.463 ms/op
+Iteration   3: 34.476 ms/op
+Iteration   4: 34.499 ms/op
+Iteration   5: 34.535 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertElement":
+  35.647 ±(99.9%) 0.961 ms/op [Average]
+  (min, avg, max) = (34.364, 35.647, 36.876), stdev = 0.899
+  CI (99.9%): [34.686, 36.608] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 64.71% complete, ETA 00:05:03
+# Fork: 1 of 3
+# Warmup Iteration   1: 11.178 ms/op
+# Warmup Iteration   2: 8.241 ms/op
+# Warmup Iteration   3: 7.996 ms/op
+Iteration   1: 8.262 ms/op
+Iteration   2: 7.996 ms/op
+Iteration   3: 8.410 ms/op
+Iteration   4: 7.956 ms/op
+Iteration   5: 8.173 ms/op
+
+# Run progress: 65.69% complete, ETA 00:04:54
+# Fork: 2 of 3
+# Warmup Iteration   1: 10.793 ms/op
+# Warmup Iteration   2: 7.513 ms/op
+# Warmup Iteration   3: 7.479 ms/op
+Iteration   1: 7.484 ms/op
+Iteration   2: 7.491 ms/op
+Iteration   3: 7.471 ms/op
+Iteration   4: 7.486 ms/op
+Iteration   5: 7.484 ms/op
+
+# Run progress: 66.67% complete, ETA 00:04:46
+# Fork: 3 of 3
+# Warmup Iteration   1: 10.878 ms/op
+# Warmup Iteration   2: 7.983 ms/op
+# Warmup Iteration   3: 7.968 ms/op
+Iteration   1: 7.963 ms/op
+Iteration   2: 7.958 ms/op
+Iteration   3: 8.054 ms/op
+Iteration   4: 7.947 ms/op
+Iteration   5: 8.092 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  7.882 ±(99.9%) 0.340 ms/op [Average]
+  (min, avg, max) = (7.471, 7.882, 8.410), stdev = 0.318
+  CI (99.9%): [7.542, 8.221] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 67.65% complete, ETA 00:04:37
+# Fork: 1 of 3
+# Warmup Iteration   1: 29.624 ms/op
+# Warmup Iteration   2: 24.696 ms/op
+# Warmup Iteration   3: 25.222 ms/op
+Iteration   1: 23.813 ms/op
+Iteration   2: 23.850 ms/op
+Iteration   3: 24.369 ms/op
+Iteration   4: 24.188 ms/op
+Iteration   5: 24.009 ms/op
+
+# Run progress: 68.63% complete, ETA 00:04:29
+# Fork: 2 of 3
+# Warmup Iteration   1: 31.691 ms/op
+# Warmup Iteration   2: 24.650 ms/op
+# Warmup Iteration   3: 24.111 ms/op
+Iteration   1: 24.032 ms/op
+Iteration   2: 24.239 ms/op
+Iteration   3: 24.124 ms/op
+Iteration   4: 24.099 ms/op
+Iteration   5: 24.058 ms/op
+
+# Run progress: 69.61% complete, ETA 00:04:20
+# Fork: 3 of 3
+# Warmup Iteration   1: 31.483 ms/op
+# Warmup Iteration   2: 24.884 ms/op
+# Warmup Iteration   3: 24.431 ms/op
+Iteration   1: 24.571 ms/op
+Iteration   2: 24.410 ms/op
+Iteration   3: 24.471 ms/op
+Iteration   4: 24.384 ms/op
+Iteration   5: 24.409 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  24.202 ±(99.9%) 0.245 ms/op [Average]
+  (min, avg, max) = (23.813, 24.202, 24.571), stdev = 0.229
+  CI (99.9%): [23.957, 24.447] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 70.59% complete, ETA 00:04:12
+# Fork: 1 of 3
+# Warmup Iteration   1: 10.306 ms/op
+# Warmup Iteration   2: 8.059 ms/op
+# Warmup Iteration   3: 8.022 ms/op
+Iteration   1: 8.031 ms/op
+Iteration   2: 8.067 ms/op
+Iteration   3: 8.039 ms/op
+Iteration   4: 8.016 ms/op
+Iteration   5: 8.033 ms/op
+
+# Run progress: 71.57% complete, ETA 00:04:03
+# Fork: 2 of 3
+# Warmup Iteration   1: 10.807 ms/op
+# Warmup Iteration   2: 8.242 ms/op
+# Warmup Iteration   3: 7.913 ms/op
+Iteration   1: 7.870 ms/op
+Iteration   2: 7.841 ms/op
+Iteration   3: 7.847 ms/op
+Iteration   4: 7.871 ms/op
+Iteration   5: 7.868 ms/op
+
+# Run progress: 72.55% complete, ETA 00:03:55
+# Fork: 3 of 3
+# Warmup Iteration   1: 10.945 ms/op
+# Warmup Iteration   2: 8.106 ms/op
+# Warmup Iteration   3: 8.122 ms/op
+Iteration   1: 8.100 ms/op
+Iteration   2: 8.150 ms/op
+Iteration   3: 8.123 ms/op
+Iteration   4: 8.094 ms/op
+Iteration   5: 8.092 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  8.003 ±(99.9%) 0.119 ms/op [Average]
+  (min, avg, max) = (7.841, 8.003, 8.150), stdev = 0.111
+  CI (99.9%): [7.884, 8.122] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 73.53% complete, ETA 00:03:46
+# Fork: 1 of 3
+# Warmup Iteration   1: 33.417 ms/op
+# Warmup Iteration   2: 26.519 ms/op
+# Warmup Iteration   3: 25.849 ms/op
+Iteration   1: 25.727 ms/op
+Iteration   2: 25.810 ms/op
+Iteration   3: 25.795 ms/op
+Iteration   4: 25.804 ms/op
+Iteration   5: 25.937 ms/op
+
+# Run progress: 74.51% complete, ETA 00:03:38
+# Fork: 2 of 3
+# Warmup Iteration   1: 32.098 ms/op
+# Warmup Iteration   2: 27.460 ms/op
+# Warmup Iteration   3: 26.695 ms/op
+Iteration   1: 26.246 ms/op
+Iteration   2: 26.154 ms/op
+Iteration   3: 26.215 ms/op
+Iteration   4: 26.135 ms/op
+Iteration   5: 26.432 ms/op
+
+# Run progress: 75.49% complete, ETA 00:03:29
+# Fork: 3 of 3
+# Warmup Iteration   1: 31.866 ms/op
+# Warmup Iteration   2: 26.799 ms/op
+# Warmup Iteration   3: 26.008 ms/op
+Iteration   1: 26.180 ms/op
+Iteration   2: 25.912 ms/op
+Iteration   3: 25.864 ms/op
+Iteration   4: 26.734 ms/op
+Iteration   5: 26.150 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertIntToLong":
+  26.073 ±(99.9%) 0.296 ms/op [Average]
+  (min, avg, max) = (25.727, 26.073, 26.734), stdev = 0.276
+  CI (99.9%): [25.777, 26.368] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 76.47% complete, ETA 00:03:21
+# Fork: 1 of 3
+# Warmup Iteration   1: 16.449 ms/op
+# Warmup Iteration   2: 11.104 ms/op
+# Warmup Iteration   3: 11.034 ms/op
+Iteration   1: 11.057 ms/op
+Iteration   2: 11.020 ms/op
+Iteration   3: 11.144 ms/op
+Iteration   4: 11.109 ms/op
+Iteration   5: 11.100 ms/op
+
+# Run progress: 77.45% complete, ETA 00:03:13
+# Fork: 2 of 3
+# Warmup Iteration   1: 16.224 ms/op
+# Warmup Iteration   2: 10.740 ms/op
+# Warmup Iteration   3: 10.834 ms/op
+Iteration   1: 10.758 ms/op
+Iteration   2: 10.741 ms/op
+Iteration   3: 10.794 ms/op
+Iteration   4: 10.708 ms/op
+Iteration   5: 10.762 ms/op
+
+# Run progress: 78.43% complete, ETA 00:03:04
+# Fork: 3 of 3
+# Warmup Iteration   1: 15.995 ms/op
+# Warmup Iteration   2: 10.895 ms/op
+# Warmup Iteration   3: 10.893 ms/op
+Iteration   1: 10.877 ms/op
+Iteration   2: 10.809 ms/op
+Iteration   3: 10.802 ms/op
+Iteration   4: 10.790 ms/op
+Iteration   5: 10.762 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  10.882 ±(99.9%) 0.167 ms/op [Average]
+  (min, avg, max) = (10.708, 10.882, 11.144), stdev = 0.156
+  CI (99.9%): [10.716, 11.049] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 79.41% complete, ETA 00:02:56
+# Fork: 1 of 3
+# Warmup Iteration   1: 36.569 ms/op
+# Warmup Iteration   2: 27.977 ms/op
+# Warmup Iteration   3: 27.835 ms/op
+Iteration   1: 28.105 ms/op
+Iteration   2: 28.063 ms/op
+Iteration   3: 28.058 ms/op
+Iteration   4: 28.047 ms/op
+Iteration   5: 28.043 ms/op
+
+# Run progress: 80.39% complete, ETA 00:02:47
+# Fork: 2 of 3
+# Warmup Iteration   1: 37.326 ms/op
+# Warmup Iteration   2: 27.983 ms/op
+# Warmup Iteration   3: 28.119 ms/op
+Iteration   1: 28.031 ms/op
+Iteration   2: 27.985 ms/op
+Iteration   3: 27.743 ms/op
+Iteration   4: 28.140 ms/op
+Iteration   5: 28.016 ms/op
+
+# Run progress: 81.37% complete, ETA 00:02:39
+# Fork: 3 of 3
+# Warmup Iteration   1: 36.131 ms/op
+# Warmup Iteration   2: 27.862 ms/op
+# Warmup Iteration   3: 28.029 ms/op
+Iteration   1: 27.790 ms/op
+Iteration   2: 27.603 ms/op
+Iteration   3: 27.588 ms/op
+Iteration   4: 27.642 ms/op
+Iteration   5: 27.702 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  27.904 ±(99.9%) 0.214 ms/op [Average]
+  (min, avg, max) = (27.588, 27.904, 28.140), stdev = 0.200
+  CI (99.9%): [27.690, 28.117] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 82.35% complete, ETA 00:02:30
+# Fork: 1 of 3
+# Warmup Iteration   1: 13.634 ms/op
+# Warmup Iteration   2: 10.730 ms/op
+# Warmup Iteration   3: 10.658 ms/op
+Iteration   1: 10.628 ms/op
+Iteration   2: 10.687 ms/op
+Iteration   3: 10.655 ms/op
+Iteration   4: 10.725 ms/op
+Iteration   5: 10.662 ms/op
+
+# Run progress: 83.33% complete, ETA 00:02:22
+# Fork: 2 of 3
+# Warmup Iteration   1: 13.398 ms/op
+# Warmup Iteration   2: 10.416 ms/op
+# Warmup Iteration   3: 10.447 ms/op
+Iteration   1: 10.406 ms/op
+Iteration   2: 10.492 ms/op
+Iteration   3: 10.406 ms/op
+Iteration   4: 10.398 ms/op
+Iteration   5: 10.548 ms/op
+
+# Run progress: 84.31% complete, ETA 00:02:14
+# Fork: 3 of 3
+# Warmup Iteration   1: 13.389 ms/op
+# Warmup Iteration   2: 10.336 ms/op
+# Warmup Iteration   3: 10.327 ms/op
+Iteration   1: 10.400 ms/op
+Iteration   2: 10.304 ms/op
+Iteration   3: 10.310 ms/op
+Iteration   4: 10.695 ms/op
+Iteration   5: 10.768 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  10.539 ±(99.9%) 0.170 ms/op [Average]
+  (min, avg, max) = (10.304, 10.539, 10.768), stdev = 0.159
+  CI (99.9%): [10.369, 10.709] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 85.29% complete, ETA 00:02:05
+# Fork: 1 of 3
+# Warmup Iteration   1: 37.223 ms/op
+# Warmup Iteration   2: 29.880 ms/op
+# Warmup Iteration   3: 29.947 ms/op
+Iteration   1: 29.963 ms/op
+Iteration   2: 29.934 ms/op
+Iteration   3: 29.690 ms/op
+Iteration   4: 29.603 ms/op
+Iteration   5: 29.950 ms/op
+
+# Run progress: 86.27% complete, ETA 00:01:57
+# Fork: 2 of 3
+# Warmup Iteration   1: 36.795 ms/op
+# Warmup Iteration   2: 29.477 ms/op
+# Warmup Iteration   3: 29.401 ms/op
+Iteration   1: 29.472 ms/op
+Iteration   2: 29.368 ms/op
+Iteration   3: 29.423 ms/op
+Iteration   4: 29.323 ms/op
+Iteration   5: 29.110 ms/op
+
+# Run progress: 87.25% complete, ETA 00:01:48
+# Fork: 3 of 3
+# Warmup Iteration   1: 36.846 ms/op
+# Warmup Iteration   2: 29.072 ms/op
+# Warmup Iteration   3: 28.943 ms/op
+Iteration   1: 28.957 ms/op
+Iteration   2: 29.014 ms/op
+Iteration   3: 29.007 ms/op
+Iteration   4: 29.038 ms/op
+Iteration   5: 29.225 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertLong":
+  29.405 ±(99.9%) 0.382 ms/op [Average]
+  (min, avg, max) = (28.957, 29.405, 29.963), stdev = 0.357
+  CI (99.9%): [29.023, 29.787] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 64, keyOrder = ASCENDING)
+
+# Run progress: 88.24% complete, ETA 00:01:40
+# Fork: 1 of 3
+# Warmup Iteration   1: 14.030 ms/op
+# Warmup Iteration   2: 10.548 ms/op
+# Warmup Iteration   3: 10.296 ms/op
+Iteration   1: 10.281 ms/op
+Iteration   2: 10.305 ms/op
+Iteration   3: 10.301 ms/op
+Iteration   4: 10.399 ms/op
+Iteration   5: 10.560 ms/op
+
+# Run progress: 89.22% complete, ETA 00:01:32
+# Fork: 2 of 3
+# Warmup Iteration   1: 14.935 ms/op
+# Warmup Iteration   2: 10.921 ms/op
+# Warmup Iteration   3: 10.999 ms/op
+Iteration   1: 11.135 ms/op
+Iteration   2: 10.972 ms/op
+Iteration   3: 10.922 ms/op
+Iteration   4: 10.895 ms/op
+Iteration   5: 10.911 ms/op
+
+# Run progress: 90.20% complete, ETA 00:01:23
+# Fork: 3 of 3
+# Warmup Iteration   1: 17.726 ms/op
+# Warmup Iteration   2: 11.914 ms/op
+# Warmup Iteration   3: 11.872 ms/op
+Iteration   1: 11.963 ms/op
+Iteration   2: 11.817 ms/op
+Iteration   3: 11.808 ms/op
+Iteration   4: 11.870 ms/op
+Iteration   5: 11.825 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  11.064 ±(99.9%) 0.683 ms/op [Average]
+  (min, avg, max) = (10.281, 11.064, 11.963), stdev = 0.639
+  CI (99.9%): [10.381, 11.747] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 64, keyOrder = RANDOM)
+
+# Run progress: 91.18% complete, ETA 00:01:15
+# Fork: 1 of 3
+# Warmup Iteration   1: 42.372 ms/op
+# Warmup Iteration   2: 34.712 ms/op
+# Warmup Iteration   3: 33.688 ms/op
+Iteration   1: 33.987 ms/op
+Iteration   2: 35.055 ms/op
+Iteration   3: 34.164 ms/op
+Iteration   4: 32.839 ms/op
+Iteration   5: 32.523 ms/op
+
+# Run progress: 92.16% complete, ETA 00:01:07
+# Fork: 2 of 3
+# Warmup Iteration   1: 44.591 ms/op
+# Warmup Iteration   2: 35.960 ms/op
+# Warmup Iteration   3: 35.423 ms/op
+Iteration   1: 35.482 ms/op
+Iteration   2: 34.808 ms/op
+Iteration   3: 34.734 ms/op
+Iteration   4: 34.755 ms/op
+Iteration   5: 34.694 ms/op
+
+# Run progress: 93.14% complete, ETA 00:00:58
+# Fork: 3 of 3
+# Warmup Iteration   1: 44.724 ms/op
+# Warmup Iteration   2: 36.610 ms/op
+# Warmup Iteration   3: 36.474 ms/op
+Iteration   1: 34.971 ms/op
+Iteration   2: 35.124 ms/op
+Iteration   3: 34.422 ms/op
+Iteration   4: 34.571 ms/op
+Iteration   5: 34.686 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  34.454 ±(99.9%) 0.866 ms/op [Average]
+  (min, avg, max) = (32.523, 34.454, 35.482), stdev = 0.810
+  CI (99.9%): [33.588, 35.320] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 256, keyOrder = ASCENDING)
+
+# Run progress: 94.12% complete, ETA 00:00:50
+# Fork: 1 of 3
+# Warmup Iteration   1: 12.855 ms/op
+# Warmup Iteration   2: 9.909 ms/op
+# Warmup Iteration   3: 9.912 ms/op
+Iteration   1: 9.953 ms/op
+Iteration   2: 9.948 ms/op
+Iteration   3: 10.548 ms/op
+Iteration   4: 9.928 ms/op
+Iteration   5: 10.588 ms/op
+
+# Run progress: 95.10% complete, ETA 00:00:41
+# Fork: 2 of 3
+# Warmup Iteration   1: 14.318 ms/op
+# Warmup Iteration   2: 11.238 ms/op
+# Warmup Iteration   3: 11.231 ms/op
+Iteration   1: 11.254 ms/op
+Iteration   2: 11.272 ms/op
+Iteration   3: 11.249 ms/op
+Iteration   4: 11.246 ms/op
+Iteration   5: 11.233 ms/op
+
+# Run progress: 96.08% complete, ETA 00:00:33
+# Fork: 3 of 3
+# Warmup Iteration   1: 15.905 ms/op
+# Warmup Iteration   2: 12.956 ms/op
+# Warmup Iteration   3: 13.056 ms/op
+Iteration   1: 13.485 ms/op
+Iteration   2: 12.547 ms/op
+Iteration   3: 12.424 ms/op
+Iteration   4: 12.208 ms/op
+Iteration   5: 12.244 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  11.342 ±(99.9%) 1.139 ms/op [Average]
+  (min, avg, max) = (9.928, 11.342, 13.485), stdev = 1.065
+  CI (99.9%): [10.203, 12.481] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 21.0.11, OpenJDK 64-Bit Server VM, 21.0.11+10-1-24.04.2-Ubuntu
+# VM invoker: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+# VM options: -Xmx12g
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject
+# Parameters: (blockSize = 256, keyOrder = RANDOM)
+
+# Run progress: 97.06% complete, ETA 00:00:25
+# Fork: 1 of 3
+# Warmup Iteration   1: 44.245 ms/op
+# Warmup Iteration   2: 40.241 ms/op
+# Warmup Iteration   3: 39.547 ms/op
+Iteration   1: 39.591 ms/op
+Iteration   2: 39.162 ms/op
+Iteration   3: 39.407 ms/op
+Iteration   4: 39.044 ms/op
+Iteration   5: 39.267 ms/op
+
+# Run progress: 98.04% complete, ETA 00:00:16
+# Fork: 2 of 3
+# Warmup Iteration   1: 46.106 ms/op
+# Warmup Iteration   2: 40.762 ms/op
+# Warmup Iteration   3: 40.556 ms/op
+Iteration   1: 40.012 ms/op
+Iteration   2: 40.123 ms/op
+Iteration   3: 39.665 ms/op
+Iteration   4: 39.297 ms/op
+Iteration   5: 40.560 ms/op
+
+# Run progress: 99.02% complete, ETA 00:00:08
+# Fork: 3 of 3
+# Warmup Iteration   1: 46.866 ms/op
+# Warmup Iteration   2: 41.125 ms/op
+# Warmup Iteration   3: 40.955 ms/op
+Iteration   1: 40.216 ms/op
+Iteration   2: 39.207 ms/op
+Iteration   3: 39.484 ms/op
+Iteration   4: 39.502 ms/op
+Iteration   5: 39.687 ms/op
+
+
+Result "io.evitadb.spike.BPlusTreeCursorAllocationBenchmark.insertObject":
+  39.615 ±(99.9%) 0.467 ms/op [Average]
+  (min, avg, max) = (39.044, 39.615, 40.560), stdev = 0.437
+  CI (99.9%): [39.148, 40.082] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:14:13
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                                                      (blockSize)  (keyOrder)  Mode  Cnt   Score   Error  Units
+BPlusTreeCursorAllocationBenchmark.descendBucket                        64         N/A  avgt   15   1.251 ± 0.104  ms/op
+BPlusTreeCursorAllocationBenchmark.descendBucket                       256         N/A  avgt   15   1.148 ± 0.114  ms/op
+BPlusTreeCursorAllocationBenchmark.descendElement                       64         N/A  avgt   15   1.449 ± 0.614  ms/op
+BPlusTreeCursorAllocationBenchmark.descendElement                      256         N/A  avgt   15   1.221 ± 0.109  ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree           64         N/A  avgt   15   0.953 ± 0.048  ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongCursorFree          256         N/A  avgt   15   0.821 ± 0.029  ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor           64         N/A  avgt   15   0.919 ± 0.200  ms/op
+BPlusTreeCursorAllocationBenchmark.descendIntToLongWithCursor          256         N/A  avgt   15   0.793 ± 0.012  ms/op
+BPlusTreeCursorAllocationBenchmark.descendLong                          64         N/A  avgt   15   0.939 ± 0.014  ms/op
+BPlusTreeCursorAllocationBenchmark.descendLong                         256         N/A  avgt   15   0.901 ± 0.010  ms/op
+BPlusTreeCursorAllocationBenchmark.descendObject                        64         N/A  avgt   15   1.297 ± 0.033  ms/op
+BPlusTreeCursorAllocationBenchmark.descendObject                       256         N/A  avgt   15   1.433 ± 0.079  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket                         64   ASCENDING  avgt   15  11.073 ± 0.183  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket                         64      RANDOM  avgt   15  34.560 ± 0.486  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket                        256   ASCENDING  avgt   15  10.568 ± 0.114  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucket                        256      RANDOM  avgt   15  33.403 ± 0.387  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction            64         N/A  avgt   15   2.346 ± 0.098  ms/op
+BPlusTreeCursorAllocationBenchmark.insertBucketInTransaction           256         N/A  avgt   15   2.524 ± 0.105  ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement                        64   ASCENDING  avgt   15  10.459 ± 0.364  ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement                        64      RANDOM  avgt   15  33.365 ± 2.582  ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement                       256   ASCENDING  avgt   15   9.175 ± 0.171  ms/op
+BPlusTreeCursorAllocationBenchmark.insertElement                       256      RANDOM  avgt   15  35.647 ± 0.961  ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                      64   ASCENDING  avgt   15   7.882 ± 0.340  ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                      64      RANDOM  avgt   15  24.202 ± 0.245  ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                     256   ASCENDING  avgt   15   8.003 ± 0.119  ms/op
+BPlusTreeCursorAllocationBenchmark.insertIntToLong                     256      RANDOM  avgt   15  26.073 ± 0.296  ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong                           64   ASCENDING  avgt   15  10.882 ± 0.167  ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong                           64      RANDOM  avgt   15  27.904 ± 0.214  ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong                          256   ASCENDING  avgt   15  10.539 ± 0.170  ms/op
+BPlusTreeCursorAllocationBenchmark.insertLong                          256      RANDOM  avgt   15  29.405 ± 0.382  ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject                         64   ASCENDING  avgt   15  11.064 ± 0.683  ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject                         64      RANDOM  avgt   15  34.454 ± 0.866  ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject                        256   ASCENDING  avgt   15  11.342 ± 1.139  ms/op
+BPlusTreeCursorAllocationBenchmark.insertObject                        256      RANDOM  avgt   15  39.615 ± 0.467  ms/op
+JMH_EXIT=0
+LOAD_AT_END: 1.71 1.69 3.20 1/5107 548642
