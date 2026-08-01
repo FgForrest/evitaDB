@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for opening a transaction.
+ * Response to GetTransactionId request, returned after a new transaction is opened.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse}
@@ -296,7 +296,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for opening a transaction.
+   * Response to GetTransactionId request, returned after a new transaction is opened.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse}

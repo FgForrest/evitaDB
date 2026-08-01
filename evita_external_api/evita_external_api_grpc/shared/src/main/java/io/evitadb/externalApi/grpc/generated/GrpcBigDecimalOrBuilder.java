@@ -33,7 +33,10 @@ public interface GrpcBigDecimalOrBuilder extends
 
   /**
    * <pre>
-   * The string serialized value.
+   * The decimal value serialized as a string in the canonical form produced by
+   * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+   * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+   * exactly.
    * </pre>
    *
    * <code>string valueString = 1;</code>
@@ -42,7 +45,10 @@ public interface GrpcBigDecimalOrBuilder extends
   java.lang.String getValueString();
   /**
    * <pre>
-   * The string serialized value.
+   * The decimal value serialized as a string in the canonical form produced by
+   * `BigDecimal#toString()`, with the exponent marker lower-cased and its `+` sign stripped
+   * (e.g. `2.5e8` rather than `2.5E+8`). Preserves the original scale so the value round-trips
+   * exactly.
    * </pre>
    *
    * <code>string valueString = 1;</code>

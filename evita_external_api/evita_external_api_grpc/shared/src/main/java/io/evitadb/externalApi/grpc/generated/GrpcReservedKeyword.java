@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Single reserved keyword
+ * A single reserved keyword that cannot be used as a classifier of the given type (e.g. as an
+ * entity type, attribute name, or reference name) - client-side validation of user-supplied
+ * classifiers can use this list to reject collisions early, before the server does.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword}
@@ -74,7 +76,7 @@ private static final long serialVersionUID = 0L;
   private int classifierType_ = 0;
   /**
    * <pre>
-   * Type of the keyword
+   * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -85,7 +87,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Type of the keyword
+   * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -101,7 +103,9 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object classifier_ = "";
   /**
    * <pre>
-   * Reserved keyword
+   * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+   * colliding if it matches this value in any of evitaDB's supported naming conventions
+   * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
    * </pre>
    *
    * <code>string classifier = 2;</code>
@@ -122,7 +126,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Reserved keyword
+   * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+   * colliding if it matches this value in any of evitaDB's supported naming conventions
+   * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
    * </pre>
    *
    * <code>string classifier = 2;</code>
@@ -149,7 +155,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -161,7 +168,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -172,7 +180,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -184,7 +193,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * List of words that are part of the keyword
+   * The individual words `classifier` is composed of, used to detect a collision across the
+   * supported naming conventions regardless of separator or case.
    * </pre>
    *
    * <code>repeated string words = 3;</code>
@@ -381,7 +391,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Single reserved keyword
+   * A single reserved keyword that cannot be used as a classifier of the given type (e.g. as an
+   * entity type, attribute name, or reference name) - client-side validation of user-supplied
+   * classifiers can use this list to reject collisions early, before the server does.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcReservedKeyword}
@@ -590,7 +602,7 @@ private static final long serialVersionUID = 0L;
     private int classifierType_ = 0;
     /**
      * <pre>
-     * Type of the keyword
+     * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -601,7 +613,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the keyword
+     * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -616,7 +628,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the keyword
+     * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -629,7 +641,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the keyword
+     * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -647,7 +659,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Type of the keyword
+     * The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcClassifierType classifierType = 1;</code>
@@ -663,7 +675,9 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object classifier_ = "";
     /**
      * <pre>
-     * Reserved keyword
+     * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+     * colliding if it matches this value in any of evitaDB's supported naming conventions
+     * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
      * </pre>
      *
      * <code>string classifier = 2;</code>
@@ -683,7 +697,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Reserved keyword
+     * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+     * colliding if it matches this value in any of evitaDB's supported naming conventions
+     * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
      * </pre>
      *
      * <code>string classifier = 2;</code>
@@ -704,7 +720,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Reserved keyword
+     * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+     * colliding if it matches this value in any of evitaDB's supported naming conventions
+     * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
      * </pre>
      *
      * <code>string classifier = 2;</code>
@@ -721,7 +739,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Reserved keyword
+     * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+     * colliding if it matches this value in any of evitaDB's supported naming conventions
+     * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
      * </pre>
      *
      * <code>string classifier = 2;</code>
@@ -735,7 +755,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Reserved keyword
+     * The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+     * colliding if it matches this value in any of evitaDB's supported naming conventions
+     * (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
      * </pre>
      *
      * <code>string classifier = 2;</code>
@@ -762,7 +784,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -775,7 +798,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -786,7 +810,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -798,7 +823,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -811,7 +837,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -830,7 +857,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -848,7 +876,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -866,7 +895,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>
@@ -881,7 +911,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * List of words that are part of the keyword
+     * The individual words `classifier` is composed of, used to detect a collision across the
+     * supported naming conventions regardless of separator or case.
      * </pre>
      *
      * <code>repeated string words = 3;</code>

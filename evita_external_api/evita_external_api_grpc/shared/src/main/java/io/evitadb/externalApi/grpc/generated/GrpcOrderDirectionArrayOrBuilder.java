@@ -33,7 +33,7 @@ public interface GrpcOrderDirectionArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an OrderDirection array.
+   * The individual OrderDirection values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcOrderDirectionArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcOrderDirection> getValueList();
   /**
    * <pre>
-   * Value that supports storing an OrderDirection array.
+   * The individual OrderDirection values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcOrderDirectionArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an OrderDirection array.
+   * The individual OrderDirection values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcOrderDirectionArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getValue(int index);
   /**
    * <pre>
-   * Value that supports storing an OrderDirection array.
+   * The individual OrderDirection values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcOrderDirectionArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing an OrderDirection array.
+   * The individual OrderDirection values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value = 1;</code>

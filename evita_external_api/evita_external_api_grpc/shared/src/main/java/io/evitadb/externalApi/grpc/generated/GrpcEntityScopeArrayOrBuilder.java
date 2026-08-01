@@ -33,7 +33,7 @@ public interface GrpcEntityScopeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcEntityScopeArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getValueList();
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcEntityScopeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcEntityScopeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityScope getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcEntityScopeArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a Scope array.
+   * The individual Scope values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope value = 1;</code>

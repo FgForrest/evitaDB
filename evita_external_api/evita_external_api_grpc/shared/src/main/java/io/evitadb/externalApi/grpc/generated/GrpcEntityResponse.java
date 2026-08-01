@@ -71,7 +71,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity_;
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -83,7 +84,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -95,7 +97,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The found entity.
+   * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+   * `entityType` within the requested `scopes`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -461,7 +464,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> entityBuilder_;
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -472,7 +476,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -487,7 +492,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -507,7 +513,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -525,7 +532,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -550,7 +558,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -567,7 +576,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -579,7 +589,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>
@@ -594,7 +605,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The found entity.
+     * The found entity. Unset (not an error) if no entity with the requested primary key exists in
+     * `entityType` within the requested `scopes`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 1;</code>

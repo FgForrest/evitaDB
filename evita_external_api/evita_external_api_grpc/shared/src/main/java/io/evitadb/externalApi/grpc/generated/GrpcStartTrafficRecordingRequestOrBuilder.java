@@ -54,7 +54,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
 
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -63,7 +64,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   boolean hasMaxDurationInMilliseconds();
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -72,7 +74,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   com.google.protobuf.Int64Value getMaxDurationInMilliseconds();
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -81,7 +84,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
 
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -90,7 +94,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   boolean hasMaxFileSizeInBytes();
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -99,7 +104,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   com.google.protobuf.Int64Value getMaxFileSizeInBytes();
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -108,7 +114,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
 
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -117,7 +124,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   boolean hasChunkFileSizeInBytes();
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -126,7 +134,8 @@ public interface GrpcStartTrafficRecordingRequestOrBuilder extends
   com.google.protobuf.Int64Value getChunkFileSizeInBytes();
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>

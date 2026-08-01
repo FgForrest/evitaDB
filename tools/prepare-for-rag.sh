@@ -42,6 +42,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DOC_ROOT="${PROJECT_ROOT}/documentation"
 
+# Subtrees of documentation/ that must never reach a RAG corpus, relative to DOC_ROOT.
+# adr/ holds internal engineering decision records: unfixed-defect disclosures, production dataset
+# names, advisory verdicts and rejected-design rationale. They are written for maintainers reading
+# them deliberately, not for an assistant answering user questions out of context.
+declare -a EXCLUDED_SUBTREES=("adr")
+
 # Language mappings
 declare -A LANG_MAP=(
     ["j"]="java"
@@ -465,7 +471,15 @@ process_markdown_file() {
 # Main processing loop
 echo -e "\n${GREEN}Searching for markdown files...${NC}"
 
-# Find all markdown files in documentation folder
+# Find all markdown files in documentation folder, skipping the excluded subtrees
+declare -a FIND_PRUNE=()
+for excluded_subtree in "${EXCLUDED_SUBTREES[@]}"; do
+    if [ -d "${DOC_ROOT}/${excluded_subtree}" ]; then
+        FIND_PRUNE+=(-path "${DOC_ROOT}/${excluded_subtree}" -prune -o)
+        echo -e "${YELLOW}Excluding documentation/${excluded_subtree}/ from the corpus${NC}"
+    fi
+done
+
 file_count=0
 processed=0
 while IFS= read -r -d '' markdown_file; do
@@ -476,7 +490,7 @@ while IFS= read -r -d '' markdown_file; do
     if [ $((file_count % 50)) -eq 0 ]; then
         echo -e "${GREEN}Progress: ${file_count} files processed...${NC}"
     fi
-done < <(find "$DOC_ROOT" -type f -name "*.md" -print0)
+done < <(find "$DOC_ROOT" "${FIND_PRUNE[@]}" -type f -name "*.md" -print0)
 
 echo -e "\n${GREEN}Processing complete!${NC}"
 echo -e "${GREEN}Processed ${file_count} markdown files${NC}"

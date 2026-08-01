@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Information about a system endpoint of particular purpose derived from name
+ * A named endpoint exposed by an external API, distinct from the API's own base URL(s) (see
+ * `GrpcApiStatus.endpoints`).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEndpoint}
@@ -74,7 +75,9 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object name_ = "";
   /**
    * <pre>
-   * logical name of the endpoint
+   * Logical name identifying what the endpoint serves. For the system API - currently the only API
+   * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+   * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
    * </pre>
    *
    * <code>string name = 1;</code>
@@ -95,7 +98,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * logical name of the endpoint
+   * Logical name identifying what the endpoint serves. For the system API - currently the only API
+   * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+   * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
    * </pre>
    *
    * <code>string name = 1;</code>
@@ -122,7 +127,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -134,7 +140,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -145,7 +152,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -157,7 +165,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -344,7 +353,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Information about a system endpoint of particular purpose derived from name
+   * A named endpoint exposed by an external API, distinct from the API's own base URL(s) (see
+   * `GrpcApiStatus.endpoints`).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEndpoint}
@@ -541,7 +551,9 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object name_ = "";
     /**
      * <pre>
-     * logical name of the endpoint
+     * Logical name identifying what the endpoint serves. For the system API - currently the only API
+     * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+     * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
      * </pre>
      *
      * <code>string name = 1;</code>
@@ -561,7 +573,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * logical name of the endpoint
+     * Logical name identifying what the endpoint serves. For the system API - currently the only API
+     * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+     * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
      * </pre>
      *
      * <code>string name = 1;</code>
@@ -582,7 +596,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * logical name of the endpoint
+     * Logical name identifying what the endpoint serves. For the system API - currently the only API
+     * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+     * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
      * </pre>
      *
      * <code>string name = 1;</code>
@@ -599,7 +615,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * logical name of the endpoint
+     * Logical name identifying what the endpoint serves. For the system API - currently the only API
+     * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+     * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
      * </pre>
      *
      * <code>string name = 1;</code>
@@ -613,7 +631,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * logical name of the endpoint
+     * Logical name identifying what the endpoint serves. For the system API - currently the only API
+     * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+     * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
      * </pre>
      *
      * <code>string name = 1;</code>
@@ -640,7 +660,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -653,7 +674,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -664,7 +686,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -676,7 +699,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -689,7 +713,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -708,7 +733,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -726,7 +752,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -744,7 +771,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>
@@ -759,7 +787,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * absolute URL of the endpoint
+     * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+     * commonly holds more than one URL even though the field name is singular.
      * </pre>
      *
      * <code>repeated string url = 2;</code>

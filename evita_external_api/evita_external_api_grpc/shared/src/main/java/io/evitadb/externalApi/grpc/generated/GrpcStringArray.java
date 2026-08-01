@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Wrapper for representing an array of strings.
+ * Wrapper for representing an array of strings. Also used to carry a Character array — each
+ * element is then a single-character string; which Java array type applies is determined by the
+ * accompanying GrpcEvitaDataType (STRING_ARRAY vs CHARACTER_ARRAY).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStringArray}
@@ -74,7 +76,8 @@ private static final long serialVersionUID = 0L;
       com.google.protobuf.LazyStringArrayList.emptyList();
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -86,7 +89,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -97,7 +101,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -109,7 +114,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a string array.
+   * The individual string (or, for a character array, single-character) elements, in their
+   * original order.
    * </pre>
    *
    * <code>repeated string value = 1;</code>
@@ -286,7 +292,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Wrapper for representing an array of strings.
+   * Wrapper for representing an array of strings. Also used to carry a Character array — each
+   * element is then a single-character string; which Java array type applies is determined by the
+   * accompanying GrpcEvitaDataType (STRING_ARRAY vs CHARACTER_ARRAY).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStringArray}
@@ -476,7 +484,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -489,7 +498,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -500,7 +510,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -512,7 +523,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -525,7 +537,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -544,7 +557,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -562,7 +576,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -580,7 +595,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>
@@ -595,7 +611,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a string array.
+     * The individual string (or, for a character array, single-character) elements, in their
+     * original order.
      * </pre>
      *
      * <code>repeated string value = 1;</code>

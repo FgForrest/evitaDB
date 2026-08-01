@@ -71,7 +71,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value chunkFileSizeInBytes_;
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -83,7 +84,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -95,7 +97,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -461,7 +464,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> chunkFileSizeInBytesBuilder_;
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -472,7 +476,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -487,7 +492,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -507,7 +513,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -525,7 +532,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -550,7 +558,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -567,7 +576,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -579,7 +589,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -594,7 +605,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>

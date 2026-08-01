@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that represents a strip within a data chunk.
+ * Strip/offset-based pagination descriptor for a `GrpcDataChunk` - the alternative to `GrpcPaginatedList`
+ * used when the query's `require` block specifies a `strip()` requirement instead of `page()`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStripList}
@@ -70,7 +71,7 @@ private static final long serialVersionUID = 0L;
   private int limit_ = 0;
   /**
    * <pre>
-   * The size of the strip.
+   * Maximum number of records returned in this strip.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -85,7 +86,9 @@ private static final long serialVersionUID = 0L;
   private int offset_ = 0;
   /**
    * <pre>
-   * The offset of the strip - count of records from the beginning to skip.
+   * Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+   * an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+   * page number.
    * </pre>
    *
    * <code>int32 offset = 2;</code>
@@ -266,7 +269,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that represents a strip within a data chunk.
+   * Strip/offset-based pagination descriptor for a `GrpcDataChunk` - the alternative to `GrpcPaginatedList`
+   * used when the query's `require` block specifies a `strip()` requirement instead of `page()`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStripList}
@@ -451,7 +455,7 @@ private static final long serialVersionUID = 0L;
     private int limit_ ;
     /**
      * <pre>
-     * The size of the strip.
+     * Maximum number of records returned in this strip.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -463,7 +467,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the strip.
+     * Maximum number of records returned in this strip.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -479,7 +483,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the strip.
+     * Maximum number of records returned in this strip.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -495,7 +499,9 @@ private static final long serialVersionUID = 0L;
     private int offset_ ;
     /**
      * <pre>
-     * The offset of the strip - count of records from the beginning to skip.
+     * Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+     * an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+     * page number.
      * </pre>
      *
      * <code>int32 offset = 2;</code>
@@ -507,7 +513,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset of the strip - count of records from the beginning to skip.
+     * Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+     * an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+     * page number.
      * </pre>
      *
      * <code>int32 offset = 2;</code>
@@ -523,7 +531,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset of the strip - count of records from the beginning to skip.
+     * Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+     * an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+     * page number.
      * </pre>
      *
      * <code>int32 offset = 2;</code>

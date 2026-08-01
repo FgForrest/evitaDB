@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid uuid_;
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -84,7 +85,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -96,7 +98,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -110,7 +113,9 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture_;
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -122,7 +127,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -134,7 +141,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -148,8 +157,9 @@ private static final long serialVersionUID = 0L;
   private int responseType_ = 0;
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+   * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+   * event has occurred.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -160,8 +170,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+   * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+   * event has occurred.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -176,7 +187,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat_;
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -188,7 +199,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -200,7 +211,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -664,7 +675,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidBuilder_;
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -675,7 +687,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -690,7 +703,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -710,7 +724,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -728,7 +743,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -753,7 +769,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -770,7 +787,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -782,7 +800,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -797,7 +816,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered capture
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+     * subscription id is available), unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -821,7 +841,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture.Builder, io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureOrBuilder> captureBuilder_;
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -832,7 +854,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -847,7 +871,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -867,7 +893,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -885,7 +913,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -910,7 +940,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -927,7 +959,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -939,7 +973,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -954,7 +990,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations (CDC events) that match the criteria
+     * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+     * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+     * responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -976,8 +1014,9 @@ private static final long serialVersionUID = 0L;
     private int responseType_ = 0;
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+     * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+     * event has occurred.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -988,8 +1027,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+     * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+     * event has occurred.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1004,8 +1044,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+     * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+     * event has occurred.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1018,8 +1059,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+     * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+     * event has occurred.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1037,8 +1079,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The type of the response - when subscription is set-up, acknowledgement is sent
-     * Then with each capture event, the type is set to `change`
+     * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+     * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+     * event has occurred.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -1056,7 +1099,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcHeartBeat, io.evitadb.externalApi.grpc.generated.GrpcHeartBeat.Builder, io.evitadb.externalApi.grpc.generated.GrpcHeartBeatOrBuilder> heartBeatBuilder_;
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1067,7 +1110,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1082,7 +1125,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1102,7 +1145,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1120,7 +1163,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1145,7 +1188,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1162,7 +1205,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1174,7 +1217,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -1189,7 +1232,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+     * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>

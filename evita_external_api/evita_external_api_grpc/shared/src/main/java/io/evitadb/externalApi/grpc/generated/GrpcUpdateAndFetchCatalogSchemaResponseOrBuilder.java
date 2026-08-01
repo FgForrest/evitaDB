@@ -33,7 +33,7 @@ public interface GrpcUpdateAndFetchCatalogSchemaResponseOrBuilder extends
 
   /**
    * <pre>
-   * Modified catalog schema.
+   * The catalog schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcUpdateAndFetchCatalogSchemaResponseOrBuilder extends
   boolean hasCatalogSchema();
   /**
    * <pre>
-   * Modified catalog schema.
+   * The catalog schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcUpdateAndFetchCatalogSchemaResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema getCatalogSchema();
   /**
    * <pre>
-   * Modified catalog schema.
+   * The catalog schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>

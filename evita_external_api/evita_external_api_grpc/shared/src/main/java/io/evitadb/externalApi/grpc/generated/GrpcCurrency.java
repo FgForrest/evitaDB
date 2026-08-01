@@ -72,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object code_ = "";
   /**
    * <pre>
-   * The currency code of the currency.
+   * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+   * `Currency#getInstance(String)`.
    * </pre>
    *
    * <code>string code = 1;</code>
@@ -93,7 +94,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The currency code of the currency.
+   * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+   * `Currency#getInstance(String)`.
    * </pre>
    *
    * <code>string code = 1;</code>
@@ -447,7 +449,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object code_ = "";
     /**
      * <pre>
-     * The currency code of the currency.
+     * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+     * `Currency#getInstance(String)`.
      * </pre>
      *
      * <code>string code = 1;</code>
@@ -467,7 +470,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency code of the currency.
+     * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+     * `Currency#getInstance(String)`.
      * </pre>
      *
      * <code>string code = 1;</code>
@@ -488,7 +492,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency code of the currency.
+     * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+     * `Currency#getInstance(String)`.
      * </pre>
      *
      * <code>string code = 1;</code>
@@ -505,7 +510,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency code of the currency.
+     * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+     * `Currency#getInstance(String)`.
      * </pre>
      *
      * <code>string code = 1;</code>
@@ -519,7 +525,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency code of the currency.
+     * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+     * `Currency#getInstance(String)`.
      * </pre>
      *
      * <code>string code = 1;</code>

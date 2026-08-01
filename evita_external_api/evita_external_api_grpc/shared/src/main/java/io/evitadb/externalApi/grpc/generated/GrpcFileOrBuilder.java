@@ -33,7 +33,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcFileOrBuilder extends
   boolean hasFileId();
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcFileOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getFileId();
   /**
    * <pre>
-   * Identification of the file
+   * Unique identifier of the file, used to reference it in fetch/download requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 1;</code>
@@ -60,7 +60,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * File name
+   * File name, including extension.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -69,7 +69,7 @@ public interface GrpcFileOrBuilder extends
   java.lang.String getName();
   /**
    * <pre>
-   * File name
+   * File name, including extension.
    * </pre>
    *
    * <code>string name = 2;</code>
@@ -80,7 +80,8 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -89,7 +90,8 @@ public interface GrpcFileOrBuilder extends
   boolean hasDescription();
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -98,7 +100,8 @@ public interface GrpcFileOrBuilder extends
   com.google.protobuf.StringValue getDescription();
   /**
    * <pre>
-   * Detailed description of the file
+   * Human-readable description of the file's purpose or contents. Unset when no description was
+   * provided.
    * </pre>
    *
    * <code>.google.protobuf.StringValue description = 3;</code>
@@ -107,7 +110,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Content type of the file
+   * MIME content type of the file (e.g. `application/zip`).
    * </pre>
    *
    * <code>string contentType = 4;</code>
@@ -116,7 +119,7 @@ public interface GrpcFileOrBuilder extends
   java.lang.String getContentType();
   /**
    * <pre>
-   * Content type of the file
+   * MIME content type of the file (e.g. `application/zip`).
    * </pre>
    *
    * <code>string contentType = 4;</code>
@@ -127,7 +130,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Size of the file in bytes
+   * Size of the file on disk (bytes).
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 5;</code>
@@ -137,7 +140,7 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -146,7 +149,7 @@ public interface GrpcFileOrBuilder extends
   boolean hasCreated();
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -155,7 +158,7 @@ public interface GrpcFileOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
   /**
    * <pre>
-   * Date and time when the file was created
+   * Date and time when the file was created.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 6;</code>
@@ -164,7 +167,8 @@ public interface GrpcFileOrBuilder extends
 
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -173,7 +177,8 @@ public interface GrpcFileOrBuilder extends
   boolean hasOrigin();
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>
@@ -182,7 +187,8 @@ public interface GrpcFileOrBuilder extends
   com.google.protobuf.StringValue getOrigin();
   /**
    * <pre>
-   * Origin of the file (usually the taskType)
+   * Comma-separated identifiers of what produced the file — usually the `taskType` (see
+   * `GrpcTaskStatus.taskType`) of the task that created it. Unset when the origin wasn't recorded.
    * </pre>
    *
    * <code>.google.protobuf.StringValue origin = 7;</code>

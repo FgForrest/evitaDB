@@ -33,7 +33,8 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -42,7 +43,8 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
       getChangeCaptureList();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -50,7 +52,8 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getChangeCapture(int index);
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -58,7 +61,8 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   int getChangeCaptureCount();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -67,7 +71,8 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
       getChangeCaptureOrBuilderList();
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The mutations on this page, newest first. Can be shorter than the requested page size - including
+   * empty - without that implying it is the last page; see the message-level note above.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>

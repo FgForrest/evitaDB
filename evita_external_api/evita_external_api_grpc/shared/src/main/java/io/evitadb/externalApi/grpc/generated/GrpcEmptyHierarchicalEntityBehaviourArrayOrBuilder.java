@@ -33,7 +33,7 @@ public interface GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+   * The individual EmptyHierarchicalEntityBehaviour values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour> getValueList();
   /**
    * <pre>
-   * Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+   * The individual EmptyHierarchicalEntityBehaviour values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+   * The individual EmptyHierarchicalEntityBehaviour values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour getValue(int index);
   /**
    * <pre>
-   * Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+   * The individual EmptyHierarchicalEntityBehaviour values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing an EmptyHierarchicalEntityBehaviour array.
+   * The individual EmptyHierarchicalEntityBehaviour values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour value = 1;</code>

@@ -256,11 +256,12 @@ public interface GrpcUpsertPriceMutationOrBuilder extends
    * entity but won't be considered when evaluating search query. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
+   * RENAMED TO "indexed"
    * </pre>
    *
    * <code>bool sellable = 9 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.sellable is deprecated.
-   *     See GrpcPriceMutations.proto;l=51
+   *     See GrpcPriceMutations.proto;l=52
    * @return The sellable.
    */
   @java.lang.Deprecated boolean getSellable();

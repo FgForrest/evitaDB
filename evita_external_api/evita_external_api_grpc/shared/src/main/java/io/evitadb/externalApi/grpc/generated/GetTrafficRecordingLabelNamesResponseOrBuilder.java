@@ -33,7 +33,7 @@ public interface GetTrafficRecordingLabelNamesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -43,7 +43,7 @@ public interface GetTrafficRecordingLabelNamesResponseOrBuilder extends
       getLabelNameList();
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -52,7 +52,7 @@ public interface GetTrafficRecordingLabelNamesResponseOrBuilder extends
   int getLabelNameCount();
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>
@@ -62,7 +62,7 @@ public interface GetTrafficRecordingLabelNamesResponseOrBuilder extends
   java.lang.String getLabelName(int index);
   /**
    * <pre>
-   * The list of labels names that match the criteria
+   * The label names that match the criteria, ordered by descending cardinality (most frequently used labels first).
    * </pre>
    *
    * <code>repeated string labelName = 1;</code>

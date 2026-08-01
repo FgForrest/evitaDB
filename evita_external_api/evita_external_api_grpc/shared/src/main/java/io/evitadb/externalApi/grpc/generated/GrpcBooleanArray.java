@@ -73,7 +73,7 @@ private static final long serialVersionUID = 0L;
       emptyBooleanList();
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>
@@ -86,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>
@@ -97,7 +97,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a boolean array.
+   * The individual boolean elements, in their original order.
    * </pre>
    *
    * <code>repeated bool value = 1;</code>
@@ -488,7 +488,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -501,7 +501,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -512,7 +512,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -524,7 +524,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -543,7 +543,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -560,7 +560,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>
@@ -578,7 +578,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a boolean array.
+     * The individual boolean elements, in their original order.
      * </pre>
      *
      * <code>repeated bool value = 1;</code>

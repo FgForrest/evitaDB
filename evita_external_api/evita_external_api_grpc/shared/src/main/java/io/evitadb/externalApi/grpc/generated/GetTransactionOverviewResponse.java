@@ -29,7 +29,11 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetTransactionOverview request.
+ * Response to GetTransactionOverview request. Entries are ordered the same way as the requested
+ * `catalogVersion` list. The intended contract (per the underlying Java API) is that a version unknown
+ * to history is silently omitted rather than padded with an empty entry, so the response can be shorter
+ * than the request - but this is currently not honored: a single unknown/purged version makes the whole
+ * RPC fail instead of being omitted (known defect, tracked in #1349).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTransactionOverviewResponse}
@@ -72,7 +76,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview> transactionOverviews_;
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -83,7 +88,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -95,7 +101,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -106,7 +113,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -117,7 +125,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of transaction overviews that match the requested catalog versions
+   * The transaction overviews for the requested catalog versions, in request order - see the
+   * message-level note above for the current gap between the intended and actual completeness contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -289,7 +298,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetTransactionOverview request.
+   * Response to GetTransactionOverview request. Entries are ordered the same way as the requested
+   * `catalogVersion` list. The intended contract (per the underlying Java API) is that a version unknown
+   * to history is silently omitted rather than padded with an empty entry, so the response can be shorter
+   * than the request - but this is currently not honored: a single unknown/purged version makes the whole
+   * RPC fail instead of being omitted (known defect, tracked in #1349).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTransactionOverviewResponse}
@@ -520,7 +533,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -534,7 +548,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -548,7 +563,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -562,7 +578,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -583,7 +600,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -601,7 +619,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -621,7 +640,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -642,7 +662,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -660,7 +681,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -678,7 +700,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -697,7 +720,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -714,7 +738,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -731,7 +756,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -742,7 +768,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -756,7 +783,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -771,7 +799,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -782,7 +811,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
@@ -794,7 +824,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of transaction overviews that match the requested catalog versions
+     * The transaction overviews for the requested catalog versions, in request order - see the
+     * message-level note above for the current gap between the intended and actual completeness contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>

@@ -33,7 +33,7 @@ public interface GrpcIntegerArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcIntegerArrayOrBuilder extends
   java.util.List<java.lang.Integer> getValueList();
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcIntegerArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>

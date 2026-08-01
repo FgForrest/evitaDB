@@ -33,7 +33,9 @@ public interface GrpcEndpointOrBuilder extends
 
   /**
    * <pre>
-   * logical name of the endpoint
+   * Logical name identifying what the endpoint serves. For the system API - currently the only API
+   * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+   * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
    * </pre>
    *
    * <code>string name = 1;</code>
@@ -42,7 +44,9 @@ public interface GrpcEndpointOrBuilder extends
   java.lang.String getName();
   /**
    * <pre>
-   * logical name of the endpoint
+   * Logical name identifying what the endpoint serves. For the system API - currently the only API
+   * that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+   * `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
    * </pre>
    *
    * <code>string name = 1;</code>
@@ -53,7 +57,8 @@ public interface GrpcEndpointOrBuilder extends
 
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -63,7 +68,8 @@ public interface GrpcEndpointOrBuilder extends
       getUrlList();
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -72,7 +78,8 @@ public interface GrpcEndpointOrBuilder extends
   int getUrlCount();
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>
@@ -82,7 +89,8 @@ public interface GrpcEndpointOrBuilder extends
   java.lang.String getUrl(int index);
   /**
    * <pre>
-   * absolute URL of the endpoint
+   * Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+   * commonly holds more than one URL even though the field name is singular.
    * </pre>
    *
    * <code>repeated string url = 2;</code>

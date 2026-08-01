@@ -33,7 +33,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
 
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound (start) of the range. If unset (while `to` is set), the range is
+   * unbounded below (open start).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
   boolean hasFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound (start) of the range. If unset (while `to` is set), the range is
+   * unbounded below (open start).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound (start) of the range. If unset (while `to` is set), the range is
+   * unbounded below (open start).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime from = 1;</code>
@@ -60,7 +63,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
 
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound (end) of the range. If unset (while `from` is set), the range is
+   * unbounded above (open end).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
@@ -69,7 +73,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
   boolean hasTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound (end) of the range. If unset (while `from` is set), the range is
+   * unbounded above (open end).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>
@@ -78,7 +83,8 @@ public interface GrpcDateTimeRangeOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound (end) of the range. If unset (while `from` is set), the range is
+   * unbounded above (open end).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime to = 2;</code>

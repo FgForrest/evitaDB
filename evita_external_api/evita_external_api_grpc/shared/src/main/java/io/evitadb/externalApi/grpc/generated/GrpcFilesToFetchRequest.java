@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to list files to fetch in paginated form.
+ * Request to list files available for fetching, in paginated form.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest}
@@ -71,7 +71,8 @@ private static final long serialVersionUID = 0L;
   private int pageNumber_ = 0;
   /**
    * <pre>
-   * Page number of the task statuses to be listed.
+   * Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+   * (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
    * </pre>
    *
    * <code>int32 pageNumber = 1;</code>
@@ -86,7 +87,7 @@ private static final long serialVersionUID = 0L;
   private int pageSize_ = 0;
   /**
    * <pre>
-   * Number of task statuses per page.
+   * Number of files per page. No server-side maximum is enforced.
    * </pre>
    *
    * <code>int32 pageSize = 2;</code>
@@ -102,8 +103,9 @@ private static final long serialVersionUID = 0L;
   private java.util.List<com.google.protobuf.StringValue> origin_;
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -114,8 +116,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -127,8 +130,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -139,8 +143,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -151,8 +156,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -346,7 +352,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to list files to fetch in paginated form.
+   * Request to list files available for fetching, in paginated form.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFilesToFetchRequest}
@@ -590,7 +596,8 @@ private static final long serialVersionUID = 0L;
     private int pageNumber_ ;
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+     * (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -602,7 +609,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+     * (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -618,7 +626,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Page number of the task statuses to be listed.
+     * Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+     * (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
      * </pre>
      *
      * <code>int32 pageNumber = 1;</code>
@@ -634,7 +643,7 @@ private static final long serialVersionUID = 0L;
     private int pageSize_ ;
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of files per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -646,7 +655,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of files per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -662,7 +671,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of task statuses per page.
+     * Number of files per page. No server-side maximum is enforced.
      * </pre>
      *
      * <code>int32 pageSize = 2;</code>
@@ -689,8 +698,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -704,8 +714,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -719,8 +730,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -734,8 +746,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -756,8 +769,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -775,8 +789,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -796,8 +811,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -818,8 +834,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -837,8 +854,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -856,8 +874,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -876,8 +895,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -894,8 +914,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -912,8 +933,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -924,8 +946,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -939,8 +962,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -955,8 +979,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -967,8 +992,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -980,8 +1006,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Optional origin of the files (derived from taskType), passing non-null value
-     * in this argument filters the returned files to only those that are related to the specified origin
+     * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+     * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+     * values. Empty (the default) means no filtering - files of all origins are returned.
      * </pre>
      *
      * <code>repeated .google.protobuf.StringValue origin = 3;</code>

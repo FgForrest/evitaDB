@@ -33,7 +33,8 @@ public interface GrpcLocaleOrBuilder extends
 
   /**
    * <pre>
-   * The language tag of the locale.
+   * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+   * `Locale#forLanguageTag(String)`.
    * </pre>
    *
    * <code>string languageTag = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcLocaleOrBuilder extends
   java.lang.String getLanguageTag();
   /**
    * <pre>
-   * The language tag of the locale.
+   * IETF BCP 47 language tag (e.g. `en-US`, `cs-CZ`), resolved server-side via
+   * `Locale#forLanguageTag(String)`.
    * </pre>
    *
    * <code>string languageTag = 1;</code>

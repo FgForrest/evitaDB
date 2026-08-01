@@ -29,8 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This enum represents the uniqueness type of an {&#64;link GlobalAttributeSchema}. It is used to determine whether
- * the attribute value must be unique among all the entities using this {&#64;link GlobalAttributeSchema} or whether it
+ * This enum represents the uniqueness type of a `GlobalAttributeSchema`. It is used to determine whether
+ * the attribute value must be unique among all the entities using this `GlobalAttributeSchema` or whether it
  * must be unique only among entities of the same locale.
  * </pre>
  *
@@ -49,7 +49,7 @@ public enum GrpcGlobalAttributeUniquenessType
   /**
    * <pre>
    * The attribute value (either localized or non-localized) must be unique among all values among all the entities
-   * using this {&#64;link GlobalAttributeSchema} in the entire catalog.
+   * using this `GlobalAttributeSchema` in the entire catalog.
    * </pre>
    *
    * <code>UNIQUE_WITHIN_CATALOG = 1;</code>
@@ -57,8 +57,8 @@ public enum GrpcGlobalAttributeUniquenessType
   UNIQUE_WITHIN_CATALOG(1),
   /**
    * <pre>
-   * The localized attribute value must be unique among all values of the same {&#64;link Locale} among all the entities
-   * using this {&#64;link GlobalAttributeSchema} in the entire catalog.
+   * The localized attribute value must be unique among all values of the same `Locale` among all the entities
+   * using this `GlobalAttributeSchema` in the entire catalog.
    * </pre>
    *
    * <code>UNIQUE_WITHIN_CATALOG_LOCALE = 2;</code>
@@ -78,7 +78,7 @@ public enum GrpcGlobalAttributeUniquenessType
   /**
    * <pre>
    * The attribute value (either localized or non-localized) must be unique among all values among all the entities
-   * using this {&#64;link GlobalAttributeSchema} in the entire catalog.
+   * using this `GlobalAttributeSchema` in the entire catalog.
    * </pre>
    *
    * <code>UNIQUE_WITHIN_CATALOG = 1;</code>
@@ -86,8 +86,8 @@ public enum GrpcGlobalAttributeUniquenessType
   public static final int UNIQUE_WITHIN_CATALOG_VALUE = 1;
   /**
    * <pre>
-   * The localized attribute value must be unique among all values of the same {&#64;link Locale} among all the entities
-   * using this {&#64;link GlobalAttributeSchema} in the entire catalog.
+   * The localized attribute value must be unique among all values of the same `Locale` among all the entities
+   * using this `GlobalAttributeSchema` in the entire catalog.
    * </pre>
    *
    * <code>UNIQUE_WITHIN_CATALOG_LOCALE = 2;</code>

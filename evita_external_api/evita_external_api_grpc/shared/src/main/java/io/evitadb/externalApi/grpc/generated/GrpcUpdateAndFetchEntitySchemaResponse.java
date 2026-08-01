@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for updating the entity schema and its afterwards fetching.
+ * Response to UpdateAndFetchEntitySchema request, which updates an entity type's schema and returns the
+ * resulting schema in one round trip.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse}
@@ -71,7 +72,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema_;
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -83,7 +84,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -95,7 +96,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Modified entity schema.
+   * The entity schema after the requested mutations were applied.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -269,7 +270,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for updating the entity schema and its afterwards fetching.
+   * Response to UpdateAndFetchEntitySchema request, which updates an entity type's schema and returns the
+   * resulting schema in one round trip.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpdateAndFetchEntitySchemaResponse}
@@ -461,7 +463,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntitySchema, io.evitadb.externalApi.grpc.generated.GrpcEntitySchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaOrBuilder> entitySchemaBuilder_;
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -472,7 +474,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -487,7 +489,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -507,7 +509,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -525,7 +527,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -550,7 +552,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -567,7 +569,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -579,7 +581,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>
@@ -594,7 +596,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Modified entity schema.
+     * The entity schema after the requested mutations were applied.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchema entitySchema = 1;</code>

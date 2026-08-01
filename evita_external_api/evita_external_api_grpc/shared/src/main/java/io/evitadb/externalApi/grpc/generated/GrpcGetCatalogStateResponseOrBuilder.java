@@ -33,7 +33,7 @@ public interface GrpcGetCatalogStateResponseOrBuilder extends
 
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcGetCatalogStateResponseOrBuilder extends
   boolean hasCatalogState();
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcGetCatalogStateResponseOrBuilder extends
   int getCatalogStateValue();
   /**
    * <pre>
-   * State of the catalog.
+   * State of the catalog. Unset if no catalog with the requested name exists.
    * </pre>
    *
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 1;</code>

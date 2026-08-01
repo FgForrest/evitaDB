@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to an evitaDB configuration request.
+ * Response to an evitaDB configuration request. This RPC (and therefore this response) is
+ * unavailable while the engine runs in read-only mode - see GrpcEvitaEngineSettingsResponse for
+ * the smaller, always-available subset of configuration.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse}
@@ -272,7 +274,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to an evitaDB configuration request.
+   * Response to an evitaDB configuration request. This RPC (and therefore this response) is
+   * unavailable while the engine runs in read-only mode - see GrpcEvitaEngineSettingsResponse for
+   * the smaller, always-available subset of configuration.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEvitaConfigurationResponse}

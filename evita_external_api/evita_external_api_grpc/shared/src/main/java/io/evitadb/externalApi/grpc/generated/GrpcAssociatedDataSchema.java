@@ -130,6 +130,11 @@ private static final long serialVersionUID = 0L;
   public static final int DESCRIPTION_FIELD_NUMBER = 2;
   private com.google.protobuf.StringValue description_;
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return Whether the description field is set.
    */
@@ -138,6 +143,11 @@ private static final long serialVersionUID = 0L;
     return ((bitField0_ & 0x00000001) != 0);
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    * @return The description.
    */
@@ -146,6 +156,11 @@ private static final long serialVersionUID = 0L;
     return description_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : description_;
   }
   /**
+   * <pre>
+   * Contains description of the model is optional but helps authors of the schema / client API to better
+   * explain the original purpose of the model to the consumers.
+   * </pre>
+   *
    * <code>.google.protobuf.StringValue description = 2;</code>
    */
   @java.lang.Override
@@ -1037,6 +1052,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> descriptionBuilder_;
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return Whether the description field is set.
      */
@@ -1044,6 +1064,11 @@ private static final long serialVersionUID = 0L;
       return ((bitField0_ & 0x00000002) != 0);
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      * @return The description.
      */
@@ -1055,6 +1080,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(com.google.protobuf.StringValue value) {
@@ -1071,6 +1101,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder setDescription(
@@ -1085,6 +1120,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder mergeDescription(com.google.protobuf.StringValue value) {
@@ -1106,6 +1146,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public Builder clearDescription() {
@@ -1119,6 +1164,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValue.Builder getDescriptionBuilder() {
@@ -1127,6 +1177,11 @@ private static final long serialVersionUID = 0L;
       return getDescriptionFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     public com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder() {
@@ -1138,6 +1193,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Contains description of the model is optional but helps authors of the schema / client API to better
+     * explain the original purpose of the model to the consumers.
+     * </pre>
+     *
      * <code>.google.protobuf.StringValue description = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

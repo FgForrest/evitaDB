@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to get single file by id
+ * Request to stream the contents of a single file available for fetching, by its id.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest}
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to get single file by id
+   * Request to stream the contents of a single file available for fetching, by its id.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFetchFileRequest}

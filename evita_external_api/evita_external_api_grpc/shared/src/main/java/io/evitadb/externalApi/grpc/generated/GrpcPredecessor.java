@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure for representing Predecessor objects.
+ * Structure for representing Predecessor objects, used to express a manually maintained ordering
+ * of sibling entities/references by pointing each one at the primary key of the item that precedes
+ * it.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPredecessor}
@@ -71,7 +73,8 @@ private static final long serialVersionUID = 0L;
   private boolean head_ = false;
   /**
    * <pre>
-   * true if predecessor is a head, false otherwise
+   * If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+   * set. If `false`, this item has a predecessor and `predecessorId` must be set.
    * </pre>
    *
    * <code>bool head = 1;</code>
@@ -86,7 +89,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value predecessorId_;
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -98,7 +102,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -110,7 +115,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -296,7 +302,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure for representing Predecessor objects.
+   * Structure for representing Predecessor objects, used to express a manually maintained ordering
+   * of sibling entities/references by pointing each one at the primary key of the item that precedes
+   * it.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcPredecessor}
@@ -498,7 +506,8 @@ private static final long serialVersionUID = 0L;
     private boolean head_ ;
     /**
      * <pre>
-     * true if predecessor is a head, false otherwise
+     * If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+     * set. If `false`, this item has a predecessor and `predecessorId` must be set.
      * </pre>
      *
      * <code>bool head = 1;</code>
@@ -510,7 +519,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if predecessor is a head, false otherwise
+     * If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+     * set. If `false`, this item has a predecessor and `predecessorId` must be set.
      * </pre>
      *
      * <code>bool head = 1;</code>
@@ -526,7 +536,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * true if predecessor is a head, false otherwise
+     * If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+     * set. If `false`, this item has a predecessor and `predecessorId` must be set.
      * </pre>
      *
      * <code>bool head = 1;</code>
@@ -544,7 +555,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> predecessorIdBuilder_;
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -555,7 +567,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -570,7 +583,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -590,7 +604,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -608,7 +623,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -633,7 +649,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -650,7 +667,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -662,7 +680,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -677,7 +696,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+     * `head` is `true`; must be set when `head` is `false`.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value predecessorId = 2;</code>

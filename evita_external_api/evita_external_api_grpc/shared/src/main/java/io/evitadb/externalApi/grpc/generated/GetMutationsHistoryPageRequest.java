@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to GetMutationsHistoryPage request.
+ * Request for GetMutationsHistoryPage, a paged, reverse-chronological read of past mutations (catalog
+ * schema changes and entity mutations) that match the given criteria. Traversal is always reverse
+ * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest}
@@ -73,7 +75,9 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value page_;
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -85,7 +89,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -97,7 +103,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The page number starting with 1
+   * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+   * Not rejected when it lands past the last available page - the response is simply empty; see the
+   * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -111,7 +119,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value pageSize_;
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -123,7 +132,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -135,7 +145,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the page to return
+   * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+   * exceeds the number of available mutations; the last page is simply shorter.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -149,7 +160,16 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value sinceVersion_;
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -161,7 +181,16 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -173,7 +202,16 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+   * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+   * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+   * than rejected.
+   *
+   * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+   * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+   * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+   * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+   * set `sinceIndex` explicitly together with `sinceVersion`.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -187,7 +225,10 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int32Value sinceIndex_;
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -199,7 +240,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -211,7 +255,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+   * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+   * on `sinceVersion` above for the (common) case where this default currently does not apply.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -225,7 +272,9 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame_;
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -237,7 +286,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -249,7 +300,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The time range within which the mutations should be found
+   * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+   * exclusive - the version resolved from it is excluded from the result, even though the underlying
+   * version-resolution lookup it uses is itself inclusive of that moment.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -264,7 +317,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria> criteria_;
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -275,7 +329,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -287,7 +342,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -298,7 +354,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -309,7 +366,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -324,7 +382,10 @@ private static final long serialVersionUID = 0L;
   private int content_ = 0;
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -335,7 +396,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -597,7 +661,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to GetMutationsHistoryPage request.
+   * Request for GetMutationsHistoryPage, a paged, reverse-chronological read of past mutations (catalog
+   * schema changes and entity mutations) that match the given criteria. Traversal is always reverse
+   * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest}
@@ -949,7 +1015,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> pageBuilder_;
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -960,7 +1028,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -975,7 +1045,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -995,7 +1067,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1013,7 +1087,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1038,7 +1114,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1055,7 +1133,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1067,7 +1147,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1082,7 +1164,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The page number starting with 1
+     * The requested page number (1-indexed: page 1 is the newest/first page). If unset, defaults to 1.
+     * Not rejected when it lands past the last available page - the response is simply empty; see the
+     * message-level note on `GetMutationsHistoryPageResponse` about the lack of a total-count/`hasMore` signal.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value page = 1;</code>
@@ -1106,7 +1190,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> pageSizeBuilder_;
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1117,7 +1202,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1132,7 +1218,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1152,7 +1239,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1170,7 +1258,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1195,7 +1284,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1212,7 +1302,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1224,7 +1315,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1239,7 +1331,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page to return
+     * The number of mutations to return per page. If unset, defaults to 20. Not rejected or capped when it
+     * exceeds the number of available mutations; the last page is simply shorter.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value pageSize = 2;</code>
@@ -1263,7 +1356,16 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1274,7 +1376,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1289,7 +1400,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1309,7 +1429,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1327,7 +1456,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1352,7 +1490,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1369,7 +1516,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1381,7 +1537,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1396,7 +1561,16 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (catalog version)
+     * Catalog version to anchor the search at (inclusive). If unset, defaults to the upper bound implied by
+     * the request - the version resolved from `timeFrame`'s upper bound when `timeFrame` is set, otherwise
+     * the session's current catalog version. If set beyond that bound, it is silently clamped to it rather
+     * than rejected.
+     *
+     * Known defect (tracked in #1349): when this field is set but `sinceIndex` is left unset, the server
+     * does not apply the usual reverse-direction default for `sinceIndex` (see below) and instead treats it
+     * as 0 - the index reserved for the transaction header - which filters the entire anchor version out of
+     * the result whenever `criteria` restricts content to `DATA` or `SCHEMA`. Until this is fixed, always
+     * set `sinceIndex` explicitly together with `sinceVersion`.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 3;</code>
@@ -1420,7 +1594,10 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> sinceIndexBuilder_;
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1431,7 +1608,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1446,7 +1626,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1466,7 +1649,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1484,7 +1670,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1509,7 +1698,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1526,7 +1718,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1538,7 +1733,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1553,7 +1751,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Starting point for the search (index of the mutation within catalog version)
+     * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+     * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to
+     * `Integer.MAX_VALUE`, i.e. "start from the newest mutation of that version" - but see the defect noted
+     * on `sinceVersion` above for the (common) case where this default currently does not apply.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -1577,7 +1778,9 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> timeFrameBuilder_;
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1588,7 +1791,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1603,7 +1808,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1623,7 +1830,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1641,7 +1850,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1666,7 +1877,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1683,7 +1896,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1695,7 +1910,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1710,7 +1927,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The time range within which the mutations should be found
+     * Restricts the search to mutations committed within this time range. The lower bound (`from`) is
+     * exclusive - the version resolved from it is excluded from the result, even though the underlying
+     * version-resolution lookup it uses is itself inclusive of that moment.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
@@ -1743,7 +1962,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1757,7 +1977,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1771,7 +1992,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1785,7 +2007,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1806,7 +2029,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1824,7 +2048,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1844,7 +2069,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1865,7 +2091,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1883,7 +2110,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1901,7 +2129,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1920,7 +2149,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1937,7 +2167,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1954,7 +2185,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1965,7 +2197,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1979,7 +2212,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -1994,7 +2228,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -2005,7 +2240,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -2017,7 +2253,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The criteria of the capture, allows to define constraints on the returned mutations
+     * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+     * applies no criteria-based filtering.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
@@ -2044,7 +2281,10 @@ private static final long serialVersionUID = 0L;
     private int content_ = 0;
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+     * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+     * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+     * received in full.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -2055,7 +2295,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+     * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+     * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+     * received in full.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -2070,7 +2313,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+     * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+     * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+     * received in full.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -2083,7 +2329,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+     * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+     * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+     * received in full.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
@@ -2101,7 +2350,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope of the returned data - either header of the mutation, or the whole mutation
+     * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+     * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+     * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+     * received in full.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>

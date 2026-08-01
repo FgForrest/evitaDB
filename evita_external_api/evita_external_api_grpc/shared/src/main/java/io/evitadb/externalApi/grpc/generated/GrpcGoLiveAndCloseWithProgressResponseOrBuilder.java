@@ -33,7 +33,8 @@ public interface GrpcGoLiveAndCloseWithProgressResponseOrBuilder extends
 
   /**
    * <pre>
-   * Contains next catalog version
+   * Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+   * at its default (`0`) on intermediate progress-only messages.
    * </pre>
    *
    * <code>int64 catalogVersion = 1;</code>
@@ -45,7 +46,8 @@ public interface GrpcGoLiveAndCloseWithProgressResponseOrBuilder extends
    * <pre>
    * Contains the version of the catalog schema that will be valid at the moment of closing the session.
    * If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-   * version (i.e. the one that is returned in the response) becomes visible.
+   * version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+   * message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
    * </pre>
    *
    * <code>int32 catalogSchemaVersion = 2;</code>
@@ -55,7 +57,8 @@ public interface GrpcGoLiveAndCloseWithProgressResponseOrBuilder extends
 
   /**
    * <pre>
-   * The progress of the go live operation in percents.
+   * Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+   * in the stream always carries 100.
    * </pre>
    *
    * <code>int32 progressInPercent = 3;</code>

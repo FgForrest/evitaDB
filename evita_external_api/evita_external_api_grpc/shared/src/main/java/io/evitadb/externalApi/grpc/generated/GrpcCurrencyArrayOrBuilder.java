@@ -33,7 +33,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a Currency array.
+   * The individual Currency elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a Currency array.
+   * The individual Currency elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCurrency getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a Currency array.
+   * The individual Currency elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a Currency array.
+   * The individual Currency elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcCurrencyArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a Currency array.
+   * The individual Currency elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCurrency value = 1;</code>

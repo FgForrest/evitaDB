@@ -33,7 +33,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
 
   /**
    * <pre>
-   * The name of intercepted entity
+   * Restricts capture to schema mutations of the named entity type. If `null`, matches schema mutations for any
+   * entity type, including catalog-level schema changes (which carry no entity type of their own).
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   boolean hasEntityType();
   /**
    * <pre>
-   * The name of intercepted entity
+   * Restricts capture to schema mutations of the named entity type. If `null`, matches schema mutations for any
+   * entity type, including catalog-level schema changes (which carry no entity type of their own).
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   com.google.protobuf.StringValue getEntityType();
   /**
    * <pre>
-   * The name of intercepted entity
+   * Restricts capture to schema mutations of the named entity type. If `null`, matches schema mutations for any
+   * entity type, including catalog-level schema changes (which carry no entity type of their own).
    * </pre>
    *
    * <code>.google.protobuf.StringValue entityType = 1;</code>
@@ -60,7 +63,7 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
 
   /**
    * <pre>
-   * The intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 2;</code>
@@ -69,7 +72,7 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation> getOperationList();
   /**
    * <pre>
-   * The intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 2;</code>
@@ -78,7 +81,7 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   int getOperationCount();
   /**
    * <pre>
-   * The intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 2;</code>
@@ -88,7 +91,7 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation(int index);
   /**
    * <pre>
-   * The intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 2;</code>
@@ -98,7 +101,7 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   getOperationValueList();
   /**
    * <pre>
-   * The intercepted type of operation
+   * Restricts capture to the listed operation types. If empty, matches any operation.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 2;</code>
@@ -109,7 +112,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
 
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 3;</code>
@@ -118,7 +122,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType> getContainerTypeList();
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 3;</code>
@@ -127,7 +132,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   int getContainerTypeCount();
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 3;</code>
@@ -137,7 +143,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType getContainerType(int index);
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 3;</code>
@@ -147,7 +154,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   getContainerTypeValueList();
   /**
    * <pre>
-   * the name of the intercepted container type
+   * Restricts capture to the listed container types (e.g. attribute, associated data, reference). If empty,
+   * matches any container type.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContainerType containerType = 3;</code>
@@ -158,7 +166,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
 
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 4;</code>
@@ -168,7 +177,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
       getContainerNameList();
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 4;</code>
@@ -177,7 +187,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   int getContainerNameCount();
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 4;</code>
@@ -187,7 +198,8 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
   java.lang.String getContainerName(int index);
   /**
    * <pre>
-   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * Restricts capture to containers with one of the listed names (e.g. attribute name, associated data name,
+   * reference name). If empty, matches containers of any name.
    * </pre>
    *
    * <code>repeated string containerName = 4;</code>

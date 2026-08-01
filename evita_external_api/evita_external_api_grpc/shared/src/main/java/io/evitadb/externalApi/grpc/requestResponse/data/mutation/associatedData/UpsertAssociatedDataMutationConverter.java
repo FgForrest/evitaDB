@@ -62,7 +62,7 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 			.setAssociatedDataValue(
 				EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
 					mutation.getAssociatedDataValue(),
-					getClientVersion().map(it -> VersionUtils.greaterThanEquals(2025, 4, it)).orElse(false) ?
+					getClientVersion().map(it -> VersionUtils.isAtLeast(it, 2025, 4)).orElse(false) ?
 						AssociatedDataForm.STRUCTURED_VALUE : AssociatedDataForm.JSON
 				)
 			);

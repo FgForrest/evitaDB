@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Wrapper for representing an array of integers.
+ * Wrapper for representing an array of integers. Also used to carry Byte and Short arrays,
+ * narrowed/widened to int32 on the wire; which Java array type applies is determined by the
+ * accompanying GrpcEvitaDataType (BYTE_ARRAY, SHORT_ARRAY or INTEGER_ARRAY).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIntegerArray}
@@ -73,7 +75,7 @@ private static final long serialVersionUID = 0L;
       emptyIntList();
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>
@@ -86,7 +88,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>
@@ -97,7 +99,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Value that supports storing an integer array.
+   * The individual integer elements, in their original order.
    * </pre>
    *
    * <code>repeated int32 value = 1;</code>
@@ -285,7 +287,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Wrapper for representing an array of integers.
+   * Wrapper for representing an array of integers. Also used to carry Byte and Short arrays,
+   * narrowed/widened to int32 on the wire; which Java array type applies is determined by the
+   * accompanying GrpcEvitaDataType (BYTE_ARRAY, SHORT_ARRAY or INTEGER_ARRAY).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIntegerArray}
@@ -484,7 +488,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -497,7 +501,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -508,7 +512,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -520,7 +524,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -539,7 +543,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -556,7 +560,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>
@@ -574,7 +578,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing an integer array.
+     * The individual integer elements, in their original order.
      * </pre>
      *
      * <code>repeated int32 value = 1;</code>

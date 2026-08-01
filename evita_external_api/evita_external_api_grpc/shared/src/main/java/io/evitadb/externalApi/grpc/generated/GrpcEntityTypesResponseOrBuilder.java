@@ -33,7 +33,7 @@ public interface GrpcEntityTypesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of all entity types.
+   * Names of all entity collections (entity types) defined in the catalog.
    * </pre>
    *
    * <code>repeated string entityTypes = 1;</code>
@@ -43,7 +43,7 @@ public interface GrpcEntityTypesResponseOrBuilder extends
       getEntityTypesList();
   /**
    * <pre>
-   * The list of all entity types.
+   * Names of all entity collections (entity types) defined in the catalog.
    * </pre>
    *
    * <code>repeated string entityTypes = 1;</code>
@@ -52,7 +52,7 @@ public interface GrpcEntityTypesResponseOrBuilder extends
   int getEntityTypesCount();
   /**
    * <pre>
-   * The list of all entity types.
+   * Names of all entity collections (entity types) defined in the catalog.
    * </pre>
    *
    * <code>repeated string entityTypes = 1;</code>
@@ -62,7 +62,7 @@ public interface GrpcEntityTypesResponseOrBuilder extends
   java.lang.String getEntityTypes(int index);
   /**
    * <pre>
-   * The list of all entity types.
+   * Names of all entity collections (entity types) defined in the catalog.
    * </pre>
    *
    * <code>repeated string entityTypes = 1;</code>

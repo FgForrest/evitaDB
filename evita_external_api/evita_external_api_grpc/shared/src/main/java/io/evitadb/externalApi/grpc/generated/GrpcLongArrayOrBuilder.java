@@ -33,7 +33,7 @@ public interface GrpcLongArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcLongArrayOrBuilder extends
   java.util.List<java.lang.Long> getValueList();
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcLongArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a long array.
+   * The individual long elements, in their original order.
    * </pre>
    *
    * <code>repeated int64 value = 1;</code>

@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
+ * Request to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest}
@@ -71,7 +71,9 @@ private static final long serialVersionUID = 0L;
   private int limit_ = 0;
   /**
    * <pre>
-   * The limit of records to return
+   * Maximum number of label names to return, ordered by descending cardinality (most frequently used labels
+   * first). This is a plain result cap, not page-based or offset-based pagination; repeated calls do not support
+   * continuation.
    * </pre>
    *
    * <code>int32 limit = 1;</code>
@@ -86,7 +88,7 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue nameStartsWith_;
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -98,7 +100,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -110,7 +112,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Allows to filter the returned labels by the name prefix
+   * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
    * </pre>
    *
    * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -295,7 +297,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
+   * Request to GetTrafficRecordingLabelsNamesOrderedByCardinality request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetTrafficRecordingLabelNamesRequest}
@@ -497,7 +499,9 @@ private static final long serialVersionUID = 0L;
     private int limit_ ;
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of label names to return, ordered by descending cardinality (most frequently used labels
+     * first). This is a plain result cap, not page-based or offset-based pagination; repeated calls do not support
+     * continuation.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -509,7 +513,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of label names to return, ordered by descending cardinality (most frequently used labels
+     * first). This is a plain result cap, not page-based or offset-based pagination; repeated calls do not support
+     * continuation.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -525,7 +531,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The limit of records to return
+     * Maximum number of label names to return, ordered by descending cardinality (most frequently used labels
+     * first). This is a plain result cap, not page-based or offset-based pagination; repeated calls do not support
+     * continuation.
      * </pre>
      *
      * <code>int32 limit = 1;</code>
@@ -543,7 +551,7 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> nameStartsWithBuilder_;
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -554,7 +562,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -569,7 +577,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -589,7 +597,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -607,7 +615,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -632,7 +640,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -649,7 +657,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -661,7 +669,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>
@@ -676,7 +684,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Allows to filter the returned labels by the name prefix
+     * Only label names starting with this prefix are returned. If unset, no prefix filter is applied.
      * </pre>
      *
      * <code>.google.protobuf.StringValue nameStartsWith = 2;</code>

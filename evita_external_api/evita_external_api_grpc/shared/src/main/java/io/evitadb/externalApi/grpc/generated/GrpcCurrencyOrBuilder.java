@@ -33,7 +33,8 @@ public interface GrpcCurrencyOrBuilder extends
 
   /**
    * <pre>
-   * The currency code of the currency.
+   * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+   * `Currency#getInstance(String)`.
    * </pre>
    *
    * <code>string code = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcCurrencyOrBuilder extends
   java.lang.String getCode();
   /**
    * <pre>
-   * The currency code of the currency.
+   * ISO 4217 three-letter currency code (e.g. `USD`, `EUR`), resolved via
+   * `Currency#getInstance(String)`.
    * </pre>
    *
    * <code>string code = 1;</code>

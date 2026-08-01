@@ -33,7 +33,8 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the entity collection that will be replaced and dropped (new name)
+   * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+   * holding the contents of `entityTypeToBeReplacedWith` under this same name.
    * </pre>
    *
    * <code>string entityTypeToBeReplaced = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
   java.lang.String getEntityTypeToBeReplaced();
   /**
    * <pre>
-   * Name of the entity collection that will be replaced and dropped (new name)
+   * Name of the collection that will be replaced: its current contents are dropped, and it will end up
+   * holding the contents of `entityTypeToBeReplacedWith` under this same name.
    * </pre>
    *
    * <code>string entityTypeToBeReplaced = 1;</code>
@@ -53,7 +55,8 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the entity collection that will become the successor of the original collection (old name)
+   * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+   * collection itself no longer exists under its own name once the replacement completes.
    * </pre>
    *
    * <code>string entityTypeToBeReplacedWith = 2;</code>
@@ -62,7 +65,8 @@ public interface GrpcReplaceCollectionRequestOrBuilder extends
   java.lang.String getEntityTypeToBeReplacedWith();
   /**
    * <pre>
-   * Name of the entity collection that will become the successor of the original collection (old name)
+   * Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+   * collection itself no longer exists under its own name once the replacement completes.
    * </pre>
    *
    * <code>string entityTypeToBeReplacedWith = 2;</code>

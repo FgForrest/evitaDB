@@ -33,7 +33,8 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
 
   /**
    * <pre>
-   * Page number of the task statuses to be listed.
+   * Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+   * (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
    * </pre>
    *
    * <code>int32 pageNumber = 1;</code>
@@ -43,7 +44,7 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
 
   /**
    * <pre>
-   * Number of task statuses per page.
+   * Number of files per page. No server-side maximum is enforced.
    * </pre>
    *
    * <code>int32 pageSize = 2;</code>
@@ -53,8 +54,9 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
 
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -63,8 +65,9 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
       getOriginList();
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -72,8 +75,9 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
   com.google.protobuf.StringValue getOrigin(int index);
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -81,8 +85,9 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
   int getOriginCount();
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>
@@ -91,8 +96,9 @@ public interface GrpcFilesToFetchRequestOrBuilder extends
       getOriginOrBuilderList();
   /**
    * <pre>
-   * Optional origin of the files (derived from taskType), passing non-null value
-   * in this argument filters the returned files to only those that are related to the specified origin
+   * File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+   * produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+   * values. Empty (the default) means no filtering - files of all origins are returned.
    * </pre>
    *
    * <code>repeated .google.protobuf.StringValue origin = 3;</code>

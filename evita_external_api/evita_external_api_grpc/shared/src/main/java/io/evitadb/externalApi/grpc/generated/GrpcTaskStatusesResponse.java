@@ -71,7 +71,7 @@ private static final long serialVersionUID = 0L;
   private int pageSize_ = 0;
   /**
    * <pre>
-   * The size of the page.
+   * The page size that was actually applied (echoes the request's `pageSize`).
    * </pre>
    *
    * <code>int32 pageSize = 1;</code>
@@ -86,7 +86,8 @@ private static final long serialVersionUID = 0L;
   private int pageNumber_ = 0;
   /**
    * <pre>
-   * The number of the page.
+   * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+   * `GrpcTaskStatusesRequest.pageNumber` for the paging model.
    * </pre>
    *
    * <code>int32 pageNumber = 2;</code>
@@ -102,7 +103,7 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus> taskStatus_;
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -113,7 +114,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -125,7 +126,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -136,7 +137,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -147,7 +148,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Collection of task statuses.
+   * Task statuses on this page, matching the filters from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -162,7 +163,8 @@ private static final long serialVersionUID = 0L;
   private int totalNumberOfRecords_ = 0;
   /**
    * <pre>
-   * Total number of task statuses.
+   * Total number of task statuses matching the request's filters across all pages, not just this
+   * one.
    * </pre>
    *
    * <code>int32 totalNumberOfRecords = 4;</code>
@@ -623,7 +625,7 @@ private static final long serialVersionUID = 0L;
     private int pageSize_ ;
     /**
      * <pre>
-     * The size of the page.
+     * The page size that was actually applied (echoes the request's `pageSize`).
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -635,7 +637,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page.
+     * The page size that was actually applied (echoes the request's `pageSize`).
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -651,7 +653,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the page.
+     * The page size that was actually applied (echoes the request's `pageSize`).
      * </pre>
      *
      * <code>int32 pageSize = 1;</code>
@@ -667,7 +669,8 @@ private static final long serialVersionUID = 0L;
     private int pageNumber_ ;
     /**
      * <pre>
-     * The number of the page.
+     * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+     * `GrpcTaskStatusesRequest.pageNumber` for the paging model.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -679,7 +682,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the page.
+     * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+     * `GrpcTaskStatusesRequest.pageNumber` for the paging model.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -695,7 +699,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The number of the page.
+     * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+     * `GrpcTaskStatusesRequest.pageNumber` for the paging model.
      * </pre>
      *
      * <code>int32 pageNumber = 2;</code>
@@ -722,7 +727,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -736,7 +741,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -750,7 +755,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -764,7 +769,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -785,7 +790,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -803,7 +808,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -823,7 +828,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -844,7 +849,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -862,7 +867,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -880,7 +885,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -899,7 +904,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -916,7 +921,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -933,7 +938,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -944,7 +949,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -958,7 +963,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -973,7 +978,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -984,7 +989,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -996,7 +1001,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Collection of task statuses.
+     * Task statuses on this page, matching the filters from the request.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
@@ -1023,7 +1028,8 @@ private static final long serialVersionUID = 0L;
     private int totalNumberOfRecords_ ;
     /**
      * <pre>
-     * Total number of task statuses.
+     * Total number of task statuses matching the request's filters across all pages, not just this
+     * one.
      * </pre>
      *
      * <code>int32 totalNumberOfRecords = 4;</code>
@@ -1035,7 +1041,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Total number of task statuses.
+     * Total number of task statuses matching the request's filters across all pages, not just this
+     * one.
      * </pre>
      *
      * <code>int32 totalNumberOfRecords = 4;</code>
@@ -1051,7 +1058,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Total number of task statuses.
+     * Total number of task statuses matching the request's filters across all pages, not just this
+     * one.
      * </pre>
      *
      * <code>int32 totalNumberOfRecords = 4;</code>

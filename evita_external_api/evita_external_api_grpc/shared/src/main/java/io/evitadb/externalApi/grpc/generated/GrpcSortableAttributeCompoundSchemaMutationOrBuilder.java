@@ -32,91 +32,169 @@ public interface GrpcSortableAttributeCompoundSchemaMutationOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
    */
   boolean hasCreateSortableAttributeCompoundSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    * @return The createSortableAttributeCompoundSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation getCreateSortableAttributeCompoundSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder getCreateSortableAttributeCompoundSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
    */
   boolean hasModifySortableAttributeCompoundSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation getModifySortableAttributeCompoundSchemaDeprecationNoticeMutation();
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
    */
   boolean hasModifySortableAttributeCompoundSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation getModifySortableAttributeCompoundSchemaDescriptionMutation();
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder getModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
    */
   boolean hasModifySortableAttributeCompoundSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    * @return The modifySortableAttributeCompoundSchemaNameMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation getModifySortableAttributeCompoundSchemaNameMutation();
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder getModifySortableAttributeCompoundSchemaNameMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
    */
   boolean hasRemoveSortableAttributeCompoundSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    * @return The removeSortableAttributeCompoundSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation getRemoveSortableAttributeCompoundSchemaMutation();
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder getRemoveSortableAttributeCompoundSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
    */
   boolean hasSetSortableAttributeCompoundIndexedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    * @return The setSortableAttributeCompoundIndexedMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation getSetSortableAttributeCompoundIndexedMutation();
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder getSetSortableAttributeCompoundIndexedMutationOrBuilder();

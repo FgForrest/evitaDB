@@ -205,7 +205,8 @@ private static final long serialVersionUID = 0L;
   public static final int STRINGVALUE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * The string value.
+   * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+   * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -216,7 +217,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string value.
+   * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+   * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -241,7 +243,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string value.
+   * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+   * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
    * </pre>
    *
    * <code>string stringValue = 1;</code>
@@ -269,7 +272,7 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERVALUE_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * The integer value.
+   * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -281,7 +284,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer value.
+   * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
    * </pre>
    *
    * <code>int32 integerValue = 2;</code>
@@ -298,7 +301,8 @@ private static final long serialVersionUID = 0L;
   public static final int LONGVALUE_FIELD_NUMBER = 3;
   /**
    * <pre>
-   * The long value.
+   * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+   * that exceed the `int32` range.
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -310,7 +314,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long value.
+   * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+   * that exceed the `int32` range.
    * </pre>
    *
    * <code>int64 longValue = 3;</code>
@@ -327,7 +332,7 @@ private static final long serialVersionUID = 0L;
   public static final int BOOLEANVALUE_FIELD_NUMBER = 4;
   /**
    * <pre>
-   * The boolean value.
+   * Binds a boolean parameter into the query.
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -339,7 +344,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The boolean value.
+   * Binds a boolean parameter into the query.
    * </pre>
    *
    * <code>bool booleanValue = 4;</code>
@@ -356,7 +361,8 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALVALUE_FIELD_NUMBER = 5;
   /**
    * <pre>
-   * The big decimal value.
+   * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+   * other monetary/decimal literals.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -368,7 +374,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal value.
+   * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+   * other monetary/decimal literals.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -383,7 +390,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal value.
+   * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+   * other monetary/decimal literals.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -399,7 +407,8 @@ private static final long serialVersionUID = 0L;
   public static final int DATETIMERANGEVALUE_FIELD_NUMBER = 6;
   /**
    * <pre>
-   * The date time range value.
+   * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+   * style constraints that test whether a given instant falls within a validity range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -411,7 +420,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The date time range value.
+   * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+   * style constraints that test whether a given instant falls within a validity range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -426,7 +436,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The date time range value.
+   * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+   * style constraints that test whether a given instant falls within a validity range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -442,7 +453,7 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERNUMBERRANGEVALUE_FIELD_NUMBER = 7;
   /**
    * <pre>
-   * The integer number range value.
+   * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -454,7 +465,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer number range value.
+   * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -469,7 +480,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer number range value.
+   * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -485,7 +496,7 @@ private static final long serialVersionUID = 0L;
   public static final int LONGNUMBERRANGEVALUE_FIELD_NUMBER = 8;
   /**
    * <pre>
-   * The long number range value.
+   * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -497,7 +508,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long number range value.
+   * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -512,7 +523,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long number range value.
+   * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -528,7 +539,8 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALNUMBERRANGEVALUE_FIELD_NUMBER = 9;
   /**
    * <pre>
-   * The big decimal number range value.
+   * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+   * style range constraints over prices or other decimal values.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -540,7 +552,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal number range value.
+   * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+   * style range constraints over prices or other decimal values.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -555,7 +568,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal number range value.
+   * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+   * style range constraints over prices or other decimal values.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -571,7 +585,8 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSETDATETIMEVALUE_FIELD_NUMBER = 10;
   /**
    * <pre>
-   * The offset date time value.
+   * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+   * `priceValidIn` to test price validity at a specific instant.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -583,7 +598,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The offset date time value.
+   * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+   * `priceValidIn` to test price validity at a specific instant.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -598,7 +614,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The offset date time value.
+   * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+   * `priceValidIn` to test price validity at a specific instant.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -614,7 +631,7 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALEVALUE_FIELD_NUMBER = 11;
   /**
    * <pre>
-   * The locale value.
+   * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -626,7 +643,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The locale value.
+   * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -641,7 +658,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The locale value.
+   * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -657,7 +674,7 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCYVALUE_FIELD_NUMBER = 12;
   /**
    * <pre>
-   * The currency value.
+   * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -669,7 +686,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The currency value.
+   * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -684,7 +701,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The currency value.
+   * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -700,7 +717,8 @@ private static final long serialVersionUID = 0L;
   public static final int FACETSTATISTICSDEPTHVALUE_FIELD_NUMBER = 13;
   /**
    * <pre>
-   * The facet statistics depth enum value.
+   * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+   * `facetSummary` requirement to select whether only counts or also selection impact is computed.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -711,7 +729,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet statistics depth enum value.
+   * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+   * `facetSummary` requirement to select whether only counts or also selection impact is computed.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -725,7 +744,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet statistics depth enum value.
+   * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+   * `facetSummary` requirement to select whether only counts or also selection impact is computed.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -743,7 +763,10 @@ private static final long serialVersionUID = 0L;
   public static final int QUERYPRICEMODELVALUE_FIELD_NUMBER = 14;
   /**
    * <pre>
-   * The query price mode enum value.
+   * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+   * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+   * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+   * accessors and JSON field mapping for existing clients.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -754,7 +777,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The query price mode enum value.
+   * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+   * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+   * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+   * accessors and JSON field mapping for existing clients.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -768,7 +794,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The query price mode enum value.
+   * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+   * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+   * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+   * accessors and JSON field mapping for existing clients.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -786,7 +815,8 @@ private static final long serialVersionUID = 0L;
   public static final int PRICECONTENTMODEVALUE_FIELD_NUMBER = 15;
   /**
    * <pre>
-   * The price content mode enum value.
+   * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+   * requirement to select which prices are fetched along with the entity.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -797,7 +827,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The price content mode enum value.
+   * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+   * requirement to select which prices are fetched along with the entity.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -811,7 +842,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The price content mode enum value.
+   * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+   * requirement to select which prices are fetched along with the entity.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -829,7 +861,8 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTESPECIALVALUE_FIELD_NUMBER = 16;
   /**
    * <pre>
-   * The attribute special value enum value.
+   * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+   * to test whether an attribute value is `NULL` or `NOT_NULL`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -840,7 +873,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The attribute special value enum value.
+   * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+   * to test whether an attribute value is `NULL` or `NOT_NULL`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -854,7 +888,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The attribute special value enum value.
+   * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+   * to test whether an attribute value is `NULL` or `NOT_NULL`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -872,7 +907,8 @@ private static final long serialVersionUID = 0L;
   public static final int ORDERDIRECTIONVALUE_FIELD_NUMBER = 17;
   /**
    * <pre>
-   * The order direction enum value.
+   * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+   * and other ordering constraints to select ascending or descending order.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -883,7 +919,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The order direction enum value.
+   * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+   * and other ordering constraints to select ascending or descending order.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -897,7 +934,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The order direction enum value.
+   * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+   * and other ordering constraints to select ascending or descending order.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -915,7 +953,9 @@ private static final long serialVersionUID = 0L;
   public static final int EMPTYHIERARCHICALENTITYBEHAVIOUR_FIELD_NUMBER = 18;
   /**
    * <pre>
-   * The empty hierarchical entity behaviour enum value.
+   * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+   * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+   * in or removed from the result tree.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -926,7 +966,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The empty hierarchical entity behaviour enum value.
+   * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+   * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+   * in or removed from the result tree.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -940,7 +982,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The empty hierarchical entity behaviour enum value.
+   * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+   * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+   * in or removed from the result tree.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -958,7 +1002,9 @@ private static final long serialVersionUID = 0L;
   public static final int STATISTICSBASE_FIELD_NUMBER = 19;
   /**
    * <pre>
-   * The statistics base enum value.
+   * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+   * requirements to select which part of the `filterBy` constraint is considered when computing
+   * cardinalities.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -969,7 +1015,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics base enum value.
+   * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+   * requirements to select which part of the `filterBy` constraint is considered when computing
+   * cardinalities.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -983,7 +1031,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics base enum value.
+   * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+   * requirements to select which part of the `filterBy` constraint is considered when computing
+   * cardinalities.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -1001,7 +1051,8 @@ private static final long serialVersionUID = 0L;
   public static final int STATISTICSTYPE_FIELD_NUMBER = 20;
   /**
    * <pre>
-   * The statistics type enum value.
+   * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+   * requirements to select whether children counts or queried-entity counts are produced.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -1012,7 +1063,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics type enum value.
+   * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+   * requirements to select whether children counts or queried-entity counts are produced.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -1026,7 +1078,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics type enum value.
+   * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+   * requirements to select whether children counts or queried-entity counts are produced.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -1044,7 +1097,9 @@ private static final long serialVersionUID = 0L;
   public static final int HISTOGRAMBEHAVIOR_FIELD_NUMBER = 21;
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+   * to select whether the histogram always has exactly the requested bucket count or an optimized,
+   * more compact bucket layout.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -1055,7 +1110,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+   * to select whether the histogram always has exactly the requested bucket count or an optimized,
+   * more compact bucket layout.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -1069,7 +1126,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+   * to select whether the histogram always has exactly the requested bucket count or an optimized,
+   * more compact bucket layout.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -1087,7 +1146,9 @@ private static final long serialVersionUID = 0L;
   public static final int MANAGEDREFERENCESBEHAVIOUR_FIELD_NUMBER = 22;
   /**
    * <pre>
-   * The managed references behaviour
+   * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+   * `referenceContent` requirement to select whether references to a managed entity that no longer
+   * exists are still returned.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -1098,7 +1159,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The managed references behaviour
+   * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+   * `referenceContent` requirement to select whether references to a managed entity that no longer
+   * exists are still returned.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -1112,7 +1175,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The managed references behaviour
+   * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+   * `referenceContent` requirement to select whether references to a managed entity that no longer
+   * exists are still returned.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -1130,7 +1195,8 @@ private static final long serialVersionUID = 0L;
   public static final int EXPRESSIONVALUE_FIELD_NUMBER = 23;
   /**
    * <pre>
-   * The expression
+   * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+   * used as the size argument of the `gap` requirement to compute spacing between paginated results.
    * </pre>
    *
    * <code>string expressionValue = 23;</code>
@@ -1141,7 +1207,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The expression
+   * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+   * used as the size argument of the `gap` requirement to compute spacing between paginated results.
    * </pre>
    *
    * <code>string expressionValue = 23;</code>
@@ -1166,7 +1233,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The expression
+   * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+   * used as the size argument of the `gap` requirement to compute spacing between paginated results.
    * </pre>
    *
    * <code>string expressionValue = 23;</code>
@@ -1194,7 +1262,8 @@ private static final long serialVersionUID = 0L;
   public static final int SCOPE_FIELD_NUMBER = 24;
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+   * select whether live or archived entities are considered.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -1205,7 +1274,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+   * select whether live or archived entities are considered.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -1219,7 +1289,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+   * select whether live or archived entities are considered.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -1237,7 +1308,9 @@ private static final long serialVersionUID = 0L;
   public static final int FACETRELATIONTYPE_FIELD_NUMBER = 25;
   /**
    * <pre>
-   * The facetRelationType enum value.
+   * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+   * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+   * applied between facets.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -1248,7 +1321,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facetRelationType enum value.
+   * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+   * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+   * applied between facets.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -1262,7 +1337,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facetRelationType enum value.
+   * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+   * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+   * applied between facets.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -1280,7 +1357,9 @@ private static final long serialVersionUID = 0L;
   public static final int FACETGROUPRELATIONLEVEL_FIELD_NUMBER = 26;
   /**
    * <pre>
-   * The facetGroupRelationLevel enum value.
+   * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+   * impact calculation to select whether the relation applies between facets in the same group or
+   * across different groups/references.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -1291,7 +1370,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facetGroupRelationLevel enum value.
+   * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+   * impact calculation to select whether the relation applies between facets in the same group or
+   * across different groups/references.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -1305,7 +1386,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facetGroupRelationLevel enum value.
+   * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+   * impact calculation to select whether the relation applies between facets in the same group or
+   * across different groups/references.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -1323,7 +1406,8 @@ private static final long serialVersionUID = 0L;
   public static final int TRAVERSALMODE_FIELD_NUMBER = 27;
   /**
    * <pre>
-   * The facet traversal mode enum value.
+   * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+   * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -1334,7 +1418,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet traversal mode enum value.
+   * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+   * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -1348,7 +1433,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet traversal mode enum value.
+   * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+   * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -1366,7 +1452,8 @@ private static final long serialVersionUID = 0L;
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 101;
   /**
    * <pre>
-   * The string array value.
+   * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+   * as `attributeInSet` over string-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -1378,7 +1465,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string array value.
+   * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+   * as `attributeInSet` over string-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -1393,7 +1481,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string array value.
+   * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+   * as `attributeInSet` over string-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -1409,7 +1498,8 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERARRAYVALUE_FIELD_NUMBER = 102;
   /**
    * <pre>
-   * The integer array value.
+   * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+   * `attributeInSet` over integer-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -1421,7 +1511,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer array value.
+   * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+   * `attributeInSet` over integer-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -1436,7 +1527,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer array value.
+   * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+   * `attributeInSet` over integer-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -1452,7 +1544,8 @@ private static final long serialVersionUID = 0L;
   public static final int LONGARRAYVALUE_FIELD_NUMBER = 103;
   /**
    * <pre>
-   * The long array value.
+   * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+   * long-typed values that exceed the `int32` range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -1464,7 +1557,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long array value.
+   * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+   * long-typed values that exceed the `int32` range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -1479,7 +1573,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long array value.
+   * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+   * long-typed values that exceed the `int32` range.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -1495,7 +1590,8 @@ private static final long serialVersionUID = 0L;
   public static final int BOOLEANARRAYVALUE_FIELD_NUMBER = 104;
   /**
    * <pre>
-   * The boolean array value.
+   * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+   * boolean-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -1507,7 +1603,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The boolean array value.
+   * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+   * boolean-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -1522,7 +1619,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The boolean array value.
+   * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+   * boolean-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -1538,7 +1636,8 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALARRAYVALUE_FIELD_NUMBER = 105;
   /**
    * <pre>
-   * The big decimal array value.
+   * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -1550,7 +1649,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal array value.
+   * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -1565,7 +1665,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal array value.
+   * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -1581,7 +1682,8 @@ private static final long serialVersionUID = 0L;
   public static final int DATETIMERANGEARRAYVALUE_FIELD_NUMBER = 106;
   /**
    * <pre>
-   * The date time range array value.
+   * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+   * constraints over range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -1593,7 +1695,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The date time range array value.
+   * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+   * constraints over range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -1608,7 +1711,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The date time range array value.
+   * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+   * constraints over range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -1624,7 +1728,8 @@ private static final long serialVersionUID = 0L;
   public static final int INTEGERNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 107;
   /**
    * <pre>
-   * The integer number range array value.
+   * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+   * constraints over integer-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -1636,7 +1741,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer number range array value.
+   * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+   * constraints over integer-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -1651,7 +1757,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The integer number range array value.
+   * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+   * constraints over integer-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -1667,7 +1774,8 @@ private static final long serialVersionUID = 0L;
   public static final int LONGNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 108;
   /**
    * <pre>
-   * The long number range array value.
+   * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+   * over long-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -1679,7 +1787,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long number range array value.
+   * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+   * over long-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -1694,7 +1803,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The long number range array value.
+   * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+   * over long-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -1710,7 +1820,8 @@ private static final long serialVersionUID = 0L;
   public static final int BIGDECIMALNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 109;
   /**
    * <pre>
-   * The big decimal number range array value.
+   * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -1722,7 +1833,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal number range array value.
+   * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -1737,7 +1849,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The big decimal number range array value.
+   * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+   * `inSet`-style constraints over decimal-range-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -1753,7 +1866,8 @@ private static final long serialVersionUID = 0L;
   public static final int OFFSETDATETIMEARRAYVALUE_FIELD_NUMBER = 110;
   /**
    * <pre>
-   * The offset date time array value.
+   * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+   * constraints over date-time-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -1765,7 +1879,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The offset date time array value.
+   * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+   * constraints over date-time-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -1780,7 +1895,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The offset date time array value.
+   * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+   * constraints over date-time-typed attributes.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -1796,7 +1912,8 @@ private static final long serialVersionUID = 0L;
   public static final int LOCALEARRAYVALUE_FIELD_NUMBER = 111;
   /**
    * <pre>
-   * The locale array value.
+   * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+   * a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -1808,7 +1925,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The locale array value.
+   * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+   * a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -1823,7 +1941,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The locale array value.
+   * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+   * a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -1839,7 +1958,8 @@ private static final long serialVersionUID = 0L;
   public static final int CURRENCYARRAYVALUE_FIELD_NUMBER = 112;
   /**
    * <pre>
-   * The currency array value.
+   * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+   * in a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -1851,7 +1971,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The currency array value.
+   * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+   * in a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -1866,7 +1987,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The currency array value.
+   * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+   * in a single constraint or requirement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -1882,7 +2004,8 @@ private static final long serialVersionUID = 0L;
   public static final int FACETSTATISTICSDEPTHARRAYVALUE_FIELD_NUMBER = 113;
   /**
    * <pre>
-   * The facet statistics depth array value.
+   * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -1894,7 +2017,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet statistics depth array value.
+   * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -1909,7 +2033,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The facet statistics depth array value.
+   * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -1925,7 +2050,8 @@ private static final long serialVersionUID = 0L;
   public static final int QUERYPRICEMODELARRAYVALUE_FIELD_NUMBER = 114;
   /**
    * <pre>
-   * The query price mode array value.
+   * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -1937,7 +2063,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The query price mode array value.
+   * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -1952,7 +2079,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The query price mode array value.
+   * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -1968,7 +2096,8 @@ private static final long serialVersionUID = 0L;
   public static final int PRICECONTENTMODEARRAYVALUE_FIELD_NUMBER = 115;
   /**
    * <pre>
-   * The price content mode array value.
+   * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -1980,7 +2109,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The price content mode array value.
+   * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -1995,7 +2125,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The price content mode array value.
+   * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -2011,7 +2142,8 @@ private static final long serialVersionUID = 0L;
   public static final int ATTRIBUTESPECIALARRAYVALUE_FIELD_NUMBER = 116;
   /**
    * <pre>
-   * The attribute special value array value.
+   * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -2023,7 +2155,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The attribute special value array value.
+   * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -2038,7 +2171,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The attribute special value array value.
+   * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -2054,7 +2188,8 @@ private static final long serialVersionUID = 0L;
   public static final int ORDERDIRECTIONARRAYVALUE_FIELD_NUMBER = 117;
   /**
    * <pre>
-   * The order direction array value.
+   * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -2066,7 +2201,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The order direction array value.
+   * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -2081,7 +2217,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The order direction array value.
+   * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -2097,7 +2234,8 @@ private static final long serialVersionUID = 0L;
   public static final int EMPTYHIERARCHICALENTITYBEHAVIOURARRAYVALUE_FIELD_NUMBER = 118;
   /**
    * <pre>
-   * The empty hierarchical entity behaviour array value.
+   * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+   * where the placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -2109,7 +2247,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The empty hierarchical entity behaviour array value.
+   * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+   * where the placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -2124,7 +2263,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The empty hierarchical entity behaviour array value.
+   * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+   * where the placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -2140,7 +2280,8 @@ private static final long serialVersionUID = 0L;
   public static final int STATISTICSBASEARRAYVALUE_FIELD_NUMBER = 119;
   /**
    * <pre>
-   * The statistics base array value.
+   * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -2152,7 +2293,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics base array value.
+   * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -2167,7 +2309,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics base array value.
+   * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -2183,7 +2326,8 @@ private static final long serialVersionUID = 0L;
   public static final int STATISTICSTYPEARRAYVALUE_FIELD_NUMBER = 120;
   /**
    * <pre>
-   * The statistics type array value.
+   * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -2195,7 +2339,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics type array value.
+   * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -2210,7 +2355,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The statistics type array value.
+   * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+   * resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -2226,7 +2372,8 @@ private static final long serialVersionUID = 0L;
   public static final int HISTOGRAMBEHAVIORTYPEARRAYVALUE_FIELD_NUMBER = 121;
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -2238,7 +2385,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -2253,7 +2401,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The histogram behavior enum value.
+   * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+   * placeholder resolves to a list rather than a single value.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -2269,7 +2418,8 @@ private static final long serialVersionUID = 0L;
   public static final int SCOPEARRAYVALUE_FIELD_NUMBER = 122;
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+   * that accept multiple scopes (live, archived) at once.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -2281,7 +2431,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+   * that accept multiple scopes (live, archived) at once.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -2296,7 +2447,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The scope enum value.
+   * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+   * that accept multiple scopes (live, archived) at once.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -4133,7 +4285,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4145,7 +4298,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4171,7 +4325,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4198,7 +4353,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4215,7 +4371,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4231,7 +4388,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string value.
+     * Binds a string parameter into the query, e.g. a string literal compared by `attributeEquals`,
+     * `attributeContains` or similar constraints, or a classifier name (entity type, attribute name).
      * </pre>
      *
      * <code>string stringValue = 1;</code>
@@ -4250,7 +4408,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The integer value.
+     * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -4261,7 +4419,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer value.
+     * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -4275,7 +4433,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer value.
+     * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -4291,7 +4449,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer value.
+     * Binds an `int32` parameter into the query, typically used for primary keys or numeric literals.
      * </pre>
      *
      * <code>int32 integerValue = 2;</code>
@@ -4308,7 +4466,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The long value.
+     * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+     * that exceed the `int32` range.
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -4319,7 +4478,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long value.
+     * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+     * that exceed the `int32` range.
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -4333,7 +4493,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long value.
+     * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+     * that exceed the `int32` range.
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -4349,7 +4510,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long value.
+     * Binds a `long` parameter into the query, typically used for primary keys or numeric literals
+     * that exceed the `int32` range.
      * </pre>
      *
      * <code>int64 longValue = 3;</code>
@@ -4366,7 +4528,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The boolean value.
+     * Binds a boolean parameter into the query.
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -4377,7 +4539,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean value.
+     * Binds a boolean parameter into the query.
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -4391,7 +4553,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean value.
+     * Binds a boolean parameter into the query.
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -4407,7 +4569,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean value.
+     * Binds a boolean parameter into the query.
      * </pre>
      *
      * <code>bool booleanValue = 4;</code>
@@ -4426,7 +4588,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> bigDecimalValueBuilder_;
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4438,7 +4601,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4460,7 +4624,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4480,7 +4645,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4498,7 +4664,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4525,7 +4692,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4548,7 +4716,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4558,7 +4727,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4576,7 +4746,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal value.
+     * Binds an arbitrary-precision decimal parameter into the query, typically used for price or
+     * other monetary/decimal literals.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal bigDecimalValue = 5;</code>
@@ -4604,7 +4775,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder> dateTimeRangeValueBuilder_;
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4616,7 +4788,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4638,7 +4811,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4658,7 +4832,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4676,7 +4851,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4703,7 +4879,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4726,7 +4903,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4736,7 +4914,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4754,7 +4933,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range value.
+     * Binds a date-time range parameter into the query, e.g. used with `entityValidIn`/`priceValidIn`
+     * style constraints that test whether a given instant falls within a validity range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange dateTimeRangeValue = 6;</code>
@@ -4782,7 +4962,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeOrBuilder> integerNumberRangeValueBuilder_;
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4794,7 +4974,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4816,7 +4996,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4836,7 +5016,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4854,7 +5034,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4881,7 +5061,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4904,7 +5084,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4914,7 +5094,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4932,7 +5112,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range value.
+     * Binds an `int32` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange integerNumberRangeValue = 7;</code>
@@ -4960,7 +5140,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeOrBuilder> longNumberRangeValueBuilder_;
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -4972,7 +5152,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -4994,7 +5174,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5014,7 +5194,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5032,7 +5212,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5059,7 +5239,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5082,7 +5262,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5092,7 +5272,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5110,7 +5290,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range value.
+     * Binds a `long` range parameter into the query, e.g. used with `between`-style range constraints.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRange longNumberRangeValue = 8;</code>
@@ -5138,7 +5318,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeOrBuilder> bigDecimalNumberRangeValueBuilder_;
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5150,7 +5331,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5172,7 +5354,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5192,7 +5375,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5210,7 +5394,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5237,7 +5422,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5260,7 +5446,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5270,7 +5457,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5288,7 +5476,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range value.
+     * Binds an arbitrary-precision decimal range parameter into the query, e.g. used with `between`-
+     * style range constraints over prices or other decimal values.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;</code>
@@ -5316,7 +5505,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> offsetDateTimeValueBuilder_;
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5328,7 +5518,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5350,7 +5541,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5370,7 +5562,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5388,7 +5581,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5415,7 +5609,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5438,7 +5633,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5448,7 +5644,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5466,7 +5663,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time value.
+     * Binds a single point-in-time parameter (date, time and offset) into the query, e.g. used with
+     * `priceValidIn` to test price validity at a specific instant.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime offsetDateTimeValue = 10;</code>
@@ -5494,7 +5692,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> localeValueBuilder_;
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5506,7 +5704,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5528,7 +5726,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5548,7 +5746,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5566,7 +5764,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5593,7 +5791,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5616,7 +5814,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5626,7 +5824,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5644,7 +5842,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale value.
+     * Binds a `Locale` parameter into the query, e.g. used with `entityLocaleEquals`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale localeValue = 11;</code>
@@ -5672,7 +5870,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcCurrency, io.evitadb.externalApi.grpc.generated.GrpcCurrency.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyOrBuilder> currencyValueBuilder_;
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5684,7 +5882,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5706,7 +5904,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5726,7 +5924,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5744,7 +5942,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5771,7 +5969,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5794,7 +5992,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5804,7 +6002,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5822,7 +6020,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency value.
+     * Binds a `Currency` parameter into the query, e.g. used with `priceInCurrency`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrency currencyValue = 12;</code>
@@ -5848,7 +6046,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5860,7 +6059,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5875,7 +6075,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5890,7 +6091,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5907,7 +6109,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5925,7 +6128,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth enum value.
+     * Binds a `GrpcFacetStatisticsDepth` enum parameter into the query, e.g. used with the
+     * `facetSummary` requirement to select whether only counts or also selection impact is computed.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth facetStatisticsDepthValue = 13;</code>
@@ -5942,7 +6146,10 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -5954,7 +6161,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -5969,7 +6179,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -5984,7 +6197,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -6001,7 +6217,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -6019,7 +6238,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode enum value.
+     * Binds a `GrpcQueryPriceMode` enum parameter into the query, used by price-related filtering
+     * constraints to select whether tax-inclusive or tax-exclusive prices are considered. Field name
+     * is a legacy typo ("Model" instead of "Mode"); kept as-is because renaming would break generated
+     * accessors and JSON field mapping for existing clients.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceMode queryPriceModelValue = 14;</code>
@@ -6036,7 +6258,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6048,7 +6271,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6063,7 +6287,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6078,7 +6303,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6095,7 +6321,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6113,7 +6340,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode enum value.
+     * Binds a `GrpcPriceContentMode` enum parameter into the query, e.g. used with the `priceContent`
+     * requirement to select which prices are fetched along with the entity.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentMode priceContentModeValue = 15;</code>
@@ -6130,7 +6358,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6142,7 +6371,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6157,7 +6387,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6172,7 +6403,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6189,7 +6421,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6207,7 +6440,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value enum value.
+     * Binds a `GrpcAttributeSpecialValue` enum parameter into the query, e.g. used with `attributeIs`
+     * to test whether an attribute value is `NULL` or `NOT_NULL`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValue attributeSpecialValue = 16;</code>
@@ -6224,7 +6458,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6236,7 +6471,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6251,7 +6487,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6266,7 +6503,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6283,7 +6521,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6301,7 +6540,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction enum value.
+     * Binds a `GrpcOrderDirection` enum parameter into the query, e.g. used with `attributeNatural`
+     * and other ordering constraints to select ascending or descending order.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection orderDirectionValue = 17;</code>
@@ -6318,7 +6558,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6330,7 +6572,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6345,7 +6589,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6360,7 +6606,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6377,7 +6625,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6395,7 +6645,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour enum value.
+     * Binds a `GrpcEmptyHierarchicalEntityBehaviour` enum parameter into the query, used by hierarchy
+     * statistics requirements to select whether hierarchy nodes with no referring entities are kept
+     * in or removed from the result tree.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;</code>
@@ -6412,7 +6664,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6424,7 +6678,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6439,7 +6695,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6454,7 +6712,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6471,7 +6731,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6489,7 +6751,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base enum value.
+     * Binds a `GrpcStatisticsBase` enum parameter into the query, used by hierarchy statistics
+     * requirements to select which part of the `filterBy` constraint is considered when computing
+     * cardinalities.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBase statisticsBase = 19;</code>
@@ -6506,7 +6770,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6518,7 +6783,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6533,7 +6799,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6548,7 +6815,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6565,7 +6833,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6583,7 +6852,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type enum value.
+     * Binds a `GrpcStatisticsType` enum parameter into the query, used by hierarchy statistics
+     * requirements to select whether children counts or queried-entity counts are produced.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsType statisticsType = 20;</code>
@@ -6600,7 +6870,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6612,7 +6884,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6627,7 +6901,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6642,7 +6918,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6659,7 +6937,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6677,7 +6957,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a `GrpcHistogramBehavior` enum parameter into the query, used by histogram requirements
+     * to select whether the histogram always has exactly the requested bucket count or an optimized,
+     * more compact bucket layout.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
@@ -6694,7 +6976,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6706,7 +6990,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6721,7 +7007,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6736,7 +7024,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6753,7 +7043,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6771,7 +7063,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The managed references behaviour
+     * Binds a `GrpcManagedReferencesBehaviour` enum parameter into the query, used by the
+     * `referenceContent` requirement to select whether references to a managed entity that no longer
+     * exists are still returned.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcManagedReferencesBehaviour managedReferencesBehaviour = 22;</code>
@@ -6788,7 +7082,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6800,7 +7095,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6826,7 +7122,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6853,7 +7150,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6870,7 +7168,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6886,7 +7185,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The expression
+     * Binds a raw EvitaQL expression string into the query, evaluated via `ExpressionFactory` — e.g.
+     * used as the size argument of the `gap` requirement to compute spacing between paginated results.
      * </pre>
      *
      * <code>string expressionValue = 23;</code>
@@ -6905,7 +7205,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6917,7 +7218,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6932,7 +7234,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6947,7 +7250,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6964,7 +7268,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6982,7 +7287,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a `GrpcEntityScope` enum parameter into the query, used by scope-aware constraints to
+     * select whether live or archived entities are considered.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScope scope = 24;</code>
@@ -6999,7 +7305,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7011,7 +7319,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7026,7 +7336,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7041,7 +7353,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7058,7 +7372,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7076,7 +7392,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetRelationType enum value.
+     * Binds a `GrpcFacetRelationType` enum parameter into the query, used by facet summary impact
+     * calculation to select the logical relation (disjunction, conjunction, negation, exclusivity)
+     * applied between facets.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetRelationType facetRelationType = 25;</code>
@@ -7093,7 +7411,9 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7105,7 +7425,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7120,7 +7442,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7135,7 +7459,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7152,7 +7478,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7170,7 +7498,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facetGroupRelationLevel enum value.
+     * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
+     * impact calculation to select whether the relation applies between facets in the same group or
+     * across different groups/references.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7187,7 +7517,8 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7199,7 +7530,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7214,7 +7546,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7229,7 +7562,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7246,7 +7580,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7264,7 +7599,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet traversal mode enum value.
+     * Binds a `GrpcTraversalMode` enum parameter into the query, used by the
+     * `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTraversalMode traversalMode = 27;</code>
@@ -7283,7 +7619,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> stringArrayValueBuilder_;
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7295,7 +7632,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7317,7 +7655,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7337,7 +7676,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7355,7 +7695,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7382,7 +7723,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7405,7 +7747,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7415,7 +7758,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7433,7 +7777,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string array value.
+     * Binds a list of string parameters into the query, e.g. used with `inSet`-style constraints such
+     * as `attributeInSet` over string-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
@@ -7461,7 +7806,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder> integerArrayValueBuilder_;
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7473,7 +7819,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7495,7 +7842,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7515,7 +7863,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7533,7 +7882,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7560,7 +7910,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7583,7 +7934,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7593,7 +7945,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7611,7 +7964,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer array value.
+     * Binds a list of `int32` parameters into the query, e.g. used with `entityPrimaryKeyInSet` or
+     * `attributeInSet` over integer-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
@@ -7639,7 +7993,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder> longArrayValueBuilder_;
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7651,7 +8006,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7673,7 +8029,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7693,7 +8050,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7711,7 +8069,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7738,7 +8097,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7761,7 +8121,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7771,7 +8132,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7789,7 +8151,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long array value.
+     * Binds a list of `long` parameters into the query, e.g. used with `inSet`-style constraints over
+     * long-typed values that exceed the `int32` range.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
@@ -7817,7 +8180,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder> booleanArrayValueBuilder_;
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7829,7 +8193,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7851,7 +8216,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7871,7 +8237,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7889,7 +8256,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7916,7 +8284,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7939,7 +8308,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7949,7 +8319,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7967,7 +8338,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The boolean array value.
+     * Binds a list of boolean parameters into the query, e.g. used with `inSet`-style constraints over
+     * boolean-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
@@ -7995,7 +8367,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder> bigDecimalArrayValueBuilder_;
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8007,7 +8380,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8029,7 +8403,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8049,7 +8424,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8067,7 +8443,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8094,7 +8471,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8117,7 +8495,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8127,7 +8506,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8145,7 +8525,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal array value.
+     * Binds a list of arbitrary-precision decimal parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
@@ -8173,7 +8554,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder> dateTimeRangeArrayValueBuilder_;
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8185,7 +8567,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8207,7 +8590,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8227,7 +8611,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8245,7 +8630,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8272,7 +8658,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8295,7 +8682,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8305,7 +8693,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8323,7 +8712,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The date time range array value.
+     * Binds a list of date-time range parameters into the query, e.g. used with `inSet`-style
+     * constraints over range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
@@ -8351,7 +8741,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder> integerNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8363,7 +8754,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8385,7 +8777,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8405,7 +8798,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8423,7 +8817,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8450,7 +8845,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8473,7 +8869,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8483,7 +8880,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8501,7 +8899,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The integer number range array value.
+     * Binds a list of `int32` range parameters into the query, e.g. used with `inSet`-style
+     * constraints over integer-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
@@ -8529,7 +8928,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder> longNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8541,7 +8941,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8563,7 +8964,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8583,7 +8985,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8601,7 +9004,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8628,7 +9032,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8651,7 +9056,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8661,7 +9067,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8679,7 +9086,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The long number range array value.
+     * Binds a list of `long` range parameters into the query, e.g. used with `inSet`-style constraints
+     * over long-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
@@ -8707,7 +9115,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder> bigDecimalNumberRangeArrayValueBuilder_;
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8719,7 +9128,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8741,7 +9151,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8761,7 +9172,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8779,7 +9191,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8806,7 +9219,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8829,7 +9243,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8839,7 +9254,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8857,7 +9273,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The big decimal number range array value.
+     * Binds a list of arbitrary-precision decimal range parameters into the query, e.g. used with
+     * `inSet`-style constraints over decimal-range-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
@@ -8885,7 +9302,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder> offsetDateTimeArrayValueBuilder_;
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -8897,7 +9315,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -8919,7 +9338,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -8939,7 +9359,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -8957,7 +9378,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -8984,7 +9406,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -9007,7 +9430,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -9017,7 +9441,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -9035,7 +9460,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The offset date time array value.
+     * Binds a list of point-in-time parameters into the query, e.g. used with `inSet`-style
+     * constraints over date-time-typed attributes.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
@@ -9063,7 +9489,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder> localeArrayValueBuilder_;
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9075,7 +9502,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9097,7 +9525,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9117,7 +9546,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9135,7 +9565,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9162,7 +9593,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9185,7 +9617,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9195,7 +9628,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9213,7 +9647,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The locale array value.
+     * Binds a list of `Locale` parameters into the query, e.g. used to enumerate multiple locales in
+     * a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
@@ -9241,7 +9676,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder> currencyArrayValueBuilder_;
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9253,7 +9689,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9275,7 +9712,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9295,7 +9733,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9313,7 +9752,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9340,7 +9780,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9363,7 +9804,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9373,7 +9815,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9391,7 +9834,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The currency array value.
+     * Binds a list of `Currency` parameters into the query, e.g. used to enumerate multiple currencies
+     * in a single constraint or requirement.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
@@ -9419,7 +9863,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder> facetStatisticsDepthArrayValueBuilder_;
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9431,7 +9876,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9453,7 +9899,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9473,7 +9920,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9491,7 +9939,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9518,7 +9967,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9541,7 +9991,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9551,7 +10002,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9569,7 +10021,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The facet statistics depth array value.
+     * Binds a list of `GrpcFacetStatisticsDepth` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
@@ -9597,7 +10050,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder> queryPriceModelArrayValueBuilder_;
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9609,7 +10063,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9631,7 +10086,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9651,7 +10107,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9669,7 +10126,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9696,7 +10154,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9719,7 +10178,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9729,7 +10189,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9747,7 +10208,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The query price mode array value.
+     * Binds a list of `GrpcQueryPriceMode` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
@@ -9775,7 +10237,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder> priceContentModeArrayValueBuilder_;
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9787,7 +10250,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9809,7 +10273,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9829,7 +10294,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9847,7 +10313,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9874,7 +10341,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9897,7 +10365,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9907,7 +10376,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9925,7 +10395,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The price content mode array value.
+     * Binds a list of `GrpcPriceContentMode` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
@@ -9953,7 +10424,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder> attributeSpecialArrayValueBuilder_;
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -9965,7 +10437,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -9987,7 +10460,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10007,7 +10481,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10025,7 +10500,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10052,7 +10528,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10075,7 +10552,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10085,7 +10563,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10103,7 +10582,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The attribute special value array value.
+     * Binds a list of `GrpcAttributeSpecialValue` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
@@ -10131,7 +10611,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder> orderDirectionArrayValueBuilder_;
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10143,7 +10624,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10165,7 +10647,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10185,7 +10668,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10203,7 +10687,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10230,7 +10715,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10253,7 +10739,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10263,7 +10750,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10281,7 +10769,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order direction array value.
+     * Binds a list of `GrpcOrderDirection` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
@@ -10309,7 +10798,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder> emptyHierarchicalEntityBehaviourArrayValueBuilder_;
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10321,7 +10811,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10343,7 +10834,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10363,7 +10855,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10381,7 +10874,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10408,7 +10902,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10431,7 +10926,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10441,7 +10937,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10459,7 +10956,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The empty hierarchical entity behaviour array value.
+     * Binds a list of `GrpcEmptyHierarchicalEntityBehaviour` enum parameters into the query, used
+     * where the placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
@@ -10487,7 +10985,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder> statisticsBaseArrayValueBuilder_;
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10499,7 +10998,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10521,7 +11021,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10541,7 +11042,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10559,7 +11061,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10586,7 +11089,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10609,7 +11113,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10619,7 +11124,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10637,7 +11143,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics base array value.
+     * Binds a list of `GrpcStatisticsBase` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
@@ -10665,7 +11172,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder> statisticsTypeArrayValueBuilder_;
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10677,7 +11185,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10699,7 +11208,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10719,7 +11229,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10737,7 +11248,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10764,7 +11276,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10787,7 +11300,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10797,7 +11311,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10815,7 +11330,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The statistics type array value.
+     * Binds a list of `GrpcStatisticsType` enum parameters into the query, used where the placeholder
+     * resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
@@ -10843,7 +11359,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder> histogramBehaviorTypeArrayValueBuilder_;
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10855,7 +11372,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10877,7 +11395,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10897,7 +11416,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10915,7 +11435,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10942,7 +11463,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10965,7 +11487,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10975,7 +11498,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -10993,7 +11517,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The histogram behavior enum value.
+     * Binds a list of `GrpcHistogramBehavior` enum parameters into the query, used where the
+     * placeholder resolves to a list rather than a single value.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
@@ -11021,7 +11546,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArrayOrBuilder> scopeArrayValueBuilder_;
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11033,7 +11559,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11055,7 +11582,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11075,7 +11603,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11093,7 +11622,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11120,7 +11650,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11143,7 +11674,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11153,7 +11685,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>
@@ -11171,7 +11704,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The scope enum value.
+     * Binds a list of `GrpcEntityScope` enum parameters into the query, e.g. used with constraints
+     * that accept multiple scopes (live, archived) at once.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityScopeArray scopeArrayValue = 122;</code>

@@ -33,7 +33,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
 
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
   boolean hasFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
   com.google.protobuf.Int64Value getFrom();
   /**
    * <pre>
-   * The lower bound of the range.
+   * The inclusive lower bound of the range. If unset (while `to` is set), the range is unbounded
+   * below.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value from = 1;</code>
@@ -60,7 +63,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
 
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -69,7 +73,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
   boolean hasTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>
@@ -78,7 +83,8 @@ public interface GrpcLongNumberRangeOrBuilder extends
   com.google.protobuf.Int64Value getTo();
   /**
    * <pre>
-   * The upper bound of the range.
+   * The inclusive upper bound of the range. If unset (while `from` is set), the range is unbounded
+   * above.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value to = 2;</code>

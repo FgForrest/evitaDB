@@ -70,7 +70,7 @@ private static final long serialVersionUID = 0L;
   private long mostSignificantBits_ = 0L;
   /**
    * <pre>
-   * Value that supports storing a UUID.
+   * The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
    * </pre>
    *
    * <code>int64 mostSignificantBits = 1;</code>
@@ -84,6 +84,10 @@ private static final long serialVersionUID = 0L;
   public static final int LEASTSIGNIFICANTBITS_FIELD_NUMBER = 2;
   private long leastSignificantBits_ = 0L;
   /**
+   * <pre>
+   * The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
+   * </pre>
+   *
    * <code>int64 leastSignificantBits = 2;</code>
    * @return The leastSignificantBits.
    */
@@ -449,7 +453,7 @@ private static final long serialVersionUID = 0L;
     private long mostSignificantBits_ ;
     /**
      * <pre>
-     * Value that supports storing a UUID.
+     * The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
      * </pre>
      *
      * <code>int64 mostSignificantBits = 1;</code>
@@ -461,7 +465,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a UUID.
+     * The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
      * </pre>
      *
      * <code>int64 mostSignificantBits = 1;</code>
@@ -477,7 +481,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Value that supports storing a UUID.
+     * The most significant 64 bits of the UUID, as returned by `UUID#getMostSignificantBits()`.
      * </pre>
      *
      * <code>int64 mostSignificantBits = 1;</code>
@@ -492,6 +496,10 @@ private static final long serialVersionUID = 0L;
 
     private long leastSignificantBits_ ;
     /**
+     * <pre>
+     * The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
+     * </pre>
+     *
      * <code>int64 leastSignificantBits = 2;</code>
      * @return The leastSignificantBits.
      */
@@ -500,6 +508,10 @@ private static final long serialVersionUID = 0L;
       return leastSignificantBits_;
     }
     /**
+     * <pre>
+     * The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
+     * </pre>
+     *
      * <code>int64 leastSignificantBits = 2;</code>
      * @param value The leastSignificantBits to set.
      * @return This builder for chaining.
@@ -512,6 +524,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * The least significant 64 bits of the UUID, as returned by `UUID#getLeastSignificantBits()`.
+     * </pre>
+     *
      * <code>int64 leastSignificantBits = 2;</code>
      * @return This builder for chaining.
      */
