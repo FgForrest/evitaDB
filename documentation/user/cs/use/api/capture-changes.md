@@ -52,11 +52,11 @@ Jak vidíte, existuje mnoho důvodů, proč může odběr skončit. Klienti by p
 Ne všechny mutace fungují na stejné úrovni a některé mutace mohou zahrnovat jiné. Například při upsertu entity může obsahovat více mutací uvnitř sebe (více operací s atributy, asociovanými daty, cenami atd.). Hierarchie mutací je následující:
 
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> ([úplný výpis](control-engine.md), dostupné v [engine change capture](#zachytávání-změn-na-úrovni-engine))
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([úplný výpis](../schema.md), dostupné v [catalog schema change capture](#zachytávání-změn-na-úrovni-engine))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([úplný výpis](../schema.md), dostupné v [catalog schema change capture](#zachytávání-změn-katalogu))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalCatalogSchemaMutation.java</SourceClass>
             - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalEntitySchemaMutation.java</SourceClass>
                 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass> 
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([úplný výpis](../data-model.md), dostupné v [catalog data change capture](#zachytávání-změn-na-úrovni-engine))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([úplný výpis](../data-model.md), dostupné v [catalog data change capture](#zachytávání-změn-katalogu))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/LocalMutation.java</SourceClass>
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> (dostupné ve všech streamech zachytávání změn)
 
