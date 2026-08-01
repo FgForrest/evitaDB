@@ -849,8 +849,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * mutation path shared by warm-up bulk load, transactional ops and trunk replay. The leaf's boundary keys are
 	 * re-derived on demand via the key extractor (this tree keeps no parallel key array).
 	 *
-	 * @param cursor the descent path to the mutated leaf
-	 * @param key    the key just inserted
+	 * @param context the mutated leaf plus the fence and predecessor operands from the descent
+	 * @param key     the key just inserted
 	 */
 	void assertInsertBoundaries(@Nonnull BoundaryContext<E> context, int key) {
 		final BPlusLeafTreeNode<E> leaf = context.leaf();

@@ -867,9 +867,8 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * an interior insert cannot violate cross-leaf order in a sound tree and is not checked. Called on the leaf
 	 * mutation path shared by warm-up bulk load, transactional ops and trunk replay.
 	 *
-	 * @param cursor the descent path to the mutated leaf
-	 * @param leaf   the mutated leaf
-	 * @param key    the key just inserted
+	 * @param context the mutated leaf plus the fence and predecessor operands from the descent
+	 * @param key     the key just inserted
 	 */
 	void assertInsertBoundaries(@Nonnull BoundaryContext<V> context, long key) {
 		final BPlusLeafTreeNode<V> leaf = context.leaf();

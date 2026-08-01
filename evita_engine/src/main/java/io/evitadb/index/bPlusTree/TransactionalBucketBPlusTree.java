@@ -1927,7 +1927,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * The 0→1 transition satisfies both conditions at once (an empty leaf has `peek == -1`, so the position is `0` and
 	 * the post-insert `peek` is `0`), which is why it triggers both branches as required.
 	 *
-	 * @param cursor     the descent path to the mutated leaf
+	 * @param context    the mutated leaf plus the fence and predecessor operands from the descent
 	 * @param key        the bucket key just inserted
 	 * @param insertedAt the slot index the new bucket landed on, as returned by the leaf add method
 	 */
