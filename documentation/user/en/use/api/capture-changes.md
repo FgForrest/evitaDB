@@ -4,7 +4,7 @@ perex: |
     Change data capture (CDC) is a design pattern used to track and capture changes made to schema and data in a database. evitaDB supports CDC through all its APIs, allowing developers to monitor and respond to data changes very easily in near real-time in their preferred programming language. This document explains how to implement CDC using our API.
 date: '21.10.2025'
 author: 'Ing. Jan Novotný'
-proofreading: 'done'
+proofreading: 'needed'
 preferredLang: 'java'
 ---
 The database maintains a so-called [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging) that records all changes made to the database. This log is used to ensure data integrity and durability, but it can also be leveraged to implement change data capture (CDC) functionality. Once the catalogue is switched to the `ACTIVE` (transactional) stage, clients can start consuming information about changes made to both the schema and the data in the catalogue.
@@ -527,6 +527,45 @@ Catalogue capture events are represented by <SourceClass>evita_api/src/main/java
 
 </LS>
 
+### Ordering guarantees
+
+Across the whole capture stream, changes are delivered in strictly monotonic catalogue version
+order — never out of order and never skipped, matching the order the transactions were committed
+in.
+
+Within one transaction (one catalogue version):
+
+- The mutation that delimits the transaction — `operation = TRANSACTION`, always at `index = 0` —
+  is always delivered first.
+- `index` identifies one physical mutation record inside the transaction. A single entity or schema
+  mutation can expand into several capture events — for example, an entity upsert is captured once
+  as an entity-level change and again for each attribute, price, or reference change it carries —
+  and all of these events share the same `(version, index)` pair. Treat `(version, index)` as
+  identifying one entity-or-schema-level change together with everything it fans out into, not a
+  single delivered event.
+- `index` is assigned before any filtering criteria are applied, so it stays stable no matter how
+  narrowly you filter — resuming from a particular `(version, index)` behaves the same whether your
+  criteria match everything or a single attribute.
+
+### Checking for completeness
+
+Because a single `(version, index)` pair can carry several capture events, counting delivered events
+does not tell you whether you have received everything a transaction or a mutation produced. Two
+counters make this verifiable instead:
+
+- `TransactionMutation.mutationCount`, carried in the body of the `operation = TRANSACTION` capture,
+  is the number of top-level mutation records the transaction contains.
+- the size of the local mutation list carried in the body of an entity-level capture tells you how
+  many capture events share that entity's `(version, index)`.
+
+Both require `content = BODY` — in `HEADER` mode neither counter is available. Both also require the
+transaction's header event to actually be delivered: if your criteria capture only `SCHEMA` or only
+`DATA`, the `INFRASTRUCTURE`-area header is filtered out along with everything that doesn't match,
+and `mutationCount` never arrives. To keep the header alongside a narrower filter, add an explicit
+`CaptureArea.INFRASTRUCTURE` criterion (with no capture site) to your criteria list — area filtering
+intentionally stays literal rather than exempting the header implicitly, so this is the supported way
+to opt back in.
+
 ### Capture areas and sites
 
 Catalogue CDC distinguishes between three different **capture areas** that correspond to different types of operations:
@@ -755,6 +794,53 @@ key `745` starting from the next version of the catalogue.
 </LS>
 
 <LS to="j">
+
+### Retrieving mutation history
+
+Besides subscribing to a live stream of future changes, a session can also request a bounded,
+one-shot view of the mutations already recorded in the catalogue's write-ahead log, via
+<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>:
+
+<dl>
+  <dt>`getMutationsHistoryForward`</dt>
+  <dd>
+    Returns a `Stream<ChangeCatalogCapture>` in forward chronological order. `sinceVersion` is
+    an inclusive lower bound; if unset, the stream starts at the oldest version known to the
+    catalogue's mutation history.
+  </dd>
+  <dt>`getMutationsHistoryReversed`</dt>
+  <dd>
+    Returns the same kind of stream in reverse chronological order. `sinceVersion` is an inclusive
+    upper bound this time; if unset, the stream starts at the most recently committed version.
+  </dd>
+</dl>
+
+Both accept the same <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
+used to open a live subscription, and both return a closeable stream — always consume it inside a
+try-with-resources block, since it holds an open file handle onto the write-ahead log for as long as
+it stays open.
+
+This capability is reachable only through the Java driver — there is no GraphQL or REST equivalent.
+
+Direction changes more than iteration order:
+
+- The transaction header (`operation = TRANSACTION`, `index = 0`) is delivered first regardless of
+  direction.
+- `index` is a direction-stable physical position — the same mutation record gets the same index
+  whichever direction you read in — but it is not monotonic within a transaction in reverse: a
+  reverse stream visits `index = 0`, then `mutationCount` counting down to `1`.
+- The nesting order of an entity mutation and the local mutations sharing its `(version, index)`
+  also flips: forward delivers the entity-level capture first, then its locals; reverse delivers the
+  locals first, then the entity-level capture.
+
+<Note type="warning">
+
+Stopping partway through a transaction's captures — for example after a fixed batch size — can leave
+you with the header but none of its payload, or the payload without ever having seen the header. The
+[completeness check](#checking-for-completeness) above only tells you something once you have
+actually seen the transaction's header capture.
+
+</Note>
 
 ### Frequently asked questions regarding a change capture mechanism
 
