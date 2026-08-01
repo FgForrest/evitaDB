@@ -558,13 +558,24 @@ counters make this verifiable instead:
 - the size of the local mutation list carried in the body of an entity-level capture tells you how
   many capture events share that entity's `(version, index)`.
 
-Both require `content = BODY` — in `HEADER` mode neither counter is available. Both also require the
-transaction's header event to actually be delivered: if your criteria capture only `SCHEMA` or only
-`DATA`, the `INFRASTRUCTURE`-area header is filtered out along with everything that doesn't match,
-and `mutationCount` never arrives. To keep the header alongside a narrower filter, add an explicit
-`CaptureArea.INFRASTRUCTURE` criterion (with no capture site) to your criteria list — area filtering
-intentionally stays literal rather than exempting the header implicitly, so this is the supported way
-to opt back in.
+Both require `content = BODY` — in `HEADER` mode neither counter is available.
+
+Both are also fixed properties of the *unfiltered* transaction, not of whatever your criteria let
+through. `mutationCount` is written once, at commit time, before any client subscribes — the same
+value is handed to every subscriber regardless of their criteria, so it always counts every
+top-level mutation record the transaction produced, never just the ones matching your filter. The
+same is true of an entity mutation's local mutation list. This means the check above is only
+reliable when your criteria don't filter anything out — no area narrower than all three, and no
+site-level restriction such as `entityType`.
+
+A `SCHEMA`- or `DATA`-only area filter compounds this: it also removes the `INFRASTRUCTURE`-area
+header event outright, so you cannot even read `mutationCount`. Adding an explicit
+`CaptureArea.INFRASTRUCTURE` criterion (with no capture site) to your criteria list gets the header
+delivered again — area filtering intentionally stays literal rather than exempting it implicitly, so
+this is the supported way to opt back in — but that only restores your ability to *read* the count.
+The count itself still will not match a stream you are otherwise filtering down (e.g. to one entity
+type or one attribute name), since it was never scoped to any one subscriber's criteria in the first
+place.
 
 ### Capture areas and sites
 
