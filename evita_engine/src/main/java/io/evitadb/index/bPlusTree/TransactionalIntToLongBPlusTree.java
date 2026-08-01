@@ -287,8 +287,8 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 */
 	@Nonnull
 	public OptionalLong search(int key) {
-		final Cursor cursor = createCursor(key);
-		return cursor.<BPlusLeafTreeNode>leafNode().getValue(key);
+		// allocation-free leaf descent (no Cursor / CursorLevel path) - see `findLeafNode`
+		return ((BPlusLeafTreeNode) findLeafNode(key)).getValue(key);
 	}
 
 	/**

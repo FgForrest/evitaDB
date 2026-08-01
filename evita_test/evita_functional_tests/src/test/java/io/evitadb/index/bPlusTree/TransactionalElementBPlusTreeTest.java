@@ -58,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -1013,11 +1014,55 @@ class TransactionalElementBPlusTreeTest {
 			));
 			final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(6);
 			// the actual 0->1 key (6) is sound: both checks run and pass
-			assertDoesNotThrow(() -> tree.assertInsertBoundaries(cursor, 6));
+			assertDoesNotThrow(() -> tree.assertInsertBoundaries(tree.findLeafNodeWithBoundaryContext(6), 6));
 			// the SAME single-key leaf is subject to the head check (a smaller key undercuts L_pred's last key 4)
 			assertThrows(GenericEvitaInternalError.class, () -> tree.assertHeadBoundary(cursor, 3));
 			// ...and to the tail check (a larger key reaches L_succ's first key 8)
 			assertThrows(GenericEvitaInternalError.class, () -> tree.assertTailBoundary(cursor, 8));
+		}
+
+		@Test
+		@DisplayName("the insert-path descent resolves the same operands as a captured cursor")
+		void shouldResolveSameBoundaryOperandsAsCursorPath() {
+			// the SAME five-leaf spine the cross-parent tests use (P1 = [L0,L1,L2], P2 = [L3,L4]) — a three-leaf
+			// fixture would put every fence at the leaf's immediate parent and never enter the right-spine walk,
+			// leaving exactly the branches this test exists to cover untested
+			final TransactionalElementBPlusTree<PriceRecordContract> tree = assembleSound(List.of(
+				singleLeaf(1, 2), singleLeaf(3, 4), singleLeaf(5, 6), singleLeaf(8, 9), singleLeaf(10, 11)
+			));
+			for (final int probe : new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}) {
+				final AbstractTransactionalBPlusTree.Cursor cursor = tree.createCursor(probe);
+				final TransactionalElementBPlusTree.BoundaryContext<PriceRecordContract> context =
+					tree.findLeafNodeWithBoundaryContext(probe);
+				assertSame(cursor.leafNode(), context.leaf(), "Descent reached a different leaf for key " + probe);
+				assertSame(
+					tree.predecessorLeaf(cursor), context.predecessor(),
+					"Predecessor differs for key " + probe
+				);
+			}
+			// a descent that always answered "no fence" / "no predecessor" would keep every other test green, because
+			// in a sound tree the asserts never fire — so pin the operands themselves
+			assertTrue(tree.findLeafNodeWithBoundaryContext(5).hasFence(), "L2 has a successor, hence a fence.");
+			assertEquals(
+				8, tree.findLeafNodeWithBoundaryContext(5).fence(),
+				"L2 is the rightmost child of P1, so its fence is the ROOT separator (L3's first key)."
+			);
+			assertEquals(
+				3, tree.findLeafNodeWithBoundaryContext(1).fence(),
+				"L0's fence is its same-parent successor's first key — the DEEPER of the two levels that record one."
+			);
+			assertFalse(
+				tree.findLeafNodeWithBoundaryContext(10).hasFence(),
+				"The rightmost leaf has no successor, hence no fence."
+			);
+			assertNull(
+				tree.findLeafNodeWithBoundaryContext(1).predecessor(),
+				"The leftmost leaf has no predecessor."
+			);
+			assertNotNull(
+				tree.findLeafNodeWithBoundaryContext(8).predecessor(),
+				"L3 is the leftmost child of P2, so its predecessor is reached by the right-spine walk."
+			);
 		}
 
 		@Test

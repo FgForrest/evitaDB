@@ -544,12 +544,25 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				final CursorLevel ancestorLevel = path.get(level - 1);
 				final BPlusInternalTreeNode ancestor =
 					(BPlusInternalTreeNode) ancestorLevel.siblings()[ancestorLevel.index()];
-				final long fence = ancestor.getKeys()[childIndex];
-				if (newLastKey >= fence) {
-					throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
-				}
+				checkTailBoundary(true, ancestor.getKeys()[childIndex], newLastKey);
 				return;
 			}
+		}
+	}
+
+	/**
+	 * The tail-boundary comparison itself, shared by the path-based resolution above and the descent-based one in
+	 * {@link #findLeafNodeWithBoundaryContext(long)}. Keeping the comparison in one place is what lets the insert path
+	 * stop capturing a cursor without the two resolutions drifting apart.
+	 *
+	 * @param hasFence   whether the leaf has a successor at all (a rightmost descent at every level means it does not)
+	 * @param fence      the leaf's upper fence, meaningful only when `hasFence`
+	 * @param newLastKey the leaf's new last key after the mutation
+	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
+	 */
+	private void checkTailBoundary(boolean hasFence, long fence, long newLastKey) {
+		if (hasFence && newLastKey >= fence) {
+			throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
 		}
 	}
 
@@ -568,7 +581,18 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
 	 */
 	void assertHeadBoundary(@Nonnull Cursor cursor, long newFirstKey) {
-		final BPlusLeafTreeNode<V> predecessor = predecessorLeaf(cursor);
+		checkHeadBoundary(predecessorLeaf(cursor), newFirstKey);
+	}
+
+	/**
+	 * The head-boundary comparison itself, shared by the path-based predecessor resolution and the descent-based one
+	 * in {@link #findLeafNodeWithBoundaryContext(long)}.
+	 *
+	 * @param predecessor the leaf preceding the mutated one, or {@code null} when it is the tree's leftmost leaf
+	 * @param newFirstKey the leaf's new first key after the mutation
+	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
+	 */
+	private void checkHeadBoundary(@Nullable BPlusLeafTreeNode<V> predecessor, long newFirstKey) {
 		if (predecessor == null) {
 			// leftmost leaf — no predecessor to violate
 			return;
@@ -598,7 +622,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @return the predecessor leaf, or {@code null} when the cursor's leaf is the tree's leftmost leaf
 	 */
 	@Nullable
-	private BPlusLeafTreeNode<V> predecessorLeaf(@Nonnull Cursor cursor) {
+	BPlusLeafTreeNode<V> predecessorLeaf(@Nonnull Cursor cursor) {
 		final List<CursorLevel> path = cursor.path();
 		final CursorLevel leafLevel = path.get(path.size() - 1);
 		final int leafIndex = leafLevel.index();
@@ -810,19 +834,29 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param value the value associated with the key, must not be null
 	 */
 	public void insert(long key, @Nonnull V value) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
+		// the cursor path exists ONLY to cascade a split upward, yet it used to be allocated on every insert. The
+		// descent below reaches the same leaf and resolves the boundary asserts' operands without capturing anything,
+		// so a path is now built only when this insert can actually overflow the leaf.
+		final BoundaryContext<V> context = findLeafNodeWithBoundaryContext(key);
+		final BPlusLeafTreeNode<V> leaf = context.leaf();
+		// captured BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
+		// the pre-mutation tree
+		final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
-			// op-time boundary-mutation asserts run before the (possible) split, while the cursor still reflects
-			// the pre-split spine — a mis-routed insert corrupts cross-leaf order without any structural op firing
-			assertInsertBoundaries(cursor, key);
+			// op-time boundary-mutation asserts run before the (possible) split, while the descent context still
+			// reflects the pre-split spine — a mis-routed insert corrupts cross-leaf order without any structural op
+			// firing
+			assertInsertBoundaries(context, key);
 			// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction
 			registerDirtyLeafInScope(leaf);
 		}
 
 		// Split the leaf node if it exceeds the block size
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw missingSplitPathError(leaf);
+			}
 			splitLeafNode(leaf, cursor);
 		}
 	}
@@ -833,20 +867,146 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * an interior insert cannot violate cross-leaf order in a sound tree and is not checked. Called on the leaf
 	 * mutation path shared by warm-up bulk load, transactional ops and trunk replay.
 	 *
-	 * @param cursor the descent path to the mutated leaf
-	 * @param leaf   the mutated leaf
-	 * @param key    the key just inserted
+	 * @param context the mutated leaf plus the fence and predecessor operands from the descent
+	 * @param key     the key just inserted
 	 */
-	void assertInsertBoundaries(@Nonnull Cursor cursor, long key) {
-		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
+	void assertInsertBoundaries(@Nonnull BoundaryContext<V> context, long key) {
+		final BPlusLeafTreeNode<V> leaf = context.leaf();
 		final long[] keys = leaf.getKeys();
 		final int peek = leaf.getPeek();
 		if (key == keys[peek]) {
-			assertTailBoundary(cursor, key);
+			checkTailBoundary(context.hasFence(), context.fence(), key);
 		}
 		if (key == keys[0]) {
-			assertHeadBoundary(cursor, key);
+			checkHeadBoundary(context.predecessor(), key);
 		}
+	}
+
+	/**
+	 * Builds the error raised when a leaf turns out to be {@link BPlusLeafTreeNode#isFull()} although the
+	 * {@link BPlusLeafTreeNode#isNearlyFull()} guard decided no cursor path was needed — an unreachable state that
+	 * would otherwise surface as a bare `NullPointerException` inside the split.
+	 *
+	 * @param leaf the leaf whose split has no captured path
+	 * @return the error describing the broken invariant
+	 */
+	@Nonnull
+	private GenericEvitaInternalError missingSplitPathError(@Nonnull BPlusLeafTreeNode<V> leaf) {
+		return new GenericEvitaInternalError(
+			"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
+				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.getKeys().length +
+				", tree block size: " + this.valueBlockSize + ")!",
+			"Leaf is full but no cursor path was captured!"
+		);
+	}
+
+	/**
+	 * Everything the insert path needs from a single descent: the leaf that accommodates the key, plus the two
+	 * neighbour operands the boundary asserts compare against. Produced by
+	 * {@link #findLeafNodeWithBoundaryContext(long)}, which resolves all three without capturing a {@link Cursor}.
+	 *
+	 * The record is short-lived and never escapes the insert method, so the JIT scalar-replaces it.
+	 *
+	 * @param leaf              the leaf node responsible for the key (it may not yet contain it)
+	 * @param hasFence          whether the leaf has a successor at all; {@code false} means it is the tree's last leaf
+	 * @param fence             the leaf's upper fence — the first key of the successor leaf — meaningful only when
+	 *                          {@code hasFence}
+	 * @param predecessorParent the deepest internal node whose chosen child index was greater than zero, or
+	 *                          {@code null} when the descent was leftmost at every level
+	 * @param predecessorIndex  the child index chosen at {@code predecessorParent}
+	 * @param <T>               the value type stored in the tree
+	 */
+	record BoundaryContext<T>(
+		@Nonnull BPlusLeafTreeNode<T> leaf,
+		boolean hasFence,
+		long fence,
+		@Nullable BPlusInternalTreeNode predecessorParent,
+		int predecessorIndex
+	) {
+
+		/**
+		 * Resolves the predecessor leaf. Kept out of the descent itself and behind this call because the head assert
+		 * fires only when the inserted key becomes the leaf's first — every other insert would pay a transactional
+		 * child-array resolution for an answer nobody reads.
+		 *
+		 * @return the leaf immediately preceding {@link #leaf()} in key order, or {@code null} when it is the tree's
+		 * leftmost leaf
+		 */
+		@Nullable
+		BPlusLeafTreeNode<T> predecessor() {
+			return predecessorLeafOf(this.predecessorParent, this.predecessorIndex);
+		}
+	}
+
+	/**
+	 * The insert-path descent: reaches the same leaf as {@link #findLeafNode(long)} and, on the way, resolves the two
+	 * operands the boundary asserts consume — the leaf's upper fence and its predecessor leaf.
+	 *
+	 * This is what lets the insert path stop capturing a cursor. Both asserts read the cursor as nothing but index
+	 * arithmetic over the descent, so a descent keeping a few extra locals answers them without a path:
+	 *
+	 * - the **fence** is the separator at the deepest level whose descent was not into the rightmost child. Walking
+	 *   down, the last level satisfying {@code childIndex < node.getPeek()} is exactly the level the cursor's
+	 *   bottom-up walk stops at first, so overwriting a single local at every such level lands on the same key.
+	 * - the **predecessor** hangs off the deepest level whose descent was not into the leftmost child. When that level
+	 *   is the leaf's own parent, {@code children[childIndex - 1]} is the predecessor leaf directly and the right-spine
+	 *   walk below is a no-op; when it is higher up, the walk follows the left neighbour's right spine. One rule covers
+	 *   both branches of the path-based {@link #predecessorLeaf(Cursor)}.
+	 *
+	 * This matters more here than the lazy guard alone would: this tree's key order is workload-dependent (range
+	 * thresholds), so how often the asserts would demand a path cannot be predicted. Answering them from the descent
+	 * removes the question.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf together with its boundary operands
+	 */
+	@Nonnull
+	BoundaryContext<V> findLeafNodeWithBoundaryContext(long key) {
+		BPlusTreeNode<?> node = this.getRoot();
+		boolean hasFence = false;
+		long fence = 0L;
+		BPlusInternalTreeNode predecessorParent = null;
+		int predecessorIndex = -1;
+		while (node instanceof BPlusInternalTreeNode internalNode) {
+			final int childIndex = internalNode.searchIndex(key);
+			if (childIndex < internalNode.getPeek()) {
+				hasFence = true;
+				fence = internalNode.getKeys()[childIndex];
+			}
+			if (childIndex > 0) {
+				predecessorParent = internalNode;
+				predecessorIndex = childIndex;
+			}
+			node = internalNode.getChildren()[childIndex];
+		}
+		//noinspection unchecked
+		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) node;
+		return new BoundaryContext<>(leaf, hasFence, fence, predecessorParent, predecessorIndex);
+	}
+
+	/**
+	 * Resolves the predecessor leaf from the deepest descent level that was not into the leftmost child: takes that
+	 * node's left neighbour and follows its right spine down.
+	 *
+	 * @param parent     the deepest internal node whose chosen child index was greater than zero, or {@code null} when
+	 *                   the descent was leftmost at every level (the leaf is the tree's leftmost leaf)
+	 * @param childIndex the child index chosen at {@code parent}
+	 * @return the predecessor leaf, or {@code null} when there is none
+	 */
+	@Nullable
+	private static <T> BPlusLeafTreeNode<T> predecessorLeafOf(
+		@Nullable BPlusInternalTreeNode parent,
+		int childIndex
+	) {
+		if (parent == null) {
+			return null;
+		}
+		BPlusTreeNode<?> node = parent.getChildren()[childIndex - 1];
+		while (node instanceof BPlusInternalTreeNode internalNode) {
+			node = internalNode.getChildren()[internalNode.getPeek()];
+		}
+		//noinspection unchecked
+		return (BPlusLeafTreeNode<T>) node;
 	}
 
 	/**
@@ -859,8 +1019,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param updater a function to compute a new value, must not be null
 	 */
 	public void upsert(long key, @Nonnull UnaryOperator<V> updater) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
+		// see insert(long, V) — the update branch below replaces a value in place and can never overflow the leaf, so
+		// the guard sits inside the key-absent branch and is exact there
+		final BoundaryContext<V> context = findLeafNodeWithBoundaryContext(key);
+		final BPlusLeafTreeNode<V> leaf = context.leaf();
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -882,17 +1044,21 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 			values[existingIndex] = newValue;
 		} else {
+			final Cursor cursor = leaf.isNearlyFull() ? createCursor(key) : null;
 			// insert the new value
 			if (leaf.insert(key, updater.apply(null))) {
 				this.size.set(size() + 1);
 				// op-time boundary-mutation asserts — see insert(long, V)
-				assertInsertBoundaries(cursor, key);
+				assertInsertBoundaries(context, key);
 				// register the dirtied leaf's current boundary key as a dirty-scope probe key for this transaction
 				registerDirtyLeafInScope(leaf);
 			}
 
 			// Split the leaf node if it exceeds the block size
 			if (leaf.isFull()) {
+				if (cursor == null) {
+					throw missingSplitPathError(leaf);
+				}
 				splitLeafNode(leaf, cursor);
 			}
 		}
@@ -937,9 +1103,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	@Nonnull
 	public Optional<V> search(long key) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
-		return leaf.getValue(key);
+		return findLeafNode(key).getValue(key);
 	}
 
 	/**
@@ -951,8 +1115,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * @param key the key whose holding leaf must be flagged dirty
 	 */
 	public void markDirty(long key) {
-		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = findLeafNode(key);
 		if (leaf.getValueIndex(key) >= 0) {
 			// flags an out-of-band value-content change; no key boundary moves, so this is not registered for the
 			// transaction's dirty scope (see the in-place branch of upsert)
@@ -1198,7 +1361,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	@Nonnull
 	Cursor createCursor(long key) {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final ArrayList<CursorLevel> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<?> theRoot = this.getRoot();
 		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));
@@ -1208,6 +1371,29 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 
 		}
 		return new Cursor(path);
+	}
+
+	/**
+	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
+	 * {@link BPlusInternalTreeNode#searchIndex} rule {@link #addCursorLevels} uses, but WITHOUT capturing the cursor
+	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). It reads the transaction-aware
+	 * `getChildren()` accessor exactly like the cursor descent, so it resolves the same nodes.
+	 *
+	 * Measured on this family, a captured path costs ~208 B per descent against ~0 B here, so every lookup that uses
+	 * nothing but {@code cursor.leafNode()} takes this route. Structural operations (splits, deletes, consolidation,
+	 * parent-key updates) mutate the captured path and must keep using {@link #createCursor(long)}.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf node that should hold the key (it may not actually contain it)
+	 */
+	@Nonnull
+	BPlusLeafTreeNode<V> findLeafNode(long key) {
+		BPlusTreeNode<?> node = this.getRoot();
+		while (node instanceof BPlusInternalTreeNode internalNode) {
+			node = internalNode.getChildren()[internalNode.searchIndex(key)];
+		}
+		//noinspection unchecked
+		return (BPlusLeafTreeNode<V>) node;
 	}
 
 	/**
@@ -2440,6 +2626,28 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 				return this.peek == this.values.length - 1;
 			} else {
 				return layer.peek == layer.values.length - 1;
+			}
+		}
+
+		/**
+		 * Whether a single insert of a **new** key could make this leaf {@link #isFull()} — i.e. whether the caller
+		 * must capture a cursor path before mutating, so a split has one.
+		 *
+		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and the capacity from the **same** resolved state,
+		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would hold
+		 * only while every leaf array happens to be allocated at exactly that size, and nothing enforces that
+		 * coupling — a shorter array would reach {@link #isFull()} without ever tripping the guard.
+		 *
+		 * @return true when one more key could fill this leaf
+		 */
+		public boolean isNearlyFull() {
+			final BPlusLeafTreeNode<V> layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) :
+				null;
+			if (layer == null) {
+				return this.peek >= this.values.length - 2;
+			} else {
+				return layer.peek >= layer.values.length - 2;
 			}
 		}
 

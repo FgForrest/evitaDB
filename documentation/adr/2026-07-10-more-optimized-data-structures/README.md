@@ -1,7 +1,7 @@
 ---
 title: Decompose index storage into granular paged parts and slim the index data structures
 date: 2026-07-10
-updated: 2026-07-31 21:40
+updated: 2026-08-01 10:45
 status: accepted
 kind: optimization
 issues: [760, 1252]
@@ -9,7 +9,7 @@ prs: [1268]
 areas: [evita_engine/index, evita_engine/store, evita_common/dataType/bPlusTree, evita_roaring_bitmap]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path]
 ---
 
 # Granular storage parts and slimmer index data structures
@@ -149,10 +149,18 @@ which is the whole reason this record exists rather than the plan folder it repl
   exactly what that line then fixed.
 - **`.claude/skills/roaring-bitmap-sync/`** — the standing procedure for replaying upstream
   RoaringBitmap changes onto the module vendored here.
+- **`2026-08-01-bplustree-cursor-free-insert-path`** — freed the B+ tree descent built here from its
+  per-descent cursor allocation. It borrows this folder's `reports/` for its own census (see
+  *Supporting material*), because it is one decision and does not warrant a directory of its own.
 
 ## Supporting material
 
-- `reports/` (15 files) — the measured conclusions: FrontCoded remeasures, InvertedIndex
+- `reports/2026-07-31-bplustree-optimization-portability-census.md` — belongs to the sibling record
+  `2026-08-01-bplustree-cursor-free-insert-path`, kept here because it measures this folder's B+ tree
+  family. Answers **which of the recent single-tree optimizations port to the other four trees, and at
+  what measured size** — including the ones that were *not* ported, whose per-arm numbers are the only
+  reason not to re-propose them.
+- `reports/` (15 further files) — the measured conclusions: FrontCoded remeasures, InvertedIndex
   bucket-flyweight remeasure, SortIndex cache E2E findings and benchmark baseline-vs-optimized, warmup
   remeasure under real config, write-and-query throughput remeasure (**the authoritative list — it
   supersedes `optimization-recommendations.md`, which is kept only as a chronological record of how

@@ -1,7 +1,7 @@
 ---
 title: Take the four contained bulk-ingest wins, reject the two that trade an invariant or add complexity, and defer the one worth more than all of them
 date: 2026-07-31
-updated: 2026-07-31 22:15
+updated: 2026-08-01 10:45
 status: accepted
 kind: optimization
 issues: [1342]
@@ -9,7 +9,7 @@ prs: [1348]
 areas: [evita_engine/index/bPlusTree, evita_engine/index/invertedIndex, evita_store/evita_store_key_value/store/compression]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path]
 ---
 
 # Bulk-ingest write path — four wins taken, two refused, one deferred
@@ -144,6 +144,9 @@ only where it also breaches the size budget. The direction was right, the magnit
   side under a different workload.
 - **`2026-07-10-more-optimized-data-structures`** — introduced the front-coded column, the restart-point
   encoding and the paged inverted index this work optimizes.
+- **`2026-08-01-bplustree-cursor-free-insert-path`** — the immediate follow-on in
+  `TransactionalBucketBPlusTree`. The boundary-index work here (`8b6c2a2e8`) removed the per-insert
+  front-coded key decode, which is precisely what made one of that record's alternatives unaffordable.
 
 ## Timeline
 
