@@ -110,8 +110,11 @@ if [[ ! -f "${MODULE_DIR}/buf.yaml" ]]; then
 	exit 1
 fi
 
-# resolve a native buf unless the caller pinned one or forced the container path
-if [[ "${FORCE_DOCKER}" != "1" && -z "${BUF_BIN}" ]] && command -v buf >/dev/null 2>&1; then
+# FORCE_DOCKER always wins, even over an explicitly pinned BUF_BIN - otherwise a caller that sets
+# both (e.g. a BUF_BIN left over in the environment) would silently still get the native binary
+if [[ "${FORCE_DOCKER}" == "1" ]]; then
+	BUF_BIN=""
+elif [[ -z "${BUF_BIN}" ]] && command -v buf >/dev/null 2>&1; then
 	BUF_BIN="$(command -v buf)"
 fi
 
