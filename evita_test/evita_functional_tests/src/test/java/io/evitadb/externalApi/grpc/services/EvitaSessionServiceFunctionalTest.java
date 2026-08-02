@@ -97,7 +97,9 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -112,6 +114,7 @@ import static io.evitadb.externalApi.grpc.testUtils.GrpcAssertions.*;
 import static io.evitadb.externalApi.grpc.testUtils.TestDataProvider.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.GRPC;
@@ -3260,6 +3263,603 @@ class EvitaSessionServiceFunctionalTest {
 				"every capture beyond the baseline page must belong to the newer, concurrently committed version"
 			);
 		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should page mutations history restricted to the DATA area when sinceVersion is supplied without sinceIndex")
+	void shouldPageMutationsHistoryWithDataCriteriaWhenSinceIndexIsOmitted(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// a real, committed data change - the shared dataset's own 1000-entity generation runs during
+		// warm-up and never reaches CDC/WAL history (see the sibling paged tests above)
+		final SealedEntity target = entities.get(entities.size() - 31);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7000L)
+					.upsertVia(session);
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		// opened only after the commit above - see the record-alignment paged test for why order matters
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// `sinceVersion` deliberately supplied WITHOUT `sinceIndex`: that exact shape is the §1.1 regression,
+		// where the absent index gutted the anchor version and the RPC returned nothing at all
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.addCriteria(
+					GrpcChangeCaptureCriteria.newBuilder()
+						.setArea(GrpcChangeCaptureArea.DATA)
+						.build()
+				)
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		final List<GrpcChangeCatalogCapture> captures = page.getChangeCaptureList();
+		assertFalse(captures.isEmpty(), "a DATA-filtered page must not come back empty for a version that really carries a data change");
+		assertTrue(
+			captures.stream().anyMatch(capture -> capture.getVersion().getValue() == recordVersion),
+			"the anchor version's own data change must be present - its absence is exactly the §1.1 regression"
+		);
+		for (final GrpcChangeCatalogCapture capture : captures) {
+			assertEquals(
+				GrpcChangeCaptureArea.DATA, capture.getArea(),
+				"every capture must belong to the requested DATA area - the INFRASTRUCTURE transaction header must have been filtered out"
+			);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should page mutations history restricted to the SCHEMA area when sinceVersion is supplied without sinceIndex")
+	void shouldPageMutationsHistoryWithSchemaCriteriaWhenSinceIndexIsOmitted(
+		Evita evita, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// a brand-new entity type rather than a change to the shared PRODUCT schema, so this commit cannot
+		// perturb any sibling test's expectations - the only entity-type-enumerating test in this class
+		// compares the gRPC response against a live session, so it stays self-consistent either way
+		final String newEntityType = "cdcSchemaCriteriaProbe";
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(newEntityType).updateVia(session);
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// same omitted-`sinceIndex` shape as the DATA sibling above, on the other capture area
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.addCriteria(
+					GrpcChangeCaptureCriteria.newBuilder()
+						.setArea(GrpcChangeCaptureArea.SCHEMA)
+						.build()
+				)
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		final List<GrpcChangeCatalogCapture> captures = page.getChangeCaptureList();
+		assertFalse(captures.isEmpty(), "a SCHEMA-filtered page must not come back empty for a version that really carries a schema change");
+		assertTrue(
+			captures.stream().anyMatch(capture -> capture.getVersion().getValue() == recordVersion),
+			"the anchor version's own schema change must be present - its absence is exactly the §1.1 regression"
+		);
+		for (final GrpcChangeCatalogCapture capture : captures) {
+			assertEquals(
+				GrpcChangeCaptureArea.SCHEMA, capture.getArea(),
+				"every capture must belong to the requested SCHEMA area - the INFRASTRUCTURE transaction header must have been filtered out"
+			);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should preserve request order in GetTransactionOverview when known and unknown catalog versions are mixed")
+	void shouldPreserveRequestOrderInTransactionOverviewAcrossKnownAndUnknownVersions(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// two separate commits, so two distinct catalog versions are genuinely known to history - the
+		// existing correlatable-by-version sibling test only ever has one, which cannot show ordering
+		final SealedEntity firstTarget = entities.get(entities.size() - 32);
+		final SealedEntity secondTarget = entities.get(entities.size() - 33);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(firstTarget.getType(), firstTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7100L)
+					.upsertVia(session);
+			}
+		);
+		final long firstVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(secondTarget.getType(), secondTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7101L)
+					.upsertVia(session);
+			}
+		);
+		final long secondVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		assertTrue(secondVersion > firstVersion, "the two seeded commits must produce two distinct catalog versions");
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final long unknownCatalogVersion = Long.MAX_VALUE;
+		final GetTransactionOverviewRequest request = GetTransactionOverviewRequest
+			.newBuilder()
+			// deliberately NOT ascending, with the unknown version wedged between the two known ones: a
+			// response that is sorted, or that lets the dropped slot shift the survivors, fails here
+			.addCatalogVersion(secondVersion)
+			.addCatalogVersion(unknownCatalogVersion)
+			.addCatalogVersion(firstVersion)
+			.build();
+
+		// a version only becomes resolvable once a checkpoint has materialised it into a bootstrap version
+		// block, and CheckpointCoordinator ticks on a timer (TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL,
+		// 1s) - poll until both are visible, otherwise the ordering assertion below could hold vacuously on
+		// a single surviving entry. `pollInSameThread()` is mandatory here: the gRPC session established by
+		// SessionInitializer above lives in this thread's client context, so awaitility's default poll
+		// executor would issue the call from a thread with no session and get UNAUTHENTICATED back.
+		final AtomicReference<List<GrpcTransactionOverview>> overviews = new AtomicReference<>(List.of());
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+			overviews.set(
+				evitaSessionBlockingStub.getTransactionOverview(request).getTransactionOverviewsList()
+			);
+			return overviews.get().size() == 2;
+		});
+
+		final List<GrpcTransactionOverview> resolved = overviews.get();
+		assertEquals(2, resolved.size(), "exactly the two known versions may survive - the unknown one must be omitted, not padded");
+		assertEquals(
+			secondVersion, resolved.get(0).getCatalogVersion(),
+			"the newer version was requested first, so it must come back first"
+		);
+		assertEquals(
+			firstVersion, resolved.get(1).getCatalogVersion(),
+			"the older version was requested last, so it must come back last"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should exclude the version resolved from an exclusive time-frame lower bound while paging mutations history in reverse")
+	void shouldExcludeVersionResolvedFromTimeFrameFromWhenPagingMutationsHistoryReverse(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// A prior commit, checkpointed before the boundary moment is even chosen. Without it the boundary
+		// can resolve to the catalog's very first version block, whose `startVersion` is the bootstrap
+		// version - a version that carries no CDC captures at all, which makes the precondition below
+		// unsatisfiable. Running this test on its own used to do exactly that (it only ever passed because
+		// sibling CDC tests happened to commit first), so the history it needs is seeded here explicitly.
+		final OffsetDateTime priorMarker = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+		final SealedEntity priorTarget = entities.get(entities.size() - 40);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(priorTarget.getType(), priorTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7199L)
+					.upsertVia(session);
+			}
+		);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final AtomicReference<GrpcCatalogVersionAtResponse> priorBlock = new AtomicReference<>();
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+			priorBlock.set(
+				evitaSessionBlockingStub.getCatalogVersionAt(
+					GrpcCatalogVersionAtRequest.newBuilder()
+						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(priorMarker))
+						.build()
+				)
+			);
+			return !EvitaDataTypesConverter.toOffsetDateTime(priorBlock.get().getIntroducedAt())
+				.isBefore(priorMarker);
+		});
+
+		// The boundary sits strictly after that block, so the block resolved from it further down is a
+		// strictly later one - hence its `startVersion` is a real committed transaction with captures,
+		// never the bootstrap version. Truncated to whole seconds on purpose:
+		// `EvitaDataTypesConverter#toDateTimeRange` rebuilds the bound with
+		// `Instant.ofEpochSecond(...getSeconds())` and so drops sub-second precision, whereas
+		// GetCatalogVersionAt's `theMoment` keeps nanoseconds - at nanosecond precision the two resolve
+		// instants up to a second apart, and the commits below land inside that second, which made the
+		// boundary read back from the server disagree with the one the paged RPC actually applied.
+		final OffsetDateTime beforeSeed = EvitaDataTypesConverter
+			.toOffsetDateTime(priorBlock.get().getIntroducedAt())
+			.truncatedTo(ChronoUnit.SECONDS)
+			.plusSeconds(1);
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> OffsetDateTime.now().isAfter(beforeSeed));
+
+		// two commits, so something still remains on the far side of the bound once the version resolved
+		// from `from` has been excluded - otherwise an empty result would satisfy the assertion trivially
+		final SealedEntity firstTarget = entities.get(entities.size() - 34);
+		final SealedEntity secondTarget = entities.get(entities.size() - 35);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(firstTarget.getType(), firstTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7200L)
+					.upsertVia(session);
+			}
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(secondTarget.getType(), secondTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7201L)
+					.upsertVia(session);
+			}
+		);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// The reverse handler resolves the lower bound as `getFirstCatalogVersionAfter(from).startVersion()`
+		// and then keeps only strictly greater versions. Read that very number back over GetCatalogVersionAt,
+		// which runs the identical lookup on the identical session, instead of recomputing it client-side.
+		//
+		// The lookup is checkpoint-granular, and until a checkpoint covering the commits above has been
+		// written it clamps to the newest block it already knows - an older one. In that regime the answer
+		// still moves, so two separate RPCs could legitimately disagree. Poll until the resolved block is
+		// genuinely introduced at or after `beforeSeed`: past that point the answer is fixed, because blocks
+		// only appear on commit, this test commits nothing further, and the FIRST block at or after a fixed
+		// moment never moves once it exists.
+		//
+		// NOTE the asymmetry: `from` is exclusive on the REVERSE RPC only. On the forward RPC the version
+		// resolved from `from` becomes the traversal anchor and is itself included.
+		final GrpcCatalogVersionAtRequest boundaryRequest = GrpcCatalogVersionAtRequest.newBuilder()
+			.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(beforeSeed))
+			.build();
+		final AtomicReference<GrpcCatalogVersionAtResponse> boundary = new AtomicReference<>();
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+			boundary.set(evitaSessionBlockingStub.getCatalogVersionAt(boundaryRequest));
+			return !EvitaDataTypesConverter.toOffsetDateTime(boundary.get().getIntroducedAt())
+				.isBefore(beforeSeed);
+		});
+		final long excludedVersion = boundary.get().getStartVersion();
+
+		final GetMutationsHistoryPageResponse baseline = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(500))
+				.build()
+		);
+		assertTrue(
+			baseline.getChangeCaptureList().stream()
+				.anyMatch(capture -> capture.getVersion().getValue() == excludedVersion),
+			"precondition: the unbounded page must actually contain version " + excludedVersion +
+				" - without it the exclusivity assertion below would prove nothing"
+		);
+
+		final GetMutationsHistoryPageResponse bounded = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setTimeFrame(EvitaDataTypesConverter.toGrpcDateTimeRange(DateTimeRange.since(beforeSeed)))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(500))
+				.build()
+		);
+		assertFalse(
+			bounded.getChangeCaptureList().isEmpty(),
+			"the bounded page must still carry the versions committed beyond the excluded one"
+		);
+		for (final GrpcChangeCatalogCapture capture : bounded.getChangeCaptureList()) {
+			assertTrue(
+				capture.getVersion().getValue() > excludedVersion,
+				"`timeFrame.from` is exclusive on the reverse RPC, so version " + excludedVersion +
+					" must be absent, but got " + capture.getVersion().getValue()
+			);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should include the version resolved from an inclusive time-frame lower bound while paging mutations history forward")
+	void shouldIncludeVersionResolvedFromTimeFrameFromWhenPagingMutationsHistoryForward(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// the deliberate counterpart of the reverse test above: the two directions are NOT symmetric here.
+		// The reverse handler turns the version resolved from `from` into an exclusive floor
+		// (`version > firstRequestedCatalogVersion`), whereas the forward handler makes that same version
+		// the traversal anchor, which is inclusive - so the version resolved from `from` must be present
+		// here, exactly where the reverse RPC requires it to be absent.
+		//
+		// Same prior-commit seeding as the reverse test, and for the same reason: without it the boundary
+		// can resolve to the catalog's very first block, whose `startVersion` is the capture-less bootstrap
+		// version, and the assertion below would be unsatisfiable.
+		final OffsetDateTime priorMarker = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+		final SealedEntity priorTarget = entities.get(entities.size() - 41);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(priorTarget.getType(), priorTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7500L)
+					.upsertVia(session);
+			}
+		);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final AtomicReference<GrpcCatalogVersionAtResponse> priorBlock = new AtomicReference<>();
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+			priorBlock.set(
+				evitaSessionBlockingStub.getCatalogVersionAt(
+					GrpcCatalogVersionAtRequest.newBuilder()
+						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(priorMarker))
+						.build()
+				)
+			);
+			return !EvitaDataTypesConverter.toOffsetDateTime(priorBlock.get().getIntroducedAt())
+				.isBefore(priorMarker);
+		});
+
+		// truncated to whole seconds for the same reason as in the reverse test: `toDateTimeRange` rebuilds
+		// the bound at second granularity while GetCatalogVersionAt's `theMoment` keeps nanoseconds
+		final OffsetDateTime boundary = EvitaDataTypesConverter
+			.toOffsetDateTime(priorBlock.get().getIntroducedAt())
+			.truncatedTo(ChronoUnit.SECONDS)
+			.plusSeconds(1);
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> OffsetDateTime.now().isAfter(boundary));
+
+		final SealedEntity firstTarget = entities.get(entities.size() - 42);
+		final SealedEntity secondTarget = entities.get(entities.size() - 43);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(firstTarget.getType(), firstTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7501L)
+					.upsertVia(session);
+			}
+		);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(secondTarget.getType(), secondTarget.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7502L)
+					.upsertVia(session);
+			}
+		);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final AtomicReference<GrpcCatalogVersionAtResponse> anchorBlock = new AtomicReference<>();
+		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+			anchorBlock.set(
+				evitaSessionBlockingStub.getCatalogVersionAt(
+					GrpcCatalogVersionAtRequest.newBuilder()
+						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(boundary))
+						.build()
+				)
+			);
+			return !EvitaDataTypesConverter.toOffsetDateTime(anchorBlock.get().getIntroducedAt())
+				.isBefore(boundary);
+		});
+		final long includedVersion = anchorBlock.get().getStartVersion();
+
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPageForward(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setTimeFrame(EvitaDataTypesConverter.toGrpcDateTimeRange(DateTimeRange.since(boundary)))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(500))
+				.build()
+		);
+
+		assertFalse(page.getChangeCaptureList().isEmpty(), "the forward page must carry the seeded commits");
+		assertTrue(
+			page.getChangeCaptureList().stream()
+				.anyMatch(capture -> capture.getVersion().getValue() == includedVersion),
+			"`timeFrame.from` resolves to the forward traversal's anchor, which is inclusive, so version " +
+				includedVersion + " must be present - it is the version the reverse RPC excludes"
+		);
+		for (final GrpcChangeCatalogCapture capture : page.getChangeCaptureList()) {
+			assertTrue(
+				capture.getVersion().getValue() >= includedVersion,
+				"nothing older than the resolved anchor may appear in a forward traversal, but got " +
+					capture.getVersion().getValue()
+			);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should keep capture indexes identical under criteria filtering, not renumber them densely")
+	void shouldKeepCaptureIndexIndependentOfCriteriaFiltering(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// one upsert carrying several local mutations - the entity-level capture and all of its locals share
+		// a single (version, index) pair, alongside the transaction header at index 0
+		final SealedEntity target = entities.get(entities.size() - 36);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 7300L)
+					.setAttribute(ATTRIBUTE_QUANTITY, BigDecimal.valueOf(88))
+					.upsertVia(session);
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		final GetMutationsHistoryPageResponse unfiltered = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+		final GetMutationsHistoryPageResponse filtered = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.addCriteria(
+					GrpcChangeCaptureCriteria.newBuilder()
+						.setArea(GrpcChangeCaptureArea.DATA)
+						.build()
+				)
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		final List<GrpcChangeCatalogCapture> unfilteredForVersion = unfiltered.getChangeCaptureList().stream()
+			.filter(capture -> capture.getVersion().getValue() == recordVersion)
+			.toList();
+		final List<GrpcChangeCatalogCapture> filteredForVersion = filtered.getChangeCaptureList().stream()
+			.filter(capture -> capture.getVersion().getValue() == recordVersion)
+			.toList();
+
+		assertFalse(filteredForVersion.isEmpty(), "the DATA criterion must leave the entity captures behind");
+		assertTrue(
+			filteredForVersion.size() < unfilteredForVersion.size(),
+			"the DATA criterion must actually remove something (at minimum the INFRASTRUCTURE transaction " +
+				"header) - otherwise matching indexes below would prove nothing"
+		);
+
+		// the surviving captures must carry exactly the indexes they had in the unfiltered stream: filtering
+		// must never renumber them densely, or a client could not correlate a filtered page against an
+		// unfiltered one, nor run the §3.3 completeness check across the two
+		final List<GrpcChangeCatalogCapture> unfilteredDataOnly = unfilteredForVersion.stream()
+			.filter(capture -> capture.getArea() == GrpcChangeCaptureArea.DATA)
+			.toList();
+		assertEquals(
+			unfilteredDataOnly.size(), filteredForVersion.size(),
+			"filtering must drop only the non-DATA captures, never any DATA one"
+		);
+		for (int idx = 0; idx < filteredForVersion.size(); idx++) {
+			assertEquals(
+				unfilteredDataOnly.get(idx).getIndex().getValue(),
+				filteredForVersion.get(idx).getIndex().getValue(),
+				"capture index must be filter-independent, but position " + idx + " shifted"
+			);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
+	@DisplayName("Should satisfy the mutationCount completeness check on an unfiltered CHANGE_BODY page")
+	void shouldSatisfyCompletenessCheckOnUnfilteredChangeBodyPage(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		// three distinct entity upserts in ONE transaction: `mutationCount` counts top-level WAL records, so
+		// this transaction's header must report more than one - a single-record transaction would satisfy the
+		// check below trivially
+		final List<SealedEntity> targets = entities.subList(entities.size() - 39, entities.size() - 36);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int idx = 0; idx < targets.size(); idx++) {
+					final SealedEntity target = targets.get(idx);
+					session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 7400L + idx)
+						.upsertVia(session);
+				}
+			}
+		);
+		final long recordVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// both preconditions the documented protocol requires: CHANGE_BODY (in HEADER mode the body is null
+		// and no count is available at all) and an unfiltered stream (a DATA-only criterion would remove the
+		// very header that carries the count)
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setSinceVersion(Int64Value.of(recordVersion))
+				.setContent(GrpcChangeCaptureContent.CHANGE_BODY)
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		final List<GrpcChangeCatalogCapture> forVersion = page.getChangeCaptureList().stream()
+			.filter(capture -> capture.getVersion().getValue() == recordVersion)
+			.toList();
+		final GrpcChangeCatalogCapture header = forVersion.stream()
+			.filter(capture -> capture.getArea() == GrpcChangeCaptureArea.INFRASTRUCTURE)
+			.findFirst()
+			.orElseThrow(() -> new AssertionError(
+				"an unfiltered stream must carry the transaction header that holds mutationCount"
+			));
+		assertTrue(
+			header.hasInfrastructureMutation(),
+			"CHANGE_BODY was requested, so the header must arrive with its body populated - a null body is " +
+				"exactly what made this check unreachable before §1.2 was fixed"
+		);
+
+		final int mutationCount = header.getInfrastructureMutation().getTransactionMutation().getMutationCount();
+		assertTrue(
+			mutationCount > 1,
+			"the seeded transaction must carry more than one top-level record, or the completeness check " +
+				"would hold trivially - got " + mutationCount
+		);
+
+		// the documented check itself: `mutationCount` counts top-level WAL records, and every top-level
+		// record occupies exactly one (version, index) slot that its local-mutation fan-out shares - so the
+		// number of distinct non-header indexes must reproduce it exactly
+		final Set<Integer> topLevelRecordIndexes = forVersion.stream()
+			.filter(capture -> capture.getArea() != GrpcChangeCaptureArea.INFRASTRUCTURE)
+			.map(capture -> capture.getIndex().getValue())
+			.collect(Collectors.toSet());
+		assertEquals(
+			mutationCount, topLevelRecordIndexes.size(),
+			"the transaction header's mutationCount must match the number of distinct top-level records " +
+				"actually delivered, or a client cannot tell a complete transaction from a truncated one"
+		);
 	}
 
 	public record AssociatedDataComplexObjectExample(
