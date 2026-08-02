@@ -34,6 +34,10 @@ jobs:
     permissions:
       # write permission is required to create a github release
       contents: write
+      # required to dispatch DockerHub-deploy below — see the "Dispatch
+      # Docker publish" step's comment for why a plain workflow_run listener
+      # doesn't work here
+      actions: write
 
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
@@ -394,6 +398,40 @@ jobs:
       with:
         name: version.txt
         path: 'version.txt'
+
+    # DockerHub-deploy used to pick this run up via a `workflow_run` listener
+    # on this workflow's completion — that only fires reliably when this
+    # run's own actor is a human (e.g. a direct push to a release_* branch).
+    # When CI Master branch dispatched this very run via `gh workflow run`
+    # (GITHUB_TOKEN-authored, the standard dev -> master path), its actor is
+    # `github-actions[bot]` and GitHub's anti-recursion rule blocks that
+    # completion from cascading further — only workflow_dispatch/
+    # repository_dispatch are exempted, and only for one hop. Dispatch it
+    # explicitly instead (same mechanism as the CI Master hand-off, applied
+    # one hop further), passing this run's own id so it pulls the artifacts
+    # just uploaded above rather than the release's zip asset — the release
+    # is typically still a draft at this point (publishing happens later,
+    # separately) and a draft has no real downloadable git tag yet. Placed
+    # ahead of the enrichment tail below (not gated on it) so a Claude
+    # enrichment failure can never delay or block the Docker publish.
+    - name: Dispatch Docker publish
+      if: success()
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.release_version.outputs.version }}
+        THIS_RUN_ID: ${{ github.run_id }}
+      run: |
+        for attempt in 1 2 3 4 5; do
+          if gh workflow run docker-latest.yml --repo "${{ github.repository }}" --ref master \
+               -f version="$VERSION" -f run_id="$THIS_RUN_ID" -f push_latest=auto; then
+            echo "Dispatched DockerHub-deploy for $VERSION (run $THIS_RUN_ID)"
+            exit 0
+          fi
+          echo "Dispatch attempt $attempt failed, retrying in 3s..."
+          sleep 3
+        done
+        echo "::error::failed to dispatch DockerHub-deploy for $VERSION after 5 attempts"
+        exit 1
 
     # Cache the Claude Code CLI binary so we don't re-download it on every
     # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump

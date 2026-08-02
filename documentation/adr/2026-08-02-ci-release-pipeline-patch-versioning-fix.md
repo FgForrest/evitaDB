@@ -1,10 +1,10 @@
 ---
 title: Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
 date: 2026-08-02
-updated: 2026-08-02 21:35
+updated: 2026-08-02 22:50
 status: accepted
 kind: infrastructure
-issues: [1359]
+issues: [1359, 1362]
 prs: []
 areas: [.github/workflows]
 supersedes: []
@@ -100,9 +100,9 @@ exactly what made the `workflow_run` side silently wrong (it never scanned tags)
   `steps.release_version.outputs.is_major` instead of the removed `workflow_run` check.
 - `MAKE_LATEST` now reads `steps.release_version.outputs.is_latest_line` instead of
   `github.ref_name == 'master'` — see below, this is a second, related bug fix riding along.
-- `docker-latest.yml`'s `workflow_run: workflows: ['CI Release branch']` trigger is unaffected: it
-  subscribes to that workflow's completion regardless of what triggered it, so it still fires whether
-  `ci-release.yml` ran via `push` or `workflow_dispatch`.
+- `docker-latest.yml`'s `workflow_run: workflows: ['CI Release branch']` trigger turned out **not**
+  to be unaffected — see "The DockerHub-deploy cascade this also breaks" below. First assumed
+  harmless here; the first live run proved otherwise the same day.
 - **Known limitation, kept deliberately:** `ci-master.yml`'s `push` trigger still carries a `paths:`
   filter (`evita*/**/*.java`, `evita*/**/pom.xml`, …). A `dev` → `master` merge touching only
   `documentation/**` or `tools/**` will not trigger `CI Master branch` at all, so nothing dispatches
@@ -135,6 +135,36 @@ never literally `master`, so every future release — including a hotfix on the 
 release. Fixed by comparing this release's major.minor against the highest major.minor among all
 published `v*` tags instead of trusting the ref name.
 
+### The DockerHub-deploy cascade this also breaks (and fixes)
+
+`docker-latest.yml` listens via `workflow_run: workflows: ['CI Release branch']`. The first live
+`dev` → `master` merge under this fix (run `30764447267`, produced `v2026.2.1`) proved the ADR's own
+"unaffected" claim above wrong: no `DockerHub-deploy` run was ever created for it.
+
+The same GITHUB_TOKEN anti-recursion rule that motivated this whole ADR applies one hop further than
+first assumed: a `workflow_dispatch` dispatched by a `GITHUB_TOKEN`-authored action *is* exempted
+(that's the mechanism this ADR relies on for `ci-master.yml` → `ci-release.yml`), but the exemption
+is one-hop — the *completion* of that resulting run does not itself cascade into further automatic
+triggers like `workflow_run`, only into another `workflow_dispatch`/`repository_dispatch`. Confirmed
+via `actor`/`triggering_actor`: run `30764447267` (dispatched by `ci-master.yml`) is
+`github-actions[bot]`; the last genuine `.0` cut (run `30331814919`, triggered by a real push from
+`novoj`) is `novoj` — and only the latter has a matching `DockerHub-deploy` run.
+
+**Fix:** `ci-release.yml` now explicitly dispatches `docker-latest.yml` itself (`Dispatch Docker
+publish` step, same retry pattern as `Dispatch release build`), rather than relying on the
+`workflow_run` listener at all. The `workflow_run` trigger is removed from `docker-latest.yml`
+entirely — keeping both would double-publish for a direct push to a release branch (still a human
+actor, so `workflow_run` would still fire there too).
+
+This also required a second change: `docker-latest.yml`'s existing `workflow_dispatch` inputs
+(originally a manual-recovery path only) download `dist.zip` from the *published* GitHub release —
+but the release is typically still a **draft** at the point `ci-release.yml` would dispatch this,
+and a draft release has no real downloadable git tag yet. Added an optional `run_id` input: when
+given, `docker-latest.yml` pulls `evita-server.jar`/`version.txt` as workflow artifacts from that
+specific run (uploaded by `ci-release.yml` just before dispatching) instead of the release asset.
+The original release-asset path still works unchanged when `run_id` is omitted (manual recovery,
+unchanged contract).
+
 ## Verification
 
 - `documentation/adr/2026-08-02-ci-release-pipeline-patch-versioning-fix.md` fixture scripts (not
@@ -146,17 +176,29 @@ published `v*` tags instead of trusting the ref name.
 - `is_latest_line` fixture-tested against the repo's real tag set: `release_2026-2` (current line) →
   `true`; `release_2026-1` (superseded) → `false`; a hypothetical new `release_2026-3` → `true`; an
   old `release_2025-3` → `false`.
-- Both workflow YAML files parse (`yaml.safe_load`); `actionlint` was not available locally to
-  validate GitHub Actions expression semantics beyond plain YAML syntax.
-- Not verified end-to-end against live GitHub Actions (would require pushing and observing a real
-  dispatch) — the first real release cut after this merges is the actual integration test.
+- All three workflow YAML files (`ci-master.yml`, `ci-release.yml`, `docker-latest.yml`) parse
+  (`yaml.safe_load`); `actionlint` was not available locally to validate GitHub Actions expression
+  semantics beyond plain YAML syntax.
+- **Live end-to-end run**: PR #1361 (`dev` → `master`) exercised the real path. `CI Master branch`
+  fast-forwarded `release_2026-2` and dispatched `CI Release branch` (run `30764447267`), which
+  correctly resolved and published `v2026.2.1` — the primary bug this ADR fixes is confirmed working.
+  It also surfaced the DockerHub-deploy cascade break documented above (no `DockerHub-deploy` run was
+  created), which is fixed here.
+- `evitadb/evitadb:2026.2.1` and `evitadb/evitadb:latest` published manually (`gh workflow run
+  docker-latest.yml -f version=v2026.2.1 -f push_latest=auto`, run `30765917444`, `success`) while
+  the `Dispatch Docker publish` fix was being written; confirmed via DockerHub API that both tags
+  share the identical image digest (`sha256:f9d89b9e...`), pushed 3 seconds apart.
 
 ## Consequences & open follow-ups
 
-- The first `dev` → `master` merge after this lands is the first real exercise of the new path;
-  watch its `CI Master branch` and `CI Release branch` runs directly rather than assuming success.
+- The first live `dev` → `master` merge under this fix (PR #1361) has already run — the release-cut
+  half worked as designed; the DockerHub-deploy gap it exposed is fixed in this same record. The
+  *next* merge is the first real exercise of the Docker-dispatch fix specifically; watch its
+  `DockerHub-deploy` run rather than assuming success.
 
 ## Timeline
 
 - **2026-08-02** — investigated why `dev` → `master` wouldn't produce `2026.2.1`; found the trigger
-  gap; implemented and verified the `workflow_dispatch` fix.
+  gap; implemented and verified the `workflow_dispatch` fix; PR #1361 exercised it live, producing
+  `v2026.2.1` but exposing the DockerHub-deploy cascade break; fixed by dispatching
+  `docker-latest.yml` explicitly.
