@@ -1,7 +1,7 @@
 ---
 title: Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
 date: 2026-08-02
-updated: 2026-08-02 22:50
+updated: 2026-08-02 23:05
 status: accepted
 kind: infrastructure
 issues: [1359, 1362]
@@ -194,7 +194,14 @@ unchanged contract).
 - The first live `dev` → `master` merge under this fix (PR #1361) has already run — the release-cut
   half worked as designed; the DockerHub-deploy gap it exposed is fixed in this same record. The
   *next* merge is the first real exercise of the Docker-dispatch fix specifically; watch its
-  `DockerHub-deploy` run rather than assuming success.
+  `DockerHub-deploy` run rather than assuming success — in particular, whether `Download a JAR file
+  to deploy`/`Download a version information` find the artifacts. Unlike the old `workflow_run`
+  listener (which only started after `CI Release branch`'s entire job had finished), the new
+  dispatch fires right after the two upload steps, before the enrichment tail — narrower, but still
+  padded by `docker-latest.yml`'s own runner-allocation and checkout time before it reaches the
+  download steps. Reviewer-flagged risk (PR #1363); no failure observed yet, but not proven absent
+  either — if the download step ever fails on a fresh dispatch, add a short retry/backoff there
+  rather than assuming it's unrelated.
 
 ## Timeline
 

@@ -363,10 +363,11 @@ jobs:
     # deploy to Central + draft release both already happened above) and are
     # placed ahead of the release-notes enrichment block below on purpose:
     # enrichment is best-effort, but a hard failure anywhere still taints the
-    # job's overall conclusion, and the Docker publish workflow only triggers
-    # on a successful conclusion. Uploading the release-completing assets
-    # first means a failure in the enrichment tail can no longer prevent the
-    # release from being usable or block the Docker publish.
+    # job's overall conclusion, and the "Dispatch Docker publish" step further
+    # below is itself gated on `if: success()`. Uploading the release-
+    # completing assets first means a failure in the enrichment tail can no
+    # longer prevent the release from being usable or block the Docker
+    # publish.
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()
