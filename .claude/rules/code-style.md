@@ -6,7 +6,7 @@ paths:
 # Java Code Style
 
 - **Indentation**: Use tabs for indentation. NEVER use spaces for indentation. When using the Edit tool, ensure `old_string` and `new_string` contain literal tab characters matching the source file. If the Edit tool fails due to whitespace mismatch, fall back to a python3 script for the replacement.
-- **Line Length**: Limit lines to 100 characters
+- **Line Length**: Limit lines to 120 characters — the project hard wrap (`.editorconfig`, `max_line_length = 120`)
 - **Java modules**: Use Java modules to organize code
 - **JavaDoc**: Use Markdown syntax for formatting in JavaDoc - never use HTML tags
 - **Data structures**: Prefer immutable classes / records for data structures

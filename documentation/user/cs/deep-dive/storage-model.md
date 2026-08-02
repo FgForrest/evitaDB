@@ -1,10 +1,10 @@
 ---
 title: Model ukládání dat
-perex: Pokud vás zajímá interní model ukládání dat systému, je tento článek určen právě vám. Z pohledu uživatele není znalost tohoto modelu nutná, ale může vám pomoci pochopit některé aspekty systému a jeho chování. Na rozdíl od mnoha jiných systémů používá evitaDB vlastní model ukládání dat postavený na principu key-value úložiště s proměnnou délkou hodnot. Zároveň je ukládání dat striktně pouze přidávací, což znamená, že jednou zapsaná data se již nikdy nemění.
+perex: Pokud vás zajímá interní model ukládání dat systému, je tento článek určen právě vám. Z pohledu uživatele není znalost tohoto modelu nutná, ale může vám pomoci pochopit některé aspekty systému a jeho chování. Na rozdíl od mnoha jiných systémů používá evitaDB vlastní model ukládání dat založený na principu key-value úložiště s proměnnou délkou hodnoty. Zároveň je ukládání dat striktně pouze přidávací (append-only), což znamená, že jednou zapsaná data se již nikdy nemění.
 date: '5.4.2024'
 author: Ing. Jan Novotný
 translated: 'true'
-commit: '8b8bd77e322fb731ed9c98e022063f0af272b225'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Základní typy souborů a jejich vztahy
 

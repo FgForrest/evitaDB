@@ -33,7 +33,8 @@ public interface GrpcExportTrafficRecordingRequestOrBuilder extends
 
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcExportTrafficRecordingRequestOrBuilder extends
   boolean hasChunkFileSizeInBytes();
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcExportTrafficRecordingRequestOrBuilder extends
   com.google.protobuf.Int64Value getChunkFileSizeInBytes();
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 1;</code>

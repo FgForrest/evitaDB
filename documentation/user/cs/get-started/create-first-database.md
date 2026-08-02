@@ -5,8 +5,8 @@ date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: '4c8e30c17df75524da54fca556c6f170e32409b2'
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="j">
 

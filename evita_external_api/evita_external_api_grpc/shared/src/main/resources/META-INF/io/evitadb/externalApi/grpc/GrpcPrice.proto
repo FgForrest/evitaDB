@@ -31,9 +31,9 @@ message GrpcPrice {
   google.protobuf.Int32Value innerRecordId = 4;
   // Price without tax.
   GrpcBigDecimal priceWithoutTax = 5;
-  // Price with tax.
-  GrpcBigDecimal taxRate = 6;
   // Tax rate percentage (i.e. for 19% it'll be 19.00)
+  GrpcBigDecimal taxRate = 6;
+  // Price with tax.
   GrpcBigDecimal priceWithTax = 7;
   // Date and time interval for which the price is valid (inclusive).
   GrpcDateTimeRange validity = 8;
@@ -41,7 +41,7 @@ message GrpcPrice {
   // entity but won't be considered when evaluating search. These prices may be
   // used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
   // as "usual price") but are not considered as the "selling" price.
-  // RENAMED TO "indexed"
+  // Deprecated since 2024.10 - RENAMED TO "indexed"
   bool sellable = 9 [deprecated = true];
   // Contains version of this price and gets increased with any entity type update. Allows to execute
   // optimistic locking i.e. avoiding parallel modifications.

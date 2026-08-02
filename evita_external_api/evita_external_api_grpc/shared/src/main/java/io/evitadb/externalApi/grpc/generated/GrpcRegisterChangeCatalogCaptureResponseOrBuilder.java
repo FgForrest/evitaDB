@@ -33,7 +33,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   boolean hasUuid();
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid();
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Present on every message, not just the initial
+   * acknowledgement.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -60,7 +63,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -69,7 +73,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   boolean hasCapture();
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -78,7 +83,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getCapture();
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+   * `CHANGE`; unset otherwise.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture capture = 2;</code>
@@ -87,8 +93,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+   * comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -97,8 +103,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   int getResponseTypeValue();
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+   * comment above.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -108,7 +114,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -117,7 +124,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   boolean hasHeartBeat();
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -126,7 +134,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcHeartBeat getHeartBeat();
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+   * `responseType` is `CHANGE`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>

@@ -299,6 +299,18 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
+	 * Same as {@link #size()}, but reads through an already-resolved transaction so a caller touching several
+	 * transactional members pays the `CURRENT_TRANSACTION` ThreadLocal read once rather than once per member.
+	 *
+	 * @param transaction the caller-resolved current transaction, or `null` when outside a transaction
+	 * @return the number of record ids visible to the given transaction
+	 */
+	int size(@Nullable Transaction transaction) {
+		final Integer theSize = this.size.get(transaction);
+		return theSize == null ? 0 : theSize;
+	}
+
+	/**
 	 * Returns true when the tree holds no records.
 	 */
 	public boolean isEmpty() {
@@ -548,8 +560,15 @@ public class UnorderedLookupTree implements
 	 * @throws GenericEvitaInternalError when the position is out of bounds
 	 */
 	public int getRecordAt(int position) {
-		final Node<?> theRoot = getRoot();
-		if (position < 0 || position >= size() || theRoot == null) {
+		// Resolve the thread's transaction ONCE. `getRoot()` and `size()` read two different TransactionalReferences,
+		// and each would otherwise start with its own `CURRENT_TRANSACTION` ThreadLocal read - two per positional
+		// probe, at ~13 probes per sort-attribute insert across 40 low-cardinality attributes per entity. ThreadLocal
+		// machinery is 5.25 % of busy-thread wall on that path (issue #1332). The dispatch itself stays HERE, in the
+		// public read method, as INV-2 of the STM rules requires (see
+		// `documentation/developer/stm/rules-and-invariants.md`) - only its duplication is removed.
+		final Transaction transaction = Transaction.getCurrentTransactionIfAvailable();
+		final Node<?> theRoot = getRoot(transaction);
+		if (position < 0 || position >= size(transaction) || theRoot == null) {
 			throw new GenericEvitaInternalError(
 				"Position " + position + " not found!",
 				"Unknown position in the array!"
@@ -1231,6 +1250,18 @@ public class UnorderedLookupTree implements
 	@Nullable
 	private Node<?> getRoot() {
 		return this.root.get();
+	}
+
+	/**
+	 * Same as {@link #getRoot()}, but reads through an already-resolved transaction - see
+	 * {@link #size(Transaction)} for why the two are paired.
+	 *
+	 * @param transaction the caller-resolved current transaction, or `null` when outside a transaction
+	 * @return the root node visible to the given transaction, or `null` for an empty tree
+	 */
+	@Nullable
+	private Node<?> getRoot(@Nullable Transaction transaction) {
+		return this.root.get(transaction);
 	}
 
 	/**

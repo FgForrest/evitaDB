@@ -83,7 +83,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -92,7 +93,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasTaskId();
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -101,7 +103,8 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getTaskId();
   /**
    * <pre>
-   * Identification of the task
+   * Unique identifier of this task instance; use it to reference this task in status lookups or
+   * cancellation requests.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid taskId = 3;</code>
@@ -110,7 +113,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -119,7 +123,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasCatalogName();
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -128,7 +133,8 @@ public interface GrpcTaskStatusOrBuilder extends
   com.google.protobuf.StringValue getCatalogName();
   /**
    * <pre>
-   * Name of the catalog the task is related to (optional)
+   * Name of the catalog this task operates on. Unset for tasks that are not scoped to a single
+   * catalog (e.g. server-wide/system tasks).
    * </pre>
    *
    * <code>.google.protobuf.StringValue catalogName = 4;</code>
@@ -137,7 +143,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -146,7 +153,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasIssued();
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -155,7 +163,8 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIssued();
   /**
    * <pre>
-   * Date and time when the task was issued
+   * Date and time when the task was issued for execution (queued to run). Unset while the task is
+   * still pending and has not yet been issued.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime issued = 5;</code>
@@ -164,7 +173,7 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -173,7 +182,7 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasStarted();
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -182,7 +191,7 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getStarted();
   /**
    * <pre>
-   * Date and time when the task was started
+   * Date and time when the task started executing. Unset before execution begins.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime started = 6;</code>
@@ -191,7 +200,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -200,7 +210,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasFinished();
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -209,7 +220,8 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getFinished();
   /**
    * <pre>
-   * Date and time when the task was finished
+   * Date and time when the task finished executing, successfully or with an error. Unset while
+   * the task is still running.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime finished = 7;</code>
@@ -218,7 +230,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Simplified state of the status
+   * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+   * from the task's more detailed internal state.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -227,7 +240,8 @@ public interface GrpcTaskStatusOrBuilder extends
   int getSimplifiedStateValue();
   /**
    * <pre>
-   * Simplified state of the status
+   * Coarse-grained lifecycle state of the task (queued, running, finished or failed), derived
+   * from the task's more detailed internal state.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState simplifiedState = 8;</code>
@@ -247,7 +261,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -256,7 +271,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasSettings();
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -265,7 +281,8 @@ public interface GrpcTaskStatusOrBuilder extends
   com.google.protobuf.StringValue getSettings();
   /**
    * <pre>
-   * Configuration settings of the task
+   * String representation (`toString()`) of the task's configuration settings. Read back as an
+   * empty string if unset.
    * </pre>
    *
    * <code>.google.protobuf.StringValue settings = 10;</code>
@@ -274,7 +291,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -283,7 +301,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasText();
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -292,7 +311,8 @@ public interface GrpcTaskStatusOrBuilder extends
   com.google.protobuf.StringValue getText();
   /**
    * <pre>
-   * Textual result of the task
+   * String representation (`toString()`) of the task's result object, used for any result other
+   * than a fetchable file.
    * </pre>
    *
    * <code>.google.protobuf.StringValue text = 11;</code>
@@ -301,7 +321,7 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -310,7 +330,7 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasFile();
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -319,7 +339,7 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcFile getFile();
   /**
    * <pre>
-   * File that was created by the task and is available for fetching
+   * The file produced by the task (e.g. a backup archive), available for fetching by `fileId`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFile file = 12;</code>
@@ -328,7 +348,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -337,7 +358,8 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasException();
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -346,7 +368,8 @@ public interface GrpcTaskStatusOrBuilder extends
   com.google.protobuf.StringValue getException();
   /**
    * <pre>
-   * Exception that occurred during the task execution
+   * Public-safe error message if the task failed. Unset while the task is running or if it
+   * completed without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue exception = 13;</code>
@@ -355,7 +378,8 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -364,7 +388,8 @@ public interface GrpcTaskStatusOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskTrait> getTraitList();
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -373,7 +398,8 @@ public interface GrpcTaskStatusOrBuilder extends
   int getTraitCount();
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -383,7 +409,8 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskTrait getTrait(int index);
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -393,7 +420,8 @@ public interface GrpcTaskStatusOrBuilder extends
   getTraitValueList();
   /**
    * <pre>
-   * List of task traits
+   * Capabilities available for this task instance (e.g. whether it can be manually started,
+   * cancelled, or must be explicitly stopped).
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskTrait trait = 14;</code>
@@ -404,7 +432,7 @@ public interface GrpcTaskStatusOrBuilder extends
 
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -413,7 +441,7 @@ public interface GrpcTaskStatusOrBuilder extends
   boolean hasCreated();
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>
@@ -422,7 +450,7 @@ public interface GrpcTaskStatusOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getCreated();
   /**
    * <pre>
-   * Date and time when the task was created
+   * Date and time when this task status record was created; always set, and precedes `issued`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime created = 15;</code>

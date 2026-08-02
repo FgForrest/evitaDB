@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for specifying a query to be executed.
+ * Request for specifying a full EvitaQL query with parameter values embedded directly in the string (no
+ * separate positional/named parameter binding). Internal/unsafe use only - see the `QueryUnsafe` RPC
+ * comment: applications should use `GrpcQueryRequest` instead.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest}
@@ -72,7 +74,8 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object query_ = "";
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+   * to resolve).
    * </pre>
    *
    * <code>string query = 1;</code>
@@ -93,7 +96,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+   * to resolve).
    * </pre>
    *
    * <code>string query = 1;</code>
@@ -272,7 +276,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for specifying a query to be executed.
+   * Request for specifying a full EvitaQL query with parameter values embedded directly in the string (no
+   * separate positional/named parameter binding). Internal/unsafe use only - see the `QueryUnsafe` RPC
+   * comment: applications should use `GrpcQueryRequest` instead.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcQueryUnsafeRequest}
@@ -447,7 +453,8 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object query_ = "";
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+     * to resolve).
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -467,7 +474,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+     * to resolve).
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -488,7 +496,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+     * to resolve).
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -505,7 +514,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+     * to resolve).
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -519,7 +529,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The complete query string, with any parameter values already embedded (no `?`/`&#64;name` placeholders
+     * to resolve).
      * </pre>
      *
      * <code>string query = 1;</code>

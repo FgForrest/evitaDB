@@ -19,10 +19,14 @@ on:
         required: true
         type: string
       push_latest:
-        description: 'Also push the :latest tag. Only enable when this version is the newest across all branches (i.e. master).'
+        description: 'Force the :latest decision instead of auto-computing it. "auto" (default) pushes :latest when this version is the newest known release line (by YYYY.MM); "true"/"false" override that.'
         required: false
-        default: false
-        type: boolean
+        default: auto
+        type: choice
+        options:
+          - auto
+          - "true"
+          - "false"
 
 permissions:
   contents: read          # Required for actions/checkout to read the repository
@@ -41,32 +45,26 @@ jobs:
           ref: master  # Always checks out the master branch (due to config file)
           persist-credentials: false
 
-      # Resolve where the JAR comes from and whether :latest gets pushed.
-      # Normal CI flow: JAR comes from the upstream workflow's artifact;
-      #   :latest is pushed only when that workflow ran on master, otherwise
-      #   a legacy maintenance-branch release (e.g. release_2025-7) would
-      #   regress :latest away from the newest master release.
-      # Recovery flow: JAR comes from the release's dist.zip asset; the
-      #   operator chooses push_latest explicitly via the dispatch input.
+      # Resolve where the JAR comes from. Whether :latest gets pushed is
+      # decided later (see "Determine whether to push :latest" below) once
+      # the version number is known — releases now ship from release_YYYY-M
+      # branches (both new majors and maintenance patches), so the upstream
+      # branch name can no longer answer "is this the newest line"; only a
+      # comparison against other releases' version numbers can.
       - name: Resolve build inputs
         id: inputs
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_PUSH_LATEST: ${{ inputs.push_latest }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "source=release_asset" >> "$GITHUB_OUTPUT"
             echo "version_tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "push_latest=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
+            echo "push_latest_override=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
           else
             echo "source=workflow_artifact" >> "$GITHUB_OUTPUT"
-            if [ "$HEAD_BRANCH" = "master" ]; then
-              echo "push_latest=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "push_latest=false" >> "$GITHUB_OUTPUT"
-            fi
+            echo "push_latest_override=auto" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
@@ -135,6 +133,55 @@ jobs:
           releaseDate=$(date +%Y-%m-%d)
           echo "releaseDate=$releaseDate" >> "$GITHUB_ENV"
 
+      # Decide whether this build should also become :latest. A legacy
+      # maintenance-branch patch (e.g. v2026.1.21, released after v2026.2.0
+      # already shipped) must not regress :latest away from the newest line.
+      # "Newest" is resolved by comparing this release's YYYY.MM against
+      # every other PUBLISHED release's YYYY.MM (via the GitHub API) — never
+      # by branch name, since every release (new major or maintenance patch)
+      # now ships from a release_YYYY-M branch and branch name can't tell
+      # them apart. This release's own version is injected into the
+      # comparison explicitly because its GitHub release may still be a
+      # draft at this point (release-notes enrichment/publish happens
+      # later), so it wouldn't show up as "published" yet.
+      - name: Determine whether to push :latest
+        id: latest
+        env:
+          OVERRIDE: ${{ steps.inputs.outputs.push_latest_override }}
+          VERSION: ${{ env.version }}
+        run: |
+          if [ "$OVERRIDE" = "true" ] || [ "$OVERRIDE" = "false" ]; then
+            echo "push_latest=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "Using explicit override: push_latest=$OVERRIDE"
+            exit 0
+          fi
+
+          OTHER=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" --paginate \
+            --jq '.[] | select(.draft == false) | .tag_name' \
+            | grep -E '^v[0-9]{4}\.[0-9]+\.[0-9]+$' \
+            | sed -E 's/^v([0-9]+\.[0-9]+)\..*/\1/' || true)
+
+          # An empty result here almost certainly means the API call failed
+          # or got throttled, not that no release has ever been published.
+          # Trusting an empty $OTHER would make $VERSION trivially "the
+          # highest" and push :latest unconditionally — the exact failure
+          # this workflow exists to prevent — so fail loudly instead.
+          if [ -z "$OTHER" ]; then
+            echo "::error::no published releases enumerated via the GitHub API — refusing to guess :latest"
+            exit 1
+          fi
+
+          HIGHEST=$(printf '%s\n%s\n' "$OTHER" "$VERSION" | grep -v '^$' | sort -V -u | tail -1)
+
+          echo "Known release lines (incl. this one): $(printf '%s\n%s\n' "$OTHER" "$VERSION" | grep -v '^$' | sort -V -u | tr '\n' ' ')"
+          echo "Highest: $HIGHEST — this release: $VERSION"
+
+          if [ "$HIGHEST" = "$VERSION" ]; then
+            echo "push_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push_latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push Docker image
         env:
           RELEASE_IMAGE: "evitadb:latest"
@@ -147,10 +194,10 @@ jobs:
           push: true
           # The :latest tag is gated on push_latest (resolved above) so that a
           # legacy maintenance-branch release (e.g. v2025.7.x) does not regress
-          # :latest away from a newer master release. Empty lines in the tag
+          # :latest away from a newer release line. Empty lines in the tag
           # list are filtered by docker/build-push-action.
           tags: |
-            ${{ steps.inputs.outputs.push_latest == 'true' && format('{0}/{1}', vars.CI_REGISTRY_USER, env.RELEASE_IMAGE) || '' }}
+            ${{ steps.latest.outputs.push_latest == 'true' && format('{0}/{1}', vars.CI_REGISTRY_USER, env.RELEASE_IMAGE) || '' }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.fullVersion }}
           platforms: linux/amd64,linux/arm64/v8

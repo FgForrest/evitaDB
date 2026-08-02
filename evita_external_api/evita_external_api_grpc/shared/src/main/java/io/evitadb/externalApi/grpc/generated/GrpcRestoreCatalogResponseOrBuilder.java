@@ -33,7 +33,9 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * returns the number of bytes read from the backup file
+   * Total number of bytes read from the backup file (bytes). Only meaningful for `RestoreCatalog`,
+   * where it reports the cumulative size of the uploaded stream; always 0 for
+   * `RestoreCatalogFromServerFile`, which does not populate this field.
    * </pre>
    *
    * <code>int64 read = 1;</code>
@@ -43,7 +45,8 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
 
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -52,7 +55,8 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
   boolean hasTask();
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
@@ -61,7 +65,8 @@ public interface GrpcRestoreCatalogResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcTaskStatus getTask();
   /**
    * <pre>
-   * the task that is used to restore the catalog and getting its progress
+   * The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+   * progress.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>

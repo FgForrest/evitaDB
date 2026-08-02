@@ -122,6 +122,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -1572,7 +1573,7 @@ public final class EntityCollection implements
 			this.catalog,
 			this,
 			session, evitaRequest,
-			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
+			evitaRequest.isQueryTelemetryRequested() ? QueryTelemetry.root(QueryPhase.OVERALL) : null,
 			this.indexes,
 			this.indexesByPrimaryKey,
 			this.cacheSupervisor
@@ -2430,6 +2431,18 @@ public final class EntityCollection implements
 			entityType.equals(this.getEntityType()),
 			() -> new GenericEvitaInternalError(
 				"Entity type `" + entityType + "` is not matching the entity collection type `" + this.getEntityType() + "`!"
+			)
+		);
+		// evitaDB reserves this primary key and never assigns it, which is what lets indexes use it as an
+		// unambiguous "no entity" sentinel (see EvitaDataTypes#RESERVED_PRIMARY_KEY). Reject it at the single point
+		// where entities enter the engine, so no index can ever come to hold it.
+		final Integer mutatedPrimaryKey = entityMutation.getEntityPrimaryKey();
+		Assert.isTrue(
+			mutatedPrimaryKey == null || mutatedPrimaryKey != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			() -> new InvalidMutationException(
+				"Primary key `" + EvitaDataTypes.RESERVED_PRIMARY_KEY + "` is reserved by evitaDB and cannot be " +
+					"assigned to an entity of type `" + entityType + "` - use a positive primary key, or let " +
+					"evitaDB assign one automatically."
 			)
 		);
 		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), this.emptyOnStart && isEmpty())

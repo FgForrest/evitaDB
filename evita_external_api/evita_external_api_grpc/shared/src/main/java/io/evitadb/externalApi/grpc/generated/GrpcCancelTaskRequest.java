@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to get cancel task status by id
+ * Request to cancel a task by id
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest}
@@ -269,7 +269,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to get cancel task status by id
+   * Request to cancel a task by id
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCancelTaskRequest}

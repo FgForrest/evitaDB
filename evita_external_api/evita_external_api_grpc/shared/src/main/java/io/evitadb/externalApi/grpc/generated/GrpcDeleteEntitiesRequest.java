@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for deleting a collection of entities specified by a query.
+ * Request for deleting all entities matched by a query. Beware: without a `page()`/`strip()` requirement
+ * in the query's `require` block to bound the result, at most 20 entities are deleted (the engine's
+ * default page size) - add an explicit `page()`/`strip()` requirement to remove more.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest}
@@ -85,7 +87,9 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object query_ = "";
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+   * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+   * contract.
    * </pre>
    *
    * <code>string query = 1;</code>
@@ -106,7 +110,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The string part of the parametrised query.
+   * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+   * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+   * contract.
    * </pre>
    *
    * <code>string query = 1;</code>
@@ -132,7 +138,8 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> positionalQueryParams_;
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -143,7 +150,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -155,7 +163,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -166,7 +175,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -177,7 +187,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -216,7 +227,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -237,7 +249,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -248,7 +261,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -266,7 +280,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -476,7 +491,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
   }
   /**
    * <pre>
-   * Request for deleting a collection of entities specified by a query.
+   * Request for deleting all entities matched by a query. Beware: without a `page()`/`strip()` requirement
+   * in the query's `require` block to bound the result, at most 20 entities are deleted (the engine's
+   * default page size) - add an explicit `page()`/`strip()` requirement to remove more.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDeleteEntitiesRequest}
@@ -748,7 +765,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     private java.lang.Object query_ = "";
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+     * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+     * contract.
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -768,7 +787,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+     * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+     * contract.
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -789,7 +810,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+     * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+     * contract.
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -806,7 +829,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+     * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+     * contract.
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -820,7 +845,9 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The string part of the parametrised query.
+     * The string part of the parametrised query. `?`/`&#64;name` placeholders are bound the same way as
+     * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+     * contract.
      * </pre>
      *
      * <code>string query = 1;</code>
@@ -851,7 +878,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
 
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -865,7 +893,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -879,7 +908,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -893,7 +923,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -914,7 +945,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -932,7 +964,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -952,7 +985,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -973,7 +1007,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -991,7 +1026,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1009,7 +1045,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1028,7 +1065,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1045,7 +1083,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1062,7 +1101,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1073,7 +1113,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1087,7 +1128,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1102,7 +1144,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1113,7 +1156,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1125,7 +1169,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The positional query parameters.
+     * Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+     * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
@@ -1186,7 +1231,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1207,7 +1253,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1218,7 +1265,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1235,7 +1283,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1257,7 +1306,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1280,7 +1330,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1297,7 +1348,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
@@ -1316,7 +1368,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     }
     /**
      * <pre>
-     * The named query parameters.
+     * Values for the `&#64;name` named placeholders in `query`, keyed by name (without the `&#64;` prefix) - see
+     * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
      * </pre>
      *
      * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>

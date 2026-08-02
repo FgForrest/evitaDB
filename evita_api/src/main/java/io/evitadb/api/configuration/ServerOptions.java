@@ -47,6 +47,18 @@ import javax.annotation.Nullable;
  *                                              read-write session requests should timeout and abort their execution.
  * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
  *                                              closed if no activity is observed on it.
+ * @param dropCollationKeysAfterSecondsOfInactivity Sets the timeout in seconds after which a cached collation key is
+ *                                              released if nothing has compared it in the meantime; the default is
+ *                                              5 minutes, and `0` keeps every key for the lifetime of the process.
+ *                                              Sorting a localized
+ *                                              attribute means consulting the JVM collator, which is about two orders
+ *                                              of magnitude more expensive than comparing two pre-computed collation
+ *                                              keys, so evitaDB caches those keys per locale. A workload that compares
+ *                                              nearly every distinct value in the corpus - a bulk import, or a large
+ *                                              transaction over a sortable localized attribute - fills that cache and
+ *                                              benefits from it; steady-state query serving compares a much smaller
+ *                                              hot subset and has no reason to keep paying for the import's footprint.
+ *                                              This timeout bounds how long the unused remainder is retained.
  * @param changeDataCapture                     Defines settings for change data capture (CDC) that allows clients to subscribe
  *                                              to a stream of changes that occur in the database, enabling near real-time
  *                                              data synchronization, event-driven architectures, and audit logging.
@@ -63,6 +75,7 @@ public record ServerOptions(
 	long queryTimeoutInMilliseconds,
 	long transactionTimeoutInMilliseconds,
 	int closeSessionsAfterSecondsOfInactivity,
+	int dropCollationKeysAfterSecondsOfInactivity,
 	@Nonnull ChangeDataCaptureOptions changeDataCapture,
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
@@ -73,6 +86,24 @@ public record ServerOptions(
 	public static final long DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS = 300 * 1000L;
 	/** Default idle-session auto-close threshold: 20 minutes (`60 * 20` seconds). */
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
+	/**
+	 * Default collation-key retention: 5 minutes (`60 * 5` seconds) of inactivity before a key is released.
+	 *
+	 * Releasing the keys is cheap where it was expected to be expensive: a bulk import pays **nothing** for it - a
+	 * 972k-article localized import measured the same 379 s with the sweep enabled and disabled - while the release
+	 * returns roughly 146 MB per locale.
+	 *
+	 * The one place it used to cost was the first write transaction after a quiet spell, because a transaction in the
+	 * ALIVE state rebuilt its sort index's whole distinct-value structure and therefore re-collated every value that
+	 * had just been released: at 640k distinct values that first transaction grew from 7.4 s to 12.9 s. Retention was
+	 * originally unbounded for exactly that reason. That rebuild is gone - an insert now anchors on its own value
+	 * bucket and touches only `O(depth)` values - so a cold collation cache no longer has a rebuild to worsen, and
+	 * bounding the retention became the better trade.
+	 *
+	 * A deployment that sorts on very few distinct values, or one that wants the keys held for the process lifetime,
+	 * can still set `0` explicitly to restore unbounded retention.
+	 */
+	public static final int DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY = 60 * 5;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
 
@@ -102,6 +133,7 @@ public record ServerOptions(
 		long queryTimeoutInMilliseconds,
 		long transactionTimeoutInMilliseconds,
 		int closeSessionsAfterSecondsOfInactivity,
+		int dropCollationKeysAfterSecondsOfInactivity,
 		@Nullable ChangeDataCaptureOptions changeDataCapture,
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
@@ -113,6 +145,7 @@ public record ServerOptions(
 		this.queryTimeoutInMilliseconds = queryTimeoutInMilliseconds;
 		this.transactionTimeoutInMilliseconds = transactionTimeoutInMilliseconds;
 		this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
+		this.dropCollationKeysAfterSecondsOfInactivity = dropCollationKeysAfterSecondsOfInactivity;
 		this.changeDataCapture = changeDataCapture == null ? ChangeDataCaptureOptions.builder().build() : changeDataCapture;
 		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
 		this.readOnly = readOnly;
@@ -127,6 +160,7 @@ public record ServerOptions(
 			DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+			DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY,
 			ChangeDataCaptureOptions.builder().build(),
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
@@ -145,6 +179,7 @@ public record ServerOptions(
 		private long queryTimeoutInMilliseconds = DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS;
 		private long transactionTimeoutInMilliseconds = DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
+		private int dropCollationKeysAfterSecondsOfInactivity = DEFAULT_DROP_COLLATION_KEYS_AFTER_SECONDS_OF_INACTIVITY;
 		private ChangeDataCaptureOptions changeDataCapture = ChangeDataCaptureOptions.builder().build();
 		private TrafficRecordingOptions trafficRecording = TrafficRecordingOptions.builder().build();
 		private boolean readOnly = DEFAULT_READ_ONLY;
@@ -160,6 +195,7 @@ public record ServerOptions(
 			this.queryTimeoutInMilliseconds = serverOptions.queryTimeoutInMilliseconds();
 			this.transactionTimeoutInMilliseconds = serverOptions.transactionTimeoutInMilliseconds();
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity();
+			this.dropCollationKeysAfterSecondsOfInactivity = serverOptions.dropCollationKeysAfterSecondsOfInactivity();
 			this.trafficRecording = serverOptions.trafficRecording();
 			this.changeDataCapture = serverOptions.changeDataCapture();
 			this.readOnly = serverOptions.readOnly();
@@ -202,6 +238,18 @@ public record ServerOptions(
 			return this;
 		}
 
+		/**
+		 * Sets how long a cached collation key may go uncompared before it is released.
+		 *
+		 * @param dropCollationKeysAfterSecondsOfInactivity timeout in seconds, `0` to retain keys for the lifetime of
+		 *                                                 the process
+		 */
+		@Nonnull
+		public ServerOptions.Builder dropCollationKeysAfterSecondsOfInactivity(int dropCollationKeysAfterSecondsOfInactivity) {
+			this.dropCollationKeysAfterSecondsOfInactivity = dropCollationKeysAfterSecondsOfInactivity;
+			return this;
+		}
+
 		@Nonnull
 		public ServerOptions.Builder changeDataCapture(@Nonnull ChangeDataCaptureOptions changeDataCapture) {
 			this.changeDataCapture = changeDataCapture;
@@ -235,6 +283,7 @@ public record ServerOptions(
 				this.queryTimeoutInMilliseconds,
 				this.transactionTimeoutInMilliseconds,
 				this.closeSessionsAfterSecondsOfInactivity,
+				this.dropCollationKeysAfterSecondsOfInactivity,
 				this.changeDataCapture,
 				this.trafficRecording,
 				this.readOnly,

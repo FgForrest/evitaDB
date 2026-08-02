@@ -74,7 +74,13 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should correctly handle multiple parallel queries")
-	@Disabled("Proof-of-concept test, if run in parallel with other tests with other evitaDBs, there is not enough threads available to execute all sub queries in parallel.")
+	@Disabled("""
+		Proof-of-concept test, if run in parallel with other tests with other evitaDBs, there is not enough threads \
+		available to execute all sub queries in parallel. Beyond that, its overlap assertion can no longer work as \
+		written: it compares `start` across queries, which only held while `start` was the server's raw \
+		`System.nanoTime()` reading. The JSON based APIs now report it as an offset from the root step of each \
+		query, so every `start` is `0`. Re-enabling this test requires a cross-query timing signal from outside \
+		the telemetry payload.""")
 	void shouldCorrectlyHandleMultipleParallelQueries(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String singleQueryTemplate = """
 				product%d: queryProduct(
@@ -138,7 +144,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 			queryExecutions.add(new QueryExecution(start, end));
 		});
 
-		// verify that queries where executes asynchronously
+		// verify that queries where executes asynchronously - see the @Disabled reason, this no longer holds
 		for (int i = 1; i < queryExecutions.size(); i++) {
 			final QueryExecution previousQueryExecution = queryExecutions.get(i - 1);
 			final QueryExecution currentQueryExecution = queryExecutions.get(i);

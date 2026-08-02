@@ -5,8 +5,8 @@ date: '23.7.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 <LS to="g">
 
@@ -79,30 +79,30 @@ page(
     </dd>
     <dt>requireConstraint:spacing?</dt>
     <dd>
-        volitelné omezení, které určuje pravidla pro ponechání mezer na určitých stránkách výsledku dotazu
-        (viz kapitola [spacing constraint](#spacing) pro více detailů)
+        volitelný požadavek, který určuje pravidla pro ponechání mezer na určitých stránkách výsledku dotazu
+        (podrobnosti viz kapitola [spacing constraint](#spacing))
     </dd>
 </dl>
 
 </LS>
 
-Pole `page`
-<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Page.cs</SourceClass>) požadavek</LS>
+Požadavek `page`
+<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Page.cs</SourceClass>)</LS>
 <LS to="g">přístup</LS>
-určuje počet a výřez entit vrácených v odpovědi na dotaz<LS to="g"> a je zadán použitím pole `recordPage` (v kombinaci s argumenty `number` a `size`)</LS>.
-Pokud nejsou
-<LS to="e,j,r,c">požadavky na stránku</LS>
-<LS to="g">argumenty stránky</LS> použity
+řídí počet a výřez entit vrácených v odpovědi na dotaz<LS to="g"> a je zadán pomocí pole `recordPage` (v kombinaci s argumenty `number` a `size`)</LS>.
+Pokud není
+<LS to="e,j,r,c">požadavek na stránku</LS>
+<LS to="g">argumenty stránky</LS> použit
 <LS to="e,j,r,c">v dotazu</LS>
 <LS to="g">na poli</LS>,
-je použita výchozí stránka `1` s výchozí velikostí stránky `20`. Pokud požadovaná stránka přesáhne počet dostupných
-stránek, je vrácen výsledek s první stránkou. Prázdný výsledek je vrácen pouze tehdy, pokud dotaz nevrátí žádný výsledek
+je použita výchozí stránka `1` s výchozí velikostí stránky `20`. Pokud požadovaná stránka překročí počet dostupných
+stránek, je vrácen výsledek s první stránkou. Prázdný výsledek je vrácen pouze v případě, že dotaz nevrátí žádný výsledek
 nebo je velikost stránky nastavena na nulu. Automatickým vrácením výsledku první stránky při překročení požadované stránky
-se snažíme předejít nutnosti zadávat další požadavek pro získání dat.
+se snažíme předejít nutnosti odesílat sekundární požadavek pro získání dat.
 
 Informace o skutečně vrácené stránce a statistikách dat lze nalézt v odpovědi na dotaz, která je zabalena
-do tzv. objektu datového bloku. <LS to="e,j,r,c">V případě omezení `page`
-je jako datový blok použit
+do tzv. objektu datového bloku. <LS to="e,j,r,c">V případě požadavku `page`
+je jako objekt datového bloku použit
 <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass></LS>.</LS> Objekt datového bloku obsahuje následující informace:
 
@@ -137,7 +137,7 @@ je jako datový blok použit
     </dd>
     <dt>hasNext</dt>
     <dd>
-        `TRUE`, pokud jsou k dispozici data pro další stránku (tj. `pageNumber + 1 <= lastPageNumber`)
+        `TRUE`, pokud jsou k dispozici data pro následující stránku (tj. `pageNumber + 1 <= lastPageNumber`)
     </dd>
     <dt>hasPrevious</dt>
     <dd>
@@ -149,7 +149,7 @@ je jako datový blok použit
     </dd>
     <dt>singlePage</dt>
     <dd>
-        `TRUE`, pokud dotaz vrátil přesně jednu stránku dat (tj. `pageNumber == 1 && lastPageNumber == 1 && totalRecordCount > 0`)
+        `TRUE`, pokud dotaz vrátil právě jednu stránku dat (tj. `pageNumber == 1 && lastPageNumber == 1 && totalRecordCount > 0`)
     </dd>
     <dt>totalRecordCount</dt>
     <dd>
@@ -161,9 +161,9 @@ je jako datový blok použit
     </dd>
 </dl>
 
-<LS to="e,j,r,c">Požadavek `page`</LS><LS to="g">Pole `recordPage`</LS>
+Požadavek <LS to="e,j,r,c">`page`</LS><LS to="g">pole `recordPage`</LS>
 je nejpřirozenějším a nejčastěji používaným požadavkem pro stránkování výsledků dotazu.
-Chcete-li získat druhou stránku výsledku dotazu, použijte následující dotaz:
+Pro získání druhé stránky výsledku dotazu použijte následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -222,26 +222,26 @@ strip(
     </dd>
     <dt>argument:int</dt>
     <dd>
-        povinný limit záznamů, které mají být vráceny, kladné celé číslo
+        povinný limit počtu záznamů, které mají být vráceny, kladné celé číslo
     </dd>
 </dl>
 
 </LS>
 
-Pole `strip`
-<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) požadavek</LS>
+Požadavek `strip`
+<LS to="e,j,r">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LS><LS to="c">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>)</LS>
 <LS to="g">přístup</LS>
-určuje počet a výřez entit vrácených v odpovědi na dotaz<LS to="g"> a je zadán použitím pole `recordStrip` (v kombinaci s argumenty `limit` a `offset`)</LS>.
+určuje počet a výřez entit vrácených v odpovědi na dotaz<LS to="g"> a je zadán pomocí pole `recordStrip` (v kombinaci s argumenty `limit` a `offset`)</LS>.
 Pokud požadovaný strip přesáhne počet
 dostupných záznamů, je vrácen výsledek od nultého offsetu s ponechaným limitem. Prázdný výsledek je vrácen pouze tehdy,
-pokud dotaz nevrátí žádný výsledek nebo je limit nastaven na nulu. Automatickým vrácením výsledku prvního stripu při
-překročení požadované stránky se snažíme předejít nutnosti zadávat další požadavek pro získání dat.
+pokud dotaz nevrátí žádný výsledek nebo je limit nastaven na nulu. Automatickým vrácením prvního stripu v případě,
+že požadovaná stránka je překročena, se snažíme předejít nutnosti odesílat další požadavek pro získání dat.
 
-Informace o skutečně vrácené stránce a statistikách dat lze nalézt v odpovědi na dotaz, která je zabalena
-do tzv. objektu datového bloku. <LS to="e,j,r,c">V případě omezení `strip`
+Informace o skutečně vrácené stránce a statistice dat lze nalézt v odpovědi na dotaz, která je zabalena
+do tzv. objektu datového bloku (data chunk). <LS to="e,j,r,c">V případě omezení `strip`
 je jako datový blok použit
 <LS to="e,j,r"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass></LS>.</LS> Objekt datového bloku obsahuje následující informace:
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass></LS>.</LS>Objekt datového bloku obsahuje následující informace:
 
 <dl>
     <dt>offset</dt>
@@ -250,7 +250,7 @@ je jako datový blok použit
     </dd>
     <dt>limit</dt>
     <dd>
-        limit záznamů vrácených v odpovědi na dotaz
+        limit počtu záznamů vrácených v odpovědi na dotaz
     </dd>
     <dt>first</dt>
     <dd>
@@ -262,7 +262,7 @@ je jako datový blok použit
     </dd>
     <dt>hasNext</dt>
     <dd>
-        `TRUE`, pokud jsou k dispozici data pro další strip (tj. `last == false`)
+        `TRUE`, pokud existují data pro další dostupný strip (tj. `last == false`)
     </dd>
     <dt>hasPrevious</dt>
     <dd>
@@ -282,16 +282,16 @@ je jako datový blok použit
     </dd>
 </dl>
 
-Požadavek `strip` lze použít pro výpis záznamů dotazu neuniformním způsobem – například když je výpis entit
+Požadavek `strip` lze použít k výpisu záznamů dotazu neuniformním způsobem – například pokud je výpis entit
 prokládán reklamou, která vyžaduje přeskočení vykreslení entity na určitých pozicích. Jinými slovy,
-pokud víte, že na každých 20 záznamů je "reklamní" blok, což znamená, že entita musí být na této pozici přeskočena,
-a chcete správně načíst záznamy pro 5. stránku, musíte požadovat strip s offsetem `76`
-(4 stránky * 20 pozic na stránku – 4 záznamy vynechány na předchozích 4 stránkách) a limitem 19. Pro získání takového stripu použijte
+pokud víte, že každých 20 záznamů je „reklamní“ blok, což znamená, že na této pozici musí být entita přeskočena,
+a chcete správně načíst záznamy pro 5. stránku, musíte požádat o strip s offsetem `76`
+(4 stránky * 20 pozic na stránku - 4 záznamy vynechané na předchozích 4 stránkách) a limitem 19. Pro získání takového stripu použijte
 následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Příklad získání neuniformního stripu výsledků](/documentation/user/en/query/requirements/examples/paging/strip.evitaql)
+[Příklad neuniformního získání stripu výsledků](/documentation/user/en/query/requirements/examples/paging/strip.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -347,24 +347,18 @@ aditivní a velikosti mezer jsou součtem všech pravidel gap, která platí pro
 
 <NoteTitle toggles="true">
 
-##### Výkonnostní hlediska
+##### Výkonnostní aspekty
 
 </NoteTitle>
 
-Abyste nemuseli přepočítávat pravidlo pro každou stránku ve výsledné sadě, můžete rozsah omezit přidáním konstantního
-výrazu do pravidla. Například pravidlo `$pageNumber % 2 == 0 && $pageNumber <= 10` bude přepočítáno pouze pro
-prvních 10 stránek výsledku dotazu, protože interpret ví, že pravidlo nebude nikdy splněno pro
-zbývající stránky.
+Abyste se vyhnuli nutnosti přepočítávat pravidlo pro každou stránku ve výsledné sadě, můžete omezit jeho rozsah přidáním konstantního výrazu do pravidla. Například pravidlo `$pageNumber % 2 == 0 && $pageNumber <= 10` bude přepočítáváno pouze pro prvních 10 stránek výsledku dotazu, protože interpret ví, že pro zbývající stránky už pravidlo nikdy splněno nebude.
 </Note>
 
-Omezení spacing jsou užitečná, pokud potřebujete uvolnit místo pro další obsah na určitých stránkách výsledku dotazu,
-například pro reklamy, bannery, blogové příspěvky nebo jiný externí obsah, který chcete zobrazit mezi záznamy.
-Například, pokud chcete zobrazit reklamu na každé sudé stránce až do 10. stránky a zároveň chcete zobrazit
-blogový příspěvek na 1. a 4. stránce. K tomu byste použili následující dotaz:
+Omezení spacing jsou užitečná, když potřebujete na určitých stránkách výsledku dotazu uvolnit místo pro další obsah, například reklamy, bannery, blogové příspěvky nebo jiný externí obsah, který chcete zobrazit mezi záznamy. Například pokud chcete zobrazit reklamu na každé sudé stránce až do 10. stránky a zároveň chcete zobrazit blogový příspěvek na 1. a 4. stránce, použijete následující dotaz:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql)
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql)
 
 </SourceCodeTabs>
 
@@ -372,26 +366,26 @@ blogový příspěvek na 1. a 4. stránce. K tomu byste použili následující 
 
 <NoteTitle toggles="true">
 
-##### Výsledek příkladu požadované stránky s vloženým spacingem
+##### Výsledek požadované stránky s příkladem vloženého odsazení
 </NoteTitle>
 
-První stránka obsahuje 9 záznamů (jeden slot ponechán pro blogový příspěvek), druhá stránka obsahuje 9 záznamů (jeden slot ponechán pro reklamu, protože číslo stránky je sudé) a čtvrtá stránka obsahuje pouze 8 záznamů (jeden slot ponechán pro blogový příspěvek a jeden slot pro reklamu, protože číslo stránky je sudé), poslední číslo stránky je přepočítáno, protože na předních stránkách bylo ponecháno celkem 7 záznamů.
+První stránka obsahuje 9 záznamů (jeden slot je vyhrazen pro blogový příspěvek), druhá stránka obsahuje 9 záznamů (jeden slot je vyhrazen pro reklamu, protože číslo stránky je sudé) a čtvrtá stránka obsahuje pouze 8 záznamů (jeden slot je vyhrazen pro blogový příspěvek a jeden slot pro reklamu, protože číslo stránky je sudé). Poslední číslo stránky je přepočítáno, protože na předchozích stránkách bylo celkem 7 záznamů vynecháno.
 
 **První stránka:**
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql.json.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page1.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page1.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page1.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -399,23 +393,23 @@ První stránka obsahuje 9 záznamů (jeden slot ponechán pro blogový přísp�
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql)
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql)
 
 </SourceCodeTabs>
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql.json.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page2.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page2.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page2.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -423,23 +417,23 @@ První stránka obsahuje 9 záznamů (jeden slot ponechán pro blogový přísp�
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql)
+[Inserted spacing example](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql)
 
 </SourceCodeTabs>
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql.json.md)</MDInclude>
 
 </LS>
 <LS to="g">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page4.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.graphql.json.md)</MDInclude>
 
 </LS>
 <LS to="r">
 
-<MDInclude sourceVariable="recordPage">[Datový blok se strip listem](/documentation/user/en/query/requirements/examples/paging/spacing_page4.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[The data chunk with strip list](/documentation/user/en/query/requirements/examples/paging/spacing_page4.rest.json.md)</MDInclude>
 
 </LS>
 

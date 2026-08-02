@@ -73,7 +73,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			Each entity must be part of at most single hierarchy (tree).
 			
 			Hierarchy can limit returned entities by using filtering constraints. It's also used for
-			computation of extra data - such as `hierarchyParentsOfSelf`. It can also invert type of returned entities in case extra result
+			computation of extra data - such as the `parents` requirement. It can also invert type of returned entities in case extra result
 			`hierarchyOfSelf` is requested.
 			""")
 		.type(nonNull(Boolean.class))

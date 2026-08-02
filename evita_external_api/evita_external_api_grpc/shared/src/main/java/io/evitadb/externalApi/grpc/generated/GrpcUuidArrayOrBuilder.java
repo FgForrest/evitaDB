@@ -33,7 +33,7 @@ public interface GrpcUuidArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a UUID array.
+   * The individual UUID elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcUuidArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a UUID array.
+   * The individual UUID elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcUuidArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a UUID array.
+   * The individual UUID elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcUuidArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a UUID array.
+   * The individual UUID elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcUuidArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a UUID array.
+   * The individual UUID elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>

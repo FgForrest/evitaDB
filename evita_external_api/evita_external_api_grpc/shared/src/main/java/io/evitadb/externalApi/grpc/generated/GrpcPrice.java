@@ -271,7 +271,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate_;
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -283,7 +283,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -295,7 +295,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -309,7 +309,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax_;
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -321,7 +321,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -333,7 +333,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -389,7 +389,7 @@ private static final long serialVersionUID = 0L;
    * entity but won't be considered when evaluating search. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
-   * RENAMED TO "indexed"
+   * Deprecated since 2024.10 - RENAMED TO "indexed"
    * </pre>
    *
    * <code>bool sellable = 9 [deprecated = true];</code>
@@ -1767,7 +1767,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> taxRateBuilder_;
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1778,7 +1778,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1793,7 +1793,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1813,7 +1813,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1831,7 +1831,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1856,7 +1856,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1873,7 +1873,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1885,7 +1885,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1900,7 +1900,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Price with tax.
+     * Tax rate percentage (i.e. for 19% it'll be 19.00)
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -1924,7 +1924,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimal, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalOrBuilder> priceWithTaxBuilder_;
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -1935,7 +1935,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -1950,7 +1950,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -1970,7 +1970,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -1988,7 +1988,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -2013,7 +2013,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -2030,7 +2030,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -2042,7 +2042,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -2057,7 +2057,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Tax rate percentage (i.e. for 19% it'll be 19.00)
+     * Price with tax.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -2240,7 +2240,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
@@ -2258,7 +2258,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
@@ -2280,7 +2280,7 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
-     * RENAMED TO "indexed"
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>

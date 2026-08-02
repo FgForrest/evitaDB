@@ -193,6 +193,13 @@ class LongRunningCumulativeWeightBPlusTreeTest implements TimeBoundedTestSupport
 			assertTrue(tree.containsKey(key), () -> "expected key " + key + " present");
 			assertEquals(entry.getValue().intValue(), tree.weightOf(key), () -> "weight mismatch at " + key);
 			assertEquals(prefix, tree.rankOf(key), () -> "rank mismatch at present key " + key);
+			// the fused single-descent query must agree with the three separate queries it replaces on the hot path
+			final long packed = tree.rankAndWeightOf(key);
+			assertEquals(prefix, CumulativeWeightBPlusTree.rankFrom(packed), () -> "fused rank mismatch at " + key);
+			assertEquals(
+				entry.getValue().intValue(), CumulativeWeightBPlusTree.weightFrom(packed),
+				() -> "fused weight mismatch at " + key
+			);
 			prefix += entry.getValue();
 		}
 		// probe a band of absent keys (in the comparator's order) just outside and inside the populated range
@@ -206,9 +213,17 @@ class LongRunningCumulativeWeightBPlusTreeTest implements TimeBoundedTestSupport
 				}
 				final int expectedRank = oracle.headMap(probe, false).values().stream().mapToInt(Integer::intValue).sum();
 				assertEquals(expectedRank, tree.rankOf(probe), () -> "rank mismatch at probe " + probe);
+				assertEquals(
+					expectedRank, CumulativeWeightBPlusTree.rankFrom(tree.rankAndWeightOf(probe)),
+					() -> "fused rank mismatch at probe " + probe
+				);
 				final int probe2 = last + step;
 				final int expectedRank2 = oracle.headMap(probe2, false).values().stream().mapToInt(Integer::intValue).sum();
 				assertEquals(expectedRank2, tree.rankOf(probe2), () -> "rank mismatch at probe " + probe2);
+				assertEquals(
+					expectedRank2, CumulativeWeightBPlusTree.rankFrom(tree.rankAndWeightOf(probe2)),
+					() -> "fused rank mismatch at probe " + probe2
+				);
 			}
 		}
 	}

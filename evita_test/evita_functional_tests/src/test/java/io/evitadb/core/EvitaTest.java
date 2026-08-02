@@ -5369,6 +5369,7 @@ class EvitaTest implements EvitaTestSupport {
 					formerServerOptions.queryTimeoutInMilliseconds(),
 					formerServerOptions.transactionTimeoutInMilliseconds(),
 					formerServerOptions.closeSessionsAfterSecondsOfInactivity(),
+					formerServerOptions.dropCollationKeysAfterSecondsOfInactivity(),
 					formerServerOptions.changeDataCapture(),
 					formerServerOptions.trafficRecording(),
 					formerServerOptions.readOnly(),

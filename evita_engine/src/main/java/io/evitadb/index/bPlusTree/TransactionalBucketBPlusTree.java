@@ -32,8 +32,10 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.reference.TransactionalReference;
@@ -114,6 +116,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@link io.evitadb.index.page.PageStreamRegistry#NO_PAGE} sentinel (both engine-side).
 	 */
 	public static final int UNASSIGNED_PAGE_SEQUENCE = -1;
+	/**
+	 * Sentinel returned by the leaf add methods when the record joined an EXISTING bucket, i.e. no new bucket key was
+	 * inserted. Any other (non-negative) return is the slot index the new bucket landed on, which
+	 * {@link #assertInsertBoundaries(Cursor, Comparable, int)} consumes instead of re-deriving "was this a head / tail
+	 * insert?" by decoding and comparing the leaf's boundary keys.
+	 */
+	private static final int NO_NEW_BUCKET = -1;
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -856,18 +865,28 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public void addRecord(@Nonnull K value, int pk) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
-		final Cursor<K> cursor = createCursor(value);
-		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
-		if (leaf.addRecord(value, pk)) {
+		// the cursor path exists ONLY to cascade a split upward, yet it used to be allocated on every insert. The
+		// descent below reaches the same leaf and resolves the boundary asserts' operands without capturing anything,
+		// so a path is now built only when this insert can actually overflow the leaf.
+		final BoundaryContext<K> context = findLeafNodeWithBoundaryContext(value);
+		final BPlusLeafTreeNode<K> leaf = context.leaf();
+		// captured BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
+		// the pre-mutation tree
+		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
+		final int insertedAt = leaf.addRecord(value, pk);
+		if (insertedAt != NO_NEW_BUCKET) {
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts run on the new-bucket branch before the (possible) split, while the
-			// cursor still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order with no
-			// structural op firing
-			assertInsertBoundaries(cursor, value);
+			// descent context still reflects the pre-split spine — a mis-routed new bucket corrupts cross-leaf order
+			// with no structural op firing
+			assertInsertBoundaries(context, value, insertedAt);
 			// register the dirtied leaf as a dirty-scope token for this transaction
 			registerDirtyLeafInScope(leaf);
 		}
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw missingSplitPathError(leaf);
+			}
 			splitLeafNode(leaf, cursor);
 		}
 	}
@@ -885,17 +904,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	public void addRecord(@Nonnull K value, @Nonnull int... pks) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
-		final Cursor<K> cursor = createCursor(value);
-		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
-		if (leaf.addRecords(value, pks)) {
+		// see addRecord(K, int) — allocation-free descent, cursor path captured only when the leaf can overflow
+		final BoundaryContext<K> context = findLeafNodeWithBoundaryContext(value);
+		final BPlusLeafTreeNode<K> leaf = context.leaf();
+		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
+		final int insertedAt = leaf.addRecords(value, pks);
+		if (insertedAt != NO_NEW_BUCKET) {
 			this.size.set(size() + 1);
 			// op-time boundary-mutation asserts — see addRecord(K, int); the new-bucket branch validates cross-leaf
 			// order before the (possible) split
-			assertInsertBoundaries(cursor, value);
+			assertInsertBoundaries(context, value, insertedAt);
 			// register the dirtied leaf as a dirty-scope token for this transaction
 			registerDirtyLeafInScope(leaf);
 		}
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw missingSplitPathError(leaf);
+			}
 			splitLeafNode(leaf, cursor);
 		}
 	}
@@ -947,7 +972,43 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return EmptyBitmap.INSTANCE;
 		}
-		return createCursor(value).leafNode().getRecords(value);
+		return findLeafNode(value).getRecords(value);
+	}
+
+	/**
+	 * Computes the record id that precedes the would-be position of `recordId` under `value` in the global sort order
+	 * this tree defines: buckets ascend by value, records within a bucket ascend by id. Answered bucket-locally in a
+	 * single descent — the anchor is the greatest lower id in `value`'s own bucket, otherwise the last record of the
+	 * closest preceding bucket (crossing to the preceding leaf when necessary), otherwise
+	 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} meaning the record belongs first — a value evitaDB never assigns
+	 * to an entity, so it cannot be mistaken for a genuine anchor. The answer is insensitive to whether `recordId` is already present in the
+	 * bucket, so callers may issue it before or after the record's own insertion.
+	 *
+	 * @param value    the value the inserted record is associated with
+	 * @param recordId the record id being inserted
+	 * @return the record id to insert after, or {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when the record belongs
+	 * first
+	 */
+	public int computePreviousRecord(@Nonnull K value, int recordId) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
+		// the common answer is bucket-local, so the descent captures no path; only the cross-leaf climb below needs
+		// one, and it re-descends for it (nothing has mutated in between, so the second descent takes the same route)
+		final int inLeafAnchor = findLeafNode(value).previousRecord(value, recordId);
+		if (inLeafAnchor != EvitaDataTypes.RESERVED_PRIMARY_KEY) {
+			return inLeafAnchor;
+		}
+		// the predecessor lives in the preceding leaf: climb to the first ancestor with a previous sibling — its
+		// previous-node cursor rebuilds the path below as the rightmost descent, i.e. exactly the preceding leaf
+		CursorWithLevel<K> levelCursor = createCursor(value).toCursorWithLevel();
+		while (levelCursor != null) {
+			final CursorWithLevel<K> previousNodeCursor = levelCursor.getCursorForPreviousNode();
+			if (previousNodeCursor != null) {
+				return new Cursor<>(previousNodeCursor.path()).leafNode().lastRecord();
+			}
+			levelCursor = levelCursor.toParentLevel();
+		}
+		// no preceding bucket anywhere - the record belongs to the very first position
+		return EvitaDataTypes.RESERVED_PRIMARY_KEY;
 	}
 
 	/**
@@ -962,16 +1023,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public void addLongRecord(@Nonnull K value, long payload) {
 		Assert.isPremiseValid(this.longPayload, "Long-payload API is only available on a long-payload tree!");
-		final Cursor<K> cursor = createCursor(value);
-		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
-		leaf.addLongRecord(value, payload);
+		// see addRecord(K, int) — allocation-free descent, cursor path captured only when the leaf can overflow
+		final BoundaryContext<K> context = findLeafNodeWithBoundaryContext(value);
+		final BPlusLeafTreeNode<K> leaf = context.leaf();
+		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
+		final int insertedAt = leaf.addLongRecord(value, payload);
 		this.size.set(size() + 1);
 		// op-time boundary-mutation asserts — a long-payload add always inserts a new bucket (or throws on a duplicate),
 		// so validate cross-leaf order unconditionally before the (possible) split
-		assertInsertBoundaries(cursor, value);
+		assertInsertBoundaries(context, value, insertedAt);
 		// register the dirtied leaf as a dirty-scope token for this transaction
 		registerDirtyLeafInScope(leaf);
 		if (leaf.isFull()) {
+			if (cursor == null) {
+				throw missingSplitPathError(leaf);
+			}
 			splitLeafNode(leaf, cursor);
 		}
 	}
@@ -990,7 +1056,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return OptionalLong.empty();
 		}
-		final BPlusLeafTreeNode<K> leaf = createCursor(value).leafNode();
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
 		final int index = leaf.getValueIndex(value);
 		return index < 0 ? OptionalLong.empty() : OptionalLong.of(leaf.longRecordAt(index));
 	}
@@ -1037,7 +1103,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return 0;
 		}
-		return createCursor(value).leafNode().cardinalityOf(value);
+		return findLeafNode(value).cardinalityOf(value);
 	}
 
 	/**
@@ -1051,7 +1117,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return false;
 		}
-		return createCursor(value).leafNode().getValueIndex(value) >= 0;
+		return findLeafNode(value).getValueIndex(value) >= 0;
 	}
 
 	/**
@@ -1598,6 +1664,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
 	 */
 	void assertTailBoundary(@Nonnull Cursor<K> cursor, @Nonnull K newLastKey) {
+		checkTailBoundary(fenceOf(cursor), newLastKey);
+	}
+
+	/**
+	 * Resolves the upper fence of the cursor's leaf from a captured path: the separator at the nearest ancestor whose
+	 * descent was not into the rightmost child. Returns `null` when the descent was rightmost at every level, i.e. the
+	 * leaf is the tree's last leaf and has no successor.
+	 *
+	 * Kept as the path-based counterpart of the fence {@link #findLeafNodeWithBoundaryContext} resolves during the
+	 * descent itself; both feed the same {@link #checkTailBoundary} comparison, so the two resolutions can be tested
+	 * against each other but the check exists only once.
+	 *
+	 * @param cursor the descent path to the leaf whose fence is sought
+	 * @return the fence key, or `null` when the leaf has no successor
+	 */
+	@Nullable
+	K fenceOf(@Nonnull Cursor<K> cursor) {
 		final List<CursorLevel<K>> path = cursor.path();
 		for (int level = path.size() - 1; level >= 1; level--) {
 			final CursorLevel<K> cursorLevel = path.get(level);
@@ -1608,12 +1691,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				//noinspection unchecked
 				final BPlusInternalTreeNode<K> ancestor =
 					(BPlusInternalTreeNode<K>) ancestorLevel.siblings()[ancestorLevel.index()];
-				final K fence = ancestor.getKeys()[childIndex];
-				if (compareKeys(newLastKey, fence, this.comparator) >= 0) {
-					throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
-				}
-				return;
+				return ancestor.getKeys()[childIndex];
 			}
+		}
+		return null;
+	}
+
+	/**
+	 * The tail-boundary comparison itself, shared by the path-based and descent-based fence resolutions.
+	 *
+	 * @param fence      the leaf's upper fence, or `null` when it has no successor (nothing to violate)
+	 * @param newLastKey the leaf's new last key after the mutation
+	 * @throws GenericEvitaInternalError when the new last key does not sort strictly before the successor fence
+	 */
+	private void checkTailBoundary(@Nullable K fence, @Nonnull K newLastKey) {
+		if (fence != null && compareKeys(newLastKey, fence, this.comparator) >= 0) {
+			throw boundaryMutationError("tail", newLastKey, "before the successor leaf boundary", fence);
 		}
 	}
 
@@ -1632,7 +1725,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
 	 */
 	void assertHeadBoundary(@Nonnull Cursor<K> cursor, @Nonnull K newFirstKey) {
-		final BPlusLeafTreeNode<K> predecessor = predecessorLeaf(cursor);
+		checkHeadBoundary(predecessorLeaf(cursor), newFirstKey);
+	}
+
+	/**
+	 * The head-boundary comparison itself, shared by the path-based and descent-based predecessor resolutions.
+	 *
+	 * @param predecessor the leaf preceding the mutated one, or `null` when it is the tree's leftmost leaf
+	 * @param newFirstKey the leaf's new first key after the mutation
+	 * @throws GenericEvitaInternalError when the new first key does not sort strictly after the predecessor boundary
+	 */
+	private void checkHeadBoundary(@Nullable BPlusLeafTreeNode<K> predecessor, @Nonnull K newFirstKey) {
 		if (predecessor == null) {
 			// leftmost leaf — no predecessor to violate
 			return;
@@ -1661,7 +1764,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return the predecessor leaf, or `null` when the cursor's leaf is the tree's leftmost leaf
 	 */
 	@Nullable
-	private BPlusLeafTreeNode<K> predecessorLeaf(@Nonnull Cursor<K> cursor) {
+	BPlusLeafTreeNode<K> predecessorLeaf(@Nonnull Cursor<K> cursor) {
 		final List<CursorLevel<K>> path = cursor.path();
 		final CursorLevel<K> leafLevel = path.get(path.size() - 1);
 		final int leafIndex = leafLevel.index();
@@ -1807,18 +1910,52 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * shared by warm-up bulk load, transactional ops and trunk replay. The leaf accessors are transaction-layer-aware, so
 	 * this reflects the post-insert state whether the mutation landed on the node or on its transactional layer.
 	 *
-	 * @param cursor the descent path to the mutated leaf
-	 * @param key    the bucket key just inserted
+	 * Which of the two branches applies is decided by the insertion INDEX the leaf add method just returned, not by
+	 * decoding and comparing the leaf's boundary keys. The two are exactly equivalent: no two keys in a leaf can be
+	 * comparator-equal, because a comparator-equal key makes `findKeyPosition` report `alreadyPresent()`, which inserts
+	 * no new bucket and therefore never reaches this method. So `insertedAt == 0` holds precisely when the new key IS
+	 * the leaf's first key, and `insertedAt == peek` precisely when it is the last - including under a collator that
+	 * treats distinct strings as equal. The index is read in the same coordinate space it was produced in: the leaf add
+	 * methods compute it from, and insert it into, the transactional layer's columns when a layer is active, and
+	 * `getPeek()` resolves through that same layer here.
+	 *
+	 * CONTRACT: that "no comparator-equal duplicates" premise is only sound while the leaf's comparator IS the tree's
+	 * own - every `BPlusLeafTreeNode` construction site currently passes `this.comparator`, and a future path that
+	 * threads a different one (a locale-specific comparator handed to a split-born leaf, say) would silently break
+	 * this method's branch selection without breaking anything that compiles. Keep them the same instance.
+	 *
+	 * The 0→1 transition satisfies both conditions at once (an empty leaf has `peek == -1`, so the position is `0` and
+	 * the post-insert `peek` is `0`), which is why it triggers both branches as required.
+	 *
+	 * @param context    the mutated leaf plus the fence and predecessor operands from the descent
+	 * @param key        the bucket key just inserted
+	 * @param insertedAt the slot index the new bucket landed on, as returned by the leaf add method
 	 */
-	void assertInsertBoundaries(@Nonnull Cursor<K> cursor, @Nonnull K key) {
-		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
-		final int peek = leaf.getPeek();
-		if (compareKeys(key, leaf.keyAt(peek), this.comparator) == 0) {
-			assertTailBoundary(cursor, key);
+	void assertInsertBoundaries(@Nonnull BoundaryContext<K> context, @Nonnull K key, int insertedAt) {
+		if (insertedAt == context.leaf().getPeek()) {
+			checkTailBoundary(context.fence(), key);
 		}
-		if (compareKeys(key, leaf.keyAt(0), this.comparator) == 0) {
-			assertHeadBoundary(cursor, key);
+		if (insertedAt == 0) {
+			checkHeadBoundary(context.predecessor(), key);
 		}
+	}
+
+	/**
+	 * Builds the error raised when a leaf turns out to be {@link BPlusLeafTreeNode#isFull()} although the
+	 * {@link BPlusLeafTreeNode#isNearlyFull()} guard decided no cursor path was needed — an unreachable state that
+	 * would otherwise surface as a bare `NullPointerException` inside the split.
+	 *
+	 * @param leaf the leaf whose split has no captured path
+	 * @return the error describing the broken invariant
+	 */
+	@Nonnull
+	private GenericEvitaInternalError missingSplitPathError(@Nonnull BPlusLeafTreeNode<K> leaf) {
+		return new GenericEvitaInternalError(
+			"Leaf is full but no cursor path was captured - `isNearlyFull` failed to predict `isFull` " +
+				"(peek: " + leaf.getPeek() + ", capacity: " + leaf.capacity() +
+				", tree block size: " + this.valueBlockSize + ")!",
+			"Leaf is full but no cursor path was captured!"
+		);
 	}
 
 	/**
@@ -2148,14 +2285,36 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * Estimates the length of a root-to-leaf path - the tree's current depth - so a cursor's path list can be
+	 * allocated at approximately the right size.
+	 *
+	 * The `Math.log(size())` this replaces took a **natural** logarithm of the entry count, a quantity unrelated to
+	 * the depth of a tree branching `internalNodeBlockSize` ways: at one million entries with a 255-key internal node
+	 * it asks for 14 slots against a real depth of 3, so the list's backing array is several times larger than the
+	 * path that goes into it - on every cursor, read paths included. Depth is `log_branching(size)`, so the branching
+	 * factor belongs in the logarithm's base.
+	 *
+	 * `internalNodeBlockSize` is the node's *maximum* key count, so a partially filled tree is deeper than the bare
+	 * logarithm; the constant absorbs that together with the leaf level. This is only an {@link ArrayList} capacity
+	 * hint - under-estimating costs one array grow and never correctness - so it is kept tight rather than raised to
+	 * the worst-case bound implied by `minInternalNodeBlockSize`.
+	 *
+	 * @return the estimated root-to-leaf path length, at least 1
+	 */
+	private int estimatedPathLength() {
+		final int currentSize = this.size();
+		// internalNodeBlockSize is asserted >= 3 in the constructor, so the divisor is always positive
+		return currentSize <= 1 ? 1 : 2 + (int) (Math.log(currentSize) / Math.log(this.internalNodeBlockSize));
+	}
+
+	/**
 	 * Finds the leftmost leaf node in the B+ tree and returns a cursor to it.
 	 *
 	 * @return a cursor positioned at the leftmost leaf node
 	 */
 	@Nonnull
 	private Cursor<K> createLeftmostCursor() {
-		final ArrayList<CursorLevel<K>> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(
-			this.size()) + 1));
+		final ArrayList<CursorLevel<K>> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<K, ?> theRoot = this.getRoot();
 		//noinspection unchecked
 		final BPlusTreeNode<K, ?>[] rootSiblings = (BPlusTreeNode<K, ?>[]) new BPlusTreeNode[]{theRoot};
@@ -2174,8 +2333,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Nonnull
 	private Cursor<K> createRightmostCursor() {
-		final ArrayList<CursorLevel<K>> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(
-			this.size()) + 1));
+		final ArrayList<CursorLevel<K>> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<K, ?> theRoot = this.getRoot();
 		//noinspection unchecked
 		final BPlusTreeNode<K, ?>[] rootSiblings = (BPlusTreeNode<K, ?>[]) new BPlusTreeNode[]{theRoot};
@@ -2196,8 +2354,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	@Nonnull
 	Cursor<K> createCursor(@Nonnull K key) {
-		final ArrayList<CursorLevel<K>> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(
-			this.size()) + 1));
+		final ArrayList<CursorLevel<K>> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<K, ?> theRoot = this.getRoot();
 		//noinspection unchecked
 		final BPlusTreeNode<K, ?>[] rootSiblings = (BPlusTreeNode<K, ?>[]) new BPlusTreeNode[]{theRoot};
@@ -2207,6 +2364,104 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			addCursorLevels((BPlusInternalTreeNode<K>) rootInternalNode, key, path);
 		}
 		return new Cursor<>(path);
+	}
+
+	/**
+	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
+	 * {@link BPlusInternalTreeNode#searchIndex} rule {@link #addCursorLevels} uses, but WITHOUT capturing the cursor
+	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). It reads the transaction-aware
+	 * `getChildren()` accessor exactly like the cursor descent, so it resolves the same nodes.
+	 *
+	 * Measured on this family, a captured path costs ~208 B per descent against ~0 B here, so every lookup that uses
+	 * nothing but {@code cursor.leafNode()} takes this route. Structural operations (splits, deletes, consolidation,
+	 * parent-key updates) mutate the captured path and must keep using {@link #createCursor(Comparable)}.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf node that should hold the key (it may not actually contain it)
+	 */
+	@Nonnull
+	BPlusLeafTreeNode<K> findLeafNode(@Nonnull K key) {
+		BPlusTreeNode<K, ?> node = this.getRoot();
+		while (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			node = internalNode.getChildren()[internalNode.searchIndex(key)];
+		}
+		//noinspection unchecked
+		return (BPlusLeafTreeNode<K>) node;
+	}
+
+	/**
+	 * The insert-path descent: reaches the same leaf as {@link #findLeafNode} and, on the way, resolves the two
+	 * operands the boundary asserts consume — the leaf's upper fence and its predecessor leaf.
+	 *
+	 * This is what lets the insert path stop capturing a cursor. Both asserts read the cursor as nothing but index
+	 * arithmetic over the descent, so a descent that keeps three extra locals answers them without a path:
+	 *
+	 * - the **fence** is the separator at the deepest level whose descent was not into the rightmost child. Walking
+	 *   down, the last level satisfying `childIndex < node.getPeek()` is exactly the level the cursor's bottom-up walk
+	 *   stops at first, so overwriting a single local at every such level lands on the same key.
+	 * - the **predecessor** hangs off the deepest level whose descent was not into the leftmost child. When that level
+	 *   is the leaf's own parent, `children[childIndex - 1]` is the predecessor leaf directly and the right-spine walk
+	 *   below is a no-op; when it is higher up, the walk follows the left neighbour's right spine. One rule covers
+	 *   both branches of the path-based {@link #predecessorLeaf}.
+	 *
+	 * Resolving the predecessor here reads node references only — the expensive part, decoding its boundary key, still
+	 * happens in {@link #checkHeadBoundary} and only on a head insert.
+	 *
+	 * @param key the key whose responsible leaf is located
+	 * @return the leaf together with its boundary operands
+	 */
+	@Nonnull
+	BoundaryContext<K> findLeafNodeWithBoundaryContext(@Nonnull K key) {
+		BPlusTreeNode<K, ?> node = this.getRoot();
+		K fence = null;
+		BPlusInternalTreeNode<K> predecessorParent = null;
+		int predecessorIndex = -1;
+		while (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			final int childIndex = internalNode.searchIndex(key);
+			final int peek = internalNode.getPeek();
+			if (childIndex < peek) {
+				fence = internalNode.getKeys()[childIndex];
+			}
+			if (childIndex > 0) {
+				predecessorParent = internalNode;
+				predecessorIndex = childIndex;
+			}
+			node = internalNode.getChildren()[childIndex];
+		}
+		//noinspection unchecked
+		final BPlusLeafTreeNode<K> leaf = (BPlusLeafTreeNode<K>) node;
+		return new BoundaryContext<>(leaf, fence, predecessorParent, predecessorIndex);
+	}
+
+	/**
+	 * Resolves the predecessor leaf from the deepest descent level that was not into the leftmost child: takes that
+	 * node's left neighbour and follows its right spine down.
+	 *
+	 * @param parent     the deepest internal node whose chosen child index was greater than zero, or `null` when the
+	 *                   descent was leftmost at every level (the leaf is the tree's leftmost leaf)
+	 * @param childIndex the child index chosen at `parent`
+	 * @return the predecessor leaf, or `null` when there is none
+	 */
+	@Nullable
+	private static <M extends Comparable<M>> BPlusLeafTreeNode<M> predecessorLeafOf(
+		@Nullable BPlusInternalTreeNode<M> parent,
+		int childIndex
+	) {
+		if (parent == null) {
+			return null;
+		}
+		BPlusTreeNode<M, ?> node = parent.getChildren()[childIndex - 1];
+		while (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<M> internalNode = (BPlusInternalTreeNode<M>) internal;
+			node = internalNode.getChildren()[internalNode.getPeek()];
+		}
+		//noinspection unchecked
+		return (BPlusLeafTreeNode<M>) node;
 	}
 
 	/**
@@ -3778,6 +4033,43 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
+		/**
+		 * Whether a single insert of a **new** bucket could make this leaf {@link #isFull()} — i.e. whether the caller
+		 * must capture a cursor path before mutating, so a split has one.
+		 *
+		 * Deliberately mirrors {@link #isFull()}: it reads `peek` and the capacity from the **same** resolved state,
+		 * so the two can never disagree. Comparing against the tree's configured `valueBlockSize` instead would hold
+		 * only while every leaf column happens to be allocated at exactly that size, and nothing enforces that
+		 * coupling — a shorter column would reach {@link #isFull()} without ever tripping the guard. Splits happen
+		 * roughly once per `valueBlockSize` inserts, which is rare enough for such a defect to pass a green suite.
+		 *
+		 * @return true when one more bucket could fill this leaf
+		 */
+		public boolean isNearlyFull() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.peek >= this.records.capacity() - 2;
+			} else {
+				return layer.peek >= layer.records.capacity() - 2;
+			}
+		}
+
+		/**
+		 * Returns the leaf's bucket capacity, resolved through the transactional layer exactly as {@link #isFull()}
+		 * resolves it. Used only to describe the failure state when the lazy-cursor guard is found to have
+		 * mispredicted a split.
+		 *
+		 * @return the number of buckets this leaf can hold
+		 */
+		public int capacity() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			return layer == null ? this.records.capacity() : layer.records.capacity();
+		}
+
 		@Override
 		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
 			sb.append(" ".repeat(level * indentSpaces));
@@ -4183,6 +4475,121 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
+		 * Returns the greatest record id positioned before `recordId` within this leaf under the global sort order
+		 * (buckets ascend by value, records within a bucket ascend by id): first the greatest lower id in `value`'s own
+		 * bucket, then the last record of the closest preceding bucket. Returns
+		 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when no such record exists in THIS leaf — the caller continues
+		 * in the preceding leaf. evitaDB never assigns that primary key to an entity, so the sentinel cannot collide
+		 * with a real record id.
+		 *
+		 * @param value    the value whose insertion point anchors the search
+		 * @param recordId the record id being inserted
+		 * @return the anchoring predecessor record id, or {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} when this leaf
+		 * holds none
+		 */
+		public int previousRecord(@Nonnull M value, int recordId) {
+			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final TransactionalBitmap[] theOverflow;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				thePeek = layer.peek;
+			}
+
+			final InsertionPosition insertionPosition =
+				theKeys.findKeyPosition(value, 0, thePeek + 1, this.comparator);
+			final int index = insertionPosition.position();
+			if (insertionPosition.alreadyPresent() && recordId != Integer.MIN_VALUE) {
+				// records sharing a value ascend by (signed) id - the anchor is the greatest id strictly below the
+				// inserted one; nothing can sort below Integer.MIN_VALUE, so the guard above keeps `recordId - 1`
+				// from wrapping around
+				final TransactionalBitmap bitmap = theOverflow == null ? null : theOverflow[index];
+				if (bitmap == null) {
+					final int single = theRecords.intAt(index);
+					if (single < recordId) {
+						return single;
+					}
+				} else {
+					final long previous = bitmap.signedPreviousValue(recordId - 1);
+					if (previous != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE) {
+						return (int) previous;
+					}
+				}
+			}
+			// no in-bucket predecessor - the anchor is the last record of the closest preceding bucket in this leaf
+			final int previousIndex = index - 1;
+			if (previousIndex >= 0) {
+				return lastRecordOfBucket(previousIndex, theRecords, theOverflow);
+			}
+			return EvitaDataTypes.RESERVED_PRIMARY_KEY;
+		}
+
+		/**
+		 * Returns the last (greatest) record id of the last bucket in this leaf. The leaf must not be empty.
+		 *
+		 * @return the last record id stored in this leaf
+		 */
+		public int lastRecord() {
+			final RecordColumn theRecords;
+			final TransactionalBitmap[] theOverflow;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				thePeek = this.peek;
+			} else {
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				thePeek = layer.peek;
+			}
+			Assert.isPremiseValid(thePeek >= 0, "Cannot read the last record of an empty leaf!");
+			return lastRecordOfBucket(thePeek, theRecords, theOverflow);
+		}
+
+		/**
+		 * Returns the greatest record id of the bucket at `index` in signed order: the bitmap's signed maximum for an
+		 * overflow bucket, the single payload otherwise. The bitmap case is answered from the transactional diff layer
+		 * (never through a merged bitmap), so it costs the same whether or not a transaction is open.
+		 *
+		 * @param index    the bucket index within the leaf
+		 * @param records  the resolved record column
+		 * @param overflow the resolved overflow bitmaps (may be null)
+		 * @return the greatest record id of the bucket
+		 */
+		private static int lastRecordOfBucket(
+			int index,
+			@Nonnull RecordColumn records,
+			@Nullable TransactionalBitmap[] overflow
+		) {
+			final TransactionalBitmap bitmap = overflow == null ? null : overflow[index];
+			if (bitmap == null) {
+				return records.intAt(index);
+			}
+			final long last = bitmap.signedPreviousValue(Integer.MAX_VALUE);
+			Assert.isPremiseValid(
+				last != RoaringBitmapBackedBitmap.NO_PREVIOUS_VALUE,
+				"An overflow bucket must never be empty!"
+			);
+			return (int) last;
+		}
+
+		/**
 		 * Returns the index of the bucket for the given value, or -1 if absent.
 		 *
 		 * @param value the value to search for
@@ -4396,9 +4803,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * @param value the value identifying the bucket
 		 * @param pk    the record id to add
-		 * @return true if a new bucket was inserted, false otherwise
+		 * @return the slot index the new bucket was inserted at, or {@link #NO_NEW_BUCKET} when the record joined an
+		 * existing bucket
 		 */
-		public boolean addRecord(@Nonnull M value, int pk) {
+		public int addRecord(@Nonnull M value, int pk) {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
@@ -4418,10 +4826,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
 					addToExistingBucket(insertionPosition.position(), pk);
-					return false;
+					return NO_NEW_BUCKET;
 				}
 				insertNewSingleBucket(insertionPosition.position(), value, pk);
-				return true;
+				return insertionPosition.position();
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
@@ -4432,10 +4840,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
 					layer.addToExistingBucket(insertionPosition.position(), pk);
-					return false;
+					return NO_NEW_BUCKET;
 				}
 				layer.insertNewSingleBucket(insertionPosition.position(), value, pk);
-				return true;
+				return insertionPosition.position();
 			}
 		}
 
@@ -4447,9 +4855,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * @param value   the value identifying the bucket
 		 * @param payload the lone `long` payload to store
-		 * @return always true (a new bucket is always inserted)
+		 * @return the slot index the new bucket was inserted at (a new bucket is always inserted, so
+		 * {@link #NO_NEW_BUCKET} is never returned)
 		 */
-		public boolean addLongRecord(@Nonnull M value, long payload) {
+		public int addLongRecord(@Nonnull M value, long payload) {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
@@ -4470,7 +4879,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
 				}
 				insertNewSingleBucket(insertionPosition.position(), value, payload);
-				return true;
+				return insertionPosition.position();
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
@@ -4483,7 +4892,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
 				}
 				layer.insertNewSingleBucket(insertionPosition.position(), value, payload);
-				return true;
+				return insertionPosition.position();
 			}
 		}
 
@@ -4542,9 +4951,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * @param value the value identifying the bucket
 		 * @param pks   the record ids to add; must be non-empty
-		 * @return true if a new bucket was inserted, false otherwise
+		 * @return the slot index the new bucket was inserted at, or {@link #NO_NEW_BUCKET} when the records joined an
+		 * existing bucket
 		 */
-		public boolean addRecords(@Nonnull M value, @Nonnull int... pks) {
+		public int addRecords(@Nonnull M value, @Nonnull int... pks) {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
@@ -4563,10 +4973,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
 					addRecordsToExistingBucket(insertionPosition.position(), pks);
-					return false;
+					return NO_NEW_BUCKET;
 				}
 				insertNewBucket(insertionPosition.position(), value, pks);
-				return true;
+				return insertionPosition.position();
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
@@ -4577,10 +4987,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
 					layer.addRecordsToExistingBucket(insertionPosition.position(), pks);
-					return false;
+					return NO_NEW_BUCKET;
 				}
 				layer.insertNewBucket(insertionPosition.position(), value, pks);
-				return true;
+				return insertionPosition.position();
 			}
 		}
 
@@ -5309,6 +5719,44 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 		}
 
+	}
+
+	/**
+	 * Everything the insert path needs from a single descent: the leaf that accommodates the key, plus the two
+	 * neighbour operands the boundary asserts compare against. Produced by
+	 * {@link #findLeafNodeWithBoundaryContext(Comparable)}, which resolves all three without capturing a
+	 * {@link Cursor}.
+	 *
+	 * The record itself is short-lived and never escapes the insert method, so the JIT scalar-replaces it — the same
+	 * treatment measured for the tree family's other per-descent records.
+	 *
+	 * @param leaf              the leaf node responsible for the key (it may not yet contain it)
+	 * @param fence             the leaf's upper fence — the first key of the successor leaf — or `null` when the leaf
+	 *                          is the tree's last leaf
+	 * @param predecessorParent the deepest internal node whose chosen child index was greater than zero, or `null`
+	 *                          when the descent was leftmost at every level
+	 * @param predecessorIndex  the child index chosen at `predecessorParent`
+	 * @param <M>               the type of key stored in the B+ tree nodes
+	 */
+	record BoundaryContext<M extends Comparable<M>>(
+		@Nonnull BPlusLeafTreeNode<M> leaf,
+		@Nullable M fence,
+		@Nullable BPlusInternalTreeNode<M> predecessorParent,
+		int predecessorIndex
+	) {
+
+		/**
+		 * Resolves the predecessor leaf. Kept out of the descent itself and behind this call because the head assert
+		 * fires only when the inserted key becomes the leaf's first — every other insert would pay a transactional
+		 * child-array resolution for an answer nobody reads.
+		 *
+		 * @return the leaf immediately preceding {@link #leaf()} in key order, or `null` when it is the tree's
+		 * leftmost leaf
+		 */
+		@Nullable
+		BPlusLeafTreeNode<M> predecessor() {
+			return predecessorLeafOf(this.predecessorParent, this.predecessorIndex);
+		}
 	}
 
 	/**

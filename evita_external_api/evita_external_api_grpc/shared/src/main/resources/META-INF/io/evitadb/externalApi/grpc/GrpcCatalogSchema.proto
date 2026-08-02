@@ -8,6 +8,10 @@ import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
+// Represents the schema of a single catalog - the top-level container that groups related entity collections
+// together (analogous to a database / schema in a relational system). Holds the catalog name, its schema version,
+// optional description, evolution mode settings, catalog-wide (global) attributes shared across entity types,
+// name variants and the conflict resolution policy inherited by entity schemas that don't override it.
 message GrpcCatalogSchema {
   // Contains unique name of the catalog. Case-sensitive. Distinguishes one catalog item from another
   // within single entity instance.
@@ -54,6 +58,8 @@ message GrpcCatalogSchema {
 //
 // Attributes are not recommended for bigger data as they are all loaded at once when requested.
 message GrpcGlobalAttributeSchema {
+  // Contains unique name of the attribute. Case-sensitive. Distinguishes one attribute from another within
+  // a single entity type or, for global attributes, within the entire catalog.
   string name = 1;
   // optional description of the attribute
   google.protobuf.StringValue description = 2;
@@ -64,7 +70,7 @@ message GrpcGlobalAttributeSchema {
   //
   // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
   // better to have this ensured by the database engine.
-  // deprecated in favor of `uniqueInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
   GrpcAttributeUniquenessType unique = 4 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
@@ -72,12 +78,12 @@ message GrpcGlobalAttributeSchema {
   //
   // When attribute is filterable, extra result `attributeHistogram`
   // can be requested for this attribute.
-  // deprecated in favor of `filterableInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
   bool filterable = 5 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index..
-  // deprecated in favor of `sortableInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `sortableInScopes`
   bool sortable = 6 [deprecated = true];
   // When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
   bool localized = 7;
@@ -97,8 +103,8 @@ message GrpcGlobalAttributeSchema {
   // non-null checks even if no attributes of such name are specified.
   GrpcEvitaValue defaultValue = 11;
   // Determines how many fractional places are important when entities are compared during filtering or sorting. It is
-  // significant to know that all values of this attribute will be converted to {@link java.lang.Integer}, so the attribute
-  // number must not ever exceed maximum limits of {@link java.lang.Integer} type when scaling the number by the power
+  // significant to know that all values of this attribute will be converted to `Integer`, so the attribute
+  // number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
   // of ten using `indexedDecimalPlaces` as exponent.
   int32 indexedDecimalPlaces = 12;
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -106,7 +112,7 @@ message GrpcGlobalAttributeSchema {
   //
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
-  // deprecated in favor of `uniqueGloballyInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
   GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];
   // Contains attribute name converted to different naming conventions.
   repeated GrpcNameVariant nameVariant = 14;

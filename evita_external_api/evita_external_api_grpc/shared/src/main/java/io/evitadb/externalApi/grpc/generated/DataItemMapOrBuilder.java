@@ -33,7 +33,7 @@ public interface DataItemMapOrBuilder extends
 
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -41,7 +41,7 @@ public interface DataItemMapOrBuilder extends
   int getDataCount();
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -56,7 +56,7 @@ public interface DataItemMapOrBuilder extends
   getData();
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -65,7 +65,7 @@ public interface DataItemMapOrBuilder extends
   getDataMap();
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>
@@ -77,7 +77,7 @@ io.evitadb.externalApi.grpc.generated.GrpcDataItem getDataOrDefault(
 io.evitadb.externalApi.grpc.generated.GrpcDataItem defaultValue);
   /**
    * <pre>
-   * The stored named fields with associated values.
+   * The child nodes of this map node, keyed by property name.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcDataItem&gt; data = 1;</code>

@@ -33,7 +33,7 @@ public interface GrpcDataItemOrBuilder extends
 
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcDataItemOrBuilder extends
   boolean hasPrimitiveValue();
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcDataItemOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getPrimitiveValue();
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -60,7 +60,7 @@ public interface GrpcDataItemOrBuilder extends
 
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -69,7 +69,7 @@ public interface GrpcDataItemOrBuilder extends
   boolean hasArrayValue();
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -78,7 +78,7 @@ public interface GrpcDataItemOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDataItemArray getArrayValue();
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -87,7 +87,7 @@ public interface GrpcDataItemOrBuilder extends
 
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -96,7 +96,7 @@ public interface GrpcDataItemOrBuilder extends
   boolean hasMapValue();
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -105,7 +105,7 @@ public interface GrpcDataItemOrBuilder extends
   io.evitadb.externalApi.grpc.generated.DataItemMap getMapValue();
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>

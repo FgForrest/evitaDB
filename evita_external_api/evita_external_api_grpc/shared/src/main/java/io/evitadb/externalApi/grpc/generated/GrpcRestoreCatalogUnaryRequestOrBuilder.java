@@ -33,8 +33,8 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -43,8 +43,8 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
   java.lang.String getCatalogName();
   /**
    * <pre>
-   * Name of the catalog where the backup will be restored
-   * The name must not clash with any of existing catalogs
+   * Name of the target catalog into which the backup will be restored.
+   * Must not clash with the name of any existing catalog.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -55,7 +55,8 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Binary contents of the backup file.
+   * One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+   * received for this upload (identified by `fileId`).
    * </pre>
    *
    * <code>bytes backupFile = 2;</code>
@@ -65,7 +66,11 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -74,7 +79,11 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
   boolean hasFileId();
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -83,7 +92,11 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getFileId();
   /**
    * <pre>
-   * Identification of the task (for continuation purpose)
+   * Identifies the upload this chunk continues.
+   *
+   * If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+   * returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+   * this same upload, and this chunk is appended to it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid fileId = 3;</code>
@@ -92,7 +105,11 @@ public interface GrpcRestoreCatalogUnaryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+   * Total size of the complete backup file (bytes), as expected once all chunks have been
+   * received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+   * restore starts automatically. If more bytes are received than this, the server still returns
+   * a normal response for that (final) chunk and only afterwards discards the partial upload - an
+   * overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
    * </pre>
    *
    * <code>int64 totalSizeInBytes = 4;</code>

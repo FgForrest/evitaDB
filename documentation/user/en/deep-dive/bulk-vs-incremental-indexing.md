@@ -14,6 +14,12 @@ Bulk indexing is used for rapid indexing of large volumes of source data from an
 2. No rollback is possible - if any error occurs (even part-way through a single entity write), the client must handle recovery on its own (see [Atomicity of individual writes](#atomicity-of-individual-writes)).
 3. All changes to indexes are kept in memory and written when the session closes; in case of a database crash, all changes are lost.
 
+<Note type="info">
+
+How much data you write between session closes is a deliberate trade-off. Closing the session is the only moment when index changes reach the disk, so frequent closes act as checkpoints — the work completed so far is durable, and a crash costs you at most the block still in progress. You pay for that in throughput: every close has to collect and persist the modified parts of each index the block touched, and the more data the catalog already holds, the more that costs — so the price is paid repeatedly and rises as the import progresses. Writing the whole dataset within a single session avoids almost all of that cost and gives the fastest possible import, but it keeps the entire result in flight: nothing is durable until the end, the memory held by the pending index changes grows for the whole duration, and any failure — including a single half-applied write, for which this phase offers no rollback — puts you back at the beginning (see [Atomicity of individual writes](#atomicity-of-individual-writes)). Prefer one large block for imports short enough to simply repeat, and periodic closes for imports long enough that losing all the work would hurt.
+
+</Note>
+
 Once initial indexing is finished, the client is expected to finalize the warm-up phase by closing the session and executing the `MakeCatalogAlive` mutation, which transitions the catalog to the ALIVE phase (see next chapter). <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> provides the `goLiveAndClose` method for this purpose. You can also invoke this transition via the `makeCatalogAlive` method in <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>.</LS>
 
 ## Incremental indexing (ALIVE phase)

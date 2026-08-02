@@ -33,7 +33,8 @@ public interface GetTransactionOverviewRequestOrBuilder extends
 
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>
@@ -42,7 +43,8 @@ public interface GetTransactionOverviewRequestOrBuilder extends
   java.util.List<java.lang.Long> getCatalogVersionList();
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>
@@ -51,7 +53,8 @@ public interface GetTransactionOverviewRequestOrBuilder extends
   int getCatalogVersionCount();
   /**
    * <pre>
-   * The catalog version for which the transaction overview should be returned
+   * The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+   * for the ordering and completeness contract of the response.
    * </pre>
    *
    * <code>repeated int64 catalogVersion = 1;</code>

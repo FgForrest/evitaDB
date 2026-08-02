@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to a catalog full backup request.
+ * Response to a catalog full backup request (a backup that includes the entire catalog history, not just
+ * the current state).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse}
@@ -71,7 +72,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus_;
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -83,7 +85,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -95,7 +98,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * the task that is used to backup the catalog and getting its progress
+   * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+   * finished, retrieve the resulting backup file.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -269,7 +273,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to a catalog full backup request.
+   * Response to a catalog full backup request (a backup that includes the entire catalog history, not just
+   * the current state).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFullBackupCatalogResponse}
@@ -461,7 +466,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> taskStatusBuilder_;
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -472,7 +478,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -487,7 +494,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -507,7 +515,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -525,7 +534,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -550,7 +560,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -567,7 +578,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -579,7 +591,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>
@@ -594,7 +607,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * the task that is used to backup the catalog and getting its progress
+     * Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+     * finished, retrieve the resulting backup file.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 1;</code>

@@ -1,9 +1,9 @@
 ---
-title: Zpracování obrázků a binárních souborů
+title: Práce s obrázky a binárními soubory
 date: '17.1.2023'
 author: Ing. Jan Novotný
-commit: '100ac8e256be7a6cc5aa876484bbfdb21c276865'
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 **Práce ve vývoji**
 

@@ -33,7 +33,8 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   boolean hasUuid();
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid();
   /**
    * <pre>
-   * Identification of the registered capture
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses (when a
+   * subscription id is available), unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -60,7 +63,9 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -69,7 +74,9 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   boolean hasCapture();
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -78,7 +85,9 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture getCapture();
   /**
    * <pre>
-   * The list of mutations (CDC events) that match the criteria
+   * A single captured CDC event that matched the subscription's criteria - each stream message carries at most
+   * one event, not a batch. Set only when `responseType` is `CHANGE`; unset on `ACKNOWLEDGEMENT` and `HEARTBEAT`
+   * responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture capture = 2;</code>
@@ -87,8 +96,9 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+   * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+   * event has occurred.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -97,8 +107,9 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   int getResponseTypeValue();
   /**
    * <pre>
-   * The type of the response - when subscription is set-up, acknowledgement is sent
-   * Then with each capture event, the type is set to `change`
+   * The kind of this response: `ACKNOWLEDGEMENT` is sent exactly once, when the subscription is set up; `CHANGE`
+   * is sent for each matching capture event; `HEARTBEAT` is sent periodically as a keep-alive while no matching
+   * event has occurred.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType responseType = 3;</code>
@@ -108,7 +119,7 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -117,7 +128,7 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   boolean hasHeartBeat();
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>
@@ -126,7 +137,7 @@ public interface GrpcRegisterSystemChangeCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcHeartBeat getHeartBeat();
   /**
    * <pre>
-   * Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+   * Heartbeat information. Set only on `ACKNOWLEDGEMENT` and `HEARTBEAT` responses, unset on `CHANGE` responses.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcHeartBeat heartBeat = 4;</code>

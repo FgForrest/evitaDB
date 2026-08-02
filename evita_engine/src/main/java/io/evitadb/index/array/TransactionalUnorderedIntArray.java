@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -44,7 +45,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 
 /**
@@ -75,6 +75,14 @@ public class TransactionalUnorderedIntArray
 	implements TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>,
 	OrderKeyConsumer,
 	Serializable {
+	/**
+	 * Rejection message shared by every insert path. The reserved primary key marks the head-insert position in
+	 * {@link #add(int, int)}, so a record carrying it could not be distinguished from "insert at the beginning".
+	 */
+	private static final String RESERVED_PRIMARY_KEY_ERROR =
+		"Primary key `" + EvitaDataTypes.RESERVED_PRIMARY_KEY + "` is reserved by evitaDB and cannot be stored in " +
+			"the array - it marks the head-insert position!";
+
 	@Serial private static final long serialVersionUID = 4753581686040233219L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -243,9 +251,20 @@ public class TransactionalUnorderedIntArray
 	/**
 	 * Order-key consumer hook used by the position tree to keep the value index coherent (INV-COUPLE): records each
 	 * `recordId → orderKey` assignment (insert overwrites an existing mapping).
+	 *
+	 * This is the single choke point every record passes through on its way into the position tree - the incremental
+	 * inserts alike the bulk builds (`bulkLoad`, `bulkLoadWithHeads`, `assembleFromLeafPages`) report each record here
+	 * exactly once - so the reserved-primary-key rejection lives here rather than in a separate pre-scan of the input:
+	 * it costs no extra pass over the data and leaves no bulk entry point unguarded. The `previousRecordId` argument of
+	 * {@link #add(int, int)} is NOT routed here (it is resolved to an order key and never becomes a record), so the
+	 * sentinel value legitimately used there cannot trip this guard.
 	 */
 	@Override
 	public void accept(int recordId, long orderKey) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
+		);
 		this.valueIndex.insert(recordId, orderKey);
 	}
 
@@ -392,23 +411,34 @@ public class TransactionalUnorderedIntArray
 
 	/**
 	 * Method adds new record to the array, just after the record specified as `previousRecordId`
-	 * ({@link Integer#MIN_VALUE} adds it to the head).
+	 * ({@link EvitaDataTypes#RESERVED_PRIMARY_KEY} adds it to the head).
+	 *
+	 * Both arguments are entity primary keys, so "no predecessor" is expressed with the primary key evitaDB
+	 * reserves and never assigns, rather than with an in-range value that a real record could legitimately carry.
 	 */
 	public void add(int previousRecordId, int recordId) {
-		Assert.isTrue(
-			this.valueIndex.search(recordId).isEmpty(),
-			"Record with id " + recordId + " is already part of the array!"
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
 		);
-		if (previousRecordId == Integer.MIN_VALUE) {
+		// order-keys minted by the position tree are always non-negative (the first container is 0 and every mint is
+		// additive), so Long.MIN_VALUE is a collision-proof "absent" sentinel that lets us skip the OptionalLong
+		// allocation `search(int)` would incur - the same trick `indexOf` relies on. The guard stays (it protects
+		// against index corruption), it is just no longer a second full descent plus a boxed result.
+		Assert.isTrue(
+			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+			() -> "Record with id " + recordId + " is already part of the array!"
+		);
+		if (previousRecordId == EvitaDataTypes.RESERVED_PRIMARY_KEY) {
 			this.positionTree.insertAtPosition(0, recordId, this);
 		} else {
-			final OptionalLong previousOrderKey = this.valueIndex.search(previousRecordId);
+			final long previousOrderKey = this.valueIndex.searchOrDefault(previousRecordId, Long.MIN_VALUE);
 			Assert.isTrue(
-				previousOrderKey.isPresent(),
-				"Record with id " + previousRecordId + " is not present in the array,"
+				previousOrderKey != Long.MIN_VALUE,
+				() -> "Record with id " + previousRecordId + " is not present in the array,"
 					+ " cannot add record " + recordId + " after it!"
 			);
-			this.positionTree.insertAfter(previousOrderKey.getAsLong(), previousRecordId, recordId, this);
+			this.positionTree.insertAfter(previousOrderKey, previousRecordId, recordId, this);
 		}
 	}
 
@@ -416,15 +446,21 @@ public class TransactionalUnorderedIntArray
 	 * Method adds new record to the array on specified index.
 	 */
 	public void addOnIndex(int index, int recordId) {
+		Assert.isPremiseValid(
+			recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+			RESERVED_PRIMARY_KEY_ERROR
+		);
 		Assert.isTrue(
-			this.valueIndex.search(recordId).isEmpty(),
-			"Record with id " + recordId + " is already part of the array!"
+			this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+			() -> "Record with id " + recordId + " is already part of the array!"
 		);
 		this.positionTree.insertAtPosition(index, recordId, this);
 	}
 
 	/**
-	 * Method adds multiple record ids to the array (each just after the previous one).
+	 * Method adds multiple record ids to the array (each just after the previous one). Delegates to
+	 * {@link #add(int, int)}, so {@link EvitaDataTypes#RESERVED_PRIMARY_KEY} as `previousRecordId` adds the batch to
+	 * the head, and no record id in the batch may be the reserved primary key.
 	 */
 	public void addAll(int previousRecordId, int... recordIds) {
 		int currentPreviousRecordId = previousRecordId;
@@ -441,9 +477,13 @@ public class TransactionalUnorderedIntArray
 	 */
 	public void appendAll(int... recordIds) {
 		for (final int recordId : recordIds) {
+			Assert.isPremiseValid(
+				recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY,
+				RESERVED_PRIMARY_KEY_ERROR
+			);
 			Assert.isTrue(
-				this.valueIndex.search(recordId).isEmpty(),
-				"Record with id " + recordId + " is already part of the array!"
+				this.valueIndex.searchOrDefault(recordId, Long.MIN_VALUE) == Long.MIN_VALUE,
+				() -> "Record with id " + recordId + " is already part of the array!"
 			);
 			this.positionTree.insertAtPosition(this.positionTree.size(), recordId, this);
 		}

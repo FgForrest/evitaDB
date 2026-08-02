@@ -109,7 +109,9 @@ while IFS='|||' read -r subject body; do
 
     # Store in appropriate array (using description as key for deduplication)
     case "$commit_type" in
-      feat)
+      feat|perf)
+        # perf: shares the Features bucket with feat: — matches list-issues.sh,
+        # where issues labeled "performance" also land under Features.
         feat_commits["$commit_desc"]="$entry"
         ;;
       fix)

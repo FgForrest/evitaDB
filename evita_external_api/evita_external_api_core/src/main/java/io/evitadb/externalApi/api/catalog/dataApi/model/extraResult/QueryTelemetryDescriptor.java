@@ -31,6 +31,7 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Represents {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry}.
@@ -51,7 +52,9 @@ public interface QueryTelemetryDescriptor {
 	PropertyDescriptor START = PropertyDescriptor.builder()
 		.name("start")
 		.description("""
-            Date and time of the start of this step in nanoseconds.
+			Number of nanoseconds elapsed since the root step of this telemetry tree began - the root
+			step itself therefore always reports `0`. This is not a wall-clock timestamp and must not
+			be rendered as a date.
 			""")
 		.type(nonNull(Long.class))
 		.build();
@@ -76,12 +79,21 @@ public interface QueryTelemetryDescriptor {
 			""")
 		.type(nonNull(String.class))
 		.build();
+	PropertyDescriptor STARTED_AT = PropertyDescriptor.builder()
+		.name("startedAt")
+		.description("""
+			Wall-clock instant at which the query began, in the ISO-8601 offset date-time format. Set only on
+			the root step - it anchors the whole tree in time, so the wall-clock position of any other node is
+			`startedAt` plus that node's `start` offset.
+			""")
+		.type(nullable(String.class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("QueryTelemetry")
 		.description("""
 			This DTO contains detailed information about query processing time and its decomposition to single operations.
 			""")
-		.staticProperties(List.of(OPERATION, START, STEPS, ARGUMENTS, SPENT_TIME))
+		.staticProperties(List.of(OPERATION, START, STEPS, ARGUMENTS, SPENT_TIME, STARTED_AT))
 		.build();
 }

@@ -28,6 +28,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * Mutation of a sortable attribute compound schema.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation}
  */
 public final class GrpcSortableAttributeCompoundSchemaMutation extends
@@ -114,6 +118,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 1;
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
    */
@@ -122,6 +130,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 1;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    * @return The createSortableAttributeCompoundSchemaMutation.
    */
@@ -133,6 +145,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
    */
   @java.lang.Override
@@ -145,6 +161,11 @@ private static final long serialVersionUID = 0L;
 
   public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION_FIELD_NUMBER = 2;
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
    */
@@ -153,6 +174,11 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 2;
   }
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
    */
@@ -164,6 +190,11 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
    */
   @java.lang.Override
@@ -176,6 +207,11 @@ private static final long serialVersionUID = 0L;
 
   public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION_FIELD_NUMBER = 3;
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
    */
@@ -184,6 +220,11 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 3;
   }
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
    */
@@ -195,6 +236,11 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+   * in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
    */
   @java.lang.Override
@@ -207,6 +253,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMANAMEMUTATION_FIELD_NUMBER = 4;
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
    */
@@ -215,6 +265,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 4;
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    * @return The modifySortableAttributeCompoundSchemaNameMutation.
    */
@@ -226,6 +280,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
    */
   @java.lang.Override
@@ -238,6 +296,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int REMOVESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 5;
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
    */
@@ -246,6 +308,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 5;
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    * @return The removeSortableAttributeCompoundSchemaMutation.
    */
@@ -257,6 +323,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
    */
   @java.lang.Override
@@ -269,6 +339,10 @@ private static final long serialVersionUID = 0L;
 
   public static final int SETSORTABLEATTRIBUTECOMPOUNDINDEXEDMUTATION_FIELD_NUMBER = 6;
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
    */
@@ -277,6 +351,10 @@ private static final long serialVersionUID = 0L;
     return mutationCase_ == 6;
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    * @return The setSortableAttributeCompoundIndexedMutation.
    */
@@ -288,6 +366,10 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.getDefaultInstance();
   }
   /**
+   * <pre>
+   * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
    */
   @java.lang.Override
@@ -544,6 +626,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * Mutation of a sortable attribute compound schema.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchemaMutation}
    */
   public static final class Builder extends
@@ -838,6 +924,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutationOrBuilder> createSortableAttributeCompoundSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      * @return Whether the createSortableAttributeCompoundSchemaMutation field is set.
      */
@@ -846,6 +936,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 1;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      * @return The createSortableAttributeCompoundSchemaMutation.
      */
@@ -864,6 +958,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     public Builder setCreateSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation value) {
@@ -880,6 +978,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     public Builder setCreateSortableAttributeCompoundSchemaMutation(
@@ -894,6 +996,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     public Builder mergeCreateSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation value) {
@@ -917,6 +1023,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     public Builder clearCreateSortableAttributeCompoundSchemaMutation() {
@@ -936,12 +1046,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation.Builder getCreateSortableAttributeCompoundSchemaMutationBuilder() {
       return getCreateSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     @java.lang.Override
@@ -956,6 +1074,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation createSortableAttributeCompoundSchemaMutation = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -980,6 +1102,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutationOrBuilder> modifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      * @return Whether the modifySortableAttributeCompoundSchemaDeprecationNoticeMutation field is set.
      */
@@ -988,6 +1115,11 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 2;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      * @return The modifySortableAttributeCompoundSchemaDeprecationNoticeMutation.
      */
@@ -1006,6 +1138,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation value) {
@@ -1022,6 +1159,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(
@@ -1036,6 +1178,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     public Builder mergeModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation value) {
@@ -1059,6 +1206,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     public Builder clearModifySortableAttributeCompoundSchemaDeprecationNoticeMutation() {
@@ -1078,12 +1230,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.Builder getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationBuilder() {
       return getModifySortableAttributeCompoundSchemaDeprecationNoticeMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     @java.lang.Override
@@ -1098,6 +1260,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a deprecation notice of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDeprecationNoticeMutation modifySortableAttributeCompoundSchemaDeprecationNoticeMutation = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1122,6 +1289,11 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutationOrBuilder> modifySortableAttributeCompoundSchemaDescriptionMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      * @return Whether the modifySortableAttributeCompoundSchemaDescriptionMutation field is set.
      */
@@ -1130,6 +1302,11 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 3;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      * @return The modifySortableAttributeCompoundSchemaDescriptionMutation.
      */
@@ -1148,6 +1325,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaDescriptionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation value) {
@@ -1164,6 +1346,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaDescriptionMutation(
@@ -1178,6 +1365,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     public Builder mergeModifySortableAttributeCompoundSchemaDescriptionMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation value) {
@@ -1201,6 +1393,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     public Builder clearModifySortableAttributeCompoundSchemaDescriptionMutation() {
@@ -1220,12 +1417,22 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation.Builder getModifySortableAttributeCompoundSchemaDescriptionMutationBuilder() {
       return getModifySortableAttributeCompoundSchemaDescriptionMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     @java.lang.Override
@@ -1240,6 +1447,11 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for modifying a description of an existing `SortableAttributeCompoundSchema`
+     * in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaDescriptionMutation modifySortableAttributeCompoundSchemaDescriptionMutation = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1264,6 +1476,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutationOrBuilder> modifySortableAttributeCompoundSchemaNameMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      * @return Whether the modifySortableAttributeCompoundSchemaNameMutation field is set.
      */
@@ -1272,6 +1488,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 4;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      * @return The modifySortableAttributeCompoundSchemaNameMutation.
      */
@@ -1290,6 +1510,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation value) {
@@ -1306,6 +1530,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     public Builder setModifySortableAttributeCompoundSchemaNameMutation(
@@ -1320,6 +1548,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     public Builder mergeModifySortableAttributeCompoundSchemaNameMutation(io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation value) {
@@ -1343,6 +1575,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     public Builder clearModifySortableAttributeCompoundSchemaNameMutation() {
@@ -1362,12 +1598,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation.Builder getModifySortableAttributeCompoundSchemaNameMutationBuilder() {
       return getModifySortableAttributeCompoundSchemaNameMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     @java.lang.Override
@@ -1382,6 +1626,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcModifySortableAttributeCompoundSchemaNameMutation modifySortableAttributeCompoundSchemaNameMutation = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1406,6 +1654,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutationOrBuilder> removeSortableAttributeCompoundSchemaMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      * @return Whether the removeSortableAttributeCompoundSchemaMutation field is set.
      */
@@ -1414,6 +1666,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 5;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      * @return The removeSortableAttributeCompoundSchemaMutation.
      */
@@ -1432,6 +1688,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     public Builder setRemoveSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation value) {
@@ -1448,6 +1708,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     public Builder setRemoveSortableAttributeCompoundSchemaMutation(
@@ -1462,6 +1726,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     public Builder mergeRemoveSortableAttributeCompoundSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation value) {
@@ -1485,6 +1753,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     public Builder clearRemoveSortableAttributeCompoundSchemaMutation() {
@@ -1504,12 +1776,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation.Builder getRemoveSortableAttributeCompoundSchemaMutationBuilder() {
       return getRemoveSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     @java.lang.Override
@@ -1524,6 +1804,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for removing an existing `SortableAttributeCompoundSchema` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveSortableAttributeCompoundSchemaMutation removeSortableAttributeCompoundSchemaMutation = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
@@ -1548,6 +1832,10 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutationOrBuilder> setSortableAttributeCompoundIndexedMutationBuilder_;
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      * @return Whether the setSortableAttributeCompoundIndexedMutation field is set.
      */
@@ -1556,6 +1844,10 @@ private static final long serialVersionUID = 0L;
       return mutationCase_ == 6;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      * @return The setSortableAttributeCompoundIndexedMutation.
      */
@@ -1574,6 +1866,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     public Builder setSetSortableAttributeCompoundIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation value) {
@@ -1590,6 +1886,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     public Builder setSetSortableAttributeCompoundIndexedMutation(
@@ -1604,6 +1904,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     public Builder mergeSetSortableAttributeCompoundIndexedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation value) {
@@ -1627,6 +1931,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     public Builder clearSetSortableAttributeCompoundIndexedMutation() {
@@ -1646,12 +1954,20 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation.Builder getSetSortableAttributeCompoundIndexedMutationBuilder() {
       return getSetSortableAttributeCompoundIndexedMutationFieldBuilder().getBuilder();
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     @java.lang.Override
@@ -1666,6 +1982,10 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
+     * <pre>
+     * Mutation is responsible for setting value `SortableAttributeCompoundSchema.indexedInScopes` in the `EntitySchema`.
+     * </pre>
+     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation setSortableAttributeCompoundIndexedMutation = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

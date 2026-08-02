@@ -1,6 +1,6 @@
 ---
-commit: '62220555030a727bfde88523ab0b9ea080c880c1'
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 # WebSocket protokol pro REST API
 

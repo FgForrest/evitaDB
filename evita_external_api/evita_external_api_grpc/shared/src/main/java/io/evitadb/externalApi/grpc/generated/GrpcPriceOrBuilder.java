@@ -165,7 +165,7 @@ public interface GrpcPriceOrBuilder extends
 
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -174,7 +174,7 @@ public interface GrpcPriceOrBuilder extends
   boolean hasTaxRate();
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -183,7 +183,7 @@ public interface GrpcPriceOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getTaxRate();
   /**
    * <pre>
-   * Price with tax.
+   * Tax rate percentage (i.e. for 19% it'll be 19.00)
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal taxRate = 6;</code>
@@ -192,7 +192,7 @@ public interface GrpcPriceOrBuilder extends
 
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -201,7 +201,7 @@ public interface GrpcPriceOrBuilder extends
   boolean hasPriceWithTax();
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -210,7 +210,7 @@ public interface GrpcPriceOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimal getPriceWithTax();
   /**
    * <pre>
-   * Tax rate percentage (i.e. for 19% it'll be 19.00)
+   * Price with tax.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimal priceWithTax = 7;</code>
@@ -250,7 +250,7 @@ public interface GrpcPriceOrBuilder extends
    * entity but won't be considered when evaluating search. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
-   * RENAMED TO "indexed"
+   * Deprecated since 2024.10 - RENAMED TO "indexed"
    * </pre>
    *
    * <code>bool sellable = 9 [deprecated = true];</code>

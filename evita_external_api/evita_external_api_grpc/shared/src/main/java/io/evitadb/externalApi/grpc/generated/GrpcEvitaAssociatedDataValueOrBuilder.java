@@ -33,7 +33,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   boolean hasPrimitiveValue();
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getPrimitiveValue();
   /**
    * <pre>
-   * Primitive value.
+   * A primitive or array Evita value (see `GrpcEvitaValue`), used whenever the associated data
+   * is not a complex/structured object.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -60,34 +63,46 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return Whether the jsonValue field is set.
    */
   @java.lang.Deprecated boolean hasJsonValue();
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return The jsonValue.
    */
   @java.lang.Deprecated java.lang.String getJsonValue();
   /**
    * <pre>
-   * JSON string value, this old approach led to data type loss and is deprecated.
+   * JSON-encoded `ComplexDataObject` value.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
+   * TOBEDONE #538: remove once no client older than 2025.4 remains in use
+   * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=310
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return The bytes for jsonValue.
    */
   @java.lang.Deprecated com.google.protobuf.ByteString
@@ -95,7 +110,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -104,7 +120,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   boolean hasRoot();
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -113,7 +130,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDataItem getRoot();
   /**
    * <pre>
-   * The array of values.
+   * The root node of a complex (structured) object's tree, recursively described by
+   * `GrpcDataItem`. Used as the modern replacement for the deprecated `jsonValue` encoding.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItem root = 4;</code>
@@ -122,7 +140,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+   * value is a structured object described via `root` (or the deprecated `jsonValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -131,7 +150,8 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   int getTypeValue();
   /**
    * <pre>
-   * The type of the stored value.
+   * The concrete Evita data type of the stored value, including `COMPLEX_DATA_OBJECT` when the
+   * value is a structured object described via `root` (or the deprecated `jsonValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 100;</code>
@@ -141,8 +161,9 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
 
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -151,8 +172,9 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   boolean hasVersion();
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>
@@ -161,8 +183,9 @@ public interface GrpcEvitaAssociatedDataValueOrBuilder extends
   com.google.protobuf.Int32Value getVersion();
   /**
    * <pre>
-   * Contains version of this value and gets increased with any entity type update. Allows to execute
-   *			optimistic locking i.e. avoiding parallel modifications.
+   * Version of this associated data value; increases on every update to enable optimistic locking
+   * (concurrent-modification detection). May be null if this value is nested within a larger
+   * complex object.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value version = 3;</code>

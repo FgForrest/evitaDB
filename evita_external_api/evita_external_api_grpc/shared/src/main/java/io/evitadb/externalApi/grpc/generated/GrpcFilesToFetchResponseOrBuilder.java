@@ -33,7 +33,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * The size of the page.
+   * The page size that was actually applied (echoes the request's `pageSize`).
    * </pre>
    *
    * <code>int32 pageSize = 1;</code>
@@ -43,7 +43,8 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * The number of the page.
+   * The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+   * `GrpcFilesToFetchRequest.pageNumber` for the paging model.
    * </pre>
    *
    * <code>int32 pageNumber = 2;</code>
@@ -53,7 +54,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * Collection of files to fetch.
+   * Files on this page, matching the origin filter from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
@@ -62,7 +63,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
       getFilesToFetchList();
   /**
    * <pre>
-   * Collection of files to fetch.
+   * Files on this page, matching the origin filter from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
@@ -70,7 +71,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcFile getFilesToFetch(int index);
   /**
    * <pre>
-   * Collection of files to fetch.
+   * Files on this page, matching the origin filter from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
@@ -78,7 +79,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
   int getFilesToFetchCount();
   /**
    * <pre>
-   * Collection of files to fetch.
+   * Files on this page, matching the origin filter from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
@@ -87,7 +88,7 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
       getFilesToFetchOrBuilderList();
   /**
    * <pre>
-   * Collection of files to fetch.
+   * Files on this page, matching the origin filter from the request.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFile filesToFetch = 3;</code>
@@ -97,7 +98,8 @@ public interface GrpcFilesToFetchResponseOrBuilder extends
 
   /**
    * <pre>
-   * Total number of files to fetch.
+   * Total number of files matching the request's origin filter across all pages, not just this
+   * one.
    * </pre>
    *
    * <code>int32 totalNumberOfRecords = 4;</code>

@@ -168,7 +168,8 @@ public interface GrpcTrafficRecordOrBuilder extends
 
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -177,7 +178,8 @@ public interface GrpcTrafficRecordOrBuilder extends
   boolean hasFinishedWithError();
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -186,7 +188,8 @@ public interface GrpcTrafficRecordOrBuilder extends
   com.google.protobuf.StringValue getFinishedWithError();
   /**
    * <pre>
-   * Returns non-null error message if the action the recording relates to finished with an error.
+   * The error message the operation this record represents finished with. If unset, the operation completed
+   * without error.
    * </pre>
    *
    * <code>.google.protobuf.StringValue finishedWithError = 10;</code>
@@ -194,121 +197,220 @@ public interface GrpcTrafficRecordOrBuilder extends
   com.google.protobuf.StringValueOrBuilder getFinishedWithErrorOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    * @return Whether the mutation field is set.
    */
   boolean hasMutation();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    * @return The mutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer getMutation();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_MUTATION` - the entity or schema mutation that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainer mutation = 101;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficMutationContainerOrBuilder getMutationOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    * @return Whether the query field is set.
    */
   boolean hasQuery();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    * @return The query.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer getQuery();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_QUERY` - the internal evitaDB query (evitaQL) that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainer query = 102;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficQueryContainerOrBuilder getQueryOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    * @return Whether the enrichment field is set.
    */
   boolean hasEnrichment();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    * @return The enrichment.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer getEnrichment();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_ENRICHMENT` - the entity enrichment call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainer enrichment = 103;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityEnrichmentContainerOrBuilder getEnrichmentOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    * @return Whether the fetch field is set.
    */
   boolean hasFetch();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    * @return The fetch.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer getFetch();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_FETCH` - the single entity fetch call that was executed.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainer fetch = 104;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficEntityFetchContainerOrBuilder getFetchOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    * @return Whether the sessionClose field is set.
    */
   boolean hasSessionClose();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    * @return The sessionClose.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer getSessionClose();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_FINISH` - statistics collected over the closed session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainer sessionClose = 105;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionCloseContainerOrBuilder getSessionCloseOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    * @return Whether the sessionStart field is set.
    */
   boolean hasSessionStart();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    * @return The sessionStart.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer getSessionStart();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SESSION_START` - metadata about the newly opened session.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainer sessionStart = 106;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSessionStartContainerOrBuilder getSessionStartOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    * @return Whether the sourceQuery field is set.
    */
   boolean hasSourceQuery();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    * @return The sourceQuery.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer getSourceQuery();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY` - the raw, unparsed query as received from the client.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainer sourceQuery = 107;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryContainerOrBuilder getSourceQueryOrBuilder();
 
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    * @return Whether the sourceQueryStatistics field is set.
    */
   boolean hasSourceQueryStatistics();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    * @return The sourceQueryStatistics.
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer getSourceQueryStatistics();
   /**
+   * <pre>
+   * Present when `type` is `TRAFFIC_RECORDING_SOURCE_QUERY_STATISTICS` - statistics aggregated over all
+   * operations related to a single source query.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainer sourceQueryStatistics = 108;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcTrafficSourceQueryStatisticsContainerOrBuilder getSourceQueryStatisticsOrBuilder();

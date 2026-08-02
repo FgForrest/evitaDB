@@ -21,13 +21,18 @@ message GrpcEvitaServerStatusResponse {
   string instanceId = 4;
   // Number of corrupted catalogs
   int32 catalogsCorrupted = 5;
-  // Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+  // Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+  // renamed to `catalogsActive`
   int32 catalogsOk = 6 [deprecated = true];
-  // Health problems
+  // Health problems currently detected by any of the server's health probes, deduplicated. Empty
+  // means no problems were detected.
   repeated GrpcHealthProblem healthProblems = 7;
   // Overall readiness of the evitaDB server
   GrpcReadiness readiness = 8;
-  // Information about all available APIs
+  // Status keyed by API code, for every external API registered on the classpath - including ones
+  // that are disabled (`GrpcApiStatus.enabled == false`) or have no registered provider (in which
+  // case `baseUrl` and `endpoints` are empty). Presence in this map does not imply the API is
+  // enabled or reachable; check `GrpcApiStatus.enabled`/`ready`.
   map<string, GrpcApiStatus> api = 9;
   // Flag indicating that the server is in read-only mode
   bool readOnly = 10;
@@ -35,7 +40,10 @@ message GrpcEvitaServerStatusResponse {
   int32 catalogsActive = 11;
   // Number of inactive catalogs
   int32 catalogsInactive = 12;
-  // The version of the current evitaDB server engine state (change in engine state).
+  // Monotonically increasing version number of the engine's own state, distinct from any single
+  // catalog's version - incremented once for each committed engine-level change (e.g. a catalog
+  // being created, removed, renamed, or having its format upgraded or read-only mode toggled).
+  // Ordinary data mutations within a catalog do not advance it.
   int64 engineVersion = 13;
   // The date and time when the current engine version was introduced (last engine level change occurred).
   GrpcOffsetDateTime introducedAt = 14;
@@ -43,26 +51,37 @@ message GrpcEvitaServerStatusResponse {
 
 // Status of the external API
 message GrpcApiStatus {
-  // True if the API is enabled
+  // True when this API is turned on in the server configuration. An enabled API can still be
+  // briefly not ready while the server is starting up - see `ready`.
   bool enabled = 1;
-  // API readiness status
+  // True when the API has finished initialization and is actually able to serve requests.
+  // Always false when `enabled` is false.
   bool ready = 2;
-  // list of base url of the web API
+  // Base URLs the API is reachable on - one per configured host binding (`host`, plus the
+  // `exposeOn` override if set), so this commonly holds more than one URL even though the field
+  // name is singular.
   repeated string baseUrl = 3;
-  // list of specific endpoints of particular API
-  // currently only system API provides list of endpoints
+  // Notable endpoints exposed by this API in addition to its base URLs, each entry naming the
+  // endpoint and giving its URL(s). Currently only the system API populates this list; every
+  // other API reports it empty.
   repeated GrpcEndpoint endpoints = 4;
 }
 
-// Information about a system endpoint of particular purpose derived from name
+// A named endpoint exposed by an external API, distinct from the API's own base URL(s) (see
+// `GrpcApiStatus.endpoints`).
 message GrpcEndpoint {
-  // logical name of the endpoint
+  // Logical name identifying what the endpoint serves. For the system API - currently the only API
+  // that populates `GrpcApiStatus.endpoints` - this is one of `serverNameUrl`,
+  // `serverCertificateUrl`, `clientCertificateUrl`, `clientPrivateKeyUrl`.
   string name = 1;
-  // absolute URL of the endpoint
+  // Absolute URL(s) the endpoint is reachable on - one per configured host binding, so this
+  // commonly holds more than one URL even though the field name is singular.
   repeated string url = 2;
 }
 
-// Response to an evitaDB configuration request.
+// Response to an evitaDB configuration request. This RPC (and therefore this response) is
+// unavailable while the engine runs in read-only mode - see GrpcEvitaEngineSettingsResponse for
+// the smaller, always-available subset of configuration.
 message GrpcEvitaConfigurationResponse {
   // Current configuration of the server in YAML format with evaluated values.
   string configuration = 1;
@@ -100,95 +119,131 @@ message GrpcEvitaEngineSettingsResponse {
 
 // Response to a server catalog statistics request.
 message GrpcEvitaCatalogStatisticsResponse {
-  // Collection of catalog statistics for all catalogs
+  // Per-catalog statistics for every catalog known to the server, including corrupted ones (see
+  // `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
   repeated GrpcCatalogStatistics catalogStatistics = 1;
 }
 
-// Request to restore a catalog.
+// One chunk of a streamed catalog restore. The client sends a sequence of these messages over the
+// same gRPC client stream, each carrying one slice of the backup archive; the server concatenates
+// `backupFile` across all messages, in arrival order, into a single ZIP file. `catalogName` is
+// expected to be identical on every chunk - only the value from the last message in the stream is
+// actually used to name the restored catalog.
 message GrpcRestoreCatalogRequest {
-  // Name of the catalog where the backup will be restored
-  // The name must not clash with any of existing catalogs
+  // Name of the target catalog into which the backup will be restored.
+  // Must not clash with the name of any existing catalog.
   string catalogName = 1;
-  // Binary contents of the backup file.
+  // One chunk of the binary backup ZIP archive; concatenate `backupFile` from all messages in the
+  // stream, in order, to reconstruct the full archive.
   bytes backupFile = 2;
 }
 
-// Request to restore a catalog.
+// One chunk of a catalog restore uploaded via repeated unary calls, used where true client-side
+// streaming (as in `GrpcRestoreCatalogRequest`) is unavailable, e.g. gRPC-Web. The client calls
+// `RestoreCatalogUnary` once per chunk, feeding back the `fileId` it received in the previous
+// response so the server appends to the same upload; see `GrpcRestoreCatalogUnaryResponse`.
 message GrpcRestoreCatalogUnaryRequest {
-  // Name of the catalog where the backup will be restored
-  // The name must not clash with any of existing catalogs
+  // Name of the target catalog into which the backup will be restored.
+  // Must not clash with the name of any existing catalog.
   string catalogName = 1;
-  // Binary contents of the backup file.
+  // One chunk of the binary backup ZIP archive; the server appends it to the chunks already
+  // received for this upload (identified by `fileId`).
   bytes backupFile = 2;
-  // Identification of the task (for continuation purpose)
+  // Identifies the upload this chunk continues.
+  //
+  // If unset, this is the first chunk of a new upload: the server allocates a new upload id and
+  // returns it as `fileId` in the response. If set, it must be a `fileId` previously returned for
+  // this same upload, and this chunk is appended to it.
   GrpcUuid fileId = 3;
-  // Total size of uploaded file in Bytes, when the size is reached, restore automatically starts
+  // Total size of the complete backup file (bytes), as expected once all chunks have been
+  // received; sent with every chunk. Once the bytes received so far reach exactly this size, the
+  // restore starts automatically. If more bytes are received than this, the server still returns
+  // a normal response for that (final) chunk and only afterwards discards the partial upload - an
+  // overshoot is not guaranteed to surface to the client as an error, so do not exceed it.
   int64 totalSizeInBytes = 4;
 }
 
-// Request to restore a catalog.
+// Request to restore a catalog from a backup file that already exists on the server (e.g. produced
+// by a prior backup task, or a previous restore upload) - in contrast to
+// `GrpcRestoreCatalogRequest` and `GrpcRestoreCatalogUnaryRequest`, which upload a new backup file
+// as part of the call.
 message GrpcRestoreCatalogFromServerFileRequest {
-  // Name of the catalog where the backup will be restored
-  // The name must not clash with any of existing catalogs
+  // Name of the target catalog into which the backup will be restored.
+  // Must not clash with the name of any existing catalog.
   string catalogName = 1;
-  // The identification of the file on the server that should be restored
+  // Identification of the backup file already stored on the server that should be restored.
   GrpcUuid fileId = 2;
 }
 
-// Response to a catalog restore request.
+// Response to a catalog restore request. Returned by both `RestoreCatalog` and
+// `RestoreCatalogFromServerFile`.
 message GrpcRestoreCatalogResponse {
-  // returns the number of bytes read from the backup file
+  // Total number of bytes read from the backup file (bytes). Only meaningful for `RestoreCatalog`,
+  // where it reports the cumulative size of the uploaded stream; always 0 for
+  // `RestoreCatalogFromServerFile`, which does not populate this field.
   int64 read = 1;
-  // the task that is used to restore the catalog and getting its progress
+  // The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+  // progress.
   GrpcTaskStatus task = 3;
 }
 
 // Response to a catalog restore request (unary variant). This is used for gRPC/web.
 // We need to explicitly handle the fileId, because it gets repeatedly updated (appended) from the client.
 message GrpcRestoreCatalogUnaryResponse {
-  // returns the number of bytes read from the backup file
+  // Cumulative number of bytes received for this upload so far, across this and all preceding
+  // chunks (bytes).
   int64 read = 1;
-  // The identification of the file on the server that should be restored
+  // Identifies this upload. Echo this value back as `fileId` in the next
+  // `GrpcRestoreCatalogUnaryRequest` chunk so the server appends to the same upload; on the first
+  // chunk of an upload the server allocates this id and returns it here for the first time.
   GrpcUuid fileId = 2;
-  // the task that is used to restore the catalog and getting its progress
+  // The task tracking the restore operation; poll its status (`GetTaskStatus`) to observe restore
+  // progress.
   GrpcTaskStatus task = 3;
 }
 
 // Request to list task statuses in paginated form.
 message GrpcTaskStatusesRequest {
-  // Page number of the task statuses to be listed.
+  // Page number of the task statuses to be listed. Page-based paging: 1-indexed, page 1 is the
+  // first page (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
   int32 pageNumber = 1;
-  // Number of task statuses per page.
+  // Number of task statuses per page. No server-side maximum is enforced.
   int32 pageSize = 2;
-  // Optional taskType of the listed task, passing non-null value
-  // in this argument filters the returned status to only those that are related to the tasks of specified type
+  // Task type names to filter by (matched against `GrpcTaskStatus.taskType`); a task matches if
+  // its type is any of the listed values. Empty (the default) means no filtering by type.
   repeated google.protobuf.StringValue taskType = 3;
-  // Optional set of simplified task states, passing list of enums in this argument
-  // filters the returned statuses to only those that match this simplified status
+  // Simplified task states to filter by; a task matches if its state is any of the listed values.
+  // Empty (the default) means no filtering by state. When both `taskType` and `simplifiedState`
+  // are non-empty, a task must satisfy both filters.
   repeated GrpcTaskSimplifiedState simplifiedState = 4;
 }
 
 // Response to a task statuses request.
 message GrpcTaskStatusesResponse {
-  // The size of the page.
+  // The page size that was actually applied (echoes the request's `pageSize`).
   int32 pageSize = 1;
-  // The number of the page.
+  // The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+  // `GrpcTaskStatusesRequest.pageNumber` for the paging model.
   int32 pageNumber = 2;
-  // Collection of task statuses.
+  // Task statuses on this page, matching the filters from the request.
   repeated GrpcTaskStatus taskStatus = 3;
-  // Total number of task statuses.
+  // Total number of task statuses matching the request's filters across all pages, not just this
+  // one.
   int32 totalNumberOfRecords = 4;
 }
 
 // Request to get multiple task statuses.
 message GrpcSpecifiedTaskStatusesRequest {
-  // set of task ids to be listed
+  // Identifications of the tasks whose statuses should be returned. Ids that don't match any
+  // known task are silently omitted from the response - see
+  // `GrpcSpecifiedTaskStatusesResponse.taskStatus`.
   repeated GrpcUuid taskIds = 1;
 }
 
 // Response to a multiple task statuses request.
 message GrpcSpecifiedTaskStatusesResponse {
-  // Collection of task statuses.
+  // Statuses of the requested tasks that were found, in no particular order; ids from the request
+  // that don't match any known task are simply absent here, no error is raised for them.
   repeated GrpcTaskStatus taskStatus = 1;
 }
 
@@ -200,96 +255,116 @@ message GrpcTaskStatusRequest {
 
 // Response to a task status request.
 message GrpcTaskStatusResponse {
-  // Task status if found
+  // Status of the requested task. If no task exists for the given id, the server currently does
+  // not send this response message at all, rather than sending it with this field unset - for
+  // this unary call, that means the call does not complete normally rather than yielding an empty
+  // result (the bundled Java driver, for one, surfaces this as a `StatusRuntimeException` with
+  // status `INTERNAL`). Prefer `GetTaskStatuses` (plural) if an unknown id must not surface as an
+  // error, since it returns a normal (possibly empty) response instead.
   GrpcTaskStatus taskStatus = 1;
 }
 
-// Request to get cancel task status by id
+// Request to cancel a task by id
 message GrpcCancelTaskRequest {
   // Identification of the task
   GrpcUuid taskId = 1;
 }
 
-// Request to get cancel task status by id
+// Response to a cancel task request.
 message GrpcCancelTaskResponse {
-  // true if the task was found and canceled
+  // True if a task with the given id existed and was successfully canceled; false if no such task
+  // exists, or the task could no longer be canceled (e.g. it had already finished).
   bool success = 1;
 }
 
-// Request to list files to fetch in paginated form.
+// Request to list files available for fetching, in paginated form.
 message GrpcFilesToFetchRequest {
-  // Page number of the task statuses to be listed.
+  // Page number of the files to be listed. Page-based paging: 1-indexed, page 1 is the first page
+  // (see `io.evitadb.dataType.PaginatedList#getPageNumber`).
   int32 pageNumber = 1;
-  // Number of task statuses per page.
+  // Number of files per page. No server-side maximum is enforced.
   int32 pageSize = 2;
-  // Optional origin of the files (derived from taskType), passing non-null value
-  // in this argument filters the returned files to only those that are related to the specified origin
+  // File origins to filter by (see `GrpcFile.origin` - usually the `taskType` of the task that
+  // produced the file, e.g. `BackupTask`); a file matches if its origin is any of the listed
+  // values. Empty (the default) means no filtering - files of all origins are returned.
   repeated google.protobuf.StringValue origin = 3;
 }
 
-// Response to a get files to fetch request.
+// Response to a request to list files available for fetching.
 message GrpcFilesToFetchResponse {
-  // The size of the page.
+  // The page size that was actually applied (echoes the request's `pageSize`).
   int32 pageSize = 1;
-  // The number of the page.
+  // The page number that was actually applied (echoes the request's `pageNumber`); 1-indexed, see
+  // `GrpcFilesToFetchRequest.pageNumber` for the paging model.
   int32 pageNumber = 2;
-  // Collection of files to fetch.
+  // Files on this page, matching the origin filter from the request.
   repeated GrpcFile filesToFetch = 3;
-  // Total number of files to fetch.
+  // Total number of files matching the request's origin filter across all pages, not just this
+  // one.
   int32 totalNumberOfRecords = 4;
 }
 
-// Request to list task statuses in paginated form.
+// Request to get a single file available for fetching, by its id.
 message GrpcFileToFetchRequest {
   // Identification of the file
   GrpcUuid fileId = 1;
 }
 
-// Response to a task statuses request.
+// Response to a request for a single file available for fetching. If no file exists for the given
+// id, the call fails with an error instead of returning this message.
 message GrpcFileToFetchResponse {
-  // File to fetch.
+  // Descriptor of the requested file.
   GrpcFile fileToFetch = 1;
 }
 
-// Request to get single file by id
+// Request to stream the contents of a single file available for fetching, by its id.
 message GrpcFetchFileRequest {
   // Identification of the file
   GrpcUuid fileId = 1;
 }
 
-// Response to a task status request.
+// One chunk of a file's contents, streamed back to the client. The server sends a sequence of
+// these messages; concatenate `fileContents` from all of them, in arrival order, to reconstruct
+// the full file.
 message GrpcFetchFileResponse {
-  // chunk of the file content
+  // One chunk of the file's binary contents.
   bytes fileContents = 1;
-  // total size of the file
+  // Total size of the complete file (bytes); the same value is repeated on every chunk in the
+  // stream, not just the size of this chunk.
   int64 totalSizeInBytes = 2;
 }
 
-// Request to list task statuses in paginated form.
+// Request to delete a file available for fetching, by its id.
 message GrpcDeleteFileToFetchRequest {
   // Identification of the file
   GrpcUuid fileId = 1;
 }
 
-// Response to a task statuses request.
+// Response to a file deletion request.
 message GrpcDeleteFileToFetchResponse {
-  // true if the file was found and deleted
+  // True if the file existed and was deleted; false if no file exists for the given id. Any other
+  // failure during deletion is reported as a gRPC error rather than `false`.
   bool success = 1;
 }
 
-// Single reserved keyword
+// A single reserved keyword that cannot be used as a classifier of the given type (e.g. as an
+// entity type, attribute name, or reference name) - client-side validation of user-supplied
+// classifiers can use this list to reject collisions early, before the server does.
 message GrpcReservedKeyword {
-  // Type of the keyword
+  // The kind of classifier this keyword is reserved against (e.g. entity type, attribute name).
   GrpcClassifierType classifierType = 1;
-  // Reserved keyword
+  // The reserved keyword in its normalized (camelCase) form. A candidate classifier is considered
+  // colliding if it matches this value in any of evitaDB's supported naming conventions
+  // (camelCase, PascalCase, snake_case, UPPER_SNAKE_CASE, kebab-case), not just this exact form.
   string classifier = 2;
-  // List of words that are part of the keyword
+  // The individual words `classifier` is composed of, used to detect a collision across the
+  // supported naming conventions regardless of separator or case.
   repeated string words = 3;
 }
 
 // Response that returns information about reserved keywords.
 message GrpcReservedKeywordsResponse {
-  // List of reserved keywords
+  // All reserved keywords, across all classifier types.
   repeated GrpcReservedKeyword keywords = 1;
 }
 
@@ -306,11 +381,14 @@ service EvitaManagementService {
   rpc GetEngineSettings(google.protobuf.Empty) returns (GrpcEvitaEngineSettingsResponse);
   // Procedure used to obtain catalog statistics.
   rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
-  // Procedure used to restore a catalog from backup.
+  // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
+  // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);
-  // Procedure used to restore a catalog from backup (unary version for gRPC/web).
+  // Procedure used to restore a catalog from a client-uploaded backup, one chunk per call (unary
+  // version for gRPC/web, where true client streaming as in `RestoreCatalog` is unavailable).
   rpc RestoreCatalogUnary(GrpcRestoreCatalogUnaryRequest) returns (GrpcRestoreCatalogUnaryResponse);
-  // Procedure used to restore a catalog from backup.
+  // Procedure used to restore a catalog from a backup file already stored on the server, without
+  // re-uploading it.
   rpc RestoreCatalogFromServerFile(GrpcRestoreCatalogFromServerFileRequest) returns (GrpcRestoreCatalogResponse);
   // Procedure used to get listing of task statuses.
   rpc ListTaskStatuses(GrpcTaskStatusesRequest) returns (GrpcTaskStatusesResponse);
@@ -324,7 +402,7 @@ service EvitaManagementService {
   rpc ListFilesToFetch(GrpcFilesToFetchRequest) returns (GrpcFilesToFetchResponse);
   // Procedure used to get single file by its id available for fetching.
   rpc GetFileToFetch(GrpcFileToFetchRequest) returns (GrpcFileToFetchResponse);
-  // Procedure used to get file contents
+  // Procedure used to get file contents, streamed back to the client in chunks.
   rpc FetchFile(GrpcFetchFileRequest) returns (stream GrpcFetchFileResponse);
   // Procedure used to delete file contents
   rpc DeleteFile(GrpcDeleteFileToFetchRequest) returns (GrpcDeleteFileToFetchResponse);

@@ -3,8 +3,8 @@ title: Úvod
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 evitaDB pomáhá vývojářům vytvářet rychlé aplikace produktových katalogů, které jsou srdcem každého e-commerce webu.
 Katalogy pracují s hierarchickými strukturami, fasetovým vyhledáváním, vyhledáváním podle ceny, rozsahem, lokalizací a fulltextem.
@@ -68,7 +68,7 @@ Nicméně evitaDB je v současnosti ve verzi beta a stále probíhá intenzivní
    2. [Porovnatelné](query/filtering/comparable.md)
    3. [Konstantní](query/filtering/constant.md)
    4. [Hierarchie](query/filtering/hierarchy.md)
-   5. [Lokalizace](query/filtering/locale.md)
+   5. [Jazyková lokalizace](query/filtering/locale.md)
    6. [Logické](query/filtering/logical.md)
    7. [Cena](query/filtering/price.md)
    8. [Rozsah](query/filtering/range.md)
@@ -91,7 +91,6 @@ Nicméně evitaDB je v současnosti ve verzi beta a stále probíhá intenzivní
    6. [Stránkování](query/requirements/paging.md)
    7. [Cena](query/requirements/price.md)
    8. [Telemetrie](query/requirements/telemetry.md)
-
 ## Provoz
 
 1. [Konfigurace](operate/configure.md)
@@ -117,10 +116,10 @@ Nicméně evitaDB je v současnosti ve verzi beta a stále probíhá intenzivní
    2. [Dynamické rozbalovací menu](solve/render-category-menu.md#dynamické-rozbalovací-menu)
    3. [Výpis podkategorií](solve/render-category-menu.md#výpis-podkategorií)
    4. [Hybridní menu](solve/render-category-menu.md#hybridní-menu)
-   5. [Skrýt části menu kategorií](solve/render-category-menu.md#skrytí-částí-stromu-kategorií)
+   5. [Skrýt části menu kategorií](solve/render-category-menu.md#skrývání-částí-stromu-kategorií)
 3. [Filtrování produktů v kategorii](solve/render-products-in-category.md)
    1. [S fasetovým vyhledáváním](solve/render-products-in-category.md#filtrování-podle-facety)
-   2. [S cenovým filtrem](solve/render-products-in-category.md#cenový-filtr)
+   2. [S cenovým filtrem](solve/render-products-in-category.md#filtrování-podle-ceny)
 4. [Vykreslení referencované značky](solve/render-products-in-brand.md)
    1. [S výpisem produktů](solve/render-products-in-brand.md#výpis-produktů)
    2. [S výpisem zapojených kategorií](solve/render-products-in-brand.md#výpis-kategorií)

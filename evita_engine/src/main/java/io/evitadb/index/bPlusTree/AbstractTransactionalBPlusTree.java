@@ -483,6 +483,29 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	}
 
 	/**
+	 * Estimates the length of a root-to-leaf path - the tree's current depth - so a cursor's path list can be
+	 * allocated at approximately the right size.
+	 *
+	 * The `Math.log(size())` this replaces took a **natural** logarithm of the entry count, a quantity unrelated to
+	 * the depth of a tree branching `internalNodeBlockSize` ways: at one million entries with a 255-key internal node
+	 * it asks for 14 slots against a real depth of 3, so the list's backing array is several times larger than the
+	 * path that goes into it - on every cursor, read paths included. Depth is `log_branching(size)`, so the branching
+	 * factor belongs in the logarithm's base.
+	 *
+	 * `internalNodeBlockSize` is the node's *maximum* key count, so a partially filled tree is deeper than the bare
+	 * logarithm; the constant absorbs that together with the leaf level. This is only an {@link ArrayList} capacity
+	 * hint - under-estimating costs one array grow and never correctness - so it is kept tight rather than raised to
+	 * the worst-case bound implied by `minInternalNodeBlockSize`.
+	 *
+	 * @return the estimated root-to-leaf path length, at least 1
+	 */
+	protected int estimatedPathLength() {
+		final int currentSize = this.size();
+		// internalNodeBlockSize is asserted >= 3 in the constructor, so the divisor is always positive
+		return currentSize <= 1 ? 1 : 2 + (int) (Math.log(currentSize) / Math.log(this.internalNodeBlockSize));
+	}
+
+	/**
 	 * Finds the leftmost leaf node in the B+ tree. The method begins its search from the root node and
 	 * traverses down to the leaf node by following the first child pointer of each internal node.
 	 *
@@ -490,7 +513,7 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	 */
 	@Nonnull
 	protected Cursor createLeftmostCursor() {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final ArrayList<CursorLevel> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<?> theRoot = this.getRoot();
 		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));
@@ -509,7 +532,7 @@ public abstract class AbstractTransactionalBPlusTree implements Serializable {
 	 */
 	@Nonnull
 	protected Cursor createRightmostCursor() {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final ArrayList<CursorLevel> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<?> theRoot = this.getRoot();
 		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));

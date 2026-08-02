@@ -1,11 +1,11 @@
 ---
-title: Zobrazení produktů v kategorii
-perex: Výpis a filtrování produktů přiřazených k hierarchické entitě (obvykle kategorii) je jedním z nejběžnějších úkolů v katalogových e-commerce systémech. Zároveň však patří mezi nejnáročnější z hlediska výkonu a použitelnosti. Tento článek nabízí sadu osvědčených postupů a příkladů pro implementaci této funkce ve vaší aplikaci.
+title: Zobrazit produkty v kategorii
+perex: Výpis a filtrování produktů přiřazených k hierarchické entitě (obvykle kategorii) patří mezi nejběžnější úkoly v katalogových e-commerce systémech. Zároveň však jde o jednu z nejnáročnějších funkcí z hlediska výkonu a použitelnosti. Tento článek přináší sadu osvědčených postupů a příkladů, jak tuto funkcionalitu implementovat ve vaší aplikaci.
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Typická stránka s výpisem produktů může vypadat takto:
 
@@ -23,7 +23,7 @@ Obvykle se skládá z následujících typických bloků:
     - [strom kategorií](render-category-menu.md#hybridní-menu)
     - [výpis podkategorií](render-category-menu.md#výpis-podkategorií)
 4. možnosti filtrování a řazení:
-    - [cenový filtr](#cenový-filtr)
+    - [cenový filtr](#filtrování-podle-ceny)
     - [filtrování podle facety](#filtrování-podle-facety)
     - [vyhledávací pole](external-fulltext.md)
     - [možnosti řazení](#možnosti-řazení)
@@ -32,7 +32,8 @@ V tomto článku vysvětlíme, jaké dotazy lze použít k získání všech pot
 
 ## Popis kategorie
 
-Stránka s výpisem produktů obvykle začíná názvem a popisem kategorie. Tyto informace jsou snadno dostupné načtením entity kategorie v konkrétním jazyce pomocí její unikátní URL:
+Stránka s výpisem produktů obvykle začíná názvem a popisem kategorie. Tyto informace jsou snadno dostupné 
+načtením entity kategorie v konkrétním jazyce prostřednictvím její unikátní URL adresy:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -62,72 +63,72 @@ To vrátí požadovaná data:
 
 ## Drobečková navigace
 
-Drobečková navigace není typické menu kategorií, ale často se používá v e-commerce aplikacích. Pomáhá uživateli vrátit se zpět do nadřazených kategorií. Lze ji získat ze dvou zdrojů:
+Breadcrumb není typické menu kategorií, ale často se používá v e-commerce aplikacích. Pomáhá uživateli navigovat zpět do nadřazených kategorií. Lze jej získat ze dvou zdrojů:
 
-1. z entity kategorie samotné - pomocí referencí na entity a jejich informací o rodiči
-2. z výpisu produktů - jako [požadavek menu `parents`](../query/requirements/hierarchy.md#parents)
+1. z entity kategorie samotné – prostřednictvím referencí na entity a jejich informací o rodičích
+2. z výpisu produktů – jako požadavek menu [`parents`](../query/requirements/hierarchy.md#parents)
 
-První možnost je univerzálnější a lze ji použít nejen pro stránku detailu kategorie s výpisem produktů, ale také pro stránku detailu produktu, kde druhá možnost není použitelná, protože dotaz na detail produktu obvykle neobsahuje filtr [`hierarchyWithin`](../query/filtering/hierarchy.md#hierarchy-within) (protože jej tam nepotřebujeme).
+První možnost je univerzálnější a lze ji použít nejen na stránce detailu kategorie s výpisem produktů, ale také na stránce detailu produktu, kde druhá možnost není použitelná, protože dotaz na detail produktu obvykle neobsahuje filtr [`hierarchyWithin`](../query/filtering/hierarchy.md#hierarchy-within) (protože ho tam nepotřebujeme).
 
-Nejprve se podívejme, jak získat drobečkovou navigaci z entity kategorie:
+Nejprve se podívejme, jak získat breadcrumb z entity kategorie:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání dat pro drobečkovou navigaci](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql)
+[Získání dat pro breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql)
 
 </SourceCodeTabs>
 
-Jak vidíte, požadované informace o rodiči jsou součástí entity kategorie samotné:
+Jak vidíte, požadované informace o rodičích jsou součástí samotné entity kategorie:
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Výsledek pro drobečkovou navigaci kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Výsledek pro breadcrumb kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Výsledek pro drobečkovou navigaci kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.graphql.json.md)</MDInclude>
+<MDInclude>[Výsledek pro breadcrumb kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Výsledek pro drobečkovou navigaci kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
+<MDInclude>[Výsledek pro breadcrumb kategorie](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-category.rest.json.md)</MDInclude>
 
 </LS>
 
-Dále se podívejme, jak získat drobečkovou navigaci pro konkrétní produkt. Zde je situace složitější, protože produkt může (a v našem příkladu také patří) do více kategorií:
+Dále se podívejme, jak získat breadcrumb pro konkrétní produkt. Zde je situace složitější, protože produkt může (a v našem příkladu skutečně patří) do více kategorií:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání dat pro drobečkovou navigaci](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql)
+[Získání dat pro breadcrumb](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql)
 
 </SourceCodeTabs>
 
-V tomto případě jsou informace o rodiči součástí reference *categories* produktu a můžete vidět, že produkt patří do dvou takových kategorií: *Macbooks* a *Produkty v přípravě*. Obě mají zcela odlišné cesty k nadřazeným kategoriím. Pro vykreslení drobečkové navigace byste museli zvolit jednu z těchto cest pomocí nějaké heuristiky (například nejdelší cesta, naposledy navštívená kategorie apod.).
+V tomto případě jsou informace o rodičích součástí reference *categories* produktu a můžete vidět, že produkt patří do dvou takových kategorií: *Macbooky* a *Produkty v přípravě*. Obě mají zcela odlišné cesty nadřazených kategorií. Pro vykreslení breadcrumbu byste museli jednu z těchto cest vybrat pomocí nějaké heuristiky (například nejdelší cesta, naposledy navštívená kategorie apod.).
 
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="recordPage">[Výsledek pro drobečkovou navigaci produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Výsledek pro breadcrumb produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.evitaql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Výsledek pro drobečkovou navigaci produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.graphql.json.md)</MDInclude>
+<MDInclude>[Výsledek pro breadcrumb produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Výsledek pro drobečkovou navigaci produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.rest.json.md)</MDInclude>
+<MDInclude>[Výsledek pro breadcrumb produktu](/documentation/user/en/solve/examples/filtering-products-in-category/breadcrumb-product.rest.json.md)</MDInclude>
 
 </LS>
 
 ## Výpis produktů
 
-Pro výpis produktů v kategorii je třeba provést dotaz, který načte všechny produkty přiřazené ke kategorii. To se provádí dotazem na entitu `product` a filtrováním podle reference `categories` – která odkazuje na kategorii podle její unikátní URL *"/en/smartwatches"*:
+Pro zobrazení produktů v kategorii je potřeba provést dotaz, který získá všechny produkty přiřazené do dané kategorie. Toho dosáhnete dotazem na entitu `product` a filtrováním podle reference `categories` – která odkazuje na kategorii pomocí její unikátní URL *"/en/smartwatches"*:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -135,26 +136,26 @@ Pro výpis produktů v kategorii je třeba provést dotaz, který načte všechn
 
 </SourceCodeTabs>
 
-Dotaz je pravděpodobně složitější, než byste čekali. Nejde jen o jednoduchý filtr reference `categories`, ale obsahuje mnoho dalších filtrů a požadavků. Pojďme si je rozebrat:
+Dotaz je pravděpodobně složitější, než byste čekali. Nejedná se pouze o jednoduchý filtr reference `categories`, ale obsahuje řadu dalších filtrů a požadavků. Pojďme si je rozebrat:
 
 1. <LS to="e,j,c">**`entityLocaleEquals("en")`**</LS><LS to="g,r">**`entityLocaleEquals: en`**</LS> – omezuje pouze na produkty s anglickou lokalizací
 2. <LS to="e,j,c">**`hierarchyWithin("categories", attributeEquals("url", "/en/smartwatches"))`**</LS><LS to="g,r">**`hierarchyCategoriesWithin: { ofParent: { attributeUrlEquals: "/en/smartwatches" } }`**</LS> – filtruje pouze produkty, které patří do kategorie s URL *"/en/smartwatches"* nebo jejích podkategorií
 3. <LS to="e,j,c">**`attributeEquals("status", "ACTIVE")`**</LS><LS to="g,r">**`attributeStatusEquals: "ACTIVE"`**</LS> – filtruje pouze veřejné produkty, mohou existovat i produkty ve stavu *PRIVATE*, které vidí pouze zaměstnanci připravující produkt k publikaci
-4. <LS to="e,j,c">**`or(attributeInRangeNow("validity"), attributeIsNull("validity"))`**</LS><LS to="g,r">**`or: [ { attributeValidityInRangeNow: true }, { attributeValidityIs: NULL } ]`**</LS> – filtruje pouze produkty, které jsou aktuálně platné nebo nemají platnost vůbec nastavenou
+4. <LS to="e,j,c">**`or(attributeInRangeNow("validity"), attributeIsNull("validity"))`**</LS><LS to="g,r">**`or: [ { attributeValidityInRangeNow: true }, { attributeValidityIs: NULL } ]`**</LS> – filtruje pouze produkty, které jsou aktuálně platné, nebo u nich není platnost nastavena vůbec
 5. <LS to="e,j,c">**`referenceHaving("stocks", attributeGreaterThan("quantityOnStock", 0))`**</LS><LS to="g,r">**`referenceStocksHaving: [ { attributeQuantityOnStockGreaterThan: 0 } ]`**</LS> – filtruje pouze produkty, které jsou skutečně skladem (mají kladné množství na skladě) – nezáleží na tom, na kterém skladu (v systému může být více skladů)
 6. <LS to="e,j,c">**`priceInCurrency("EUR"), priceInPriceLists("basic"), priceValidInNow()`**</LS><LS to="g,r">**`priceInCurrency: EUR, priceInPriceLists: ["basic"], priceValidInNow: true`**</LS> – filtruje pouze produkty, které mají platnou cenu v měně EUR a v ceníku *"basic"*
 
-Pro vykreslení dlaždic produktů dotaz také obsahuje následující obsah v požadavku `entityFetch`:
+Aby bylo možné vykreslit dlaždice produktů, dotaz dále obsahuje následující obsah v požadavku `entityFetch`:
 
 1. <LS to="e,j,c">**`attributeContent("name")`**</LS><LS to="r">**`attributeContent: ["name"]`**</LS><LS to="g">**`attributes { name }`**</LS> – získá název produktu
 2. <LS to="e,j,c">**`referenceContentWithAttributes("stocks", attributeContent("quantityOnStock"))`**</LS><LS to="r">**`referenceStocksContentWithAttributes: { attributeContent: ["quantityOnStock"] }`**</LS><LS to="g">**`stocks { attributes { quantityOnStock } }`**</LS> – získá množství na skladě
 3. <LS to="e,j,c">**`priceContentRespectingFilter("reference")`**</LS><LS to="r">**`priceContentRespectingFilter: ["reference"]`**</LS><LS to="g">**`priceForSale { ... }, price(priceList: "reference") { ... }`**</LS> – získá prodejní cenu a referenční cenu pro výpočet slevy
 
-Dotaz také požaduje pouze první stránku s 16 produkty pomocí požadavku `page(1, 16)`.
+Dotaz také požaduje pouze první stránku se 16 produkty pomocí požadavku `page(1, 16)`.
 
-Dotaz je založen na demo modelu produktů. Pravděpodobně budete mít ve svém byznys doméně jiný model, ale principy dotazu budou stejné, takže tento dotaz můžete použít jako inspiraci.
+Dotaz je založen na modelu produktů z demo sady. Ve vašem obchodním doménovém modelu budete mít pravděpodobně jiný model, ale principy dotazu zůstanou stejné, takže tento dotaz můžete použít jako inspiraci.
 
-Výsledek dotazu je seznam produktů s jejich atributy a referencemi:
+Výsledkem dotazu je seznam produktů s jejich atributy a referencemi:
 
 <LS to="e,j,c">
 
@@ -176,7 +177,7 @@ Výsledek dotazu je seznam produktů s jejich atributy a referencemi:
 
 ### Nejprodávanější produkty
 
-Pro výpis nejprodávanějších produktů byste použili podobný dotaz, ale s jinými možnostmi řazení a pravděpodobně i jinou velikostí stránky. Pro lepší čitelnost chceme dotaz na produkty zjednodušit na minimum:
+Pro zobrazení nejprodávanějších produktů použijete podobný dotaz, pouze s jinými možnostmi řazení a pravděpodobně také s jinou velikostí stránky. Pro lepší přehlednost chceme dotaz na produkty zjednodušit na naprosté minimum:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -184,15 +185,15 @@ Pro výpis nejprodávanějších produktů byste použili podobný dotaz, ale s 
 
 </SourceCodeTabs>
 
-Samozřejmě byste pravděpodobně potřebovali přidat podobnou sadu omezení jako ve standardním dotazu na výpis produktů.
+Samozřejmě bude pravděpodobně potřeba přidat podobnou sadu omezení jako ve standardním dotazu pro výpis produktů.
 
 <Note type="info">
 
-Plánujeme zjednodušit řešení tohoto případu použití tím, že umožníme vracet různé sady alternativně seřazených výsledků v jednom dotazu. Tato funkce je popsána v [issue #479](https://github.com/FgForrest/evitaDB/issues/479) a tento článek aktualizujeme, jakmile bude funkce implementována.
+Plánujeme toto řešení dále zjednodušit tím, že umožníme vracet různé sady alternativně seřazených výsledků v rámci jednoho dotazu. Tato funkce je popsána v [issue #479](https://github.com/FgForrest/evitaDB/issues/479) a tento článek aktualizujeme, jakmile bude funkce implementována.
 
 </Note>
 
-Výsledek dotazu je následující:
+Výsledek dotazu vypadá následovně:
 
 <LS to="e,j,c">
 
@@ -214,60 +215,80 @@ Výsledek dotazu je následující:
 
 ## Filtrování podle facety
 
-Stránka s výpisem produktů obvykle obsahuje sadu filtrů, které umožňují uživateli zúžit seznam produktů. Tyto filtry se nazývají facetové filtry a evitaDB je sestavuje na základě referencí na entity označených jako *faceted*. Ačkoli můžete požadovat automaticky vypočítané facetové filtry ze všech dostupných referencí, obvykle požadujeme pouze některé z nich. Důvodem je, že chceme ovládat pořadí hlavních skupin facet a také chceme vybrat pouze ty reference, které jsou relevantní pro daný pohled. Například v našem datasetu je reference `categories` faceted, ale nedává smysl zobrazovat facet kategorie na stránce detailu kategorie. Na stránce detailu značky to však smysl má. Samozřejmě, pro referenci značky platí opačné potřeby.
+Stránka s výpisem produktů obvykle obsahuje sadu filtrů, které uživateli umožňují zúžit seznam produktů. 
+Těmto filtrům se říká facetové filtry a evitaDB je vytváří na základě referencí na entity označených jako *faceted*. 
+Ačkoliv můžete požadovat automaticky vypočítané facetové filtry ze všech dostupných referencí, obvykle žádáme pouze 
+některé z nich. Důvodem je, že chceme ovládat pořadí hlavních skupin facet a také chceme vybírat pouze ty reference, 
+které jsou relevantní pro konkrétní pohled. Například v našem datasetu je reference `categories` označena jako faceted, 
+ale nedává smysl zobrazovat facetové filtry kategorií na detailu kategorie. Naopak na detailu značky to smysl dává. 
+Samozřejmě pro referenci značky platí opačné potřeby.
 
-Řekněme, že chceme na stránce detailu kategorie zobrazit filtry `brand` a `parameterValues`. Začneme nejprve filtrem značky, protože je poměrně jednoduchý a ihned ukazuje situaci, kdy uživatel již některé facety vybral:
+Představme si, že chceme na stránce detailu kategorie zobrazit filtry `brand` a `parameterValues`. Začneme nejprve 
+filtrem podle značky, protože je poměrně jednoduchý a ihned ukazuje situaci, kdy uživatel již některé facety vybral:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání facetových filtrů značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql)
+[Požadavek na facetové filtry značek](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql)
 
 </SourceCodeTabs>
 
-Vrácené značky jsou seřazeny podle názvu vzestupně, značka *Apple* je označena jako požadovaná, což odkazuje na výběr uživatele v kontejneru `userFilter`, a výpočet obsahuje mnoho vypočtených čísel. Pro správné vykreslení UI filtru je třeba dodržet tato pravidla:
+Vrácené značky jsou seřazeny podle názvu vzestupně, značka *Apple* je označena jako vyžádaná, což odkazuje na 
+uživatelský výběr jedné ze značek v kontejneru `userFilter`, a výpočet obsahuje řadu vypočtených hodnot. Pro správné 
+zobrazení uživatelského rozhraní filtru je třeba dodržet tato pravidla:
 
-1. facety označené jako `requested` by měly být vykresleny jako *zaškrtnuté*
-2. facety s `impact.hasSense` nastaveným na `false` by měly být vykresleny jako *neaktivní* (protože jejich výběr by nevrátil žádné výsledky, nemá smysl je vybírat)
-3. facety ve skupině, která má alespoň jednu `requested`, by měly zobrazit `impact.difference` v závorce za názvem facety (někdy se uživateli zobrazuje pouze pozitivní dopad) – to představuje počet produktů, které by byly přidány do výsledné množiny výběrem této konkrétní reference
-4. ostatní facety by měly zobrazit `count` v závorce za názvem facety – to představuje počet produktů, které mají tuto konkrétní referenci
+1. facety označené jako `requested` by měly být zobrazeny jako *zaškrtnuté*.
+2. facety s `impact.hasSense` nastaveným na `false` by měly být zobrazeny jako *neaktivní* (protože pokud by byly vybrány, filtr by 
+   nevrátil žádné výsledky, takže nemá smysl je vybírat)
+3. facety ve skupině, která má alespoň jednu `requested`, by měly zobrazovat `impact.difference` v závorce za názvem facety 
+   (někdy je uživateli prezentován pouze kladný dopad) – to představuje počet produktů, které by byly přidány do výsledku 
+   výběrem této konkrétní reference.
+4. ostatní facety by měly zobrazovat `count` v závorce za názvem facety – což představuje počet produktů,
+   které tuto konkrétní referenci mají.
 
-Tato pravidla vzešla z uživatelského testování jako nejintuitivnější a nejpřátelštější způsob vykreslení filtru. Ale klidně experimentujte s vlastním nastavením. Vykreslený filtr podle výše uvedených pravidel by vypadal takto:
+Tato pravidla vzešla z uživatelského testování jako nejintuitivnější a nejpřátelštější způsob zobrazení filtru. Klidně 
+však experimentujte s vlastním nastavením. Zobrazený filtr podle výše uvedených pravidel by vypadal takto:
 
-<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značek](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
 
-Vztah značky je jednoduchý, ale hodnoty parametrů jsou složitější. Hodnota parametru (např. *modrá* nebo *červená*) patří k parametru, který slouží ke skupinování podobných hodnot (např. *barva*). Také chceme ovládat přítomnost parametru ve filtru pomocí vlastnosti nastavené na entitě parametru, aby administrátor mohl jednoduše rozhodnout, které parametry jsou relevantní pro filtrování a které ne.
+Vztah ke značce je jednoduchý, ale hodnoty parametrů jsou složitější. Hodnota parametru (např. *modrá* nebo *červená*) 
+patří k parametru, který slouží ke sdružování podobných hodnot (např. *barva*). Také chceme ovládat přítomnost 
+parametru ve filtru pomocí vlastnosti nastavené na entitě parametru, aby administrátor mohl jednoduchým přepínačem v 
+administraci rozhodnout, které parametry jsou pro filtrování relevantní a které nikoliv.
 
-Nakonec chceme vykreslit filtr se správně lokalizovanými názvy referencovaných entit a seřadit filtry podle vlastnosti `order` těchto entit. To je jeden z důvodů, proč stavíme naše facetové filtry na referencích na entity a ne na atributech entit (což je přístup, který můžete vidět v některých databázových systémech).
+Nakonec chceme zobrazit filtr se správně lokalizovanými názvy referencovaných entit a řadit filtry
+podle vlastnosti `order` těchto entit. To je jeden z důvodů, proč stavíme naše facetové filtry na referencích na entity 
+a ne na atributech entit (což je přístup, který můžete vidět u některých databázových systémů).
 
-Konečný facetový dotaz vypadá takto:
+Finální dotaz na facety vypadá takto:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání facetových filtrů](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql)
+[Požadavek na facetové filtry](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql)
 
 </SourceCodeTabs>
 
 Na odpověď aplikujeme stejnou logiku vykreslení a výsledek je následující:
 
-<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značek](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
-Nakonec budete chtít mít oba požadavky v jednom dotazu, ale projdeme si ještě několik dalších požadavků pro stránku detailu kategorie [než vše spojíme](#kompletní-dotazy-na-výpis-produktů-včetně-filtrování-a-řazení).
+Nakonec budete chtít mít oba požadavky v jednom dotazu, ale projdeme si ještě další požadavky
+pro stránku detailu kategorie [než vše spojíme dohromady](#kompletní-dotazy-na-výpis-produktů-včetně-filtrování-a-řazení).
 
-## Cenový filtr
+## Filtrování podle ceny
 
-Cena je obvykle jedním z hlavních faktorů při rozhodování uživatele o koupi produktu. Proto je řazení podle ceny a cenový filtr jedním z nejdůležitějších filtrů na stránce s výpisem produktů. Věříme, že cenový filtr by měl být vykreslen jako posuvník s rozsahem a histogramem zobrazujícím rozložení produktů v cenovém rozsahu.
+Cena je obvykle jedním z hlavních faktorů při rozhodování uživatele o koupi produktu. Proto je řazení podle ceny a cenový filtr jedním z nejdůležitějších filtrů na stránce s výpisem produktů. Domníváme se, že cenový filtr by měl být zobrazen jako posuvník s rozsahem a histogramem, který ukazuje rozložení produktů v daném cenovém rozpětí.
 
-Ukážeme si situaci, kdy uživatel již vybral určité cenové rozmezí:
+Ukážeme si situaci, kdy uživatel již zvolil určité cenové rozpětí:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání cenového filtru](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql)
+[Požadavek na cenový filtr](/documentation/user/en/solve/examples/filtering-products-in-category/price-filter.evitaql)
 
 </SourceCodeTabs>
 
 <Note type="warning">
 
-Všimněte si, že pouze `priceBetween` je uvnitř kontejneru `userFilter`, což znamená, že ostatní podmínky týkající se ceny jsou povinné a systém je nesmí vynechat při žádném výpočtu výsledných dat.
+Všimněte si, že pouze `priceBetween` je uvnitř kontejneru `userFilter`, což znamená, že ostatní podmínky týkající se ceny jsou povinné a systém je nesmí při žádném výpočtu výsledných dat vynechat.
 
 </Note>
 
@@ -291,9 +312,9 @@ Výsledek dotazu je následující:
 
 </LS>
 
-Při vykreslování histogramu najdete minimální cenu v odpovědi přímo v objektu `priceHistogram` (`min` a `max`) a jednotlivé "bucket" s dolní hranicí v poli `buckets`. `overallCount` představuje celkový počet produktů v histogramu (a v našem případě je roven počtu produktů v kategorii, protože všechny filtry produktů jsou povinné).
+Při vykreslování histogramu najdete minimální cenu v odpovědi přímo v objektu `priceHistogram` (`min` a `max`) a jednotlivé intervaly s dolní hranicí v poli `buckets`. `overallCount` představuje celkový počet produktů v histogramu (a v našem případě je roven počtu produktů v kategorii, protože všechny filtry na produkty jsou povinné).
 
-Bucket, které jsou překříženy výběrem uživatele, jsou označeny jako `requested` a můžete je vizualizovat jinak (například jinou barvou), abyste zvýraznili výběr uživatele.
+Intervaly, které jsou překryty uživatelským výběrem, jsou označeny jako `requested` a můžete je vizuálně odlišit (například jinou barvou), abyste uživateli ukázali jeho výběr.
 
 ## Možnosti řazení
 
@@ -312,16 +333,19 @@ Kombinací všech výše uvedených dotazů získáte následující dva dotazy:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Detail kategorie s drobečkovou navigací](/documentation/user/en/solve/examples/filtering-products-in-category/category-details-with-breadcrumb.evitaql)
+[Detaily kategorie s navigačním rozcestníkem](/documentation/user/en/solve/examples/filtering-products-in-category/category-details-with-breadcrumb.evitaql)
 
 </SourceCodeTabs>
 
-A dotaz na výpis produktů (vynecháváme dotaz na nejprodávanější produkty, protože by šlo jen o jednodušší verzi stejného dotazu s jinými možnostmi řazení):
+A dotaz na výpis produktů (dotaz na nejprodávanější produkty vynecháváme, protože by šlo pouze o jednodušší verzi 
+tohoto dotazu s jinými možnostmi řazení):
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Výpis produktů s facetovými filtry a možnostmi řazení](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing-with-facets-and-sorting.evitaql)
+[Výpis produktů s filtrováním podle facety a možnostmi řazení](/documentation/user/en/solve/examples/filtering-products-in-category/product-listing-with-facets-and-sorting.evitaql)
 
 </SourceCodeTabs>
 
-Takže nakonec, pro vykreslení stránky detailu kategorie s výpisem produktů, budete muset provést dva nebo tři dotazy. Dotaz vypadá složitě, ale ve srovnání se složitostí dotazů, které byste museli provádět v jiných databázových systémech, je poměrně jednoduchý a přímočarý.
+Nakonec tedy pro zobrazení stránky detailu kategorie s výpisem produktů budete potřebovat provést dva nebo tři dotazy. 
+Dotaz vypadá složitě, ale ve srovnání se složitostí dotazů, které byste museli zadávat v jiných databázových 
+enginech, je poměrně jednoduchý a přímočarý.

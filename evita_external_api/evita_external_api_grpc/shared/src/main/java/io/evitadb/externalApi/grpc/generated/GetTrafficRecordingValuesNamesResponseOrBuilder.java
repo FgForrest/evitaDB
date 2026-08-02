@@ -33,7 +33,7 @@ public interface GetTrafficRecordingValuesNamesResponseOrBuilder extends
 
   /**
    * <pre>
-   * The list of labels values that match the criteria
+   * The label values that match the criteria, ordered by descending cardinality (most frequently used values first).
    * </pre>
    *
    * <code>repeated string labelValue = 1;</code>
@@ -43,7 +43,7 @@ public interface GetTrafficRecordingValuesNamesResponseOrBuilder extends
       getLabelValueList();
   /**
    * <pre>
-   * The list of labels values that match the criteria
+   * The label values that match the criteria, ordered by descending cardinality (most frequently used values first).
    * </pre>
    *
    * <code>repeated string labelValue = 1;</code>
@@ -52,7 +52,7 @@ public interface GetTrafficRecordingValuesNamesResponseOrBuilder extends
   int getLabelValueCount();
   /**
    * <pre>
-   * The list of labels values that match the criteria
+   * The label values that match the criteria, ordered by descending cardinality (most frequently used values first).
    * </pre>
    *
    * <code>repeated string labelValue = 1;</code>
@@ -62,7 +62,7 @@ public interface GetTrafficRecordingValuesNamesResponseOrBuilder extends
   java.lang.String getLabelValue(int index);
   /**
    * <pre>
-   * The list of labels values that match the criteria
+   * The label values that match the criteria, ordered by descending cardinality (most frequently used values first).
    * </pre>
    *
    * <code>repeated string labelValue = 1;</code>

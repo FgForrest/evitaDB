@@ -1430,9 +1430,52 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *                are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in reversed order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @deprecated use {@link #getMutationsHistoryReversed(ChangeCatalogCaptureRequest)}
 	 */
 	@Nonnull
-	Stream<ChangeCatalogCapture> getMutationsHistory(
+	@Deprecated(since = "2026.2", forRemoval = true)
+	default Stream<ChangeCatalogCapture> getMutationsHistory(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) throws TemporalDataNotAvailableException {
+		return getMutationsHistoryReversed(request);
+	}
+
+	/**
+	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria
+	 * in the request, in forward chronological order - the oldest matching change is returned first.
+	 *
+	 * `request.sinceVersion()` is an inclusive lower bound: only mutations from that catalog version onward are
+	 * returned. If unset, the stream starts at the oldest version known to the catalog's mutation history. A
+	 * `sinceVersion` past the newest available version is not rejected - it simply yields an empty stream.
+	 *
+	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 *
+	 * @param request request that specifies the criteria for the changes to be returned, multiple criteria definitions
+	 *                are combined with logical OR
+	 * @return stream of change data captures that match the specified criteria in forward chronological order
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	Stream<ChangeCatalogCapture> getMutationsHistoryForward(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria
+	 * in the request, in reverse chronological order - the most recent matching change is returned first.
+	 *
+	 * `request.sinceVersion()` is an inclusive upper bound: the anchor version to start from, going backward. If
+	 * unset, the stream starts at the most recently committed version.
+	 *
+	 * !!! Important: remember to close the stream after you are done with it to release the resources
+	 *
+	 * @param request request that specifies the criteria for the changes to be returned, multiple criteria definitions
+	 *                are combined with logical OR
+	 * @return stream of change data captures that match the specified criteria in reverse chronological order
+	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 */
+	@Nonnull
+	Stream<ChangeCatalogCapture> getMutationsHistoryReversed(
 		@Nonnull ChangeCatalogCaptureRequest request
 	) throws TemporalDataNotAvailableException;
 

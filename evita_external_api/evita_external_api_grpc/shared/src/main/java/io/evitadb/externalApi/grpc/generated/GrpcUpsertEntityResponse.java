@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to UpsertEntity request. The used field is decided by the require block in the query.
+ * Response to UpsertEntity request.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse}
@@ -113,7 +113,7 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -125,7 +125,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -140,7 +140,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity reference.
+   * The upserted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITY_FIELD_NUMBER = 2;
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -168,7 +168,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -183,7 +183,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity.
+   * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -199,7 +199,8 @@ private static final long serialVersionUID = 0L;
   public static final int ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS_FIELD_NUMBER = 3;
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -211,7 +212,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -226,7 +228,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The upserted entity reference with reassigned primary keys
+   * The upserted entity reference together with any reference primary keys that were reassigned as a
+   * side effect of the upsert.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -441,7 +444,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to UpsertEntity request. The used field is decided by the require block in the query.
+   * Response to UpsertEntity request.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse}
@@ -685,7 +688,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> entityReferenceBuilder_;
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -697,7 +700,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -719,7 +722,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -739,7 +742,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -757,7 +760,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -784,7 +787,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -807,7 +810,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -817,7 +820,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -835,7 +838,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference.
+     * The upserted entity as a reference (type + primary key only).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -863,7 +866,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> entityBuilder_;
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -875,7 +878,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -897,7 +900,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -917,7 +920,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -935,7 +938,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -962,7 +965,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -985,7 +988,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -995,7 +998,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -1013,7 +1016,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity.
+     * The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -1041,7 +1044,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder> entityReferenceWithAssignedPrimaryKeysBuilder_;
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1053,7 +1057,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1075,7 +1080,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1095,7 +1101,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1113,7 +1120,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1140,7 +1148,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1163,7 +1172,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1173,7 +1183,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
@@ -1191,7 +1202,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The upserted entity reference with reassigned primary keys
+     * The upserted entity reference together with any reference primary keys that were reassigned as a
+     * side effect of the upsert.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>

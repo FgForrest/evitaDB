@@ -29,7 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetMutationsHistory request.
+ * Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
+ * per mutation - each carries exactly one `changeCapture` entry, not a batch (see the RPC's streaming
+ * semantics).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse}
@@ -72,7 +74,7 @@ private static final long serialVersionUID = 0L;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture> changeCapture_;
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -83,7 +85,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -95,7 +97,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -106,7 +108,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -117,7 +119,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The list of mutations that match the criteria
+   * The single mutation delivered by this stream message.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -289,7 +291,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetMutationsHistory request.
+   * Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
+   * per mutation - each carries exactly one `changeCapture` entry, not a batch (see the RPC's streaming
+   * semantics).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse}
@@ -520,7 +524,7 @@ private static final long serialVersionUID = 0L;
 
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -534,7 +538,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -548,7 +552,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -562,7 +566,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -583,7 +587,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -601,7 +605,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -621,7 +625,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -642,7 +646,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -660,7 +664,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -678,7 +682,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -697,7 +701,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -714,7 +718,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -731,7 +735,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -742,7 +746,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -756,7 +760,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -771,7 +775,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -782,7 +786,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -794,7 +798,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The list of mutations that match the criteria
+     * The single mutation delivered by this stream message.
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>

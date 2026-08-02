@@ -1,17 +1,17 @@
 ---
 title: Spusťte evitaDB
-perex: Pokud jste v evitaDB noví, vyzkoušejte tyto jednoduché kroky, abyste si zprovoznili vlastní server.
+perex: Pokud jste v evitaDB noví, vyzkoušejte tyto jednoduché kroky, jak si zprovoznit vlastní server.
 date: '1.3.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: '726d58606ce657f9de645077ee4cd695b39f73e0'
-translated: true
+translated: 'true'
+commit: '1cc37e3842c67cf4b239f8c6abb8b5db4a85b013'
 ---
 evitaDB je [Java aplikace](https://openjdk.org/), kterou můžete spustit jako
-[vestavěnou databázi](../use/connectors/java.md) v jakékoli Java aplikaci nebo jako
+[embedded databázi](../use/connectors/java.md) v libovolné Java aplikaci nebo jako
 [samostatnou službu](../operate/run.md) připojenou k aplikacím přes
-protokol HTTPS pomocí některého z poskytovaných webových API.
+HTTPS protokol pomocí některého z dostupných webových API.
 
 <LS to="j">
 
@@ -23,40 +23,40 @@ protokol HTTPS pomocí některého z poskytovaných webových API.
 </NoteTitle>
 
 Java aplikace podporují více platforem v závislosti na
-[dodavateli JRE/JDK](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). Jsou podporovány všechny hlavní hardwarové
+[výrobci JRE/JDK](https://wiki.openjdk.org/display/Build/Supported+Build+Platforms). Jsou podporovány všechny hlavní hardwarové
 architektury (x86_64, ARM64) a operační systémy (Linux, MacOS, Windows). Vzhledem k velikosti našeho
 týmu pravidelně testujeme evitaDB pouze na platformě Linux AMD64 (kterou můžete použít i na Windows díky
 [Windows Linux Subsystem](https://learn.microsoft.com/en-us/windows/wsl/install)). Výkon může být horší
-a při spuštění evitaDB v jiných (než Linuxových) prostředích můžete narazit na drobné problémy. Prosím, nahlaste nám jakékoli chyby,
-na které narazíte, a pokusíme se je co nejdříve opravit.
+a můžete narazit na drobné problémy při spuštění evitaDB v jiných (ne-Linuxových) prostředích. Prosíme, hlaste nám jakékoli chyby,
+na které narazíte, a my se je pokusíme co nejdříve opravit.
 </Note>
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Jaké jsou výhody a nevýhody spuštění vestavěné evitaDB?
+##### Jaké jsou výhody a nevýhody spuštění embedded evitaDB?
 </NoteTitle>
 
-Vestavěná evitaDB bude rychlejší, protože můžete pracovat přímo s datovými objekty načtenými z disku a nemusíte
-procházet několika překladovými vrstvami, které jsou nutné pro vzdálený přístup přes API. Můžete také zakázat všechna standardní API
-a vyhnout se spuštění vestavěného HTTP serveru, což snižuje zátěž systému.
+Embedded evitaDB bude rychlejší, protože můžete pracovat přímo s datovými objekty načtenými z disku a nemusíte
+procházet několika překladovými vrstvami, které jsou potřeba pro vzdálený přístup přes API. Můžete také vypnout všechna standardní API
+a vyhnout se spuštění embedded HTTP serveru, což snižuje zátěž systému.
 
-Nevýhodou je, že halda vaší aplikace bude zahlcena velkými datovými strukturami evitaDB v paměťových indexech,
-což ztěžuje hledání úniků paměti ve vaší aplikaci. Doporučujeme používat vestavěnou evitaDB pro
+Nevýhodou je, že heap vaší aplikace bude zaplněn velkými datovými strukturami evitaDB v paměťových indexech,
+což ztěžuje hledání memory leaků ve vaší aplikaci. Doporučujeme používat embedded evitaDB pro
 [psaní testů](../use/api/write-tests.md), což výrazně zjednodušuje integrační testování s evitaDB a umožňuje
 rychlé a snadné nastavení / odstranění testovacích dat.
 </Note>
 
 <Note type="info">
-Tento úvodní článek popisuje, jak spustit evitaDB v režimu vestavěné databáze. Pokud dáváte přednost spuštění evitaDB v režimu klient & server,
-podívejte se na samostatné kapitoly popisující [jak spustit evitaDB v Dockeru](../operate/run.md) a
+Tento úvodní článek popisuje, jak spustit evitaDB v embedded režimu. Pokud dáváte přednost spuštění evitaDB v režimu klient & server,
+podívejte se prosím na samostatné kapitoly popisující [jak spustit evitaDB v Dockeru](../operate/run.md) a
 [jak nastavit EvitaClient](../use/connectors/java.md).
 </Note>
 
 ### Zabalte evitaDB do své aplikace
 
-Pro integraci evitaDB do vašeho projektu použijte následující kroky:
+Pro integraci evitaDB do vašeho projektu postupujte podle následujících kroků:
 
 <CodeTabs>
 <CodeTabsBlock>
@@ -79,7 +79,7 @@ implementation 'io.evitadb:evita_db:2026.1.0'
 ### Spusťte evitaDB server
 
 Pro spuštění evitaDB serveru je potřeba vytvořit instanci <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass>
-a uchovat si na ni referenci, aby ji vaše aplikace mohla používat podle potřeby.
+a uchovat si na ni referenci, aby ji vaše aplikace mohla používat dle potřeby.
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass> je náročná na prostředky, protože při startu načítá všechny
 indexy do paměti.
 
@@ -88,18 +88,18 @@ indexy do paměti.
 </SourceCodeTabs>
 
 <Note type="warning">
-Nezapomeňte zajistit, že metoda `close` bude zavolána dříve, než uvolníte referenci na instanci
+Nezapomeňte zajistit, že metoda `close` bude zavolána předtím, než uvolníte referenci na instanci
 <SourceClass>evita_engine/src/main/java/io/evitadb/core/Evita.java</SourceClass>. Pokud to neuděláte,
-dojde k úniku obslužných rutin souborů a můžete také přijít o aktualizace uložené v cache, což znamená ztrátu
-některých posledních změn v databázi.
+dojde k úniku file handlerů a můžete také přijít o aktualizace uložené v cache, což znamená ztrátu některých
+posledních změn v databázi.
 </Note>
 
 ### Povolení webových API evitaDB
 
-Pokud chcete, aby evitaDB mohla otevřít svá webová API (je potřeba [toto nakonfigurovat](../operate/configure.md)),
-musíte také přidat závislosti na tyto varianty API. Pokud to neuděláte, dostanete
-výjimku <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/exception/ExternalApiInternalError.java</SourceClass>
-při povolení příslušného API v konfiguraci evitaDB.
+Pokud chcete, aby evitaDB mohla otevřít svá webová API (je potřeba [toto nastavit](../operate/configure.md)), musíte
+také přidat závislosti na tyto varianty API. Pokud to neuděláte, dostanete
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/exception/ExternalApiInternalError.java</SourceClass>
+výjimku při povolení příslušného API v konfiguraci evitaDB.
 
 #### gRPC
 
@@ -161,7 +161,7 @@ implementation 'io.evitadb:evita_external_api_rest:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
-### Spusťte HTTP server pro webová API
+### Spusťte HTTP server webového API
 
 Webová API evitaDB jsou spravována samostatnou třídou <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
 Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instanci
@@ -172,27 +172,26 @@ Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instan
 </SourceCodeTabs>
 
 <Note type="warning">
-Pokud propojujete `ExternalApiServer` s `Evitou` ručně, jako v ukázce výše, vytvářejte engine
-pomocí `new Evita(config, false)` místo jednoargumentového konstruktoru. Příznak `false` odloží
-načítání katalogů až do volání `ExternalApiServer.start()`, kdy už jsou všichni poskytovatelé API
-přihlášeni k odběru system CDC streamu. Bez tohoto opatření mohou rychle se načítající katalogy
-skončit dříve, než se odběratelé přihlásí, a jejich GraphQL/REST endpointy se neregistrují
-(události HOST CDC mají live-tail-only sémantiku). Uživatelé `EvitaServer` se o toto nemusí
-starat — ten má správné pořadí inicializace zařízeno interně.
+Při ručním propojení `ExternalApiServer` s `Evita` tímto způsobem vytvořte engine pomocí
+`new Evita(config, false)` místo jednoargumentového konstruktoru. Boolean příznak odkládá
+načítání katalogů až do zavolání `ExternalApiServer.start()`, kdy jsou všichni poskytovatelé API
+přihlášeni k systémovému CDC streamu. Bez toho mohou rychle načítané katalogy dokončit dříve, než se
+přihlásí odběratelé, a jejich GraphQL/REST endpointy nebudou zaregistrovány (host CDC události jsou
+pouze live-tail). Uživatelé `EvitaServer` se tímto nemusí zabývat — je to již správně zapojené interně.
 </Note>
 
 <Note type="warning">
-Nezapomeňte uzavřít API při ukončení vaší aplikace zavoláním metody `close` na
-instanci <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
-Jednou z možností je naslouchat ukončení procesu Java:
+Nezapomeňte uzavřít API při ukončení vaší aplikace zavoláním metody `close` na instanci
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
+Jednou z možností je naslouchat ukončení Java procesu:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/api-startup.java" local>
-[Příklad vypnutí webového API v Javě](/documentation/user/en/get-started/example/server-teardown.java)
+[Příklad ukončení webového API v Javě](/documentation/user/en/get-started/example/server-teardown.java)
 </SourceCodeTabs>
 
 </Note>
 
-Při spuštění webového serveru API byste měli v konzoli vidět následující informace:
+Po spuštění webového API serveru byste měli vidět v konzoli následující informace:
 
 ```plain
 Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
@@ -207,22 +206,22 @@ API `system` listening on               http://your-domain:5555/system/
 
 ### Instalace Dockeru
 
-Než začneme, je potřeba nainstalovat Docker. Návod pro vaši platformu najdete v
+Než začnete, musíte si nainstalovat Docker. Návod pro vaši platformu najdete v
 [dokumentaci Dockeru](https://docs.docker.com/get-docker/).
 
 ### Stažení a spuštění image
 
-Jakmile máte Docker nainstalovaný, je potřeba stáhnout image evitaDB z
+Jakmile je Docker nainstalován, musíte stáhnout image evitaDB z
 [Docker Hubu](https://hub.docker.com/repository/docker/evitadb/evitadb/general) a vytvořit kontejner.
 Obojí můžete provést jedním příkazem pomocí `docker run`. Toto je nejjednodušší způsob, jak spustit evitaDB pro testovací účely:
 
 ```shell
-# Varianta pro Linux: běží v popředí, po ukončení se kontejner smaže, používá hostitelské porty bez NAT
+# Varianta pro Linux: běh v popředí, zničení kontejneru po ukončení, použití hostitelských portů bez NAT
 docker run --name evitadb -i --rm --net=host \       
        index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: je zde otevřený issue https://github.com/docker/roadmap/issues/238
-# a je potřeba ručně otevřít porty a předat IP adresu hostitele do kontejneru
+# a je potřeba otevřít porty ručně a předat IP adresu hostitele do kontejneru
 docker run --name evitadb -i --rm -p 5555:5555 \      
        index.docker.io/evitadb/evitadb:latest
 ```
@@ -270,4 +269,4 @@ Více informací o spuštění evitaDB Serveru v Dockeru najdete v [samostatné 
 
 ## Co dál?
 
-Možná budete chtít [vytvořit svou první databázi](create-first-database.md) nebo si [vyzkoušet náš dataset](query-our-dataset.md).
+Můžete si [vytvořit svou první databázi](create-first-database.md) nebo si [vyzkoušet náš dataset](query-our-dataset.md).

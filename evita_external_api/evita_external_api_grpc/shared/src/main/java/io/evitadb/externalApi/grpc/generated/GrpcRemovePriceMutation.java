@@ -28,6 +28,10 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
+ * <pre>
+ * This mutation allows to remove an existing `price` of the entity, identified by price ID, price list and currency.
+ * </pre>
+ *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation}
  */
 public final class GrpcRemovePriceMutation extends
@@ -363,6 +367,10 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
+   * <pre>
+   * This mutation allows to remove an existing `price` of the entity, identified by price ID, price list and currency.
+   * </pre>
+   *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemovePriceMutation}
    */
   public static final class Builder extends

@@ -132,6 +132,12 @@ public class DataGenerator {
 	public static final Currency CURRENCY_GBP = Currency.getInstance("GBP");
 	public static final String PRICE_LIST_BASIC = "basic";
 	public static final String PRICE_LIST_REFERENCE = "reference";
+	/**
+	 * Upper bound on rejection-sampling attempts in {@link #pickRandomFromSet(Faker, Set)}. Bounds a loop
+	 * that would otherwise spin forever once the requested item count becomes statistically unreachable
+	 * for a large `set` - see the method's JavaDoc for why the underlying bias is intentionally not fixed.
+	 */
+	private static final int MAX_PICK_RANDOM_FROM_SET_ATTEMPTS = 10_000;
 	public static final BiPredicate<String, Faker> DEFAULT_PRICE_INDEXING_DECIDER = (priceList, faker) -> {
 		final boolean randomIndexedFlag = faker.random().nextInt(8) == 0;
 		final boolean indexed;
@@ -229,6 +235,16 @@ public class DataGenerator {
 		return hierarchies.getOrCreateHierarchy(entityType, (short) 5, (short) 10);
 	}
 
+	/**
+	 * Selects a random number (1 to {@link Set#size()}) of distinct elements from `set` by repeatedly
+	 * drawing a random walk position into the set and retrying on duplicates. The draw-with-rejection
+	 * approach is intentionally left as-is (including its non-uniform bias) to avoid perturbing the
+	 * random draw sequence consumed by every other call on the same {@link Faker} instance — changing it
+	 * would silently regenerate every seeded dataset in the test suite. Instead, the number of rejection
+	 * attempts is capped: once `set` grows large enough that the requested `itemsCount` becomes
+	 * statistically unreachable, generation fails fast with a descriptive exception instead of spinning
+	 * forever at 100% CPU.
+	 */
 	@Nonnull
 	private static <T> List<T> pickRandomFromSet(@Nonnull Faker genericFaker, @Nonnull Set<T> set) {
 		if (set.isEmpty()) {
@@ -236,7 +252,17 @@ public class DataGenerator {
 		}
 		final Integer itemsCount = genericFaker.random().nextInt(1, set.size());
 		final List<T> usedItems = new ArrayList<>(itemsCount);
+		int attempt = 0;
 		while (usedItems.size() < itemsCount) {
+			attempt++;
+			if (attempt > MAX_PICK_RANDOM_FROM_SET_ATTEMPTS) {
+				throw new GenericEvitaInternalError(
+					"Could not pick " + itemsCount + " distinct random elements out of " + set.size() +
+						" within " + MAX_PICK_RANDOM_FROM_SET_ATTEMPTS + " attempts - the requested count is " +
+						"statistically unreachable for a set this large. This is not a hang: it's a systematic " +
+						"limitation of the biased selection algorithm (see DataGenerator#pickRandomFromSet)."
+				);
+			}
 			final Iterator<T> it = set.iterator();
 			T itemToUse = null;
 			for (int i = 0; i <= genericFaker.random().nextInt(set.size()); i++) {

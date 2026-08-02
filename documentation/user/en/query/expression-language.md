@@ -36,7 +36,7 @@ Variable identifiers must start with a lowercase letter and can contain letters 
 within the expression itself.
 
 The bare `$` symbol (without an identifier) refers to the `this` in a current context. Usually used to reference
-collection item inside a [spread expression](#spread-operator).
+collection item inside a [spread expression](#spread-operator-expr).
 
 ## Arithmetic Operators
 

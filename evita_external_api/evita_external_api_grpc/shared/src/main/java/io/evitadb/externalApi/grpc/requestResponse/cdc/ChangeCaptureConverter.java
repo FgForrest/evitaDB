@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
@@ -74,10 +75,58 @@ public class ChangeCaptureConverter {
 		long requestedCatalogVersion,
 		@Nonnull StreamDirection direction
 	) {
+		// an explicitly set `sinceVersion` above `requestedCatalogVersion` is clamped down to it (a stale/too-high
+		// anchor is not an error - see GetMutationsHistoryPageRequest.sinceVersion docs); when that clamp
+		// happens, a client-supplied `sinceIndex` was computed against the original, now-discarded version and
+		// no longer corresponds to a valid position in the clamped-to version, so it must be reset too. An
+		// absent `sinceVersion` is a different case - there is no client-claimed version for the index to be
+		// stale against, so an explicit `sinceIndex` supplied alongside it is still honoured
+		final boolean versionExceedsBound = request.hasSinceVersion() &&
+			request.getSinceVersion().getValue() > requestedCatalogVersion;
 		return new ChangeCatalogCaptureRequest(
-			request.hasSinceVersion() && request.getSinceVersion().getValue() <= requestedCatalogVersion ?
+			request.hasSinceVersion() && !versionExceedsBound ?
 				request.getSinceVersion().getValue() : requestedCatalogVersion,
-			request.hasSinceVersion() ? request.getSinceIndex().getValue() : (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
+			// the index default must be derived from `sinceIndex` presence alone - deriving it from `sinceVersion`
+			// would collapse an unset index to 0, which is the slot reserved for the transaction header
+			!versionExceedsBound && request.hasSinceIndex()
+				? request.getSinceIndex().getValue()
+				: (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
+			request.getCriteriaList()
+			       .stream()
+			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
+			       .toArray(ChangeCatalogCaptureCriteria[]::new),
+			EvitaEnumConverter.toCaptureContent(request.getContent())
+		);
+	}
+
+	/**
+	 * Converts a {@link GetMutationsHistoryPageRequest} to a {@link ChangeCatalogCaptureRequest} anchored at a
+	 * lower-bound (floor) catalog version, for use with
+	 * {@link io.evitadb.api.EvitaSessionContract#getMutationsHistoryForward}.
+	 * Unlike the reverse overload above, an explicit {@code sinceVersion} above the floor is not clamped down -
+	 * it is a legitimate, narrower request (e.g. "start me at version 900, not at the oldest"). Only a value
+	 * below the floor is clamped up to it; there is no clamp at the other end, since a floor past the newest
+	 * available version simply yields an empty result rather than being an error. Whenever the version gets
+	 * clamped up this way (including when {@code sinceVersion} was left unset entirely), {@code sinceIndex} is
+	 * reset to `0` - a client-supplied index refers to a position within the client's originally requested
+	 * version, so carrying it over onto a different, clamped-up version would silently skip that version's
+	 * header and early records.
+	 *
+	 * @param request             the request to convert
+	 * @param floorCatalogVersion the lower bound to anchor at when the request leaves {@code sinceVersion} unset,
+	 *                            or when the requested value falls below it
+	 * @return the converted request
+	 */
+	@Nonnull
+	public static ChangeCatalogCaptureRequest toChangeCaptureRequestForward(
+		@Nonnull GetMutationsHistoryPageRequest request,
+		long floorCatalogVersion
+	) {
+		final boolean versionClamped = !request.hasSinceVersion() ||
+			request.getSinceVersion().getValue() < floorCatalogVersion;
+		return new ChangeCatalogCaptureRequest(
+			versionClamped ? floorCatalogVersion : request.getSinceVersion().getValue(),
+			!versionClamped && request.hasSinceIndex() ? request.getSinceIndex().getValue() : 0,
 			request.getCriteriaList()
 			       .stream()
 			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
@@ -227,7 +276,20 @@ public class ChangeCaptureConverter {
 		} else if (changeCatalogCapture.hasSchemaMutation()) {
 			mutation = DelegatingEntitySchemaMutationConverter.INSTANCE.convert(
 				changeCatalogCapture.getSchemaMutation());
+		} else if (changeCatalogCapture.hasInfrastructureMutation()) {
+			final Mutation infrastructureMutation = DelegatingInfrastructureMutationConverter.INSTANCE.convert(
+				changeCatalogCapture.getInfrastructureMutation());
+			Assert.isPremiseValid(
+				infrastructureMutation instanceof CatalogBoundMutation,
+				() -> new GenericEvitaInternalError(
+					"Infrastructure mutation `" + infrastructureMutation.getClass().getName() +
+						"` is not bound to a catalog and cannot be carried by a change catalog capture!"
+				)
+			);
+			mutation = (CatalogBoundMutation) infrastructureMutation;
 		} else {
+			// no body arm is set - this is the `CHANGE_HEADER` content mode, where the capture carries
+			// only its (version, index, area, operation) header and no mutation body at all
 			mutation = null;
 		}
 		Assert.isPremiseValid(

@@ -393,11 +393,12 @@ private static final long serialVersionUID = 0L;
    * entity but won't be considered when evaluating search query. These prices may be
    * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
    * as "usual price") but are not considered as the "selling" price.
+   * Deprecated since 2024.10 - RENAMED TO "indexed"
    * </pre>
    *
    * <code>bool sellable = 9 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.sellable is deprecated.
-   *     See GrpcPriceMutations.proto;l=51
+   *     See GrpcPriceMutations.proto;l=52
    * @return The sellable.
    */
   @java.lang.Override
@@ -2219,11 +2220,12 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search query. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.sellable is deprecated.
-     *     See GrpcPriceMutations.proto;l=51
+     *     See GrpcPriceMutations.proto;l=52
      * @return The sellable.
      */
     @java.lang.Override
@@ -2236,11 +2238,12 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search query. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.sellable is deprecated.
-     *     See GrpcPriceMutations.proto;l=51
+     *     See GrpcPriceMutations.proto;l=52
      * @param value The sellable to set.
      * @return This builder for chaining.
      */
@@ -2257,11 +2260,12 @@ private static final long serialVersionUID = 0L;
      * entity but won't be considered when evaluating search query. These prices may be
      * used for "informational" prices such as reference price (the crossed out price often found on e-commerce sites
      * as "usual price") but are not considered as the "selling" price.
+     * Deprecated since 2024.10 - RENAMED TO "indexed"
      * </pre>
      *
      * <code>bool sellable = 9 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcUpsertPriceMutation.sellable is deprecated.
-     *     See GrpcPriceMutations.proto;l=51
+     *     See GrpcPriceMutations.proto;l=52
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearSellable() {

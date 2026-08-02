@@ -1,24 +1,24 @@
 ---
 title: Směrování
-perex: Směrování v e-commerce katalozích je složitá záležitost. Hraje klíčovou roli v SEO a uživatelské zkušenosti a URL adresy jsou obvykle odvozeny z názvů entit bez jakýchkoli dalších informací nebo smysluplné struktury. Ať už se nám jako vývojářům líbí nebo ne, obchodní požadavky určují pravidla a my je musíme dodržovat. V tomto článku se podíváme na některé přístupy k řešení problémů se směrováním v e-commerce katalozích.
+perex: Směrování v e-commerce katalozích je složitá záležitost. Hraje klíčovou roli v SEO a uživatelské zkušenosti a URL adresy jsou obvykle odvozeny z názvů entit bez jakýchkoli dalších informací o smysluplné struktuře. Ať už se nám jako vývojářům líbí nebo ne, byznys určuje pravidla a my je musíme dodržovat. V tomto článku se podíváme na některé přístupy k řešení problémů se směrováním v e-commerce katalozích.
 date: '4.2.2024'
 author: Ing. Jan Novotný
 proofreading: done
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Očekáváme, že entity, které jsou dosažitelné přes URL, budou mít atribut typu [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), který obsahuje buď úplnou absolutní URL, nebo relativní. Rozhodnutí, zda použít absolutní nebo relativní URL, má své důsledky a mělo by být dobře promyšleno. Ukládání absolutních URL do databáze obvykle není dobrý nápad, protože to ztěžuje použití stejného záznamu v různých prostředích (produkce/testování/vývoj), která mají různá doménová jména. Obecně doporučujeme ukládat do databáze relativní URL bez protokolu a domény a úplné absolutní URL sestavovat až v aplikaci.
 
 ## Jedinečnost URL
 
-Podle [URL](https://en.wikipedia.org/wiki/URL) standardu je URL jedinečný identifikátor zdroje. Proto by měla být v databázi označena jako jedinečná. Protože pracujeme s více typy entit, pravděpodobně potřebujeme definovat katalogový atribut URL, který bude používat každá entita. Tento atribut pak musí být označen buď jako `UNIQUE_WITHIN_CATALOG`, nebo `UNIQUE_WITHIN_CATALOG_LOCALE`, v závislosti na tom, zda je katalog vícejazyčný a zda je součástí URL i lokalizace. V praxi jsme se setkali s oběma scénáři:
+Podle [URL](https://en.wikipedia.org/wiki/URL) standardu je URL jedinečný identifikátor zdroje. Proto by měl být v databázi označen jako jedinečný. Jelikož pracujeme s více typy entit, pravděpodobně potřebujeme definovat atribut URL platný v rámci celého katalogu, který bude použit u každé entity. Tento atribut pak musí být označen buď jako `UNIQUE_WITHIN_CATALOG`, nebo `UNIQUE_WITHIN_CATALOG_LOCALE`, v závislosti na tom, zda je katalog vícejazyčný a zda je součástí URL také lokalizace. V praxi jsme se setkali s oběma těmito scénáři:
 
 1. lokalizace je zakódována v relativní části URL, např. `/en/product-name` nebo `/cs/product-name`
 2. lokalizace je zakódována v doménové části URL, např. `https://example.com/product-name` nebo `https://example.cz/product-name`
 
-V prvním scénáři můžeme použít typ jedinečnosti `UNIQUE_WITHIN_CATALOG`, protože relativní URL jsou jedinečné napříč všemi lokalizacemi. Ve druhém scénáři musíme použít typ jedinečnosti `UNIQUE_WITHIN_CATALOG_LOCALE`, protože můžeme mít stejnou relativní URL pro různé lokalizace, ale při vyhledávání cílové entity podle URL musíme také specifikovat lokalizaci odvozenou z doménového jména.
+V prvním scénáři můžeme použít typ jedinečnosti `UNIQUE_WITHIN_CATALOG`, protože relativní URL jsou jedinečné napříč všemi lokalizacemi. Ve druhém scénáři musíme použít typ jedinečnosti `UNIQUE_WITHIN_CATALOG_LOCALE`, protože můžeme mít stejnou relativní URL pro různé lokalizace, ale při vyhledávání cílové entity podle URL musíme také určit lokalizaci odvozenou z názvu domény.
 
-Pokud je atribut označen jako jedinečný, můžeme jednoduše vyhledat vlastnickou entitu podle hodnoty atributu. Následující dotaz vrátí entitu podle kódu, což je jednoduchý jedinečný atribut entity (není jedinečný v rámci celého katalogu):
+Pokud je atribut označen jako jedinečný, můžeme jednoduše vyhledat vlastnickou entitu podle hodnoty atributu. Následující dotaz vrátí entitu podle kódu, což je jednoduchý jedinečný atribut entity (nikoli v rámci celého katalogu):
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -53,7 +53,7 @@ Pokud je atribut označen jako jedinečný, můžeme jednoduše vyhledat vlastni
 
 </Note>
 
-Jak můžete vidět, musíme specifikovat název kolekce, abychom získali entitu podle kódu. Protože je URL jedinečná v rámci katalogu, můžeme entitu vyhledat bez zadání názvu kolekce:
+Jak můžete vidět, pro získání entity podle kódu musíme specifikovat název kolekce. Protože je však URL jedinečná v rámci celého katalogu, můžeme entitu vyhledat bez zadání názvu kolekce:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
 
@@ -67,7 +67,7 @@ Tento dotaz selže na demo datasetu evitaDB, protože URL je označena jako `UNI
 
 </Note>
 
-Pokud je URL jedinečná pouze v rámci lokalizace, musíme také specifikovat <LS to="e,j,c">omezení `entityLocaleEquals`</LS><LS to="g,r">parametr `locale`</LS>:
+Pokud je URL jedinečná pouze v rámci lokalizace, je potřeba také zadat <LS to="e,j,c">omezení `entityLocaleEquals`</LS><LS to="g,r">parametr `locale`</LS>:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -102,62 +102,69 @@ Pokud je URL jedinečná pouze v rámci lokalizace, musíme také specifikovat <
 
 </Note>
 
-## Vyhledávání neznámých entit podle URL
+## Načítání neznámých entit podle URL
 
-Další problém souvisí s tím, že před načtením entity z databáze nevíme, o jaký typ entity se jedná, a tedy nevíme, jaká data (atributy/přidružená data atd.) máme načíst. V různých protokolech evitaDB máme různé možnosti.
+Další problém souvisí s tím, že před načtením entity z databáze neznáme její typ, a tedy nevíme, jaká data (atributy/přidružená data atd.) máme načíst. V různých protokolech evitaDB máme různé možnosti.
 
 <LS to="e,j,c">
 
-V čistém evitaQL můžete buď použít "wildcard" definici pro načtení všech dostupných dat, nebo můžete přesně specifikovat, jaká data (atributy / přidružená data atd.) chcete načíst. Při dotazu na entitu podle globálně jedinečného atributu parser dotazu nevaliduje existenci atributu ve schématu a vrátí pouze ta data, která pro danou entitu najde.
+V čistém evitaQL můžete buď použít "zástupný znak" pro načtení všech dostupných dat, nebo můžete přesně určit,
+která data (atributy / přidružená data atd.) chcete načíst. Při dotazování na entitu podle globálně jedinečného
+atributu parser dotazu neověřuje existenci atributu ve schématu a vrátí pouze ta data,
+která pro danou entitu najde.
 
 <Note type="warning">
 
-Můžete dokonce specifikovat atribut, který nikde neexistuje, a evitaDB si nebude stěžovat. Buďte proto opatrní, protože bezpečnostní síť validátoru dotazů zde není k dispozici.
+Můžete dokonce zadat atribut, který nikde neexistuje, a evitaDB si nebude stěžovat. Buďte tedy opatrní,
+protože bezpečnostní síť validátoru dotazu u tohoto typu dotazu není k dispozici.
 
 </Note>
 
-Pro ukázku chování takového dotazu si definujme dotaz, který kombinuje jedinečná data z kolekcí `Product` a `Category` do jednoho dotazu, který nemusí dávat smysl pro žádnou z kolekcí samostatně, ale pro dotaz podle globálně jedinečného atributu proběhne úspěšně:
+Pro demonstraci chování takového dotazu si definujme dotaz, který kombinuje jedinečná data z kolekcí `Product` a
+`Category` do jednoho dotazu, který nemusí dávat smysl pro žádnou z kolekcí samostatně, ale úspěšně se provede
+pro dotaz na globálně jedinečný atribut:
 
 </LS>
 <LS to="g">
 
-V GraphQL neexistuje "wildcard" definice pro načtení všech dostupných dat, na druhou stranu můžete přesně specifikovat,
-jaká data (atributy/přidružená data atd.) chcete načíst pro každý typ entity zvlášť pomocí
+V GraphQL neexistuje "zástupný znak" pro načtení všech dostupných dat, na druhou stranu však můžete přesně určit,
+jaká data (atributy/přidružená data atd.) chcete pro každý typ entity načíst zvlášť pomocí
 [inline fragmentů](https://graphql.org/learn/queries/#inline-fragments).
 
-Pro ukázku chování takového dotazu si definujme dotaz, který kombinuje jedinečná data z kolekcí `Product` a
-`Category` do jednoho dotazu a vrátí různá data pro každý typ entity:
+Pro demonstraci chování takového dotazu si definujme dotaz, který kombinuje jedinečná data z kolekcí `Product` a
+`Category` do jednoho dotazu, aby pro každý typ entity vrátil odlišná data:
 
 </LS>
 <LS to="r">
 
-V REST můžete buď použít "wildcard" definici pro načtení všech dostupných dat, nebo můžete použít "wildcard" definici
+V REST můžete buď použít "zástupný znak" pro načtení všech dostupných dat, nebo použít "zástupný znak"
 pro každou část entity (atributy/přidružená data atd.), kterou chcete načíst.
-Momentálně však nemůžete v tomto typu dotazu v REST specifikovat jednotlivá data k načtení. Typicky byste museli
-provést další dotaz, jakmile znáte typ entity, abyste získali detailní data.
+V tomto typu dotazu však aktuálně nemůžete určit jednotlivá data, která mají být načtena v REST. Typicky byste
+museli provést další dotaz, jakmile znáte typ entity, abyste získali detailní data.
 
-Pro ukázku chování takového dotazu si definujme dotaz, který vyžaduje všechna data z kolekcí `Product` a
-`Category`, ale vrací různá data pro každý typ entity:
+Pro demonstraci chování takového dotazu si definujme dotaz, který vyžaduje všechna data z kolekcí `Product` a
+`Category`, ale vrací odlišná data pro každý typ entity:
 
 </LS>
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Získání produktu s daty podle globálně jedinečného lokalizovaného atributu](/documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
+[Retrieve product with data by globally unique locale specific attribute](/documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
 </SourceCodeTabs>
 
 <LS to="e,j,c">
 
 Všimněte si, že dotaz obsahuje odkaz na atribut `level`, který určitě není definován ve schématu entity `Product`.
-Tento dotaz by selhal, pokud bychom specifikovali název kolekce, ale protože to neděláme, název je akceptován a
-v výsledku se prostě nevrátí. Totéž platí pro požadavek `hierarchyContent`, který nedává smysl pro entitu `Product`,
-protože není hierarchická. Podívejte se na výsledek dotazu:
+Tento dotaz by selhal, pokud bychom zadali název kolekce, ale protože jej neuvádíme, je název akceptován a
+v výsledku se pouze nevrátí. Totéž platí pro požadavek `hierarchyContent`, který nedává smysl pro entitu
+`Product`, protože není hierarchická. Podívejte se na výsledek dotazu:
 
 </LS>
 <LS to="g">
 
 Tento dotaz definuje, že pokud URL patří `Product`, vrátí atributy `code`, `available` a `brandCode`.
-Pokud URL patří `Category`, vrátí atribut `level`. Tímto způsobem můžete mít zcela odlišné datové struktury pro každý typ entity a přesto získat správná data pro neznámou entitu, i když to vyžaduje více práce.
+Pokud URL patří `Category`, vrátí atribut `level`. Tímto způsobem můžete mít zcela odlišné
+datové struktury pro každý typ entity a přesto získat správná data pro neznámou entitu, i když to vyžaduje více práce.
 
 <Note type="info">
 
@@ -206,7 +213,8 @@ Nyní se podívejme na stejný dotaz, ale pro URL entity `Category`:
 [Získání kategorie s daty podle globálně jedinečného lokalizovaného atributu](/documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
 </SourceCodeTabs>
 
-V výsledku vidíte informace o atributu `level` a o rodiči (`parent`), které nedávají smysl pro entitu `product`, ale dávají pro entitu `category`:
+Můžete si všimnout, že ve výsledku je informace o atributu `level` a informace o `parent`, které
+nedávají smysl pro entitu `product`, ale dávají smysl pro entitu `category`:
 
 <Note type="info">
 

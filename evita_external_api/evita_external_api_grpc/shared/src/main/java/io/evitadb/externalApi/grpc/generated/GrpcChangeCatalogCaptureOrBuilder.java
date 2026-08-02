@@ -33,7 +33,8 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
 
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -42,7 +43,8 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   boolean hasVersion();
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -51,7 +53,8 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   com.google.protobuf.Int64Value getVersion();
   /**
    * <pre>
-   * the version of the catalog where the operation was performed
+   * The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
+   * forward stream, descending in a reverse stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value version = 1;</code>
@@ -60,7 +63,15 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
 
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -69,7 +80,15 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   boolean hasIndex();
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -78,7 +97,15 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   com.google.protobuf.Int32Value getIndex();
   /**
    * <pre>
-   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
+   * counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
+   * descending, so the same physical record gets the same index regardless of direction - but indices are
+   * therefore NOT monotonic within a transaction when read in reverse (the transaction header is emitted at
+   * index `0`, then indices count down from `mutationCount`). Nested local mutations do not get their own
+   * index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
+   * `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
+   * local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
+   * filtering is applied, so it stays stable and comparable across requests using different filters.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value index = 2;</code>
@@ -166,7 +193,8 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
 
   /**
    * <pre>
-   * the operation that was performed
+   * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+   * present) carries the payload - see the `body` oneof comment for the mapping.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -175,7 +203,8 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   int getOperationValue();
   /**
    * <pre>
-   * the operation that was performed
+   * The kind of change that produced this capture. Together with `area`, it determines which arm of `body` (if
+   * present) carries the payload - see the `body` oneof comment for the mapping.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
@@ -184,61 +213,112 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation();
 
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return Whether the schemaMutation field is set.
    */
   boolean hasSchemaMutation();
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return The schemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getSchemaMutation();
   /**
+   * <pre>
+   * Set for a SCHEMA area mutation. See the `body` comment above for the full arm-selection mapping.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getSchemaMutationOrBuilder();
 
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return Whether the entityMutation field is set.
    */
   boolean hasEntityMutation();
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return The entityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation();
   /**
+   * <pre>
+   * Set for the top-level DATA area entity mutation. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder();
 
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return Whether the localMutation field is set.
    */
   boolean hasLocalMutation();
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return The localMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutation getLocalMutation();
   /**
+   * <pre>
+   * Set for a DATA area field-level mutation nested inside an entity upsert. See the `body`
+   * comment above and the `index` field comment for how it shares its parent's `(version, index)`.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder getLocalMutationOrBuilder();
 
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    * @return Whether the infrastructureMutation field is set.
    */
   boolean hasInfrastructureMutation();
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    * @return The infrastructureMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation getInfrastructureMutation();
   /**
+   * <pre>
+   * Set for the INFRASTRUCTURE area transaction header. See the `body` comment above.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder getInfrastructureMutationOrBuilder();

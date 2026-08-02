@@ -44,69 +44,183 @@ message GrpcCatalogVersionAtResponse {
   GrpcOffsetDateTime introducedAt = 3;
 }
 
-// Request to GetMutationsHistoryPage request.
+// Request for GetMutationsHistoryPage / GetMutationsHistoryPageForward, a paged read of past mutations
+// (catalog schema changes and entity mutations) that match the given criteria. GetMutationsHistoryPage
+// delivers pages reverse-chronologically (newest first); GetMutationsHistoryPageForward delivers them
+// chronologically (oldest first). The two RPCs share this same request/response message pair; fields
+// whose meaning depends on direction say so explicitly below.
+//
+// A page never splits a single entity/schema mutation from the local-mutation captures it produced.
+// The CDC model has exactly three levels - there is no separate "record" level: the transaction level
+// (`version` alone), the entity/schema-mutation level (`index` within a `version`; index 0 is reserved
+// for the transaction's own lead event), and the local-mutation level (the individual field-level
+// changes an entity mutation fans out into, which share their parent's `(version, index)` instead of
+// getting an index of their own). In this RPC's paging terms, a "record" is simply one `(version, index)`
+// group: either the lone transaction-lead capture by itself, or one entity/schema-mutation capture plus
+// every local-mutation capture it produced. See `GetMutationsHistoryPageResponse` for what that implies
+// for `pageSize` and for completeness checking across page boundaries.
 message GetMutationsHistoryPageRequest {
-  // The page number starting with 1
+  // The requested page number (1-indexed: page 1 is the first page in whichever direction the RPC
+  // traverses - newest-first for GetMutationsHistoryPage, oldest-first for GetMutationsHistoryPageForward).
+  // If unset, defaults to 1. Not rejected when it lands past the last available page - the response is
+  // simply empty; see `GetMutationsHistoryPageResponse.hasNext` for how to detect the last page.
   google.protobuf.Int32Value page = 1;
-  // The size of the page to return
+  // The number of records to return per page (see the message-level comment for what a record is - this
+  // is page-based paging over records, not over individual captures). If unset, defaults to 20. Not
+  // rejected or capped when it exceeds the number of available records; the last page is simply shorter.
+  // Because pages are record-aligned, the number of `GrpcChangeCatalogCapture` entries actually returned
+  // can exceed `pageSize` whenever the last included record fans out into several local-mutation
+  // captures - `pageSize` bounds records, not entries.
   google.protobuf.Int32Value pageSize = 2;
-  // Starting point for the search (catalog version)
+  // Catalog version to anchor the search at (inclusive). Meaning depends on which RPC this request is sent
+  // to:
+  // - GetMutationsHistoryPage (reverse): an upper bound - the anchor to start from and go backward. If
+  //   unset, defaults to the upper bound implied by the request - the version resolved from `timeFrame`'s
+  //   upper bound when `timeFrame` is set, otherwise the session's current catalog version. A value above
+  //   that bound is silently clamped down to it rather than rejected.
+  // - GetMutationsHistoryPageForward (forward): a lower bound - the anchor to start from and go forward.
+  //   If unset, defaults to the lower bound implied by the request - the version resolved from `timeFrame`'s
+  //   lower bound when set, otherwise the oldest version known to the catalog's mutation history. A value
+  //   below that bound is silently clamped up to it. A value above the newest available version is not an
+  //   error - it simply yields an empty result, since "past the newest" is a legitimate (if unusual) floor.
+  // Leave this unset only for the very first page of a traversal; from the second page on, pass back
+  // `GetMutationsHistoryPageResponse.sinceVersion` from the previous page's response verbatim, to keep the
+  // whole traversal anchored to one consistent version - see that field for details.
   google.protobuf.Int64Value sinceVersion = 3;
-  // Starting point for the search (index of the mutation within catalog version)
+  // Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+  // are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to 0 for
+  // GetMutationsHistoryPageForward ("start from that version's transaction header") or `Integer.MAX_VALUE`
+  // for GetMutationsHistoryPage ("start from the newest mutation of that version"). This default applies
+  // independently of whether `sinceVersion` is set - but not independently of whether the resolved
+  // `sinceVersion` ends up clamped (up to the forward floor, or down to the reverse ceiling - see
+  // `sinceVersion` above): an explicitly set `sinceIndex` is discarded and the direction default used
+  // instead whenever that clamp happens, since the client computed it against the original, un-clamped
+  // version, and it no longer identifies a valid position in the version actually resolved to.
   google.protobuf.Int32Value sinceIndex = 4;
-  // The time range within which the mutations should be found
+  // Restricts the search to mutations committed within this time range. For GetMutationsHistoryPage
+  // (reverse), the lower bound (`from`) is exclusive - the version resolved from it is excluded from the
+  // result, even though the underlying version-resolution lookup it uses is itself inclusive of that
+  // moment. For GetMutationsHistoryPageForward (forward), the upper bound (`to`) is inclusive instead: the
+  // last version committed at or before `to` is the traversal's far, stopping edge, and is itself included
+  // in the result - not symmetric to `from` on the reverse RPC. A forward `from` moment in the future is
+  // not an error either - like an explicit `sinceVersion` past the newest available version (see above),
+  // it simply yields an empty result rather than falling back to the newest mutations. Time-to-version
+  // resolution for both `from` and `to` is checkpoint-granular, not exact to the mutation's own commit
+  // moment - a `from`/`to` that lands inside the current checkpoint interval may include or exclude
+  // mutations committed within that same interval on either side of the requested boundary.
   GrpcDateTimeRange timeFrame = 5;
-  // The criteria of the capture, allows to define constraints on the returned mutations
+  // Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+  // applies no criteria-based filtering.
   repeated GrpcChangeCaptureCriteria criteria = 6;
-  // The scope of the returned data - either header of the mutation, or the whole mutation
+  // Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+  // when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+  // enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+  // received in full.
   GrpcChangeCaptureContent content = 7;
 }
 
-// Response to GetMutationsHistoryPage request.
+// Response to GetMutationsHistoryPage request. Unlike `GrpcPaginatedList`/`GrpcDataChunk` elsewhere in
+// this API, there is no `totalRecordCount` here - a WAL scan cannot produce one cheaply - so `hasNext` is
+// computed by the server peeking one record past the requested page rather than from a precomputed count,
+// and there is no `isLast`/`hasPrevious` counterpart either. See `sinceVersion` below for the anchor-echo
+// mechanism that keeps a multi-page traversal consistent across concurrent commits.
+//
+// Pages never split a `(version, index)` group (see `GetMutationsHistoryPageRequest` for what that means -
+// there is no separate "record level", just the transaction/entity-schema-mutation/local-mutation levels
+// the CDC model actually has). That guarantee holds at the entity/schema-mutation level only, not at the
+// transaction level: a page's first group can be a transaction's non-header entity/schema mutation without
+// that transaction's lead event appearing anywhere in the same page. So the `mutationCount`-based
+// completeness check available on the unpaged `GetMutationsHistory`/`GetMutationsHistoryForward` RPCs is
+// not usable across page boundaries here.
 message GetMutationsHistoryPageResponse {
-  // The list of mutations that match the criteria
+  // The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+  // GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+  // since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+  // the last included group fans out into several local-mutation captures; see the message-level comment.
   repeated GrpcChangeCatalogCapture changeCapture = 1;
+  // Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+  bool hasNext = 2;
+  // The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset,
+  // this reports what the implied bound resolved to: "now" (the newest available version) for
+  // GetMutationsHistoryPage, or the oldest known version for GetMutationsHistoryPageForward - no other RPC
+  // reports either directly (`GetCatalogVersionAt` with no moment set reports the *oldest* known version
+  // only, regardless of direction). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+  // on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+  // `sinceVersion` is instead left unset on every call, each page resolves the bound independently, so a
+  // commit landing between page fetches moves it and mutations can be skipped or duplicated across pages.
+  int64 sinceVersion = 3;
 }
 
-// Request to GetMutationsHistoryPage request.
+// Request for GetMutationsHistory / GetMutationsHistoryForward, a streamed read of past mutations that
+// match the given criteria - the unpaged sibling of GetMutationsHistoryPage / GetMutationsHistoryPageForward.
+// GetMutationsHistory delivers them reverse-chronologically (newest first); GetMutationsHistoryForward
+// delivers them chronologically (oldest first). The two RPCs share this same request message; `sinceVersion`
+// switches meaning by direction.
 message GetMutationsHistoryRequest {
-  // Starting point for the search (catalog version)
+  // Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+  // the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+  // version (this default differs from the paged RPC's, which anchors on the session's current catalog
+  // version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+  // (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+  // version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+  // version is not rejected - it simply yields an empty stream.
   google.protobuf.Int64Value sinceVersion = 1;
-  // Starting point for the search (index of the mutation within catalog version)
+  // Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+  // are numbered from 1 upward; the transaction header itself occupies index 0. If unset, no index-based
+  // filtering is applied within `sinceVersion` - all of that version's mutations are included.
   google.protobuf.Int32Value sinceIndex = 2;
-  // The criteria of the capture, allows to define constraints on the returned mutations
+  // Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+  // applies no criteria-based filtering.
   repeated GrpcChangeCaptureCriteria criteria = 3;
-  // The scope of the returned data - either header of the mutation, or the whole mutation
+  // Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+  // when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+  // enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+  // received in full.
   GrpcChangeCaptureContent content = 4;
 }
 
-// Response to GetMutationsHistory request.
+// Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
+// per mutation - each carries exactly one `changeCapture` entry, not a batch (see the RPC's streaming
+// semantics).
 message GetMutationsHistoryResponse {
-  // The list of mutations that match the criteria
+  // The single mutation delivered by this stream message.
   repeated GrpcChangeCatalogCapture changeCapture = 1;
 }
 
-// Request to RegisterChangeCatalogCapture request.
+// Request to open a live subscription (RegisterChangeCatalogCapture) that streams mutations as they
+// commit, optionally preceded by a historical replay starting at `sinceVersion`/`sinceIndex`.
 message GrpcRegisterChangeCatalogCaptureRequest {
-  // Starting point for the search (catalog version)
+  // Catalog version from which to start the historical replay portion of the subscription (inclusive).
+  // If unset, defaults to the current catalog version plus one, i.e. only mutations committed after the
+  // subscription is registered are delivered, with no historical replay.
   google.protobuf.Int64Value sinceVersion = 1;
-  // Starting point for the search (index of the mutation within catalog version)
+  // Index of the mutation within `sinceVersion` from which to start the historical replay (inclusive).
+  // A version's mutations are numbered from 1 upward; the transaction header itself occupies index 0.
+  // If unset, defaults to 0, i.e. starting from that version's transaction header.
   google.protobuf.Int32Value sinceIndex = 2;
-  // The criteria of the capture, allows to define constraints on the returned mutations
+  // Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+  // applies no criteria-based filtering.
   repeated GrpcChangeCaptureCriteria criteria = 3;
-  // The scope of the returned data - either header of the mutation, or the whole mutation
+  // Whether delivered captures carry only mutation headers (`CHANGE_HEADER`, the default - proto3 zero
+  // value - when this field is left unset) or full mutation bodies (`CHANGE_BODY`).
   GrpcChangeCaptureContent content = 4;
 }
 
 // Request to GetTransactionOverview request.
 message GetTransactionOverviewRequest {
-  // The catalog version for which the transaction overview should be returned
+  // The catalog versions to return the transaction overview for. See `GetTransactionOverviewResponse`
+  // for the ordering and completeness contract of the response.
   repeated int64 catalogVersion = 1;
 }
 
-// Response to GetTransactionOverview request.
+// Response to GetTransactionOverview request. Entries preserve the relative order of the requested
+// `catalogVersion` list, but a version unknown to history - purged, or never committed - is omitted
+// rather than padded with an empty entry. The response can therefore be shorter than the request, and
+// can be empty; it is not an error to ask for a version history no longer holds.
 message GetTransactionOverviewResponse {
-  // The list of transaction overviews that match the requested catalog versions
+  // The transaction overviews for those requested catalog versions that are still known to history, in
+  // request order. Because unknown versions are omitted rather than padded, positions do not line up
+  // with the request - correlate each entry by its own `catalogVersion` field, never by index.
   repeated GrpcTransactionOverview transactionOverviews = 1;
 }
 
@@ -143,6 +257,7 @@ message GrpcTransactionChanges {
 
 // Structure that holds changes in a specific entity collection within a transaction.
 message GrpcEntityCollectionChanges {
+  // The name (entity type) of the entity collection these counts apply to.
   string entityName = 1;
   // The number of schema altering mutations.
   int32 schemaChanges = 2;
@@ -152,16 +267,22 @@ message GrpcEntityCollectionChanges {
   int32 removed = 4;
 }
 
-// Response to RegisterChangeCatalogCapture request.
+// One message of the RegisterChangeCatalogCapture stream. `responseType` selects which payload is
+// meaningful: `ACKNOWLEDGEMENT` (subscription set up; `heartBeat` populated, `capture` is not),
+// `CHANGE` (`capture` populated, `heartBeat` is not), or `HEARTBEAT` (`heartBeat` populated, `capture`
+// is not) - the periodic keep-alive sent while no matching mutation has occurred.
 message GrpcRegisterChangeCatalogCaptureResponse {
-  // Identification of the registered capture
+  // Identification of the registered subscription. Present on every message, not just the initial
+  // acknowledgement.
   GrpcUuid uuid = 1;
-  // The list of mutations (CDC events) that match the criteria
+  // The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
+  // `CHANGE`; unset otherwise.
   GrpcChangeCatalogCapture capture = 2;
-  // The type of the response - when subscription is set-up, acknowledgement is sent
-  // Then with each capture event, the type is set to `change`
+  // Which payload field (`capture` or `heartBeat`) is populated on this message - see the message-level
+  // comment above.
   GrpcCaptureResponseType responseType = 3;
-  // Optional heartbeat information, is non-null only if the response is a heartbeat or acknowledgement
+  // Heartbeat information. Populated when `responseType` is `ACKNOWLEDGEMENT` or `HEARTBEAT`; unset when
+  // `responseType` is `CHANGE`.
   GrpcHeartBeat heartBeat = 4;
 }
 
@@ -210,9 +331,10 @@ message GrpcUpdateCatalogSchemaResponse {
   int32 version = 1;
 }
 
-// Request for updating the catalog schema and its afterwards fetching.
+// Response to UpdateAndFetchCatalogSchema request, which updates the catalog schema and returns the
+// resulting schema in one round trip.
 message GrpcUpdateAndFetchCatalogSchemaResponse {
-  // Modified catalog schema.
+  // The catalog schema after the requested mutations were applied.
   GrpcCatalogSchema catalogSchema = 1;
 }
 
@@ -240,81 +362,111 @@ message GrpcUpdateEntitySchemaResponse {
   int32 version = 1;
 }
 
-// Request for updating the entity schema and its afterwards fetching.
+// Response to UpdateAndFetchEntitySchema request, which updates an entity type's schema and returns the
+// resulting schema in one round trip.
 message GrpcUpdateAndFetchEntitySchemaResponse {
-  // Modified entity schema.
+  // The entity schema after the requested mutations were applied.
   GrpcEntitySchema entitySchema = 1;
 }
 
-// Request for acquiring an entity.
+// Request for acquiring a single entity by primary key, in the richness described by `require`.
 message GrpcEntityRequest {
-  // The primary key of the entity.
+  // The primary key of the entity to fetch.
   int32 primaryKey = 1;
-  // The entity type of the entity.
+  // The entity type (collection name) the primary key belongs to.
   string entityType = 2;
-  // The string part of the parametrised query require part.
+  // The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`),
+  // parsed on the server. Parameter values are not embedded in this string but supplied separately via
+  // `positionalQueryParams`/`namedQueryParams` below. A `?` placeholder in this string is a positional
+  // parameter, an `@name` placeholder is a named parameter - see `positionalQueryParams`/`namedQueryParams`
+  // below for the full binding contract, which applies identically here.
   string require = 3;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `require`, bound in encounter order: the first `?` in
+  // the parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and
+  // so on (FIFO). Supplying fewer values than there are `?` placeholders fails the request with
+  // "Missing argument of index N."; extra values are ignored.
   repeated GrpcQueryParam positionalQueryParams = 4;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `require`, keyed by the name used after `@` in the
+  // string (without the `@` prefix). An `@name` placeholder with no matching map entry fails the request
+  // with "Missing argument of name `name`."; extra map entries are ignored.
   map<string, GrpcQueryParam> namedQueryParams = 5;
-  // The set of scopes to search for the entity.
+  // Scopes to search for the entity in. An empty list defaults to searching only the `LIVE` scope -
+  // `ARCHIVED` entities are not matched unless `ARCHIVED_ENTITY` is explicitly included here.
   repeated GrpcEntityScope scopes = 6;
 }
 
 // Response to GetEntity request.
 message GrpcEntityResponse {
-  // The found entity.
+  // The found entity. Unset (not an error) if no entity with the requested primary key exists in
+  // `entityType` within the requested `scopes`.
   GrpcSealedEntity entity = 1;
 }
 
-// Structure that represents a pagination within a data chunk.
+// Page-based pagination descriptor for a `GrpcDataChunk`, reporting the page actually returned. The
+// desired page is requested via the query's `page()` require constraint, not a field on this response
+// structure - see `io.evitadb.api.query.require.Page` for the full contract. `pageNumber` is 1-indexed
+// (page 1 is the first page) - see `io.evitadb.dataType.PaginatedList#getPageNumber`. A requested page
+// number of 0 or less is rejected by the server; a requested page number beyond `lastPageNumber` is not
+// rejected - the engine returns the first page instead, so `pageNumber` here can differ from what was
+// requested.
 message GrpcPaginatedList {
-  // The size of the page.
+  // Number of records requested per page, echoed back from the query's `page()` require constraint.
+  // Zero is valid and yields an empty page while `totalRecordCount`/`lastPageNumber` are still reported.
   int32 pageSize = 1;
-  // The number of the page.
+  // The page actually returned (1-indexed) - see the message-level comment for how this can differ from
+  // the requested page number.
   int32 pageNumber = 2;
-  // The number of the last page.
+  // The number of the last available page, given `pageSize` and the total record count.
   int32 lastPageNumber = 3;
 }
 
-// Structure that represents a strip within a data chunk.
+// Strip/offset-based pagination descriptor for a `GrpcDataChunk` - the alternative to `GrpcPaginatedList`
+// used when the query's `require` block specifies a `strip()` requirement instead of `page()`.
 message GrpcStripList {
-  // The size of the strip.
+  // Maximum number of records returned in this strip.
   int32 limit = 1;
-  // The offset of the strip - count of records from the beginning to skip.
+  // Number of records skipped from the beginning of the result set before this strip starts. 0-indexed:
+  // an offset of 0 starts at the very first record - unlike `GrpcPaginatedList.pageNumber`, this is not a
+  // page number.
   int32 offset = 2;
 }
 
-// Structure that represents a data chunk of entities. Only one of the entity fields should be set in one response.
-// That is decided by require block in a query, so as the pagination method used.
+// A page or strip of entities, in one of three representations (references, full sealed entities, or
+// binary entities) depending on what the query's `require` block asked for. Only one representation is
+// populated per response and only one of the two pagination descriptors below is set, matching whichever
+// paging requirement (`page()`/`strip()`) the query used.
 message GrpcDataChunk {
-  // Collection of entity references.
+  // Entity references (type + primary key only, no content). Populated when the query's `require` block
+  // has no `entityFetch` requirement; `sealedEntities`/`binaryEntities` are then both empty.
   repeated GrpcEntityReference entityReferences = 1;
-  // Collection of sealed entities.
+  // Fully fetched entities in structured (non-binary) form. Populated when `require` has an `entityFetch`
+  // requirement and the session is not using the binary storage format; `entityReferences`/`binaryEntities`
+  // are then both empty.
   repeated GrpcSealedEntity sealedEntities = 2;
-  // Collection of binary entities.
+  // Fully fetched entities in the server's binary storage format, for clients that decode entities
+  // themselves. Populated when `require` has an `entityFetch` requirement and the session uses the binary
+  // storage format; `entityReferences`/`sealedEntities` are then both empty.
   repeated GrpcBinaryEntity binaryEntities = 3;
-  // Chunk of the data.
+  // Exactly one of these is set, matching which paging requirement (`page()`/`strip()`) the query used.
   oneof chunk {
-    // The paginated list.
+    // Set when the query used page-based paging (`page()`).
     GrpcPaginatedList paginatedList = 4;
-    // The strip list.
+    // Set when the query used strip/offset-based paging (`strip()`).
     GrpcStripList stripList = 5;
   }
-  // The total number of records.
+  // Total number of records matching the query across all pages/strips, not just this chunk's size.
   int32 totalRecordCount = 6;
-  // True, if this is the first page.
+  // True if this chunk is the first page/strip of the result set.
   bool isFirst = 7;
-  // True, if this is the last page.
+  // True if this chunk is the last page/strip of the result set.
   bool isLast = 8;
-  // True, if there is a previous page.
+  // True if a preceding page/strip exists.
   bool hasPrevious = 9;
-  // True, if there is a next page.
+  // True if a following page/strip exists.
   bool hasNext = 10;
-  // True, if this is a single page.
+  // True if the entire result set fits within this single chunk.
   bool isSinglePage = 11;
-  // True, if this is an empty page.
+  // True if this chunk (and the entire result set) contains no records.
   bool isEmpty = 12;
 }
 
@@ -344,10 +496,16 @@ message GrpcRenameCollectionResponse {
   bool renamed = 1;
 }
 
+// Request for replacing an entity collection's contents with those of another collection. On success,
+// `entityTypeToBeReplaced` is purged and its name is taken over by the (dropped) `entityTypeToBeReplacedWith`
+// collection. If an error occurs mid-operation, both collections are guaranteed to be left untouched under
+// their original names.
 message GrpcReplaceCollectionRequest {
-  // Name of the entity collection that will be replaced and dropped (new name)
+  // Name of the collection that will be replaced: its current contents are dropped, and it will end up
+  // holding the contents of `entityTypeToBeReplacedWith` under this same name.
   string entityTypeToBeReplaced = 1;
-  // Name of the entity collection that will become the successor of the original collection (old name)
+  // Name of the collection whose contents become the new contents of `entityTypeToBeReplaced`. This
+  // collection itself no longer exists under its own name once the replacement completes.
   string entityTypeToBeReplacedWith = 2;
 }
 
@@ -359,7 +517,7 @@ message GrpcReplaceCollectionResponse {
 
 // Request for acquiring the size of an entity collection.
 message GrpcEntityCollectionSizeRequest {
-  // The entity type of the collection - (count of entities stored).
+  // The entity type (collection name) whose size (count of entities stored) should be returned.
   string entityType = 1;
 }
 
@@ -369,7 +527,7 @@ message GrpcEntityCollectionSizeResponse {
   int32 size = 1;
 }
 
-// Response for Close request that commits or rollbacks the changes in the session.
+// Request for Close, which commits or rollbacks the changes in the session and terminates it.
 message GrpcCloseRequest {
   // Contains the requested commit behaviour
   GrpcCommitBehavior commitBehaviour = 1;
@@ -425,221 +583,330 @@ message GrpcGoLiveAndCloseResponse {
   int32 catalogSchemaVersion = 3;
 }
 
+// One message of the GoLiveAndCloseWithProgress stream. Intermediate messages report only
+// `progressInPercent` (throttled to at most once per second, and only when the percentage has
+// increased); `catalogVersion`/`catalogSchemaVersion` are left at their zero default on those messages
+// since they are not yet meaningful. The final message always carries `progressInPercent == 100` together
+// with a populated `catalogVersion`/`catalogSchemaVersion`, and ends the stream.
 message GrpcGoLiveAndCloseWithProgressResponse {
-  // Contains next catalog version
+  // Contains next catalog version. Only populated on the final message (`progressInPercent == 100`); left
+  // at its default (`0`) on intermediate progress-only messages.
   int64 catalogVersion = 1;
   // Contains the version of the catalog schema that will be valid at the moment of closing the session.
   // If session relates to a writable transaction, this schema version becomes valid at the moment the next catalog
-  // version (i.e. the one that is returned in the response) becomes visible.
+  // version (i.e. the one that is returned in the response) becomes visible. Only populated on the final
+  // message (`progressInPercent == 100`); left at its default (`0`) on intermediate progress-only messages.
   int32 catalogSchemaVersion = 2;
-  // The progress of the go live operation in percents.
+  // Progress of the go-live operation, 0-100. Monotonically increasing across messages; the final message
+  // in the stream always carries 100.
   int32 progressInPercent = 3;
 }
 
-// Response to a catalog backup request.
+// Request to back up a catalog and stream the backup file to the client.
 message GrpcBackupCatalogRequest {
-  // The moment in time to which the catalog should be backed up. Might be null for current time.
+  // The moment in time to back up the catalog's state to. If unset, defaults to the current moment
+  // (subject to being overridden by `catalogVersion`, see below).
   GrpcOffsetDateTime pastMoment = 1;
   // True, if the WAL should be included in the backup. Use false if you want to restore catalog in exact state as
   // it was at the pastMoment.
   bool includingWAL = 2;
-  // precise catalog version to create backup for, or null to create backup for the latest version,
-  // when set not null, the pastMoment parameter is ignored
+  // Precise catalog version to create the backup for. If unset, defaults to the latest version - or, when
+  // `pastMoment` is set, the version resolved from `pastMoment`. When this field is set, `pastMoment` is
+  // ignored regardless of whether it is also set.
   google.protobuf.Int64Value catalogVersion = 3;
 }
 
 // Response to a catalog backup request.
 message GrpcBackupCatalogResponse {
-  // the task that is used to backup the catalog and getting its progress
+  // Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+  // finished, retrieve the resulting backup file.
   GrpcTaskStatus taskStatus = 1;
 }
 
-// Response to a catalog full backup request.
+// Response to a catalog full backup request (a backup that includes the entire catalog history, not just
+// the current state).
 message GrpcFullBackupCatalogResponse {
-  // the task that is used to backup the catalog and getting its progress
+  // Handle to the asynchronous backup task; use it to poll or stream the task's progress and, once
+  // finished, retrieve the resulting backup file.
   GrpcTaskStatus taskStatus = 1;
 }
 
-// Request for acquiring the list of all entity types.
+// Response to GetAllEntityTypes request.
 message GrpcEntityTypesResponse {
-  // The list of all entity types.
+  // Names of all entity collections (entity types) defined in the catalog.
   repeated string entityTypes = 1;
 }
 
-// Request for specifying a query to be executed.
+// Request for specifying a full EvitaQL query (filter, order and require blocks) to be executed.
 message GrpcQueryRequest {
-  // The string part of the parametrised query.
+  // The string part of the parametrised query, e.g. `query(collection('Product'), filterBy(entityPrimaryKeyInSet(?)))`.
+  // Parameter values are not embedded in this string but supplied separately via `positionalQueryParams`/
+  // `namedQueryParams` below. A `?` placeholder is a positional parameter, an `@name` placeholder is a
+  // named parameter - see `positionalQueryParams` for the full binding contract, which applies identically here.
   string query = 1;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `query`, bound in encounter order: the first `?` in the
+  // parsed string binds to `positionalQueryParams[0]`, the second to `positionalQueryParams[1]`, and so on
+  // (FIFO). Supplying fewer values than there are `?` placeholders fails the request with "Missing argument
+  // of index N."; extra values are ignored.
   repeated GrpcQueryParam positionalQueryParams = 2;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `query`, keyed by the name used after `@` in the string
+  // (without the `@` prefix). An `@name` placeholder with no matching map entry fails the request with
+  // "Missing argument of name `name`."; extra map entries are ignored.
   map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
-// Request for specifying a query to be executed.
+// Request for specifying a full EvitaQL query with parameter values embedded directly in the string (no
+// separate positional/named parameter binding). Internal/unsafe use only - see the `QueryUnsafe` RPC
+// comment: applications should use `GrpcQueryRequest` instead.
 message GrpcQueryUnsafeRequest {
-  // The string part of the parametrised query.
+  // The complete query string, with any parameter values already embedded (no `?`/`@name` placeholders
+  // to resolve).
   string query = 1;
 }
 
 // Response to Query request.
 message GrpcQueryResponse {
-  // The fetched record page with entities.
+  // The fetched page or strip of entities (in whichever of the three representations the query's
+  // `require` block asked for - see `GrpcDataChunk`).
   GrpcDataChunk recordPage = 1;
-  // The computed extra results.
+  // Extra results computed by `require` constraints beyond the entity page itself (facet summary,
+  // hierarchy statistics, price histograms, etc.). Unset (default) if the query's `require` block
+  // requested none of these.
   GrpcExtraResults extraResults = 2;
 }
 
-// Response for query request executed when searched for exactly one entity. The used field is decided by the require block in the query.
+// Response for a query executed via QueryOne, i.e. expecting zero or one matching entity. At most one of
+// `entityReference`/`sealedEntity`/`binaryEntity` is populated. If an entity matched, which one is chosen
+// the same way as in `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block yields
+// `entityReference`; an `entityFetch` requirement yields `sealedEntity` (structured form) or `binaryEntity`
+// (binary storage form), depending on whether the session uses the binary storage format. If no entity
+// matched the query, all three fields are left unset - this is not an error.
 message GrpcQueryOneResponse {
-  // Entity reference of the found entity.
+  // The matched entity as a reference (type + primary key only). See the message-level comment for when
+  // this field (vs. the other two) is populated.
   GrpcEntityReference entityReference = 1;
-  // Sealed entity of the found entity.
+  // The matched entity, fully fetched in structured (non-binary) form. See the message-level comment for
+  // when this field (vs. the other two) is populated.
   GrpcSealedEntity sealedEntity = 2;
-  // Binary entity of the found entity.
+  // The matched entity, fully fetched in the server's binary storage format. See the message-level comment
+  // for when this field (vs. the other two) is populated.
   GrpcBinaryEntity binaryEntity = 3;
 }
 
-// Response for query request executed when searched for a list of entities. The used field is decided by the require block in the query.
+// Response for a query executed via QueryList, i.e. expecting a flat list of matching entities (no paging
+// metadata - use plain `Query` via `GrpcQueryResponse` if paging is needed). Exactly one of
+// `entityReferences`/`sealedEntities`/`binaryEntities` is the active field, chosen the same way as in
+// `GrpcDataChunk`: no `entityFetch` requirement in the query's `require` block selects `entityReferences`;
+// an `entityFetch` requirement selects `sealedEntities` (structured form) or `binaryEntities` (binary
+// storage form), depending on whether the session uses the binary storage format. The other two fields are
+// always left empty; note the active field is itself also empty when zero entities matched.
 message GrpcQueryListResponse {
+  // Matched entities as references (type + primary key only). See the message-level comment for when this
+  // field (vs. the other two) is the active one.
   repeated GrpcEntityReference entityReferences = 1;
+  // Matched entities, fully fetched in structured (non-binary) form. See the message-level comment for
+  // when this field (vs. the other two) is the active one.
   repeated GrpcSealedEntity sealedEntities = 2;
+  // Matched entities, fully fetched in the server's binary storage format. See the message-level comment
+  // for when this field (vs. the other two) is the active one.
   repeated GrpcBinaryEntity binaryEntities = 3;
 }
 
-// Request for upserting an entity that should return an entity with required richness.
+// Request for upserting (inserting/updating) an entity and returning it fetched in the richness
+// described by `require`.
 message GrpcUpsertEntityRequest {
-  // Either Upsert or Delete entity mutation.
+  // The mutation to apply - either an upsert (insert/update) or a delete mutation for the entity.
   GrpcEntityMutation entityMutation = 1;
-  // The string part of the parametrised query require part.
+  // The string part of a parametrised `require` query fragment (e.g. `entityFetch(attributeContentAll())`)
+  // describing how richly to fetch the entity back after the mutation is applied. `?`/`@name` placeholders
+  // are bound the same way as `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there
+  // for the full binding contract.
   string require = 2;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+  // `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
   repeated GrpcQueryParam positionalQueryParams = 3;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `require`, keyed by name (without the `@` prefix) - see
+  // `GrpcEntityRequest.namedQueryParams` for the full binding contract.
   map<string, GrpcQueryParam> namedQueryParams = 4;
 }
 
-// Request for deleting an entity that should return the deleted entity with required richness.
+// Request for deleting a single entity by primary key and returning it fetched in the richness described
+// by `require` before deletion.
 message GrpcDeleteEntityRequest {
-  // Entity type of the entity to be deleted.
+  // Entity type (collection name) the entity to delete belongs to.
   string entityType = 1;
-  // Primary key of the entity to be deleted.
+  // Primary key of the entity to delete. Effectively mandatory despite the wrapper type: the server reads
+  // its value directly without checking presence, so an unset value is treated identically to an explicit
+  // `0` rather than as "no primary key" - always set this field explicitly.
   google.protobuf.Int32Value primaryKey = 2;
-  // The string part of the parametrised query require part.
+  // The string part of a parametrised `require` query fragment describing how richly to fetch the entity
+  // back before it is deleted. `?`/`@name` placeholders are bound the same way as
+  // `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+  // contract.
   string require = 3;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+  // `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
   repeated GrpcQueryParam positionalQueryParams = 4;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `require`, keyed by name (without the `@` prefix) - see
+  // `GrpcEntityRequest.namedQueryParams` for the full binding contract.
   map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
-// Request for deleting an entity that should return the archived entity with required richness.
+// Request for archiving a single entity by primary key and returning it fetched in the richness described
+// by `require`.
 message GrpcArchiveEntityRequest {
-  // Entity type of the entity to be archived.
+  // Entity type (collection name) the entity to archive belongs to.
   string entityType = 1;
-  // Primary key of the entity to be archived.
+  // Primary key of the entity to archive. Effectively mandatory despite the wrapper type: the server reads
+  // its value directly without checking presence, so an unset value is treated identically to an explicit
+  // `0` rather than as "no primary key" - always set this field explicitly.
   google.protobuf.Int32Value primaryKey = 2;
-  // The string part of the parametrised query require part.
+  // The string part of a parametrised `require` query fragment describing how richly to fetch the entity
+  // back after it is archived. `?`/`@name` placeholders are bound the same way as
+  // `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+  // contract.
   string require = 3;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+  // `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
   repeated GrpcQueryParam positionalQueryParams = 4;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `require`, keyed by name (without the `@` prefix) - see
+  // `GrpcEntityRequest.namedQueryParams` for the full binding contract.
   map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
-// Request for deleting an entity that should return the restored entity with required richness.
+// Request for restoring a single previously archived entity by primary key and returning it fetched in
+// the richness described by `require`.
 message GrpcRestoreEntityRequest {
-  // Entity type of the entity to be restored.
+  // Entity type (collection name) the entity to restore belongs to.
   string entityType = 1;
-  // Primary key of the entity to be restored.
+  // Primary key of the entity to restore. Effectively mandatory despite the wrapper type: the server reads
+  // its value directly without checking presence, so an unset value is treated identically to an explicit
+  // `0` rather than as "no primary key" - always set this field explicitly.
   google.protobuf.Int32Value primaryKey = 2;
-  // The string part of the parametrised query require part.
+  // The string part of a parametrised `require` query fragment describing how richly to fetch the entity
+  // back after it is restored. `?`/`@name` placeholders are bound the same way as
+  // `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+  // contract.
   string require = 3;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+  // `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
   repeated GrpcQueryParam positionalQueryParams = 4;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `require`, keyed by name (without the `@` prefix) - see
+  // `GrpcEntityRequest.namedQueryParams` for the full binding contract.
   map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
-// Request for deleting a collection of entities specified by a query.
+// Request for deleting all entities matched by a query. Beware: without a `page()`/`strip()` requirement
+// in the query's `require` block to bound the result, at most 20 entities are deleted (the engine's
+// default page size) - add an explicit `page()`/`strip()` requirement to remove more.
 message GrpcDeleteEntitiesRequest {
-  // The string part of the parametrised query.
+  // The string part of the parametrised query. `?`/`@name` placeholders are bound the same way as
+  // `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+  // contract.
   string query = 1;
-  // The positional query parameters.
+  // Values for the `?` positional placeholders in `query`, bound in encounter order (FIFO) - see
+  // `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
   repeated GrpcQueryParam positionalQueryParams = 2;
-  // The named query parameters.
+  // Values for the `@name` named placeholders in `query`, keyed by name (without the `@` prefix) - see
+  // `GrpcEntityRequest.namedQueryParams` for the full binding contract.
   map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
-// Response to UpsertEntity request. The used field is decided by the require block in the query.
+// Response to UpsertEntity request.
 message GrpcUpsertEntityResponse {
-  // The upserted entity.
+  // Exactly one of these is set. `entity` is set when `GrpcUpsertEntityRequest.require` has an
+  // `entityFetch` requirement. Otherwise a reference is returned: `entityReferenceWithAssignedPrimaryKeys`
+  // when the upsert caused reference primary keys to be reassigned (e.g. due to reflected reference
+  // schemas), or plain `entityReference` otherwise.
   oneof response {
-    // The upserted entity reference.
+    // The upserted entity as a reference (type + primary key only).
     GrpcEntityReference entityReference = 1;
-    // The upserted entity.
+    // The upserted entity, fully fetched per `GrpcUpsertEntityRequest.require`.
     GrpcSealedEntity entity = 2;
-    // The upserted entity reference with reassigned primary keys
+    // The upserted entity reference together with any reference primary keys that were reassigned as a
+    // side effect of the upsert.
     GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;
   }
 }
 
 // Response to DeleteEntity request.
 message GrpcDeleteEntityResponse {
-  // The deleted entity. The used field is decided by the require block in the query.
+  // At most one of these is set. If an entity with the requested primary key existed and was deleted,
+  // which field is chosen by whether `GrpcDeleteEntityRequest.require` has an `entityFetch` requirement:
+  // `entity` (fully fetched, as it was immediately before deletion) if it does, `entityReference`
+  // otherwise. Neither is set if no entity with the requested primary key existed to delete.
   oneof response {
-    // The deleted entity reference.
+    // The deleted entity as a reference (type + primary key only).
     GrpcEntityReference entityReference = 1;
-    // The deleted entity.
+    // The deleted entity, fully fetched (as it was immediately before deletion) per
+    // `GrpcDeleteEntityRequest.require`.
     GrpcSealedEntity entity = 2;
   }
 }
 
 // Response to ArchiveEntity request.
 message GrpcArchiveEntityResponse {
-  // The archived entity. The used field is decided by the require block in the query.
+  // At most one of these is set. If an entity with the requested primary key existed and was archived,
+  // which field is chosen by whether `GrpcArchiveEntityRequest.require` has an `entityFetch` requirement:
+  // `entity` (fully fetched) if it does, `entityReference` otherwise. Neither is set if no entity with the
+  // requested primary key existed to archive.
   oneof response {
-    // The archived entity reference.
+    // The archived entity as a reference (type + primary key only).
     GrpcEntityReference entityReference = 1;
-    // The archived entity.
+    // The archived entity, fully fetched per `GrpcArchiveEntityRequest.require`.
     GrpcSealedEntity entity = 2;
   }
 }
 
 // Response to RestoreEntity request.
 message GrpcRestoreEntityResponse {
-  // The restored entity. The used field is decided by the require block in the query.
+  // At most one of these is set. If an entity with the requested primary key existed and was restored,
+  // which field is chosen by whether `GrpcRestoreEntityRequest.require` has an `entityFetch` requirement:
+  // `entity` (fully fetched) if it does, `entityReference` otherwise. Neither is set if no archived entity
+  // with the requested primary key existed to restore.
   oneof response {
-    // The restored entity reference.
+    // The restored entity as a reference (type + primary key only).
     GrpcEntityReference entityReference = 1;
-    // The restored entity.
+    // The restored entity, fully fetched per `GrpcRestoreEntityRequest.require`.
     GrpcSealedEntity entity = 2;
   }
 }
 
-// Response to DeleteEntity request when hierarchy has been specified in filter.
+// Response to DeleteEntityAndItsHierarchy, which removes a hierarchical root entity together with every
+// entity of the same type that transitively references it as a parent.
 message GrpcDeleteEntityAndItsHierarchyResponse {
-  // Count of deleted entities.
+  // Total number of entities deleted (the root plus its whole nested hierarchy).
   int32 deletedEntities = 1;
+  // At most one of these is set. Unlike the equivalent oneof on `GrpcDeleteEntityResponse`, this RPC
+  // always fetches the root entity's body - even when `GrpcDeleteEntityRequest.require` is empty - so in
+  // practice `deletedRootEntity` is the field that gets populated; `deletedRootEntityReference` is
+  // currently unreachable in the server implementation. Neither is set if no entity with the requested
+  // primary key existed to delete. Covers only the root entity - the rest of the deleted hierarchy is
+  // available solely as primary keys via `deletedEntityPrimaryKeys` below.
   oneof response {
-    // The deleted root entity reference.
+    // The deleted root entity as a reference (type + primary key only). Currently never populated by the
+    // server - see the message-level comment above.
     GrpcEntityReference deletedRootEntityReference = 2;
-    // The deleted root entity.
+    // The deleted root entity, fully fetched (as it was immediately before deletion) per
+    // `GrpcDeleteEntityRequest.require`.
     GrpcSealedEntity deletedRootEntity = 3;
   }
-  // Deleted entity primary keys.
+  // Primary keys of every entity deleted as part of the hierarchy removal, including the root entity's
+  // own primary key.
   repeated int32 deletedEntityPrimaryKeys = 4;
 }
 
-// Response to DeleteEntities request that deletes all entities that match the sent query..
+// Response to DeleteEntities request that deletes all entities matched by the sent query.
 message GrpcDeleteEntitiesResponse {
-  // Count of deleted entities.
+  // Total number of entities deleted.
   int32 deletedEntities = 1;
-  // The deleted entity bodies.
+  // The deleted entities' bodies, fully fetched (as they were immediately before deletion) per the
+  // `require` block of the query in `GrpcDeleteEntitiesRequest`. Empty if that `require` block had no
+  // `entityFetch` requirement.
   repeated GrpcSealedEntity deletedEntityBodies = 2;
 }
 
-// Request for opening a transaction.
+// Response to GetTransactionId request, returned after a new transaction is opened.
 message GrpcTransactionResponse {
   // The current version of the catalog the transaction is bound to.
   int64 catalogVersion = 1;
@@ -740,10 +1007,18 @@ service EvitaSessionService {
 
   // Procedure that returns the version of the catalog at a specific moment in time.
   rpc GetCatalogVersionAt(GrpcCatalogVersionAtRequest) returns (GrpcCatalogVersionAtResponse);
-  // Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+  // Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+  // the request criteria.
   rpc GetMutationsHistoryPage(GetMutationsHistoryPageRequest) returns (GetMutationsHistoryPageResponse);
-  // Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+  // Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+  // match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+  rpc GetMutationsHistoryPageForward(GetMutationsHistoryPageRequest) returns (GetMutationsHistoryPageResponse);
+  // Procedure that returns stream of all past mutations in reversed (newest-first) order that match the
+  // request criteria.
   rpc GetMutationsHistory(GetMutationsHistoryRequest) returns (stream GetMutationsHistoryResponse);
+  // Procedure that returns stream of all past mutations in chronological (oldest-first) order that match
+  // the request criteria - the forward counterpart of GetMutationsHistory.
+  rpc GetMutationsHistoryForward(GetMutationsHistoryRequest) returns (stream GetMutationsHistoryResponse);
   // Procedure that returns details of a specific transactions that move catalog to specified versions.
   rpc GetTransactionOverview(GetTransactionOverviewRequest) returns (GetTransactionOverviewResponse);
   // Procedure that registers a change capture.

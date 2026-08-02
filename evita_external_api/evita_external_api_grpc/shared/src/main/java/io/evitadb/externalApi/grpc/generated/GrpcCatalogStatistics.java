@@ -74,7 +74,7 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId_;
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -86,7 +86,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -98,7 +98,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * name of the catalog
+   * unique identifier of the catalog
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -113,7 +113,7 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * name of the catalog
+   * The catalog's unique name, used to address it via the API.
    * </pre>
    *
    * <code>string catalogName = 2;</code>
@@ -134,7 +134,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * name of the catalog
+   * The catalog's unique name, used to address it via the API.
    * </pre>
    *
    * <code>string catalogName = 2;</code>
@@ -160,11 +160,12 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * true if the catalog is corrupted (other data will be not available)
+   * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
    * </pre>
    *
    * <code>bool corrupted = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=413
+   *     See GrpcEvitaDataTypes.proto;l=494
    * @return The corrupted.
    */
   @java.lang.Override
@@ -176,7 +177,8 @@ private static final long serialVersionUID = 0L;
   private int catalogState_ = 0;
   /**
    * <pre>
-   * current state of the catalog, null for corrupted catalog
+   * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+   * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -187,7 +189,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * current state of the catalog, null for corrupted catalog
+   * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+   * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -992,7 +995,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> catalogIdBuilder_;
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1003,7 +1006,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1018,7 +1021,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1038,7 +1041,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1056,7 +1059,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1081,7 +1084,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1098,7 +1101,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1110,7 +1113,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1125,7 +1128,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * unique identifier of the catalog
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
@@ -1147,7 +1150,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * name of the catalog
+     * The catalog's unique name, used to address it via the API.
      * </pre>
      *
      * <code>string catalogName = 2;</code>
@@ -1167,7 +1170,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * The catalog's unique name, used to address it via the API.
      * </pre>
      *
      * <code>string catalogName = 2;</code>
@@ -1188,7 +1191,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * The catalog's unique name, used to address it via the API.
      * </pre>
      *
      * <code>string catalogName = 2;</code>
@@ -1205,7 +1208,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * The catalog's unique name, used to address it via the API.
      * </pre>
      *
      * <code>string catalogName = 2;</code>
@@ -1219,7 +1222,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * name of the catalog
+     * The catalog's unique name, used to address it via the API.
      * </pre>
      *
      * <code>string catalogName = 2;</code>
@@ -1240,11 +1243,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=413
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @return The corrupted.
      */
     @java.lang.Override
@@ -1254,11 +1258,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=413
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @param value The corrupted to set.
      * @return This builder for chaining.
      */
@@ -1272,11 +1277,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=413
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearCorrupted() {
@@ -1289,7 +1295,8 @@ private static final long serialVersionUID = 0L;
     private int catalogState_ = 0;
     /**
      * <pre>
-     * current state of the catalog, null for corrupted catalog
+     * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+     * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -1300,7 +1307,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * current state of the catalog, null for corrupted catalog
+     * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+     * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -1315,7 +1323,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * current state of the catalog, null for corrupted catalog
+     * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+     * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -1328,7 +1337,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * current state of the catalog, null for corrupted catalog
+     * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+     * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
@@ -1346,7 +1356,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * current state of the catalog, null for corrupted catalog
+     * Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
+     * consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>

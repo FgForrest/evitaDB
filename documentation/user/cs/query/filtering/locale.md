@@ -5,8 +5,8 @@ date: '27.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
-translated: true
+translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Entity locale equals
 
@@ -32,56 +32,57 @@ místo jazykového tagu. Toto je přirozený způsob práce s daty specifickými
 
 <NoteTitle toggles="true">
 
-##### Co je jazykový tag?
+##### Co je to jazykový tag?
 </NoteTitle>
 
-Jazykový tag, známý také jako locale nebo jazykový identifikátor, je standardizovaný formát používaný k reprezentaci konkrétního
-jazyka nebo lokality v počítačových systémech a softwaru. Poskytuje způsob, jak identifikovat a rozlišovat jazyky,
+Jazykový tag, známý také jako locale nebo identifikátor jazyka, je standardizovaný formát používaný k reprezentaci konkrétního
+jazyka nebo locale v počítačových systémech a softwaru. Umožňuje identifikovat a rozlišovat jazyky,
 dialekty a regionální varianty.
 
 Nejčastěji používaným formátem pro jazykové tagy je standard [BCP 47](https://www.rfc-editor.org/info/bcp47) (IETF Best
-Current Practice 47). BCP 47 definuje syntaxi a sadu pravidel pro vytváření jazykových tagů.
+Current Practice 47). BCP 47 definuje syntaxi a soubor pravidel pro sestavování jazykových tagů.
 
 Jazykový tag je obvykle sestaven kombinací subtágů, které reprezentují různé komponenty. Zde je
 příklad rozkladu jazykového tagu: `en-US`.
 
-1. **Primární jazykový subtag:** V uvedeném příkladu *en* představuje primární jazykový subtag, který označuje
-   angličtinu jako primární jazyk.
+1. **Primární jazykový subtag:** V uvedeném příkladu *en* označuje primární jazykový subtag, který určuje,
+   že primárním jazykem je angličtina.
 
-2. **Regionální subtag:** Regionální subtag je volitelný a představuje konkrétní region nebo zemi spojenou s
-   jazykem. V příkladu *US* označuje Spojené státy.
+2. **Regionální subtag:** Regionální subtag je volitelný a označuje konkrétní region nebo zemi spojenou s
+   jazykem. V příkladu *US* označuje Spojené státy americké.
 
-Jazykové tagy mohou také obsahovat další subtagy pro specifikaci variant, jako je skript, varianta a rozšíření,
-což umožňuje detailnější identifikaci jazyka.
+Jazykové tagy mohou také obsahovat další subtagy pro specifikaci variant, jako je písmo, varianta a rozšíření,
+což umožňuje ještě podrobnější identifikaci jazyka.
 
 <LS to="g">
 
-V GraphQL API pro snadnější použití převádíme všechny lokality definované v uložených datech na enum pro lepší doplňování kódu.
-GraphQL však nepodporuje pomlčky v enum položkách, a proto používáme místo nich podtržítka. Jinak je syntaxe
+V GraphQL API pro snadnější použití převádíme všechny locale definované v uložených datech na enum, což zlepšuje doplňování kódu.
+GraphQL však nepodporuje pomlčky v položkách enum, a proto místo nich používáme podtržítka. Jinak je syntaxe
 stejná.
 
 </LS>
 
 </Note>
 
-Pokud jakékoliv omezení filtru v dotazu cílí na lokalizovaný atribut, musí být také zadán `entityLocaleEquals`,
+Pokud jakýkoli filtr v dotazu cílí na lokalizovaný atribut, musí být také zadán `entityLocaleEquals`,
 jinak interpret dotazu vrátí chybu. Lokalizované atributy **musí** být identifikovány jak svým názvem,
 tak jazykovým tagem, aby mohly být použity.
 
 <Note type="warning">
 
-Ve filtrační části dotazu je povoleno pouze jedno použití `entityLocaleEquals`. V současnosti není možné
-přepínat kontext mezi různými částmi filtru a sestavovat dotazy jako *najdi produkt, jehož název v `en-US`
+Ve filtrační části dotazu je povoleno pouze jedno použití `entityLocaleEquals`. V současné době není možné
+přepínat kontext mezi různými částmi filtru a sestavovat dotazy typu *najdi produkt, jehož název v `en-US`
 je "screwdriver" nebo v `cs` je "šroubovák"*.
 
-Také není možné vynechat specifikaci jazyka pro lokalizovaný atribut a ptát se například: *najdi
+Také není možné vynechat specifikaci jazyka u lokalizovaného atributu a ptát se například: *najdi
 produkt, jehož název v jakémkoli jazyce je "screwdriver"*.
 
-Ačkoliv je technicky možné implementovat podporu těchto úloh v evitaDB, jedná se o okrajové případy a bylo potřeba řešit důležitější scénáře.
+Ačkoli je technicky možné implementovat podporu těchto úloh v evitaDB, jedná se o okrajové případy a
+bylo potřeba řešit důležitější scénáře.
 
 </Note>
 
-Pro otestování dotazu specifického pro lokalitu se musíme zaměřit na kategorii *Vouchers for shareholders* v našem
+Pro otestování dotazu specifického pro locale se zaměříme na kategorii *Vouchers for shareholders* v našem
 [ukázkovém datasetu](../../get-started/query-our-dataset.md). Víme, že existují produkty, které mají pouze anglickou
 (*en_US*) lokalizaci. Pro výběr produktů s anglickou lokalizací můžeme použít tento dotaz:
 
@@ -119,16 +120,16 @@ Pro otestování dotazu specifického pro lokalitu se musíme zaměřit na kateg
 </LS>
 
 Všimnete si, že výstup obsahuje dva sloupce: *code* a *name*. *code* není lokalizovaný atribut, zatímco
-*name* ano. Názvy uvedené v odpovědi odrážejí anglickou lokalitu, která je součástí filtračního omezení.
+*name* ano. Názvy uvedené v odpovědi odpovídají anglické lokalizaci, která je součástí filtrační podmínky.
 
-Pokud použijete `entityLocaleEquals` ve svém filtru, všechna vrácená lokalizovaná data (jak
+Pokud ve filtru použijete `entityLocaleEquals`, všechna vrácená lokalizovaná data (jak
 [atributy](../../use/data-model.md#lokalizované-atributy), tak [asociovaná data](../../use/data-model.md#lokalizovaná-přidružená-data))
-budou respektovat filtrovanou lokalitu. Pokud potřebujete data pro jiné lokality než tu použitou ve filtračním omezení,
-můžete použít požadavek [`data-in-locale`](../requirements/fetching.md#data-v-lokalizacích).
+budou respektovat filtrovanou lokalizaci. Pokud potřebujete data pro jiné lokalizace, než je ta použitá ve filtrační podmínce,
+můžete využít požadavek [`data-in-locale`](../requirements/fetching.md#data-v-lokalizacích).
 
 </Note>
 
-Ale když požádáme o produkty v české lokalitě:
+Ale když požádáme o produkty v české lokalizaci:
 
 <SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -136,7 +137,7 @@ Ale když požádáme o produkty v české lokalitě:
 
 </SourceCodeTabs>
 
-... dotaz nevrátí žádný výsledek, i když víme, že v této kategorii produkty jsou.
+... dotaz nevrátí žádný výsledek, i když víme, že v této kategorii produkty existují.
 
 <Note type="info">
 

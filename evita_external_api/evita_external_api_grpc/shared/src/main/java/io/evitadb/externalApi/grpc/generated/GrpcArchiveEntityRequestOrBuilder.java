@@ -33,7 +33,7 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
 
   /**
    * <pre>
-   * Entity type of the entity to be archived.
+   * Entity type (collection name) the entity to archive belongs to.
    * </pre>
    *
    * <code>string entityType = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   java.lang.String getEntityType();
   /**
    * <pre>
-   * Entity type of the entity to be archived.
+   * Entity type (collection name) the entity to archive belongs to.
    * </pre>
    *
    * <code>string entityType = 1;</code>
@@ -53,7 +53,9 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
 
   /**
    * <pre>
-   * Primary key of the entity to be archived.
+   * Primary key of the entity to archive. Effectively mandatory despite the wrapper type: the server reads
+   * its value directly without checking presence, so an unset value is treated identically to an explicit
+   * `0` rather than as "no primary key" - always set this field explicitly.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value primaryKey = 2;</code>
@@ -62,7 +64,9 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   boolean hasPrimaryKey();
   /**
    * <pre>
-   * Primary key of the entity to be archived.
+   * Primary key of the entity to archive. Effectively mandatory despite the wrapper type: the server reads
+   * its value directly without checking presence, so an unset value is treated identically to an explicit
+   * `0` rather than as "no primary key" - always set this field explicitly.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value primaryKey = 2;</code>
@@ -71,7 +75,9 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   com.google.protobuf.Int32Value getPrimaryKey();
   /**
    * <pre>
-   * Primary key of the entity to be archived.
+   * Primary key of the entity to archive. Effectively mandatory despite the wrapper type: the server reads
+   * its value directly without checking presence, so an unset value is treated identically to an explicit
+   * `0` rather than as "no primary key" - always set this field explicitly.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value primaryKey = 2;</code>
@@ -80,7 +86,10 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
 
   /**
    * <pre>
-   * The string part of the parametrised query require part.
+   * The string part of a parametrised `require` query fragment describing how richly to fetch the entity
+   * back after it is archived. `?`/`&#64;name` placeholders are bound the same way as
+   * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+   * contract.
    * </pre>
    *
    * <code>string require = 3;</code>
@@ -89,7 +98,10 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   java.lang.String getRequire();
   /**
    * <pre>
-   * The string part of the parametrised query require part.
+   * The string part of a parametrised `require` query fragment describing how richly to fetch the entity
+   * back after it is archived. `?`/`&#64;name` placeholders are bound the same way as
+   * `positionalQueryParams`/`namedQueryParams` on `GrpcEntityRequest` - see there for the full binding
+   * contract.
    * </pre>
    *
    * <code>string require = 3;</code>
@@ -100,7 +112,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
 
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -109,7 +122,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
       getPositionalQueryParamsList();
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -117,7 +131,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index);
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -125,7 +140,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   int getPositionalQueryParamsCount();
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -134,7 +150,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
       getPositionalQueryParamsOrBuilderList();
   /**
    * <pre>
-   * The positional query parameters.
+   * Values for the `?` positional placeholders in `require`, bound in encounter order (FIFO) - see
+   * `GrpcEntityRequest.positionalQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 4;</code>
@@ -144,7 +161,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
 
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -152,7 +170,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   int getNamedQueryParamsCount();
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -167,7 +186,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   getNamedQueryParams();
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -176,7 +196,8 @@ public interface GrpcArchiveEntityRequestOrBuilder extends
   getNamedQueryParamsMap();
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>
@@ -188,7 +209,8 @@ io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrDefaul
 io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue);
   /**
    * <pre>
-   * The named query parameters.
+   * Values for the `&#64;name` named placeholders in `require`, keyed by name (without the `&#64;` prefix) - see
+   * `GrpcEntityRequest.namedQueryParams` for the full binding contract.
    * </pre>
    *
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 5;</code>

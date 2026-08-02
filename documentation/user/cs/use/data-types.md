@@ -5,8 +5,8 @@ date: '23.8.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: 'bb96ccb40cb364520a11f5b6d733ff33c7e7a15c'
 ---
 Tento dokument uvádí všechny datové typy podporované evitaDB, které lze použít v [atributech](data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) nebo [asociovaných datech](data-model.md#přidružená-data) pro ukládání informací relevantních pro klienta.
 
@@ -262,12 +262,14 @@ na straně klienta a být explicitní ohledně offsetu již od začátku.
 
 <LS to="j,e,g,r">
 <NoteTitle toggles="true">
+
 ##### Proč interně používáme OffsetDateTime pro časové informace?
 </NoteTitle>
 </LS>
 
 <LS to="c">
 <NoteTitle toggles="true">
+
 ##### Proč interně používáme DateTimeOffset pro časové informace?
 </NoteTitle>
 </LS>

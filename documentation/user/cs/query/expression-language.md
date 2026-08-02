@@ -1,6 +1,6 @@
 ---
-commit: c382cf89a086e9b35e810e2c3651673c0f862dc3
 translated: 'true'
+commit: 'bb96ccb40cb364520a11f5b6d733ff33c7e7a15c'
 ---
 # Výrazový jazyk (EvitaEL)
 
@@ -193,6 +193,69 @@ Pokud je referencí více (např. `categories`), výsledkem je seznam.
 | `$ref.attributes` | Přístup k nelokalizovaným atributům reference |
 | `$ref.localizedAttributes` | Přístup k lokalizovaným atributům reference |
 
+## Volání metod
+
+EvitaEL podporuje volání metod na objektech pomocí syntaxe tečkové notace
+`object.method(args)`. Uvnitř argumentů predikátů odkazuje samotná proměnná `$` na
+aktuálně testovaný prvek (stejně jako ve [výrazech s rozšiřovacím operátorem](#rozšiřovací-operátor-expr)).
+
+### Metody kolekcí
+
+| Metoda | Podporováno na | Argumenty | Popis |
+|---|---|---|---|
+| `size()` | seznamy, pole, mapy | 0 | Vrací počet prvků/záznamů |
+| `any(predicate)` | seznamy, pole | 1 | Vrací `true`, pokud alespoň jeden prvek splňuje predikát |
+| `all(predicate)` | seznamy, pole | 1 | Vrací `true`, pokud všechny prvky splňují predikát |
+| `none(predicate)` | seznamy, pole | 1 | Vrací `true`, pokud žádný prvek nesplňuje predikát |
+
+### Příklady
+
+**Velikost:**
+
+```
+$entity.references['categories'].size()
+$entity.attributes['tags'].size()
+```
+
+**Predikátové metody na seznamech:**
+
+```
+$entity.references['categories'].any($.referencedPrimaryKey > 5)
+// true, pokud má alespoň jedna reference na kategorii primární klíč větší než 5
+
+$entity.references['categories'].all($.attributes['priority'] < 100)
+// true, pokud mají všechny reference na kategorie prioritu menší než 100
+
+$entity.references['categories'].none($.referencedPrimaryKey == 0)
+// true, pokud žádná reference na kategorii nemá primární klíč 0
+```
+
+**Predikátové metody na polích:**
+
+```
+$entity.attributes['tags'].any($ == 'sale')
+// true, pokud se alespoň jeden tag rovná 'sale'
+
+$entity.attributes['scores'].all($ > 0)
+// true, pokud jsou všechny skóre kladné
+```
+
+**Metody s navigací v objektu:**
+
+```
+$entity.references['categories'].any($.attributes['name'] != null)
+// true, pokud má alespoň jedna reference na kategorii atribut jména, který není null
+```
+
+### Null-safe volání metod
+
+Použijte `?.` před voláním metody, pokud cílový objekt může být `null`:
+
+```
+$entity.references['brand']?.size()
+// vrátí null, pokud neexistují žádné reference na značku, jinak vrátí počet
+```
+
 ## Rozšiřovací operátor (`.*[expr]`)
 
 Rozšiřovací operátor aplikuje mapovací výraz na každý prvek kolekce nebo mapy.
@@ -316,10 +379,10 @@ $obj.optionalList?.*[$ + 1]
 Operátor null-koalescence poskytuje výchozí hodnotu, pokud se výraz vyhodnotí na `null`:
 
 ```
-expression ?? defaultValue
+výraz ?? výchozíHodnota
 ```
 
-Pokud je levá strana nenulová, vrací se její hodnota. Pokud je levá strana `null`, vyhodnotí se a vrátí pravá strana.
+Pokud je levá strana nenulová, vrátí se její hodnota. Pokud je levá strana `null`, vyhodnotí se a vrátí pravá strana.
 
 Příklady:
 
@@ -331,13 +394,12 @@ $entity.references['brand'].attributes['brandTag'] ?? 'new'
 // vrátí brandTag, nebo 'new', pokud je null
 ```
 
-Operátor `??` má vyšší prioritu než porovnávací operátory, takže závorky kolem koalescované
-hodnoty jsou nepovinné — následující dva výrazy jsou ekvivalentní:
+Operátor `??` má vyšší prioritu než porovnávací operátory, takže závorky kolem koaleskované hodnoty jsou volitelné — následující dva výrazy jsou ekvivalentní:
 
 ```
 $entity.attributes['isActive'] ?? false == true
 ($entity.attributes['isActive'] ?? false) == true
-// obě se vyhodnotí jako (isActive ?? false) == true
+// obojí se vyhodnotí jako (isActive ?? false) == true
 ```
 
 Operátor `??` lze použít i uvnitř rozšiřovacích výrazů:
@@ -391,15 +453,15 @@ Operátory jsou seřazeny od nejvyšší po nejnižší prioritu:
 
 | Priorita | Operátory | Popis |
 |---|---|---|
-| 1 | `()` | Seskupování závorkami |
-| 2 | `.` `?.` `[]` `?[]` `.*[]` `?.*[]` | Přístup k objektu, prvku, rozšiřování |
+| 1 | `()` | Seskupení pomocí závorek |
+| 2 | `.` `?.` `[]` `?[]` `.*[]` `?.*[]` `.method()` `?.method()` | Přístup k objektu, přístup k prvku, rozšíření, volání metody |
 | 3 | `!` `+` (unární) `-` (unární) | Negace, unární plus/mínus |
 | 4 | `*` `/` `%` | Násobení, dělení, modulo |
 | 5 | `+` `-` | Sčítání, odčítání |
 | 6 | `??` | Null-koalescence |
 | 7 | `>` `>=` `<` `<=` | Relační porovnání |
 | 8 | `==` `!=` | Porovnání rovnosti |
-| 9 | `^` | Logické XOR |
+| 9 | `^` | Logický XOR |
 | 10 | `&&` | Logické AND |
 | 11 | `\|\|` | Logické OR |
 | 12 | `*?` `?*?` | Rozšiřovací null-koalescence |

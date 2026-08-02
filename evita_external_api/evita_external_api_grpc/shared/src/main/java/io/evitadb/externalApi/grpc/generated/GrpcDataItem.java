@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Structure that holds a complex object. It can be either a map or an array of values.
+ * Structure that holds one node of a complex (structured) associated data value's recursive tree.
+ * A node is either a leaf primitive value, an array of child nodes, or a map of named child nodes.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataItem}
@@ -113,7 +114,7 @@ private static final long serialVersionUID = 0L;
   public static final int PRIMITIVEVALUE_FIELD_NUMBER = 1;
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -125,7 +126,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -140,7 +141,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Primitive value.
+   * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -156,7 +157,7 @@ private static final long serialVersionUID = 0L;
   public static final int ARRAYVALUE_FIELD_NUMBER = 4;
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -168,7 +169,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -183,7 +184,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The array of values.
+   * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -199,7 +200,7 @@ private static final long serialVersionUID = 0L;
   public static final int MAPVALUE_FIELD_NUMBER = 5;
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -211,7 +212,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -226,7 +227,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The map of values.
+   * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -441,7 +442,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Structure that holds a complex object. It can be either a map or an array of values.
+   * Structure that holds one node of a complex (structured) associated data value's recursive tree.
+   * A node is either a leaf primitive value, an array of child nodes, or a map of named child nodes.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataItem}
@@ -685,7 +687,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> primitiveValueBuilder_;
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -697,7 +699,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -719,7 +721,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -739,7 +741,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -757,7 +759,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -784,7 +786,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -807,7 +809,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -817,7 +819,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -835,7 +837,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Primitive value.
+     * Leaf node: the primitive value at this position of the tree (evitaDB `DataItemValue`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue primitiveValue = 1;</code>
@@ -863,7 +865,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcDataItemArray, io.evitadb.externalApi.grpc.generated.GrpcDataItemArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataItemArrayOrBuilder> arrayValueBuilder_;
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -875,7 +877,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -897,7 +899,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -917,7 +919,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -935,7 +937,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -962,7 +964,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -985,7 +987,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -995,7 +997,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -1013,7 +1015,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The array of values.
+     * Array node: the ordered child nodes at this position of the tree (evitaDB `DataItemArray`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataItemArray arrayValue = 4;</code>
@@ -1041,7 +1043,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.DataItemMap, io.evitadb.externalApi.grpc.generated.DataItemMap.Builder, io.evitadb.externalApi.grpc.generated.DataItemMapOrBuilder> mapValueBuilder_;
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1053,7 +1055,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1075,7 +1077,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1095,7 +1097,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1113,7 +1115,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1140,7 +1142,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1163,7 +1165,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1173,7 +1175,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>
@@ -1191,7 +1193,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The map of values.
+     * Map node: the named child nodes at this position of the tree (evitaDB `DataItemMap`).
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.DataItemMap mapValue = 5;</code>

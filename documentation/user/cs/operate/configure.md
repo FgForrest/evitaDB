@@ -4,15 +4,15 @@ perex: Tento článek je kompletním průvodcem konfigurací instance evitaDB.
 date: '14.7.2024'
 author: Ing. Jan Novotný
 proofreading: done
-commit: '550d04a927cac92ff1a2e14d5aaa23b87f101618'
 translated: 'true'
+commit: '29a17914b4069515a48b06254b839c82c19cf440'
 ---
-Server evitaDB je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím ukázkovým kódem:
+Server evitaDB je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím úryvkem kódu:
 
 ```yaml
-name: evitaDB                                     # [viz konfigurace Name](#name)
+name: evitaDB                                     # [viz Konfigurace názvu](#name)
 
-server:                                           # [viz konfigurace Server](#konfigurace-serveru)
+server:                                           # [viz Konfigurace serveru](#konfigurace-serveru)
   requestThreadPool:
     minThreadCount: 4
     maxThreadCount: 16
@@ -29,7 +29,7 @@ server:                                           # [viz konfigurace Server](#ko
     threadPriority: 5
     queueSize: 100
   queryTimeoutInMilliseconds: 5s
-  transactionTimeoutInMilliseconds: 5M
+  transactionTimeoutInMilliseconds: 5m
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
   quiet: false
@@ -42,7 +42,7 @@ server:                                           # [viz konfigurace Server](#ko
     trafficSamplingPercentage: 100
     trafficFlushIntervalInMilliseconds: 1m
 
-storage:                                          # [viz konfigurace Storage](#konfigurace-úložiště)
+storage:                                          # [viz Konfigurace úložiště](#konfigurace-úložiště)
   storageDirectory: "./data"
   workDirectory: "/tmp"
   lockTimeoutSeconds: 60
@@ -55,8 +55,10 @@ storage:                                          # [viz konfigurace Storage](#k
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  minCompactionIntervalMilliseconds: 1m
+  maxWasteActiveShare: 0.1
 
-export:                                           # [viz konfigurace Export](#konfigurace-exportu)
+export:                                           # [viz Konfigurace exportu](#konfigurace-exportu)
   fileSystem:
     enabled: null
     sizeLimitBytes: 1G
@@ -73,17 +75,18 @@ export:                                           # [viz konfigurace Export](#ko
     region: null
     requestTimeoutInMillis: 30s
 
-transaction:                                      # [viz konfigurace Transaction](#konfigurace-transakcí)
+transaction:                                      # [viz Konfigurace transakcí](#konfigurace-transakcí)
   transactionWorkDirectory: /tmp/evitaDB/transaction
   transactionMemoryBufferLimitSizeBytes: 16MB
   transactionMemoryRegionCount: 256
   walFileSizeBytes: 16MB
   walFileCountKept: 8
   waitForTransactionAcceptanceInMillis: 20s
-  flushFrequencyInMillis: 1s
-  conflictPolicy: [ENTITY]
+  flushFrequencyInMillis: 10s
+  checkpointIntervalInMillis: 1s
+  conflictPolicy: ENTITY
 
-cache:                                            # [viz konfigurace Cache](#konfigurace-cache)
+cache:                                            # [viz Konfigurace cache](#konfigurace-cache)
   enabled: false
   reflection: CACHE
   reevaluateEachSeconds: 60
@@ -92,7 +95,7 @@ cache:                                            # [viz konfigurace Cache](#kon
   minimalUsageThreshold: 2
   cacheSizeInBytes: null
 
-api:                                              # [viz konfigurace API](#konfigurace-api)
+api:                                              # [viz Konfigurace API](#konfigurace-api)
   workerGroupThreads: 4
   idleTimeoutInMillis: 2K
   requestTimeoutInMillis: 2K  
@@ -104,7 +107,7 @@ api:                                              # [viz konfigurace API](#konfi
     label: ["X-EvitaDB-Label"]
     clientId: ["X-EvitaDB-ClientID"]
     traceParent: ["traceparent"]
-  certificate:                                    # [viz konfigurace TLS](#konfigurace-tls) 
+  certificate:                                    # [viz Konfigurace TLS](#konfigurace-tls) 
     generateAndUseSelfSigned: true
     folderPath: './evita-server-certificates/'
     custom:
@@ -121,7 +124,7 @@ api:                                              # [viz konfigurace API](#konfi
       enabled: false
       allowedClientCertificatePaths: []
   endpoints:
-    system:                                       # [viz konfigurace System API](#konfigurace-system-api)
+    system:                                       # [viz Konfigurace System API](#konfigurace-system-api)
       enabled: null
       host: null
       exposeOn: null
@@ -130,7 +133,7 @@ api:                                              # [viz konfigurace API](#konfi
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    graphQL:                                      # [viz konfigurace GraphQL API](#konfigurace-graphql-api)
+    graphQL:                                      # [viz Konfigurace GraphQL API](#konfigurace-graphql-api)
       enabled: null
       host: null
       exposeOn: null
@@ -140,7 +143,7 @@ api:                                              # [viz konfigurace API](#konfi
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    rest:                                         # [viz konfigurace REST API](#konfigurace-rest-api)
+    rest:                                         # [viz Konfigurace REST API](#konfigurace-rest-api)
       enabled: null
       host: null
       exposeOn: null
@@ -149,7 +152,7 @@ api:                                              # [viz konfigurace API](#konfi
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    gRPC:                                         # [viz konfigurace gRPC API](#konfigurace-grpc-api)
+    gRPC:                                         # [viz Konfigurace gRPC API](#konfigurace-grpc-api)
       enabled: null
       host: null
       exposeOn: null
@@ -159,7 +162,7 @@ api:                                              # [viz konfigurace API](#konfi
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    lab:                                          # [viz konfigurace evitaLab](#konfigurace-evitalab)
+    lab:                                          # [viz Konfigurace evitaLab](#konfigurace-evitalab)
       enabled: null
       host: null
       exposeOn: null
@@ -171,7 +174,7 @@ api:                                              # [viz konfigurace API](#konfi
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    observability:                                # [viz konfigurace Observability](#konfigurace-observability)
+    observability:                                # [viz Konfigurace Observability](#konfigurace-sledovatelnosti)
       enabled: null
       host: null
       exposeOn: null
@@ -527,22 +530,22 @@ Tato sekce obsahuje obecná nastavení serveru evitaDB. Umožňuje konfigurovat 
 
 ## Konfigurace úložiště
 
-Tato sekce obsahuje možnosti konfigurace vrstvy úložiště databáze.
+Tato sekce obsahuje možnosti konfigurace pro úložnou vrstvu databáze.
 
 <dl>
     <dt>storageDirectory</dt>
     <dd>
         <p>**Výchozí:** `./data`</p>
-        <p>Definuje složku, kam evitaDB ukládá data svých katalogů. Cestu lze zadat relativně k pracovnímu
+        <p>Určuje složku, do které evitaDB ukládá data svých katalogů. Cestu lze zadat relativně k pracovnímu
         adresáři aplikace nebo v absolutní podobě (doporučeno).</p>
     </dd>
     <dt>workDirectory</dt>
     <dd>
-        <p>**Výchozí:** Java temp directory (systémová vlastnost `java.io.tmpdir`)</p>
-        <p>Definuje složku, kde evitaDB vytváří dočasné infrastrukturní soubory s krátkou životností – maximálně
+        <p>**Výchozí:** dočasný adresář Javy (systémová vlastnost `java.io.tmpdir`)</p>
+        <p>Určuje složku, ve které evitaDB vytváří dočasné infrastrukturní soubory s krátkou životností – maximálně
         po dobu běhu jedné instance evitaDB. Cestu lze zadat relativně k pracovnímu adresáři
-        aplikace nebo v absolutní podobě (doporučeno). Ve výchozím nastavení je použita Java temp složka, ale lze ji
-        přesměrovat, pokud je temp složka příliš malá nebo nevhodná pro dočasné pracovní soubory.</p>
+        aplikace nebo v absolutní podobě (doporučeno). Ve výchozím nastavení se používá dočasný adresář Javy, ale lze jej
+        přesměrovat, pokud je dočasný adresář příliš malý nebo nevhodný pro dočasné pracovní soubory.</p>
     </dd>
     <dt>lockTimeoutSeconds</dt>
     <dd>
@@ -553,40 +556,56 @@ Tato sekce obsahuje možnosti konfigurace vrstvy úložiště databáze.
     <dt>waitOnCloseSeconds</dt>
     <dd>
         <p>**Výchozí:** `60`</p>
-        <p>Určuje timeout, po který evitaDB čeká na uvolnění read handle na soubor. Pokud není handle uvolněn
-        v rámci timeoutu, volající proces obdrží výjimku. Změna této hodnoty by neměla být nutná, pokud vše funguje správně.</p>
+        <p>Určuje časový limit, po který evitaDB čeká na uvolnění čtecích handle na soubor. Pokud není handle uvolněn
+        v rámci časového limitu, volající proces obdrží výjimku. Změna této hodnoty by neměla být
+        nutná, pokud vše funguje správně.</p>
     </dd>
     <dt>outputBufferSize</dt>
     <dd>
         <p>**Výchozí:** `4MB`</p>
-        <p>Velikost výstupního bufferu určuje, jak velký buffer je držen v paměti pro výstupní účely. Velikost bufferu
-        omezuje maximální velikost jednotlivého záznamu v key/value úložišti.</p>
+        <p>Velikost výstupního bufferu určuje, jak velký buffer je uchováván v paměti pro výstupní účely. Velikost
+        bufferu omezuje maximální velikost jednotlivého záznamu v key/value úložišti dat.</p>
     </dd>
     <dt>maxOpenedReadHandles</dt>
     <dd>
         <p>**Výchozí:** `12`</p>
-        <p>Definuje maximální počet současně otevřených read handle na soubory.</p>
+        <p>Určuje maximální počet současně otevřených čtecích handle na soubory.</p>
         <Note type="warning">
             Toto nastavení by mělo být v souladu s nastavením file handle v operačním systému.
             Přečtěte si tyto články pro [Linux](https://www.baeldung.com/linux/limit-file-descriptors) nebo
-            [MacOS](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c)            
+            [MacOS](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c)
         </Note>
     </dd>
     <dt>syncWrites</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Určuje, zda úložiště vynucuje operačnímu systému flush interních bufferů na disk v pravidelných "bezpečných bodech".
-        Výchozí je true, aby nedošlo ke ztrátě dat při výpadku napájení.
+        <p>Určuje, zda úložná vrstva vynucuje operačnímu systému pravidelné zápisy interních bufferů na disk
+        v „bezpečných bodech“. Výchozí hodnota je true, aby nedošlo ke ztrátě dat při výpadku napájení.
         Existují situace, kdy vypnutí této funkce může zlepšit výkon a klient může akceptovat riziko
-        ztráty dat (např. při automatizovaných testech apod.).</p>
+        ztráty dat (například při spouštění automatizovaných testů apod.).</p>
     </dd>
     <dt>computeCRC32C</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Určuje, zda se pro zapisované záznamy v key/value úložišti počítají kontrolní součty CRC32C a zda se kontroluje
-        CRC32C při čtení záznamu.</p>
+        <p>Určuje, zda se pro zapisované záznamy v key/value úložišti počítají kontrolní součty CRC32C a také zda
+        se kontrolní součet CRC32C kontroluje při čtení záznamu.</p>
+        <p>Toto nastavení také určuje **jak write-ahead log přežije pád systému**, což činí jeho vypnutí mnohem
+        nákladnějším než samotný výpočet kontrolního součtu. Pád systému může zanechat záznam s *dírou* – chybějícími bajty
+        uprostřed, zatímco pozdější bajty se na zařízení zapsaly – a přežití této situace vyžaduje buď detekci díry,
+        nebo záruku, že nemůže nastat:</p>
+        <ul>
+            <li>**`true`** – kumulativní CRC32C řetězec WAL detekuje díru a při obnově ořízne log na poslední
+                neporušenou transakci. Log je tedy možné zapisovat s **jedním synchronizačním zápisem zařízení na dávku
+                transakcí**, což umožňuje škálovat propustnost commitů s počtem souběžných zapisovačů.</li>
+            <li>**`false`** – nic nerozpozná díru od platných dat, protože délka souboru se nezmění a záznam
+                se stále správně parsuje, takže poškození by bylo přehráno jako skutečná historie. WAL je proto otevřen
+                s `DSYNC`, což synchronizuje **každý jednotlivý zápis** a tím zaručuje, že pád systému může zanechat pouze
+                čistý prefix. Toto je správné, ale stojí přibližně jeden synchronizační zápis zařízení na každý zápis místo na dávku.</li>
+        </ul>
         <Note type="warning">
-            Důrazně doporučujeme nastavit tuto hodnotu na `true`, protože umožňuje co nejdříve odhalit potenciálně poškozené záznamy.
+            Důrazně doporučujeme ponechat toto nastavení na hodnotě `true`. Kromě toho, že umožňuje co nejdříve
+            detekovat potenciálně poškozené záznamy, umožňuje také write-ahead logu dávkovat synchronizace na zařízení –
+            takže jeho vypnutí výrazně snižuje propustnost zápisu oproti samotnému výpočtu kontrolního součtu.
         </Note>
     </dd>
     <dt>compress</dt>
@@ -594,28 +613,49 @@ Tato sekce obsahuje možnosti konfigurace vrstvy úložiště databáze.
         <p>**Výchozí:** `false`</p>
         <p>Určuje, zda se mají data komprimovat. Pokud je nastaveno na true, budou všechna data komprimována, ale pouze ta,
         jejichž komprimovaná velikost je menší než původní, budou uložena v komprimované podobě. Nastavení této vlastnosti
-        na `true` může zpomalit zápisy (i když ne výrazně) a zvýšit rychlost čtení a propustnost, protože je méně pomalého diskového I/O.
-        V současnosti je použita standardní komprese ZIP/deflate.</p>
+        na `true` může zpomalit zápisy (i když ne výrazně) a zvýšit rychlost čtení a propustnost, protože je potřeba
+        méně pomalých diskových I/O operací. V současnosti se používá standardní metoda komprese ZIP/deflate.</p>
     </dd>
     <dt>minimalActiveRecordShare</dt>
     <dd>
-        <p>**Výchozí:** `0.5` (při plýtvání nad 50 % je soubor komprimován)</p>
-        <p>Minimální podíl aktivních záznamů v datovém souboru. Pokud je podíl nižší a velikost souboru překročí také
-            limit `fileSizeCompactionThresholdBytes`, soubor bude komprimován. To znamená, že nový soubor obsahující pouze
-            aktivní záznamy bude zapsán vedle původního souboru.</p>
+        <p>**Výchozí:** `0.5` (při plýtvání nad 50 % se soubor komprimuje)</p>
+        <p>Minimální podíl aktivních záznamů v datovém souboru. Pokud je podíl nižší a velikost souboru také
+            překročí limit `fileSizeCompactionThresholdBytes`, soubor bude zkomprimován. To znamená, že nový soubor
+            obsahující pouze aktivní záznamy bude zapsán vedle původního souboru.</p>
     </dd>
     <dt>fileSizeCompactionThresholdBytes</dt>
     <dd>
         <p>**Výchozí:** `100MB`</p>
-        <p>Minimální velikost souboru pro komprimaci. Pokud je velikost souboru menší, nebude komprimován ani
-            v případě, že podíl aktivních záznamů je nižší než minimální podíl.</p>
+        <p>Minimální velikost souboru pro kompresi. Pokud je velikost souboru menší, nebude komprimován ani
+            pokud je podíl aktivních záznamů nižší než minimální podíl.</p>
     </dd>
     <dt>timeTravelEnabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Při nastavení na true nejsou datové soubory po komprimaci ihned odstraněny, ale jsou ponechány na disku tak dlouho,
-        dokud je v WAL logu dostupná historie. To umožňuje vytvořit snímek databáze v libovolném bodě historie pokryté WAL logem.
-        Ze snímku lze databázi obnovit do přesného bodu v čase se všemi daty dostupnými v té době.</p>
+        <p>Při nastavení na true nejsou datové soubory po kompresi ihned odstraněny, ale zůstávají na disku tak dlouho,
+        dokud je k dispozici historie ve WAL logu. To umožňuje vytvořit snímek databáze v libovolném bodě
+        historie pokryté WAL logem. Ze snímku lze databázi obnovit do přesného bodu v čase se všemi daty dostupnými v té době.</p>
+    </dd>
+    <dt>minCompactionIntervalMilliseconds</dt>
+    <dd>
+        <p>**Výchozí:** `1m` (60000 ms)</p>
+        <p>Minimální čas (wall-clock), který musí uplynout od poslední komprese datového souboru, než může být znovu
+            komprimován pouze kvůli nízkému podílu aktivních záznamů. Komprimovat datový soubor častěji nemá praktický
+            smysl – I/O náklady na přepis celého souboru výrazně převyšují případné úspory. Soubor je komprimován
+            nejdříve po uplynutí tohoto intervalu **pokud** jeho podíl aktivních záznamů neklesne pod `maxWasteActiveShare`,
+            v takovém případě je komprimován okamžitě bez ohledu na interval. Hodnota `0` tuto podmínku
+            zcela vypíná, takže ke kompresi dochází, jakmile je soubor vhodný ke kompresi
+            (rozhodují pouze `minimalActiveRecordShare` a `fileSizeCompactionThresholdBytes`, což odpovídá chování před verzí 2026.2).
+            Má efekt pouze pokud je `maxWasteActiveShare` nastaveno pod `minimalActiveRecordShare` –
+            jinak má interval prázdné okno pro odklad a je fakticky nefunkční.</p>
+    </dd>
+    <dt>maxWasteActiveShare</dt>
+    <dd>
+        <p>**Výchozí:** `0.1` (90 % plýtvání)</p>
+        <p>Podíl aktivních záznamů, pod který je komprese vynucena okamžitě bez ohledu na
+            `minCompactionIntervalMilliseconds`. Toto je „nouzový“ limit plýtvání – musí být nastaven pod
+            `minimalActiveRecordShare`, aby mělo `minCompactionIntervalMilliseconds` nějaký efekt. Výchozí hodnota
+            `0.1` zajišťuje, že 1minutový interval má smysl i v základním nastavení, místo aby jej přepis vždy přebil.</p>
     </dd>
 </dl>
 
@@ -719,29 +759,30 @@ Konfigurace backendu exportu do S3-kompatibilního úložiště. Vyžaduje modul
 
 ## Konfigurace transakcí
 
-Tato sekce obsahuje možnosti konfigurace vrstvy úložiště databáze určené pro zpracování transakcí.
+Tato sekce obsahuje konfigurační možnosti pro úložiště databáze určené ke zpracování transakcí.
 
 <dl>
     <dt>transactionWorkDirectory</dt>
     <dd>
         <p>**Výchozí:** `/tmp/evitaDB/transaction`</p>
         <p>Adresář na lokálním disku, kde Evita vytváří dočasné složky a soubory pro transakční zpracování.
-            Ve výchozím nastavení je použita dočasná složka – ale je vhodné nastavit vlastní adresář, abyste předešli problémům
-            s místem na disku.</p>
+            Ve výchozím nastavení se používá dočasný adresář – je však vhodné nastavit vlastní adresář,
+            abyste předešli problémům s nedostatkem místa na disku.</p>
     </dd>
     <dt>transactionMemoryBufferLimitSizeBytes</dt>
     <dd>
         <p>**Výchozí:** `16MB`</p>
-        <p>Počet bajtů alokovaných v off-heap paměti pro transakční paměťový buffer. Tento buffer slouží k
-            dočasnému ukládání (izolovaných) transakčních dat před jejich potvrzením do databáze.
-            Pokud je buffer plný, transakční data jsou ihned zapsána na disk a zpracování transakce se zpomalí.</p>
+        <p>Počet bajtů alokovaných v off-heap paměti pro transakční paměťový buffer. Tento buffer slouží
+            k uchovávání dočasných (izolovaných) transakčních dat před jejich potvrzením do databáze.
+            Pokud je buffer plný, transakční data jsou okamžitě zapsána na disk a zpracování transakce
+            se zpomalí.</p>
     </dd>
     <dt>transactionMemoryRegionCount</dt>
     <dd>
         <p>**Výchozí:** `256`</p>
-        <p>Počet částí bufferu `transactionMemoryBufferLimitSizeBytes`.
-            Čím více částí, tím menší jsou a tím vyšší je pravděpodobnost, že buffer bude plný a bude nutné jej
-            zapsat na disk.</p>
+        <p>Počet dílů (slices) bufferu `transactionMemoryBufferLimitSizeBytes`.
+            Čím více dílů, tím menší jsou a tím vyšší je pravděpodobnost, že bude buffer plný a bude
+            nutné jej zapsat na disk.</p>
     </dd>
     <dt>walFileSizeBytes</dt>
     <dd>
@@ -751,41 +792,63 @@ Tato sekce obsahuje možnosti konfigurace vrstvy úložiště databáze určené
     <dt>walFileCountKept</dt>
     <dd>
         <p>**Výchozí:** `8`</p>
-        <p>Počet uchovávaných WAL souborů. Zvyšte tento počet v kombinaci s `walFileSizeBytes`, pokud chcete
+        <p>Počet uchovávaných WAL souborů. Zvyšte tuto hodnotu v kombinaci s `walFileSizeBytes`, pokud chcete
             uchovávat delší historii změn.</p>
     </dd>
     <dt>waitForTransactionAcceptanceInMillis</dt>
     <dd>
         <p>**Výchozí:** `20s`</p>
-        <p>Maximální doba v milisekundách, po kterou systém čeká na přijetí zapisovací transakce,
-            tj. zapsání do sdíleného transakčního WAL. Toto časové rozpětí pokrývá jak fázi řešení konfliktů,
-            tak přidání do sdíleného WAL souboru. Pokud operace vyprší, celá transakce bude
-            vrácena zpět.</p>
+        <p>Maximální doba v milisekundách, po kterou systém čeká na přijetí zapisující transakce,
+            tj. na zapsání do sdíleného transakčního WAL. Tento časový úsek zahrnuje jak fázi řešení konfliktů,
+            tak zápis do sdíleného WAL souboru. Pokud operace vyprší, celá transakce bude
+            vrácena zpět (rollback).</p>
     </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>
+        <p>**Výchozí:** `10s`</p>
+        <p>Frekvence, s jakou jsou transakční data zapisována na disk při sekvenčním zpracování.
+            Pokud databáze zpracuje (malou) transakci velmi rychle, může se rozhodnout zpracovat další transakci
+            dříve, než dojde k zápisu změn na disk. Pokud klient čeká na `WAIT_FOR_CHANGES_VISIBLE`, může čekat celých
+            `flushFrequencyInMillis` milisekund, než obdrží odpověď.</p>
+    </dd>
+    <dt>checkpointIntervalInMillis</dt>
+    <dd>
         <p>**Výchozí:** `1s`</p>
-        <p>Frekvence zápisu transakčních dat na disk při jejich sekvenčním zpracování.
-            Pokud databáze zpracuje (malou) transakci velmi rychle, může se rozhodnout zpracovat další transakci před
-            zápisem změn na disk. Pokud klient čeká na `WAIT_FOR_CHANGES_VISIBLE`, může čekat celou
-            dobu `flushFrequencyInMillis`, než dostane odpověď.</p>
+        <p>Jak často jsou datové soubory zajištěny (fsync) a je zapsán bootstrap záznam na ně ukazující.
+            Zpracování transakce vždy zapisuje svá data, ale mezi checkpointy se dostanou pouze do page cache
+            operačního systému – flush zařízení je tímto intervalem omezen. Nastavte na `0`, pokud chcete checkpoint
+            po každém kole zpracování transakcí.</p>
+        <p>Toto je záměrně jiná kadence než `flushFrequencyInMillis`: ta určuje, kdy se změny stanou
+            **viditelnými**, tato určuje, kdy se stanou **trvale uloženými v datových souborech**. Trvalost potvrzeného
+            commitu na tom nezávisí – zdrojem pravdy je write-ahead log a vše zapsané po posledním checkpointu
+            se při restartu přehraje z WAL. Tento interval ovlivňuje uchovávání WAL a dobu přehrání při restartu
+            (obojí je omezeno tímto intervalem) výměnou za propustnost zápisu.</p>
+        <p>Zisk je největší na málo zatížených systémech. Checkpoint stojí fixní počet flushů zařízení
+            bez ohledu na počet pokrytých transakcí, takže pokud je transakcí málo, náklady se rozdělují mezi ně:
+            měřeno přibližně na 57 % jednoho zpracovacího kola při dvou současných zápisech a
+            zanedbatelné při čtyřiašedesáti. Zvýšení intervalu pomáhá hlavně v prvním případě; druhý je již
+            ovlivněn jinou činností.</p>
+        <p>Nastavení nemá žádný efekt, pokud je `storage.syncWrites` nastaveno na `false`, protože pak
+            žádný flush zařízení neprobíhá.</p>
     </dd>
     <dt>conflictPolicy</dt>
     <dd>
-        <p>**Výchozí:** `[ENTITY]`</p>
-        <p>Sada politik řešení konfliktů, které budou použity pro řešení konfliktů s jinými paralelními relacemi během
-            potvrzení transakce. Politika konfliktů určuje úroveň podrobnosti, na které jsou zjišťovány a serializovány konflikty zápisu.
-            Čím jemnější rozsah, tím více mutací lze zpracovat současně bez blokování;
-            čím hrubší rozsah, tím méně konfliktů je možné, ale za cenu nižší paralelnosti.
-            Viz sekce [Politiky konfliktů](#politiky-konfliktů) pro detailní popis dostupných politik.</p>
-        <p>Můžete zadat více politik jako pole. Prázdné pole znamená "vítězí poslední zapisovatel" – nedochází k žádné detekci konfliktů. Příklady:</p>
+        <p>**Výchozí:** `{ policy: ENTITY }`</p>
+        <p>Výchozí politika řešení konfliktů na úrovni enginu, která se používá k řešení konfliktů s ostatními
+            paralelními sezeními během potvrzování transakce. Řídí úroveň podrobnosti, na které jsou detekovány
+            a serializovány konflikty zápisu: čím jemnější rozsah, tím více mutací lze zpracovat současně bez blokování;
+            čím hrubší rozsah, tím méně konfliktů je možné, ale za cenu nižší paralelnosti. Výchozí hodnotu lze
+            přepsat na úrovni katalogu, typu entity a schématické položky (atribut / asociovaná data / reference) –
+            viz [detailní popis řešení konfliktů](../deep-dive/transactions.md#1-řešení-konfliktů) pro celý model.
+            Popis dostupných politik najdete v sekci [Politiky konfliktů](#politiky-konfliktů).</p>
+        <p>Hodnota je objekt s povinnou hrubou politikou `policy` (`NONE` / `CATALOG` / `COLLECTION` / `ENTITY`)
+            a volitelným seznamem `granularity`, který upřesňuje rozsah `ENTITY`. Samotná skalární hodnota je přijímána
+            jako zkratka pro pouze hrubou politiku. Příklady:</p>
         <ul>
-            <li>`[ENTITY]` – výchozí, konflikty detekovány na úrovni entity</li>
-            <li>`[ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` – jemnozrnné konflikty pouze pro atributy, mutace
-                 ostatních dat negenerují konflikty (vítězí poslední zapisovatel)</li>
-            <li>`[ENTITY, ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` – jemnozrnné konflikty pouze pro atributy,
-                 mutace ostatních dat generují konflikty na úrovni celé entity</li>
-            <li>`[]` – žádná detekce konfliktů (vítězí poslední zapisovatel)</li>
+            <li>`{ policy: ENTITY }` (nebo jednoduše `ENTITY`) – výchozí, konflikty detekovány na úrovni entity</li>
+            <li>`{ policy: ENTITY, granularity: [ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE] }` – konflikty na úrovni entity,
+                 upřesněné tak, že zápisy do různých atributů stejné entity nejsou v konfliktu</li>
+            <li>`{ policy: NONE }` (nebo jednoduše `NONE`) – bez detekce konfliktů (vítězí poslední zápis)</li>
         </ul>
     </dd>
 </dl>
@@ -1112,7 +1175,7 @@ nezabezpečené spojení z bezpečnostních důvodů.
 
 ### Výchozí konfigurace endpointu
 
-Výchozí nastavení endpointu jsou použita jako základ pro všechny endpointy, pokud nejsou přepsána v konkrétním endpointu.
+Výchozí nastavení endpointu slouží jako základ pro všechny endpointy, pokud nejsou přepsána v konkrétním endpointu.
 To vám umožňuje nastavit společná nastavení pro všechny endpointy na jednom místě.
 
 <dl>
@@ -1124,22 +1187,22 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Určuje hostitele a port, na kterých má konkrétní API naslouchat. Pokud není hostitel definován,
-        použije se zástupná adresa `0.0.0.0` pro IPv4 a `::` pro IPv6. Pokud je hostitel definován jako platná
+        <p>Určuje hostitele a port, na kterém má konkrétní API naslouchat. Pokud není hostitel definován,
+        použije se místo toho zástupná adresa `0.0.0.0` pro IPv4 a `::` pro IPv6. Pokud je hostitel definován jako platná
         IP adresa, použije se přímo. Pokud je zadán název domény, je přeložen na IP adresu pomocí Java
-        DNS lookupu a použit místo něj (výsledná IP adresa nemusí být ta, kterou jste očekávali – ale výsledná IP je
-        zalogována do logu a konzole při startu serveru evitaDB, takže ji můžete snadno zkontrolovat).</p>
-        <p>Můžete definovat více hostitelů / portů oddělených čárkou. Server bude naslouchat na všech.</p>
+        DNS lookupu a použit místo toho (výsledná IP adresa nemusí být ta, kterou jste očekávali – ale výsledná IP je
+        zapsána do logu a konzole při startu serveru evitaDB, takže ji tam snadno zkontrolujete).</p>
+        <p>Můžete definovat více hostitelů / portů oddělených čárkou. Server bude naslouchat na všech z nich.</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost`</p>
         <p>Když evitaDB běží v Docker kontejneru a porty jsou vystaveny na hostitelském systému,
-           interně rozpoznaný lokální hostitel a port obvykle neodpovídají hostiteli a portu,
-           na kterých je evitaDB dostupná na hostitelském systému.</p> 
-        <p>Vlastnost `exposedHost` umožňuje přepsat nejen externí hostname, schéma, ale i zadat
-        externí port, minimální konfigurace je hostname. Pokud nezadáte schéma / port, exposed
-        host předpokládá, že bude použito výchozí schéma / port nakonfigurované pro webové API.</p>
+           interně rozpoznaný lokální název hostitele a port obvykle neodpovídají názvu hostitele a portu,
+           na kterých je evitaDB dostupná na hostitelském systému.</p>
+        <p>Vlastnost `exposedHost` vám umožňuje přepsat nejen externí název hostitele a schéma, ale také zadat
+        externí port, ale minimální konfigurace je název hostitele. Pokud nezadáte schéma / port, vystavený
+        hostitel předpokládá, že bude použito výchozí schéma / port nakonfigurované pro webové API.</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
@@ -1148,13 +1211,13 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
         <ol>
             <li>`FORCE_TLS`: Povolená je pouze šifrovaná (TLS) komunikace.</li>
             <li>`FORCE_NO_TLS`: Povolená je pouze nešifrovaná (non-TLS) komunikace.</li>
-            <li>`RELAXED`: Budou dostupné obě varianty, podle volby klienta.</li>
+            <li>`RELAXED`: Obě varianty budou k dispozici podle volby klienta.</li>
         </ol>
     </dd>
     <dt>keepAlive</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Pokud je nastaveno na false, server po každém požadavku uzavře spojení přes HTTP `connection: close`.</p>
+        <p>Pokud je toto nastaveno na false, server po každém požadavku uzavře spojení pomocí HTTP `connection: close`.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
@@ -1164,7 +1227,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Umožňuje definovat nula nebo více cest k veřejným <Term location="/documentation/user/en/operate/tls.md" name="certificate">klientským certifikátům</Term>, které mohou komunikovat pouze s tímto API.</p>
+        <p>Umožňuje definovat žádné nebo více cest k souborům, které ukazují na veřejné <Term location="/documentation/user/en/operate/tls.md" name="certificate">klientské certifikáty</Term>, které mohou komunikovat pouze s tímto API.</p>
     </dd>
 </dl>
 
@@ -1390,9 +1453,9 @@ Tato konfigurace řídí, jak bude skutečný webový klient evitaLab obsluhová
     </dd>
 </dl>
 
-### Konfigurace Observability
+### Konfigurace sledovatelnosti
 
-Konfigurace řídí všechny nástroje pro observabilitu vystavené externím systémům. Aktuálně jde o endpoint
+Tato konfigurace řídí všechny nástroje pro sledovatelnost, které jsou zpřístupněny externím systémům. V současnosti se jedná o endpoint
 pro scraping Prometheus metrik, OTEL trace exporter a záznam událostí Java Flight Recorder.
 
 <dl>
@@ -1419,31 +1482,30 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznam událostí Java Fl
     <dt>tracing.serviceName</dt>
     <dd>
         <p>**Výchozí:** `evitaDB`</p>
-        <p>Určuje název služby, pro kterou mají být publikovány trace záznamy.</p>
+        <p>Určuje název služby, pro kterou mají být trasovací data publikována.</p>
     </dd>
     <dt>tracing.endpoint</dt>
     <dd>
         <p>**Výchozí:** `null`</p>
-        <p>Určuje URL na [OTEL collector](https://opentelemetry.io/docs/collector/), který sbírá trace záznamy.
-        Je vhodné spustit collector na stejném hostiteli jako evitaDB, aby mohl dále filtrovat trace a
-        zabránit zbytečné vzdálené síťové komunikaci.</p>
+        <p>Určuje URL na [OTEL collector](https://opentelemetry.io/docs/collector/), který sbírá trasovací data.
+        Je vhodné spustit collector na stejném hostiteli jako evitaDB, aby bylo možné dále filtrovat trasovací data a
+        vyhnout se zbytečné vzdálené síťové komunikaci.</p>
     </dd>
     <dt>tracing.protocol</dt>
     <dd>
         <p>**Výchozí:** `grpc`</p>
-        <p>Určuje protokol použitý mezi aplikací a OTEL collectorem pro předávání trace záznamů. Možné
-        hodnoty jsou `grpc` a `http`. gRPC je výrazně výkonnější a je preferovanou možností.</p>
+        <p>Určuje protokol použitý mezi aplikací a OTEL collectorem pro předávání trasovacích dat. Možné
+        hodnoty jsou `grpc` a `http`. gRPC je výrazně výkonnější a je preferovanou volbou.</p>
     </dd>
     <dt>exportedQueryLabels</dt>
     <dd>
         <p>**Výchozí:** `null` (nic se neexportuje)</p>
-        <p>Seznam názvů [štítků dotazu](../query/header/label.md#štítek), jejichž hodnota se zpřístupní jako dimenze
-        Prometheus metrik dotazů. Názvy jsou libovolné a volí je operátor - evitaDB žádné nevyhrazuje - a každý se
-        zpřístupní ve své podobě upravené pro Prometheus. Na rozdíl od většiny ostatních konfiguračních seznamů v
-        evitaDB znamená nenastavený nebo prázdný seznam, že se *nic* neexportuje - nikoliv vše; důvod tohoto obráceného
-        výchozího chování je popsán v poznámkách o
-        [bezpečné kardinalitě štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus). Inherentně
-        vysokokardinální štítky (`trace-id`, `client-id`, `ip-address`, `uri`) jsou vyhrazené a při startu odmítnuté.</p>
+        <p>Seznam názvů [štítků dotazů](../query/header/label.md), jejichž hodnoty jsou vystaveny jako Prometheus dimenze
+        v metrikách dotazů. Názvy jsou libovolné a volí je operátor – evitaDB žádné nerezervuje – a každý je vystaven
+        ve své Prometheus-sanitizované podobě. Na rozdíl od většiny ostatních seznamů v konfiguraci evitaDB znamená
+        nenastavený nebo prázdný seznam, že se *nic* neexportuje, nikoli vše – důvod této inverze najdete v [poznámkách
+        k bezpečnosti kardinality štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus).
+        Vnitřně vysoce-kardinalitní štítky (`trace-id`, `client-id`, `ip-address`, `uri`) jsou rezervovány a při startu odmítnuty.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>

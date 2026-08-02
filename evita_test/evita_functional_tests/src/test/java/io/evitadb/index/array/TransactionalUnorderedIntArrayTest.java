@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.apache.commons.lang3.ArrayUtils;
@@ -109,7 +110,7 @@ class TransactionalUnorderedIntArrayTest {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
 
 			array.add(3, 6);
-			array.add(Integer.MIN_VALUE, 9);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 
 			assertEquals(9, array.get(0));
 			assertEquals(7, array.get(1));
@@ -230,7 +231,7 @@ class TransactionalUnorderedIntArrayTest {
 		void shouldCorrectlyAddItemsOnFirstLastAndMiddlePositions() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
 			array.add(3, 6);
-			array.add(Integer.MIN_VALUE, 9);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 			array.add(5, 8);
 			assertTransactionalArrayIs(new int[]{9, 7, 3, 6, 5, 8}, array);
 		}
@@ -244,7 +245,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 					original.add(5, 8);
 					assertTransactionalArrayIs(new int[]{9, 7, 3, 6, 5, 8}, array);
 				},
@@ -290,9 +291,9 @@ class TransactionalUnorderedIntArrayTest {
 		void shouldCorrectlyAddMultipleItemsOnSamePositions() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{2, 7, 3});
 
-			array.addAll(Integer.MIN_VALUE, 0, 1);
+			array.addAll(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20, 1);
 			array.addAll(2, 4, 5, 6);
-			assertTransactionalArrayIs(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, array);
+			assertTransactionalArrayIs(new int[]{20, 1, 2, 4, 5, 6, 7, 3}, array);
 		}
 
 		@Test
@@ -303,13 +304,13 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.addAll(Integer.MIN_VALUE, 0, 1);
+					original.addAll(EvitaDataTypes.RESERVED_PRIMARY_KEY, 20, 1);
 					original.addAll(2, 4, 5, 6);
-					assertTransactionalArrayIs(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, original);
+					assertTransactionalArrayIs(new int[]{20, 1, 2, 4, 5, 6, 7, 3}, original);
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 7, 3}, original);
-					assertArrayEquals(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, committed.getArray());
+					assertArrayEquals(new int[]{20, 1, 2, 4, 5, 6, 7, 3}, committed.getArray());
 				}
 			);
 		}
@@ -340,7 +341,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 					original.add(6, 8);
 					original.add(6, 11);
 					original.add(8, 12);
@@ -512,7 +513,7 @@ class TransactionalUnorderedIntArrayTest {
 			array.remove(8);
 			array.add(7, 8);
 			array.remove(7);
-			array.add(Integer.MIN_VALUE, 7);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 7);
 			array.remove(1);
 			array.add(8, 1);
 			assertTransactionalArrayIs(new int[]{7, 8, 1}, array);
@@ -529,7 +530,7 @@ class TransactionalUnorderedIntArrayTest {
 					original.remove(8);
 					original.add(7, 8);
 					original.remove(7);
-					original.add(Integer.MIN_VALUE, 7);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 7);
 					original.remove(1);
 					original.add(8, 1);
 					assertTransactionalArrayIs(new int[]{7, 8, 1}, original);
@@ -548,7 +549,7 @@ class TransactionalUnorderedIntArrayTest {
 
 			array.add(7, 9);
 			array.remove(9);
-			array.add(Integer.MIN_VALUE, 6);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 6);
 			array.remove(6);
 			array.add(1, 6);
 			array.remove(6);
@@ -565,7 +566,7 @@ class TransactionalUnorderedIntArrayTest {
 				original -> {
 					original.add(7, 9);
 					original.remove(9);
-					original.add(Integer.MIN_VALUE, 6);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 6);
 					original.remove(6);
 					original.add(1, 6);
 					original.remove(6);
@@ -583,7 +584,7 @@ class TransactionalUnorderedIntArrayTest {
 		void shouldAddAndRemoveEverything() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[0]);
 
-			array.add(Integer.MIN_VALUE, 1);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 1);
 			array.add(1, 5);
 			array.remove(1);
 			array.remove(5);
@@ -599,7 +600,7 @@ class TransactionalUnorderedIntArrayTest {
 			assertStateAfterCommit(
 				array,
 				original -> {
-					original.add(Integer.MIN_VALUE, 1);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 1);
 					original.add(1, 5);
 					original.remove(1);
 					original.remove(5);
@@ -620,7 +621,7 @@ class TransactionalUnorderedIntArrayTest {
 			array.add(6, 3);
 			array.remove(10);
 			array.remove(6);
-			array.add(Integer.MIN_VALUE, 15);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 15);
 
 			assertTransactionalArrayIs(new int[]{15, 5, 4, 1, 3, 2, 11}, array);
 			assertFalse(array.contains(10));
@@ -639,7 +640,7 @@ class TransactionalUnorderedIntArrayTest {
 					original.add(6, 3);
 					original.remove(10);
 					original.remove(6);
-					original.add(Integer.MIN_VALUE, 15);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 15);
 
 					assertTransactionalArrayIs(new int[]{15, 5, 4, 1, 3, 2, 11}, original);
 					assertFalse(array.contains(10));
@@ -659,10 +660,10 @@ class TransactionalUnorderedIntArrayTest {
 
 			array.remove(2);
 			array.remove(5);
-			array.add(11, 0);
-			array.add(Integer.MIN_VALUE, 12);
+			array.add(11, 20);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 12);
 
-			assertTransactionalArrayIs(new int[]{12, 1, 10, 6, 11, 0}, array);
+			assertTransactionalArrayIs(new int[]{12, 1, 10, 6, 11, 20}, array);
 		}
 
 		@Test
@@ -675,14 +676,14 @@ class TransactionalUnorderedIntArrayTest {
 				original -> {
 					original.remove(2);
 					original.remove(5);
-					original.add(11, 0);
-					original.add(Integer.MIN_VALUE, 12);
+					original.add(11, 20);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 12);
 
-					assertTransactionalArrayIs(new int[]{12, 1, 10, 6, 11, 0}, original);
+					assertTransactionalArrayIs(new int[]{12, 1, 10, 6, 11, 20}, original);
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 1, 10, 6, 11, 5}, original);
-					assertArrayEquals(new int[]{12, 1, 10, 6, 11, 0}, committed.getArray());
+					assertArrayEquals(new int[]{12, 1, 10, 6, 11, 20}, committed.getArray());
 				}
 			);
 		}
@@ -735,7 +736,7 @@ class TransactionalUnorderedIntArrayTest {
 
 			array.remove(1);
 			array.remove(2);
-			array.add(Integer.MIN_VALUE, 2);
+			array.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 2);
 			array.add(2, 4);
 			array.remove(2);
 			array.add(4, 5);
@@ -753,7 +754,7 @@ class TransactionalUnorderedIntArrayTest {
 				original -> {
 					original.remove(1);
 					original.remove(2);
-					original.add(Integer.MIN_VALUE, 2);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 2);
 					original.add(2, 4);
 					original.remove(2);
 					original.add(4, 5);
@@ -785,7 +786,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 
 					assertEquals(9, original.get(0));
 					assertEquals(7, original.get(1));
@@ -808,7 +809,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 
 					final int[] sub = original.getSubArray(1, 4);
 					assertArrayEquals(new int[]{7, 3, 6}, sub);
@@ -1000,7 +1001,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 					original.add(5, 8);
 					assertTransactionalArrayIs(new int[]{9, 7, 3, 6, 5, 8}, array);
 				},
@@ -1040,7 +1041,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					original.add(3, 6);
-					original.add(Integer.MIN_VALUE, 9);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 9);
 					original.add(6, 8);
 					original.add(6, 11);
 					original.add(8, 12);
@@ -1141,6 +1142,92 @@ class TransactionalUnorderedIntArrayTest {
 			);
 		}
 
+		/**
+		 * Verifies the duplicate-record guard of `add` rejects a record id the array already holds - both a record
+		 * inserted inside the very same transaction (visible only through the transactional layer of the value index)
+		 * and one coming from the committed state.
+		 */
+		@Test
+		@DisplayName("throws when adding record that is already part of the array")
+		void shouldFailToAddRecordAlreadyPresent() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// from here on record 3 lives in the transactional layer only
+					array.add(1, 3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.add(2, 3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+					// ... while record 1 was there before the transaction started
+					assertThrows(IllegalArgumentException.class, () -> array.add(1, 1));
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{1, 3, 2}, committed.getArray());
+				}
+			);
+		}
+
+		/**
+		 * Verifies the duplicate-record guard of `addOnIndex` rejects a record id the array already holds, whether it
+		 * was added inside the running transaction or committed before it.
+		 */
+		@Test
+		@DisplayName("throws when adding record on index that is already part of the array")
+		void shouldFailToAddRecordAlreadyPresentOnIndex() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// from here on record 3 lives in the transactional layer only
+					array.addOnIndex(0, 3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.addOnIndex(2, 3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+					// ... while record 1 was there before the transaction started
+					assertThrows(IllegalArgumentException.class, () -> array.addOnIndex(1, 1));
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{3, 1, 2}, committed.getArray());
+				}
+			);
+		}
+
+		/**
+		 * Verifies the duplicate-record guard of `appendAll` rejects a record id the array already holds and leaves the
+		 * array untouched when it fires - again for both the committed state and the transactional layer.
+		 */
+		@Test
+		@DisplayName("throws when appending record that is already part of the array")
+		void shouldFailToAppendRecordAlreadyPresent() {
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{1, 2});
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					// the guard fires before anything is appended, so the array keeps its shape
+					assertThrows(IllegalArgumentException.class, () -> array.appendAll(1));
+					assertTransactionalArrayIs(new int[]{1, 2}, array);
+					// from here on record 3 lives in the transactional layer only
+					array.appendAll(3);
+					final IllegalArgumentException layerHit = assertThrows(
+						IllegalArgumentException.class, () -> array.appendAll(3)
+					);
+					assertEquals("Record with id 3 is already part of the array!", layerHit.getMessage());
+				},
+				(original, committed) -> {
+					assertTransactionalArrayIs(new int[]{1, 2}, original);
+					assertArrayEquals(new int[]{1, 2, 3}, committed.getArray());
+				}
+			);
+		}
+
 	}
 
 	/**
@@ -1188,7 +1275,7 @@ class TransactionalUnorderedIntArrayTest {
 		@Test
 		@DisplayName("passes generational test scenario 2")
 		void shouldPassGenerationalTest2() {
-			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{12, 19, 16, 5, 0, 11, 4, 13});
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{12, 19, 16, 5, 20, 11, 4, 13});
 
 			assertStateAfterCommit(
 				array,
@@ -1199,7 +1286,7 @@ class TransactionalUnorderedIntArrayTest {
 						original.remove(9);
 						original.add(11, 2);
 						original.add(13, 14);
-						original.add(0, 6);
+						original.add(20, 6);
 						original.add(6, 18);
 						original.remove(14);
 						original.remove(11);
@@ -1213,14 +1300,14 @@ class TransactionalUnorderedIntArrayTest {
 						original.add(13, 1);
 						original.add(13, 10);
 						original.remove(18);
-						original.add(0, 11);
+						original.add(20, 11);
 					} catch (IllegalArgumentException ex) {
 						// this is expected - previous record doesn't exist
 					}
 				},
 				(original, committed) -> {
-					assertTransactionalArrayIs(new int[]{12, 19, 16, 5, 0, 11, 4, 13}, original);
-					assertTransactionalArrayIs(new int[]{12, 9, 0, 11, 6, 2, 8, 13, 10, 1}, new TransactionalUnorderedIntArray(committed.getArray()));
+					assertTransactionalArrayIs(new int[]{12, 19, 16, 5, 20, 11, 4, 13}, original);
+					assertTransactionalArrayIs(new int[]{12, 9, 20, 11, 6, 2, 8, 13, 10, 1}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1235,7 +1322,7 @@ class TransactionalUnorderedIntArrayTest {
 				original -> {
 					try {
 						original.add(16, 12);
-						original.add(3, 0);
+						original.add(3, 20);
 						original.add(16, 7);
 						original.remove(16);
 						original.remove(3);
@@ -1246,7 +1333,7 @@ class TransactionalUnorderedIntArrayTest {
 						original.add(5, 19);
 						original.remove(5);
 						original.add(7, 5);
-						original.add(0, 9);
+						original.add(20, 9);
 						original.add(6, 3);
 					} catch (IllegalArgumentException ex) {
 						// this is expected - previous record doesn't exist
@@ -1254,7 +1341,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{14, 16, 11, 18, 4, 10, 6, 3}, original);
-					assertTransactionalArrayIs(new int[]{7, 5, 11, 18, 4, 10, 6, 3, 19, 16, 0, 9}, new TransactionalUnorderedIntArray(committed.getArray()));
+					assertTransactionalArrayIs(new int[]{7, 5, 11, 18, 4, 10, 6, 3, 19, 16, 20, 9}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1262,7 +1349,7 @@ class TransactionalUnorderedIntArrayTest {
 		@Test
 		@DisplayName("passes generational test scenario 4")
 		void shouldPassGenerationalTest4() {
-			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{0, 6, 9, 2, 12, 11, 13, 7, 15, 10, 8, 5, 18, 1, 14});
+			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{20, 6, 9, 2, 12, 11, 13, 7, 15, 10, 8, 5, 18, 1, 14});
 
 			assertStateAfterCommit(
 				array,
@@ -1288,8 +1375,8 @@ class TransactionalUnorderedIntArrayTest {
 					}
 				},
 				(original, committed) -> {
-					assertTransactionalArrayIs(new int[]{0, 6, 9, 2, 12, 11, 13, 7, 15, 10, 8, 5, 18, 1, 14}, original);
-					assertTransactionalArrayIs(new int[]{0, 11, 13, 7, 15, 10, 3, 16, 9, 19, 5, 14}, new TransactionalUnorderedIntArray(committed.getArray()));
+					assertTransactionalArrayIs(new int[]{20, 6, 9, 2, 12, 11, 13, 7, 15, 10, 8, 5, 18, 1, 14}, original);
+					assertTransactionalArrayIs(new int[]{20, 11, 13, 7, 15, 10, 3, 16, 9, 19, 5, 14}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1305,14 +1392,14 @@ class TransactionalUnorderedIntArrayTest {
 					try {
 						original.addOnIndex(4, 9);
 						original.remove(5);
-						original.addOnIndex(4, 0);
+						original.addOnIndex(4, 20);
 					} catch (IllegalArgumentException ex) {
 						// this is expected - previous record doesn't exist
 					}
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{6, 7, 5, 2, 4}, original);
-					assertTransactionalArrayIs(new int[]{6, 7, 2, 9, 0, 4}, new TransactionalUnorderedIntArray(committed.getArray()));
+					assertTransactionalArrayIs(new int[]{6, 7, 2, 9, 20, 4}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1329,14 +1416,14 @@ class TransactionalUnorderedIntArrayTest {
 						original.addOnIndex(1, 8);
 						original.addOnIndex(1, 9);
 						original.remove(2);
-						original.addOnIndex(1, 0);
+						original.addOnIndex(1, 20);
 					} catch (IllegalArgumentException ex) {
 						// this is expected - previous record doesn't exist
 					}
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 3}, original);
-					assertTransactionalArrayIs(new int[]{9, 0, 8, 3}, new TransactionalUnorderedIntArray(committed.getArray()));
+					assertTransactionalArrayIs(new int[]{9, 20, 8, 3}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1412,7 +1499,7 @@ class TransactionalUnorderedIntArrayTest {
 				array,
 				original -> {
 					// insert 40 at head (40 is not in baseline)
-					original.add(Integer.MIN_VALUE, 40);
+					original.add(EvitaDataTypes.RESERVED_PRIMARY_KEY, 40);
 					// move baseline record 10 after the freshly-inserted 40 - the façade rejects re-adding an
 					// existing record id, so a move is expressed as remove + add (the idiom the consumers use)
 					original.remove(10);

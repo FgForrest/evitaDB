@@ -128,6 +128,12 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 		this.attributeElements = attributeElements.toArray(new AttributeElement[0]);
 	}
 
+	@Override
+	public void prepareFor(int entityCount) {
+		this.memoizedValues.clear();
+		this.nonSortedEntities = null;
+	}
+
 	@Nonnull
 	@Override
 	public Iterable<EntityContract> getNonSortedEntities() {

@@ -1,12 +1,12 @@
 ---
 title: Konstantní filtrování
-perex: Pokud potřebujete získat entity podle jejich primárních klíčů nebo ověřit, zda entity s konkrétními primárními klíči existují v databázi, je konstantní filtrační omezení tím správným místem. Filtrování entit podle jejich primárních klíčů je nejrychlejší způsob, jak přistupovat k entitám v evitaDB.
+perex: Pokud potřebujete získat entity podle jejich primárních klíčů nebo ověřit, že entity s konkrétními primárními klíči existují v databázi, je konstantní filtrační omezení tím pravým místem. Filtrování entit podle jejich primárních klíčů je nejrychlejší způsob, jak získat přístup k entitám v evitaDB.
 date: '26.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 ## Primární klíč entity v množině
 
@@ -19,11 +19,11 @@ entityPrimaryKeyInSet(
 <dl>
     <dt>argument:int+</dt>
     <dd>
-        povinná množina primárních klíčů entit, které představují entity, jež mají být vráceny
+        povinná množina primárních klíčů entit, které mají být vráceny
     </dd>
 </dl>
 
-Tato podmínka omezuje seznam vrácených entit přesným určením jejich primárních klíčů.
+Tato podmínka omezuje seznam vrácených entit tím, že přesně určuje jejich primární klíče.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -32,8 +32,7 @@ Tato podmínka omezuje seznam vrácených entit přesným určením jejich prim�
 </SourceCodeTabs>
 
 Ukázkový dotaz vrací produkty, jejichž primární klíče jsou uvedeny v podmínce `entityPrimaryKeyInSet`. Na pořadí
-primárních klíčů v podmínce nezáleží. Vrácené entity jsou vždy vráceny ve vzestupném pořadí
-jejich primárních klíčů, pokud není v dotazu použita klauzule `orderBy`.
+primárních klíčů v podmínce nezáleží. Vrácené entity jsou vždy vráceny ve vzestupném pořadí podle svých primárních klíčů, pokud není v dotazu použita klauzule `orderBy`.
 
 <Note type="info">
 
@@ -114,23 +113,23 @@ zahrnovat entity z různých scopů, než je ten, který je dotazován.
 </NoteTitle>
 
 Unikátní omezení jsou vynucována pouze v rámci stejného scope. To znamená, že dvě entity v různých scopech mohou mít
-stejnou hodnotu unikátního atributu. Pokud přesunete entitu z jednoho scope do druhého, unikátní omezení v rámci
-cílového scope se zkontrolují a pokud entita poruší unikátní omezení, přesun je odmítnut.
+stejnou hodnotu unikátního atributu. Při přesunu entity z jednoho scope do druhého jsou zkontrolována unikátní omezení
+v cílovém scope a pokud entita porušuje unikátní omezení, přesun je odmítnut.
 
 Pokud dotazujete entity v obou scopech pomocí filtru [inScope](behavioral.md#v-rozsahu) a použijete filtrační
-omezení, které přesně odpovídá unikátnímu atributu ([attribute equals](comparable.md#atribut-rovná-se),
+omezení, které přesně odpovídá unikátnímu atributu ([attribute equals](comparable.md#atribut-rovný),
 [attribute in set](comparable.md#atribut-v-množině), [attribute is](comparable.md#atribut-existuje)),
-evitaDB upřednostní entitu z prvního scope uvedeného v podmínce `scope` před entitami ve scopech uvedených
-později v této podmínce `scope`. To znamená, že pokud dotazujete jednu entitu podle hodnoty jejího unikátního atributu
-(například `URL`) a hledáte entitu v obou scopech, vždy získáte entitu z prvního scope, který ve svém dotazu určíte.
-Toto chování se neuplatňuje, pokud je použito pouze částečné shody (například [attribute starts with](string.md#atribut-začíná-na),
+evitaDB upřednostní entitu z prvního scope uvedeného v podmínce `scope` před entitami ve scopech definovaných
+později v této podmínce `scope`. To znamená, že pokud dotazujete jednu entitu podle hodnoty jejího unikátního atributu (např. `URL`)
+a hledáte entitu v obou scopech, vždy získáte entitu z prvního scope, který ve svém dotazu určíte.
+Toto chování se neuplatní, pokud je použito pouze částečné shody (např. [attribute starts with](string.md#atribut-začíná-na),
 atd.).
 
 </Note>
 
-V našem demo datasetu je několik archivovaných entit. Naše schéma je nakonfigurováno tak, aby indexovalo pouze atributy
-`URL` a `code` v archivním scope, takže můžeme vyhledávat archivované entity pouze podle těchto atributů a samozřejmě
-podle primárního klíče.
+V našem demo datasetu je několik archivovaných entit. Naše schéma je nakonfigurováno tak, aby indexovalo pouze atributy `URL` a `code`
+v archivovaném scope, takže můžeme vyhledávat archivované entity pouze pomocí těchto atributů a samozřejmě
+primárního klíče.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

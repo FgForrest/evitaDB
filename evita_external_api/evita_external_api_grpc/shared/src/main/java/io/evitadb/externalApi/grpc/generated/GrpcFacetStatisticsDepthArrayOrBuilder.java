@@ -33,7 +33,7 @@ public interface GrpcFacetStatisticsDepthArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a FacetStatisticsDepth array.
+   * The individual FacetStatisticsDepth values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcFacetStatisticsDepthArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth> getValueList();
   /**
    * <pre>
-   * Value that supports storing a FacetStatisticsDepth array.
+   * The individual FacetStatisticsDepth values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcFacetStatisticsDepthArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a FacetStatisticsDepth array.
+   * The individual FacetStatisticsDepth values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcFacetStatisticsDepthArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a FacetStatisticsDepth array.
+   * The individual FacetStatisticsDepth values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcFacetStatisticsDepthArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a FacetStatisticsDepth array.
+   * The individual FacetStatisticsDepth values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepth value = 1;</code>

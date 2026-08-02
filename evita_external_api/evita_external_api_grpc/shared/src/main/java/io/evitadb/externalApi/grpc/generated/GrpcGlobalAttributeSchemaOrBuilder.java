@@ -32,11 +32,21 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
+   * <pre>
+   * Contains unique name of the attribute. Case-sensitive. Distinguishes one attribute from another within
+   * a single entity type or, for global attributes, within the entire catalog.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The name.
    */
   java.lang.String getName();
   /**
+   * <pre>
+   * Contains unique name of the attribute. Case-sensitive. Distinguishes one attribute from another within
+   * a single entity type or, for global attributes, within the entire catalog.
+   * </pre>
+   *
    * <code>string name = 1;</code>
    * @return The bytes for name.
    */
@@ -104,12 +114,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
    * better to have this ensured by the database engine.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=67
+   *     See GrpcCatalogSchema.proto;l=73
    * @return The enum numeric value on the wire for unique.
    */
   @java.lang.Deprecated int getUniqueValue();
@@ -120,12 +130,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
    * better to have this ensured by the database engine.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.unique is deprecated.
-   *     See GrpcCatalogSchema.proto;l=67
+   *     See GrpcCatalogSchema.proto;l=73
    * @return The unique.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
@@ -138,12 +148,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * When attribute is filterable, extra result `attributeHistogram`
    * can be requested for this attribute.
-   * deprecated in favor of `filterableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
    * </pre>
    *
    * <code>bool filterable = 5 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.filterable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=75
+   *     See GrpcCatalogSchema.proto;l=81
    * @return The filterable.
    */
   @java.lang.Deprecated boolean getFilterable();
@@ -153,12 +163,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
    * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
    * (memory/disk) space in the form of index..
-   * deprecated in favor of `sortableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `sortableInScopes`
    * </pre>
    *
    * <code>bool sortable = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.sortable is deprecated.
-   *     See GrpcCatalogSchema.proto;l=80
+   *     See GrpcCatalogSchema.proto;l=86
    * @return The sortable.
    */
   @java.lang.Deprecated boolean getSortable();
@@ -252,8 +262,8 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
   /**
    * <pre>
    * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
-   * significant to know that all values of this attribute will be converted to {&#64;link java.lang.Integer}, so the attribute
-   * number must not ever exceed maximum limits of {&#64;link java.lang.Integer} type when scaling the number by the power
+   * significant to know that all values of this attribute will be converted to `Integer`, so the attribute
+   * number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
    * of ten using `indexedDecimalPlaces` as exponent.
    * </pre>
    *
@@ -269,12 +279,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=109
+   *     See GrpcCatalogSchema.proto;l=115
    * @return The enum numeric value on the wire for uniqueGlobally.
    */
   @java.lang.Deprecated int getUniqueGloballyValue();
@@ -285,12 +295,12 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    *
    * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
    * better to have this ensured by the database engine.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.uniqueGlobally is deprecated.
-   *     See GrpcCatalogSchema.proto;l=109
+   *     See GrpcCatalogSchema.proto;l=115
    * @return The uniqueGlobally.
    */
   @java.lang.Deprecated io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();

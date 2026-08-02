@@ -29,7 +29,8 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request to StartTrafficRecording request.
+ * Request to start a new traffic recording session. Only one recording may be in progress at a time; starting a
+ * new one while another is still running fails.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest}
@@ -102,7 +103,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value maxDurationInMilliseconds_;
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -114,7 +116,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -126,7 +129,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+   * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+   * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -140,7 +144,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value maxFileSizeInBytes_;
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -152,7 +157,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -164,7 +170,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the recording in bytes, after this size the recording will be stopped automatically.
+   * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+   * has been captured. If unset, no size-based automatic stop is applied.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -178,7 +185,8 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value chunkFileSizeInBytes_;
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -190,7 +198,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -202,7 +211,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+   * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+   * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -431,7 +441,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request to StartTrafficRecording request.
+   * Request to start a new traffic recording session. Only one recording may be in progress at a time; starting a
+   * new one while another is still running fails.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcStartTrafficRecordingRequest}
@@ -782,7 +793,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> maxDurationInMillisecondsBuilder_;
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -793,7 +805,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -808,7 +821,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -828,7 +842,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -846,7 +861,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -871,7 +887,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -888,7 +905,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -900,7 +918,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -915,7 +934,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The duration of the recording in milliseconds, after this time the recording will be stopped automatically.
+     * The maximum duration of the recording (milliseconds); the recording stops automatically once this much time
+     * has elapsed. If unset, the recording keeps running until explicitly stopped via StopTrafficRecording.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxDurationInMilliseconds = 3;</code>
@@ -939,7 +959,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> maxFileSizeInBytesBuilder_;
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -950,7 +971,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -965,7 +987,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -985,7 +1008,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1003,7 +1027,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1028,7 +1053,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1045,7 +1071,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1057,7 +1084,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1072,7 +1100,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the recording in bytes, after this size the recording will be stopped automatically.
+     * The maximum size of the recorded traffic data (bytes); the recording stops automatically once this much data
+     * has been captured. If unset, no size-based automatic stop is applied.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value maxFileSizeInBytes = 4;</code>
@@ -1096,7 +1125,8 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> chunkFileSizeInBytesBuilder_;
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1107,7 +1137,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1122,7 +1153,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1142,7 +1174,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1160,7 +1193,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1185,7 +1219,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1202,7 +1237,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1214,7 +1250,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>
@@ -1229,7 +1266,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The size of the chunk file in bytes. Individual files in the export file will be approximately this size.
+     * The target size of each individual chunk file within the export (bytes); exported files are split into chunks
+     * of approximately this size. If unset, or set to zero, the server-configured default chunk size is used.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value chunkFileSizeInBytes = 5;</code>

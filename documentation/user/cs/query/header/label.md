@@ -5,7 +5,7 @@ perex: Štítky umožňují označit dotaz pro pozdější identifikaci.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+commit: 6e9b822be48760cbbff38a63cc4599e8f3d88d5d
 translated: 'true'
 ---
 ## Štítek
@@ -72,7 +72,7 @@ zahltit Prometheus i libovolný dashboard nad ním postavený.
 
 Z tohoto důvodu se ve výchozím stavu do Prometheus neexportuje žádný štítek. Operátor může jednotlivé názvy štítků
 povolit pomocí nastavení `exportedQueryLabels` Observability API (viz
-[konfigurace Observability](../../operate/configure.md#konfigurace-observability)) - názvy štítků jsou libovolné a volí
+[konfigurace Observability](../../operate/configure.md#konfigurace-sledovatelnosti)) - názvy štítků jsou libovolné a volí
 je operátor, který tím přebírá odpovědnost za udržení jejich hodnot omezených. Dokud není název nakonfigurován, jsou
 jeho hodnoty vidět pouze v trasování, záznamech provozu a JFR událostech, nikdy v Prometheus.
 

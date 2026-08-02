@@ -73,7 +73,9 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogNameToBeReplacedWith_ = "";
   /**
    * <pre>
-   * Name of the catalog that will become the successor of the original catalog (old name)
+   * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+   * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+   * the state of this catalog is unknown and must be treated as damaged.
    * </pre>
    *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -94,7 +96,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog that will become the successor of the original catalog (old name)
+   * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+   * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+   * the state of this catalog is unknown and must be treated as damaged.
    * </pre>
    *
    * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -120,7 +124,9 @@ private static final long serialVersionUID = 0L;
   private volatile java.lang.Object catalogNameToBeReplaced_ = "";
   /**
    * <pre>
-   * Name of the catalog that will be replaced and dropped (new name)
+   * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+   * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+   * operation fails, this catalog is guaranteed to remain untouched.
    * </pre>
    *
    * <code>string catalogNameToBeReplaced = 2;</code>
@@ -141,7 +147,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog that will be replaced and dropped (new name)
+   * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+   * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+   * operation fails, this catalog is guaranteed to remain untouched.
    * </pre>
    *
    * <code>string catalogNameToBeReplaced = 2;</code>
@@ -519,7 +527,9 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogNameToBeReplacedWith_ = "";
     /**
      * <pre>
-     * Name of the catalog that will become the successor of the original catalog (old name)
+     * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+     * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+     * the state of this catalog is unknown and must be treated as damaged.
      * </pre>
      *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -539,7 +549,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will become the successor of the original catalog (old name)
+     * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+     * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+     * the state of this catalog is unknown and must be treated as damaged.
      * </pre>
      *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -560,7 +572,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will become the successor of the original catalog (old name)
+     * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+     * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+     * the state of this catalog is unknown and must be treated as damaged.
      * </pre>
      *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -577,7 +591,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will become the successor of the original catalog (old name)
+     * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+     * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+     * the state of this catalog is unknown and must be treated as damaged.
      * </pre>
      *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -591,7 +607,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will become the successor of the original catalog (old name)
+     * Name of the source catalog whose content takes over. After a successful replace, this name no longer exists -
+     * the catalog is consumed and its content is now served under `catalogNameToBeReplaced`. If the operation fails,
+     * the state of this catalog is unknown and must be treated as damaged.
      * </pre>
      *
      * <code>string catalogNameToBeReplacedWith = 1;</code>
@@ -611,7 +629,9 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogNameToBeReplaced_ = "";
     /**
      * <pre>
-     * Name of the catalog that will be replaced and dropped (new name)
+     * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+     * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+     * operation fails, this catalog is guaranteed to remain untouched.
      * </pre>
      *
      * <code>string catalogNameToBeReplaced = 2;</code>
@@ -631,7 +651,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will be replaced and dropped (new name)
+     * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+     * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+     * operation fails, this catalog is guaranteed to remain untouched.
      * </pre>
      *
      * <code>string catalogNameToBeReplaced = 2;</code>
@@ -652,7 +674,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will be replaced and dropped (new name)
+     * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+     * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+     * operation fails, this catalog is guaranteed to remain untouched.
      * </pre>
      *
      * <code>string catalogNameToBeReplaced = 2;</code>
@@ -669,7 +693,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will be replaced and dropped (new name)
+     * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+     * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+     * operation fails, this catalog is guaranteed to remain untouched.
      * </pre>
      *
      * <code>string catalogNameToBeReplaced = 2;</code>
@@ -683,7 +709,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog that will be replaced and dropped (new name)
+     * Name of the target catalog to replace. Its existing content is dropped and replaced by the content of
+     * `catalogNameToBeReplacedWith`, while the name itself is preserved and keeps serving requests under it. If the
+     * operation fails, this catalog is guaranteed to remain untouched.
      * </pre>
      *
      * <code>string catalogNameToBeReplaced = 2;</code>

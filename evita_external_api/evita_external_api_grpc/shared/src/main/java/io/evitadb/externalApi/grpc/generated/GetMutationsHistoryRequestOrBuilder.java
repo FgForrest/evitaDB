@@ -33,7 +33,13 @@ public interface GetMutationsHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -42,7 +48,13 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   boolean hasSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -51,7 +63,13 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   com.google.protobuf.Int64Value getSinceVersion();
   /**
    * <pre>
-   * Starting point for the search (catalog version)
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -60,7 +78,9 @@ public interface GetMutationsHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, no index-based
+   * filtering is applied within `sinceVersion` - all of that version's mutations are included.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -69,7 +89,9 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   boolean hasSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, no index-based
+   * filtering is applied within `sinceVersion` - all of that version's mutations are included.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -78,7 +100,9 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   com.google.protobuf.Int32Value getSinceIndex();
   /**
    * <pre>
-   * Starting point for the search (index of the mutation within catalog version)
+   * Index of the mutation within `sinceVersion` to anchor the search at (inclusive). A version's mutations
+   * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, no index-based
+   * filtering is applied within `sinceVersion` - all of that version's mutations are included.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 2;</code>
@@ -87,7 +111,8 @@ public interface GetMutationsHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -96,7 +121,8 @@ public interface GetMutationsHistoryRequestOrBuilder extends
       getCriteriaList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -104,7 +130,8 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index);
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -112,7 +139,8 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   int getCriteriaCount();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -121,7 +149,8 @@ public interface GetMutationsHistoryRequestOrBuilder extends
       getCriteriaOrBuilderList();
   /**
    * <pre>
-   * The criteria of the capture, allows to define constraints on the returned mutations
+   * Criteria mutations must match to be included (entity type, mutation kind, area, etc.). An empty list
+   * applies no criteria-based filtering.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 3;</code>
@@ -131,7 +160,10 @@ public interface GetMutationsHistoryRequestOrBuilder extends
 
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>
@@ -140,7 +172,10 @@ public interface GetMutationsHistoryRequestOrBuilder extends
   int getContentValue();
   /**
    * <pre>
-   * The scope of the returned data - either header of the mutation, or the whole mutation
+   * Whether the response carries only mutation headers (`CHANGE_HEADER`, the default - proto3 zero value -
+   * when this field is left unset) or full mutation bodies (`CHANGE_BODY`). Only `CHANGE_BODY` carries
+   * enough information (e.g. `mutationCount` on the transaction header) to verify a transaction was
+   * received in full.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 4;</code>

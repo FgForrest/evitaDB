@@ -77,6 +77,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toBigDecimal;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toQueryPhase;
 import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.SEALED_ENTITY_TYPE_CONVERTER;
 import static io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter.toEntityReference;
@@ -544,6 +545,8 @@ public class ResponseConverter {
 			toQueryPhase(grpcQueryTelemetry.getOperation()),
 			grpcQueryTelemetry.getStart(),
 			grpcQueryTelemetry.getSpentTime(),
+			// only the root step carries the wall-clock stamp that anchors the whole tree in time
+			grpcQueryTelemetry.hasStartedAt() ? toOffsetDateTime(grpcQueryTelemetry.getStartedAt()) : null,
 			grpcQueryTelemetry.getArgumentsList().toArray(String[]::new),
 			grpcQueryTelemetry.getStepsList().stream().map(ResponseConverter::toQueryTelemetry).toArray(QueryTelemetry[]::new)
 		);

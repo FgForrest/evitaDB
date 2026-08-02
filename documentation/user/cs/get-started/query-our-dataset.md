@@ -1,12 +1,12 @@
 ---
-title: Dotazujte se naší datové sady
+title: Dotaz na náš dataset
 perex: Tento článek vám ukáže, jak se připojit k naší demo instanci nebo jak spustit demo instanci na vlastním hardwaru a experimentovat s dotazovacím jazykem evitaDB.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
-commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
 translated: 'true'
+commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
 ---
 Ačkoli je mnohem lepší pracovat se schématem a daty, která odpovídají vašemu vlastnímu e-commerce případu použití, věříme, že mnoho z vás bude chtít otestovat Query API bez zbytečné práce. Proto jsme pro vás připravili ukázkové schéma virtuálního e-shopu s daty pro více než tisíc produktů, se kterými si můžete ihned pohrát.
 
@@ -37,7 +37,7 @@ Naše API jsou dostupná na těchto adresách:
 
 ## Spusťte si vlastní server evitaDB s naší datovou sadou
 
-Tato možnost vyžaduje více práce, ale získáte kontrolu nad výkonem a budete moci libovolně upravovat data v sadě. Pro přístup k datové sadě na vlastním hardwaru musíte:
+Tato možnost vyžaduje více práce, ale získáte kontrolu nad výkonem a budete moci libovolně upravovat data v sadě. Abyste mohli přistupovat k datové sadě na svém vlastním hardwaru, je potřeba:
 
 1. [stáhnout archiv s datovou sadou](https://evitadb.io/download/evita-demo-dataset.zip)
    ```shell
@@ -59,7 +59,7 @@ Tato možnost vyžaduje více práce, ale získáte kontrolu nad výkonem a bude
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
 
-   # je otevřený issue https://github.com/docker/roadmap/issues/238 pro Windows / Mac OS
+   # existuje otevřený issue https://github.com/docker/roadmap/issues/238 pro Windows / Mac OS
    # a je potřeba ručně otevřít porty a předat IP adresu hostitele do kontejneru
    docker run --name evitadb -i -p 5555:5555 \        
           -v "./data:/evita/data" \
@@ -120,7 +120,7 @@ To znamená, že váš server evitaDB je spuštěný a také že načetl katalog
 
 ## Připojení Java klienta
 
-Otevřete své Java IDE a přidejte do projektu následující závislost:
+Otevřete své Java IDE a přidejte do svého projektu následující závislost:
 
 <CodeTabs>
 <CodeTabsBlock>

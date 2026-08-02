@@ -33,7 +33,7 @@ public interface GrpcHistogramBehaviorTypeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a HistogramBehavior array.
+   * The individual HistogramBehavior values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcHistogramBehaviorTypeArrayOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior> getValueList();
   /**
    * <pre>
-   * Value that supports storing a HistogramBehavior array.
+   * The individual HistogramBehavior values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior value = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcHistogramBehaviorTypeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a HistogramBehavior array.
+   * The individual HistogramBehavior values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior value = 1;</code>
@@ -61,7 +61,7 @@ public interface GrpcHistogramBehaviorTypeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a HistogramBehavior array.
+   * The individual HistogramBehavior values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior value = 1;</code>
@@ -71,7 +71,7 @@ public interface GrpcHistogramBehaviorTypeArrayOrBuilder extends
   getValueValueList();
   /**
    * <pre>
-   * Value that supports storing a HistogramBehavior array.
+   * The individual HistogramBehavior values, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior value = 1;</code>

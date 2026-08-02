@@ -521,7 +521,7 @@ public class EntityConverter {
 			for (AssociatedDataValue theAssociatedData : entity.getAssociatedDataValues()) {
 				final GrpcEvitaAssociatedDataValue associatedDataValue = EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(
 					Objects.requireNonNull(theAssociatedData.value()), theAssociatedData.version(),
-					VersionUtils.greaterThanEquals(2025, 4, clientVersion) ?
+					VersionUtils.isAtLeast(clientVersion, 2025, 4) ?
 						AssociatedDataForm.STRUCTURED_VALUE : AssociatedDataForm.JSON
 				);
 

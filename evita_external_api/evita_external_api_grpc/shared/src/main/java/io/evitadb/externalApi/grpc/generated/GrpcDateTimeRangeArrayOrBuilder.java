@@ -33,7 +33,7 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a DateTimeRange array.
+   * The individual DateTimeRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
       getValueList();
   /**
    * <pre>
-   * Value that supports storing a DateTimeRange array.
+   * The individual DateTimeRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
@@ -50,7 +50,7 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getValue(int index);
   /**
    * <pre>
-   * Value that supports storing a DateTimeRange array.
+   * The individual DateTimeRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
@@ -58,7 +58,7 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
   int getValueCount();
   /**
    * <pre>
-   * Value that supports storing a DateTimeRange array.
+   * The individual DateTimeRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>
@@ -67,7 +67,7 @@ public interface GrpcDateTimeRangeArrayOrBuilder extends
       getValueOrBuilderList();
   /**
    * <pre>
-   * Value that supports storing a DateTimeRange array.
+   * The individual DateTimeRange elements, in their original order.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange value = 1;</code>

@@ -33,7 +33,7 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The deleted entity reference.
+   * The deleted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
   boolean hasEntityReference();
   /**
    * <pre>
-   * The deleted entity reference.
+   * The deleted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -51,7 +51,7 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcEntityReference getEntityReference();
   /**
    * <pre>
-   * The deleted entity reference.
+   * The deleted entity as a reference (type + primary key only).
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
@@ -60,7 +60,8 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
 
   /**
    * <pre>
-   * The deleted entity.
+   * The deleted entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -69,7 +70,8 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
   boolean hasEntity();
   /**
    * <pre>
-   * The deleted entity.
+   * The deleted entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
@@ -78,7 +80,8 @@ public interface GrpcDeleteEntityResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getEntity();
   /**
    * <pre>
-   * The deleted entity.
+   * The deleted entity, fully fetched (as it was immediately before deletion) per
+   * `GrpcDeleteEntityRequest.require`.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>

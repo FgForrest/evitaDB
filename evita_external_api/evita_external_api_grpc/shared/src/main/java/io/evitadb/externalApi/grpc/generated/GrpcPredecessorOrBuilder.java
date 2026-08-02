@@ -33,7 +33,8 @@ public interface GrpcPredecessorOrBuilder extends
 
   /**
    * <pre>
-   * true if predecessor is a head, false otherwise
+   * If `true`, this is the first item in the ordering (no predecessor) and `predecessorId` is not
+   * set. If `false`, this item has a predecessor and `predecessorId` must be set.
    * </pre>
    *
    * <code>bool head = 1;</code>
@@ -43,7 +44,8 @@ public interface GrpcPredecessorOrBuilder extends
 
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -52,7 +54,8 @@ public interface GrpcPredecessorOrBuilder extends
   boolean hasPredecessorId();
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
@@ -61,7 +64,8 @@ public interface GrpcPredecessorOrBuilder extends
   com.google.protobuf.Int32Value getPredecessorId();
   /**
    * <pre>
-   * Value that supports storing a Predecessor.
+   * The primary key of the entity/reference that precedes this one in the ordering. Unset when
+   * `head` is `true`; must be set when `head` is `false`.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value predecessorId = 2;</code>

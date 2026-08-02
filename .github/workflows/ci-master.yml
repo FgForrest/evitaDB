@@ -24,6 +24,11 @@ jobs:
     permissions:
       # write permission is required to create a github release
       contents: write
+      # required to dispatch the CI Release branch workflow below — a plain
+      # push wouldn't do it: pushes authenticated with the default
+      # GITHUB_TOKEN never trigger downstream `on: push` workflows (GitHub's
+      # anti-recursion guard), `workflow_dispatch` is explicitly exempted
+      actions: write
     outputs:
       released_version: ${{ steps.release_version.outputs.version }}
       release_branch: ${{ steps.release_branch.outputs.branch }}
@@ -64,6 +69,11 @@ jobs:
       run: |
         mvn duplicate-finder:check -pl '!:evita_long_running_tests'
 
+    # Only used below to name the release branch (e.g. "2026.2" -> release_2026-2).
+    # The actual published version (including patch number) is resolved by
+    # CI Release branch itself once dispatched onto that branch — this repo's
+    # pom.xml version never carries a patch number, so it can't tell a first
+    # ".0" cut apart from the Nth hotfix on an already-released minor.
     - name: Resolve new release version
       id: release_version
       run: |
@@ -128,21 +138,38 @@ jobs:
         git push origin "$RELEASE_BRANCH"
         echo "Fast-forwarded release branch: $RELEASE_BRANCH"
 
-    # Create workflow data files for the release workflow
-    - name: Create workflow data files
+    # Dispatch the actual release build onto the release branch. A plain
+    # `git push` above (authenticated with GITHUB_TOKEN) never fires that
+    # workflow's `on: push` trigger — see the `actions: write` permission
+    # comment at the top of this job. `gh workflow run` uses the
+    # `workflow_dispatch` event, which GitHub does not suppress, so this is
+    # the only reliable way to hand off to CI Release branch from here.
+    # It resolves the next patch version itself by scanning existing tags
+    # against the branch it's dispatched onto, so a first-ever cut for a
+    # brand-new release branch and the Nth hotfix on an existing one both
+    # come out correctly versioned without this job needing to know which.
+    - name: Dispatch release build
       env:
         RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
-        RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        # gh does fall back to GITHUB_TOKEN (job-level env, above) when
+        # GH_TOKEN is unset, but every other gh-using step in this repo's
+        # workflows sets it explicitly — matching that convention here too.
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "$RELEASE_BRANCH" > release_branch.txt
-        echo "$RELEASE_VERSION" > released_version.txt
-
-    # Upload workflow data for the release workflow
-    - name: Upload workflow data
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: workflow-data
-        path: |
-          release_branch.txt
-          released_version.txt
-        retention-days: 14
+        # On the brand-new-branch path above (as opposed to the fast-forward
+        # of an existing branch), this dispatches immediately after the
+        # branch's first-ever push — GitHub's ref index for a just-created
+        # branch could plausibly lag that push by a beat. Retry a few times
+        # rather than fail the whole release on a transient "branch not
+        # found"; this is a bounded wait on GitHub's own eventual
+        # consistency, not a poll for a long-running task.
+        for attempt in 1 2 3 4 5; do
+          if gh workflow run ci-release.yml --ref "$RELEASE_BRANCH"; then
+            echo "Dispatched CI Release branch workflow on $RELEASE_BRANCH"
+            exit 0
+          fi
+          echo "Dispatch attempt $attempt failed, retrying in 3s..."
+          sleep 3
+        done
+        echo "::error::failed to dispatch CI Release branch on $RELEASE_BRANCH after 5 attempts"
+        exit 1

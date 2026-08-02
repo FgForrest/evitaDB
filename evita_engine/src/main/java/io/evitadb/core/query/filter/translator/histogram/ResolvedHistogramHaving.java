@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.histogram;
 
+import io.evitadb.dataType.EvitaDataTypes;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
@@ -56,11 +57,12 @@ public record ResolvedHistogramHaving(
 
 	/**
 	 * Sentinel group primary key used when a `histogramHaving` omits its `groupSelector`. Kept in sync with
-	 * {@code ReferenceSummaryProducer.HistogramRequest#NON_GROUPED_SENTINEL}. evitaDB reserves the value `0`
-	 * as the non-grouped sentinel across the entire reference histogram subsystem — client-supplied primary
-	 * keys (which may otherwise be any `int`, including negatives) must never be `0` when used as a group
-	 * entity PK, and the accumulator enforces this with a hard throw.
+	 * {@code ReferenceSummaryProducer.HistogramRequest#NON_GROUPED_SENTINEL}; both derive from
+	 * {@link EvitaDataTypes#RESERVED_PRIMARY_KEY}, the primary key evitaDB never assigns to a real entity, which
+	 * is what makes it usable as a sentinel here. Client-supplied primary keys (which may otherwise be any `int`,
+	 * including negatives) must never be the reserved value when used as a group entity PK, and the accumulator
+	 * enforces this with a hard throw.
 	 */
-	public static final int NON_GROUPED_SENTINEL = 0;
+	public static final int NON_GROUPED_SENTINEL = EvitaDataTypes.RESERVED_PRIMARY_KEY;
 
 }
