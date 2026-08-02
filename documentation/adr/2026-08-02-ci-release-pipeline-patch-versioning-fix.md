@@ -1,7 +1,7 @@
 ---
 title: Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
 date: 2026-08-02
-updated: 2026-08-02 21:30
+updated: 2026-08-02 21:25
 status: accepted
 kind: infrastructure
 issues: [1359]
@@ -109,6 +109,11 @@ exactly what made the `workflow_run` side silently wrong (it never scanned tags)
   and no release is cut. This was already true before this change; it now matters more because the
   dispatch path is the *only* route to a release. Left as-is — a docs-only or tooling-only merge
   genuinely doesn't warrant a release — but recorded here so it reads as a decision, not an oversight.
+- `tools/list-commits.sh` was silently dropping `perf:`-prefixed conventional commits from patch-mode
+  release notes — they matched its type regex but the categorisation `case` statement had no branch
+  for them (major-mode releases never noticed, since `list-issues.sh` catches performance work via
+  the `performance` issue label instead). Found while curating this hotfix's own release notes by
+  hand; fixed alongside this change by routing `perf` into the same bucket as `feat`.
 
 ### The `MAKE_LATEST` bug this also fixes
 
@@ -140,11 +145,6 @@ published `v*` tags instead of trusting the ref name.
 
 - The first `dev` → `master` merge after this lands is the first real exercise of the new path;
   watch its `CI Master branch` and `CI Release branch` runs directly rather than assuming success.
-- `tools/list-commits.sh` silently drops `perf:`-prefixed conventional commits — they match its type
-  regex but the categorisation `case` statement has no branch for them, so they vanish from patch-mode
-  release notes entirely (major-mode releases don't notice because `list-issues.sh` catches
-  performance work via the `performance` issue label instead). Found while curating this hotfix's
-  release notes by hand; not fixed here — reported separately.
 
 ## Timeline
 

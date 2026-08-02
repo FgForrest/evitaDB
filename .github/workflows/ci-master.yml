@@ -151,6 +151,10 @@ jobs:
     - name: Dispatch release build
       env:
         RELEASE_BRANCH: ${{ steps.release_branch.outputs.branch }}
+        # gh does fall back to GITHUB_TOKEN (job-level env, above) when
+        # GH_TOKEN is unset, but every other gh-using step in this repo's
+        # workflows sets it explicitly — matching that convention here too.
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gh workflow run ci-release.yml --ref "$RELEASE_BRANCH"
         echo "Dispatched CI Release branch workflow on $RELEASE_BRANCH"
