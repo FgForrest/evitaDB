@@ -254,6 +254,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@AfterEach
 	void tearDown() throws IOException {
+		// `CURRENT_TIME_MILLIS` is thread-scoped, which stops a pinned clock reaching tests running *concurrently* -
+		// but not tests running *later*: surefire uses one reused fork and the parallel engine hands the same worker
+		// thread to test after test, so a pin left behind here is inherited by whatever runs next on this thread.
+		// Clear unconditionally rather than only in the tests that currently pin it, so a future test that forgets
+		// its own restore cannot leak either.
+		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
 		this.walService.close();
 		this.observableOutputKeeper.close();
 		final File file = this.walFile.toFile();
@@ -582,7 +588,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTransactionOptions()
 		);
 		final OffsetDateTime startTime = Instant.ofEpochMilli(System.currentTimeMillis() - 1_000_000_000L).atZone(ZoneId.systemDefault()).toOffsetDateTime();
-		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.toInstant().toEpochMilli();
+		// pins this thread's clock ~11.5 days into the past - cleared in the `finally` below (and, belt and braces,
+		// in `tearDown`). Leaving it pinned stamps every bootstrap record written afterwards on this worker thread
+		// with a past timestamp, which silently breaks any test that relates a bootstrap timestamp to the wall clock.
+		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.set(() -> startTime.toInstant().toEpochMilli());
 
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
@@ -604,7 +613,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			);
 			for (int i = 0; i < 12; i++) {
 				final int catalogVersion = i + 2;
-				DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
+				DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.set(() -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli());
 				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
 
 				final File tempFile = File.createTempFile("test", ".tmp");
@@ -668,6 +677,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(15));
 			assertNotNull(m4);
 			assertEquals(13, m4.catalogVersion());
+		} finally {
+			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
 		}
 	}
 
@@ -678,7 +689,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// by a brand-new persistence service instance rather than having its timestamp mutated in place
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 		final long fixedNow = Instant.now().minusSeconds(3_600L).toEpochMilli();
-		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> fixedNow;
+		DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.set(() -> fixedNow);
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
@@ -704,7 +715,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.getOrCreateEntityCollectionPersistenceService(0L, "product", 1);
 			assertEquals(fixedNow, entityCollectionPersistenceService.getLastCompactionAtMillis());
 		} finally {
-			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = System::currentTimeMillis;
+			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
 		}
 	}
 

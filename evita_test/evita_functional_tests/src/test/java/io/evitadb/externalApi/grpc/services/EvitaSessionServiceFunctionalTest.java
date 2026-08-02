@@ -3507,18 +3507,16 @@ class EvitaSessionServiceFunctionalTest {
 		//    answers first. The single settle poll below establishes exactly that, which is why the boundary
 		//    is then read with one plain call rather than polled until two RPCs converge.
 		//
-		// Two seconds, not one, and the extra second is doing work rather than padding. It leaves this catalog
-		// idle for about a `checkpointIntervalInMillis` (1s by default), which usually makes
-		// `CheckpointCoordinator#isCheckpointDue` true by the time the seed below commits - and
-		// `DefaultCatalogPersistenceService` then writes the bootstrap record INLINE, inside that committing
-		// round, rather than deferring it to the 1s ticker that a loaded reactor can starve.
+		// No checkpoint ticker is involved here, despite what the wait below might suggest: tests build their Evita
+		// with `syncWrites(false)` (EvitaParameterResolver), and `createCheckpointCoordinator` returns null unless
+		// BOTH `checkpointIntervalInMillis > 0` and `syncWrites()` hold - so every trunk round writes its bootstrap
+		// record inline, on the committing thread. The seed below therefore produces the record this test waits for
+		// as part of committing it; the generous ceiling covers a loaded reactor being slow to run that round, not
+		// a deferred checkpoint waiting on a 1s ticker.
 		//
-		// "Usually", deliberately: this biases towards the inline path, it does not force it. `isCheckpointDue`
-		// measures from the last *completed* checkpoint, so one deferred by earlier activity can fire inside
-		// this window and restart the interval. The settle poll below therefore still has to tolerate the
-		// ticker - see CHECKPOINT_AWAIT_TIMEOUT_SECONDS, which is the part that actually covers that case.
-		//
-		// `truncatedTo` first so the bound still lands on a whole second; the resulting wait is one to two.
+		// Two seconds rather than one is plain slack: `truncatedTo` first so the bound lands on a whole second,
+		// which leaves the wait anywhere between one and two, and a bound that is only microseconds ahead would
+		// have the seed racing it. Nothing else depends on the exact figure.
 		final OffsetDateTime beforeSeed = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(2);
 		await().alias("wall clock to reach the chosen time-frame bound")
 			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
@@ -3648,8 +3646,7 @@ class EvitaSessionServiceFunctionalTest {
 		//
 		// Bound chosen and then seeded exactly as in the reverse test - see there for why the bound is fixed
 		// up front rather than derived from an existing block's timestamp, why that leaves the version
-		// resolved from it final after a single settle poll, and why the wait is two seconds (it biases the
-		// seed's checkpoint towards being written inline rather than by the ticker, without forcing it).
+		// resolved from it final after a single settle poll, and why two seconds of slack rather than one.
 		final OffsetDateTime boundary = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(2);
 		await().alias("wall clock to reach the chosen time-frame bound")
 			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
