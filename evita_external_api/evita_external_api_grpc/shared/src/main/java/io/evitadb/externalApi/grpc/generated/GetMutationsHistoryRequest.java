@@ -29,9 +29,11 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for GetMutationsHistory, a streamed, reverse-chronological read of past mutations that match
- * the given criteria - the unpaged sibling of GetMutationsHistoryPage. Traversal is always reverse
- * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+ * Request for GetMutationsHistory / GetMutationsHistoryForward, a streamed read of past mutations that
+ * match the given criteria - the unpaged sibling of GetMutationsHistoryPage / GetMutationsHistoryPageForward.
+ * GetMutationsHistory delivers them reverse-chronologically (newest first); GetMutationsHistoryForward
+ * delivers them chronologically (oldest first). The two RPCs share this same request message; `sinceVersion`
+ * switches meaning by direction.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest}
@@ -75,9 +77,13 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.Int64Value sinceVersion_;
   /**
    * <pre>
-   * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-   * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-   * current catalog version instead - the two can diverge under concurrent writes.
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -89,9 +95,13 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-   * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-   * current catalog version instead - the two can diverge under concurrent writes.
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -103,9 +113,13 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-   * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-   * current catalog version instead - the two can diverge under concurrent writes.
+   * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+   * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+   * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+   * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+   * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+   * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+   * version is not rejected - it simply yields an empty stream.
    * </pre>
    *
    * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -460,9 +474,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for GetMutationsHistory, a streamed, reverse-chronological read of past mutations that match
-   * the given criteria - the unpaged sibling of GetMutationsHistoryPage. Traversal is always reverse
-   * (newest first); there is currently no forward-traversal RPC (tracked in #1349).
+   * Request for GetMutationsHistory / GetMutationsHistoryForward, a streamed read of past mutations that
+   * match the given criteria - the unpaged sibling of GetMutationsHistoryPage / GetMutationsHistoryPageForward.
+   * GetMutationsHistory delivers them reverse-chronologically (newest first); GetMutationsHistoryForward
+   * delivers them chronologically (oldest first). The two RPCs share this same request message; `sinceVersion`
+   * switches meaning by direction.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest}
@@ -748,9 +764,13 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> sinceVersionBuilder_;
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -761,9 +781,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -778,9 +802,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -800,9 +828,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -820,9 +852,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -847,9 +883,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -866,9 +906,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -880,9 +924,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>
@@ -897,9 +945,13 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Catalog version to anchor the search at (inclusive). If unset, defaults to the engine's last applied
-     * catalog version. Note this default differs from the paged RPC's, which anchors on the session's
-     * current catalog version instead - the two can diverge under concurrent writes.
+     * Catalog version to anchor the search at (inclusive). For GetMutationsHistory (reverse), an upper bound -
+     * the anchor to start from and go backward; if unset, defaults to the engine's last applied catalog
+     * version (this default differs from the paged RPC's, which anchors on the session's current catalog
+     * version instead - the two can diverge under concurrent writes). For GetMutationsHistoryForward
+     * (forward), a lower bound - the anchor to start from and go forward; if unset, defaults to the oldest
+     * version known to the catalog's mutation history. A forward `sinceVersion` past the newest available
+     * version is not rejected - it simply yields an empty stream.
      * </pre>
      *
      * <code>.google.protobuf.Int64Value sinceVersion = 1;</code>

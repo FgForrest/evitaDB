@@ -71,7 +71,7 @@ message GrpcChangeCaptureDataSite {
 // Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeCatalogCapture {
   // The catalog version the operation was committed in. Strictly monotonic across the stream: ascending in a
-  // forward stream, descending in a reverse stream. See issue #1349 for the full analysis of stream ordering.
+  // forward stream, descending in a reverse stream.
   google.protobuf.Int64Value version = 1;
   // A direction-stable physical position of the underlying WAL record within its transaction, not a delivery
   // counter: a forward stream assigns `1..mutationCount` ascending, a reverse stream assigns `mutationCount..1`
@@ -81,8 +81,7 @@ message GrpcChangeCatalogCapture {
   // index: they inherit the `(version, index)` pair of the entity mutation record they belong to, so
   // `(version, index)` identifies a WAL record, not an individual emitted capture - an entity upsert with 5
   // local mutations produces 6 captures that all share the same pair. The index is advanced before criteria
-  // filtering is applied, so it stays stable and comparable across requests using different filters. See issue
-  // #1349 for the full analysis.
+  // filtering is applied, so it stays stable and comparable across requests using different filters.
   google.protobuf.Int32Value index = 2;
   // the area of the operation
   GrpcChangeCaptureArea area = 3;

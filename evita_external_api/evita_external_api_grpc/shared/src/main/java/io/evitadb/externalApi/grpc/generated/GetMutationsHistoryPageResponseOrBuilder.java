@@ -33,8 +33,10 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
 
   /**
    * <pre>
-   * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+   * GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+   * since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+   * the last included group fans out into several local-mutation captures; see the message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -43,8 +45,10 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
       getChangeCaptureList();
   /**
    * <pre>
-   * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+   * GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+   * since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+   * the last included group fans out into several local-mutation captures; see the message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -52,8 +56,10 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture getChangeCapture(int index);
   /**
    * <pre>
-   * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+   * GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+   * since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+   * the last included group fans out into several local-mutation captures; see the message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -61,8 +67,10 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
   int getChangeCaptureCount();
   /**
    * <pre>
-   * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+   * GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+   * since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+   * the last included group fans out into several local-mutation captures; see the message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
@@ -71,12 +79,41 @@ public interface GetMutationsHistoryPageResponseOrBuilder extends
       getChangeCaptureOrBuilderList();
   /**
    * <pre>
-   * The mutations on this page, newest first. Can be shorter than the requested page size - including
-   * empty - without that implying it is the last page; see the message-level note above.
+   * The mutations on this page - newest first for GetMutationsHistoryPage, oldest first for
+   * GetMutationsHistoryPageForward. Can be shorter than the requested page size - including empty - and,
+   * since a page never splits a `(version, index)` group, can also carry more entries than `pageSize` when
+   * the last included group fans out into several local-mutation captures; see the message-level comment.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture changeCapture = 1;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCaptureOrBuilder getChangeCaptureOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Whether a further page exists beyond this one - see the message-level comment for how this is derived.
+   * </pre>
+   *
+   * <code>bool hasNext = 2;</code>
+   * @return The hasNext.
+   */
+  boolean getHasNext();
+
+  /**
+   * <pre>
+   * The catalog version this page's traversal is anchored to. If the request left `sinceVersion` unset,
+   * this reports what the implied bound resolved to: "now" (the newest available version) for
+   * GetMutationsHistoryPage, or the oldest known version for GetMutationsHistoryPageForward - no other RPC
+   * reports either directly (`GetCatalogVersionAt` with no moment set reports the *oldest* known version
+   * only, regardless of direction). Pass this value back as `GetMutationsHistoryPageRequest.sinceVersion`
+   * on every subsequent page of the same traversal to keep it anchored to that one version throughout. If
+   * `sinceVersion` is instead left unset on every call, each page resolves the bound independently, so a
+   * commit landing between page fetches moves it and mutations can be skipped or duplicated across pages.
+   * </pre>
+   *
+   * <code>int64 sinceVersion = 3;</code>
+   * @return The sinceVersion.
+   */
+  long getSinceVersion();
 }

@@ -216,7 +216,7 @@ nebo při opětovném použití stejné datové sady později.
 
 Můžete přepnout datovou sadu do režimu pro zápis, ale doporučujeme si být této skutečnosti vědom a označit datovou sadu ke zničení po dokončení testovací metody nebo celé testovací třídy. Všechny objekty session evita, které jsou vytvořeny a
 <Term>autowirovány</Term> v argumentech testovací metody, jsou vytvořeny jako sessiony pro zápis s
-[příznakem dry-run](write-data.md#relace-na-sucho-dry-run). To znamená, že nikdy neovlivní data v datové sadě
+[příznakem dry-run](write-data.md#relace-pro-suchý-běh-dry-run). To znamená, že nikdy neovlivní data v datové sadě
 mimo rozsah této konkrétní session. Tento vzor se nazývá
 [transaction rollback teardown pattern](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html)
 a úspěšně se používá již dlouhou dobu v
@@ -235,7 +235,7 @@ Všechny metody anotované testovacími anotacemi evitaDB mohou deklarovat násl
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></dt>
     <dd>
         Odkaz na otevřenou session evitaDB pro zápis. Session je označena jako
-        [dry-run](write-data.md#relace-na-sucho-dry-run), pokud je použita v testovací metodě anotované `@UseDataSet`.
+        [dry-run](write-data.md#relace-pro-suchý-běh-dry-run), pokud je použita v testovací metodě anotované `@UseDataSet`.
         Sessiony <Term name="autowiring">autowirované</Term> do init nebo teardown metod jsou čistě pro zápis.
     </dd>
     <dt><SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass></dt>

@@ -75,7 +75,8 @@ message GrpcReferenceGroupStatistics {
 }
 
 // This DTO contains information about single facet group and statistics of the facets that relates to it.
-// deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the `referenceSummary` requirement
+// Deprecated since 2026.2 - deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the
+// `referenceSummary` requirement
 // TOBEDONE: remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 message GrpcFacetGroupStatistics {
   option deprecated = true;
@@ -195,7 +196,7 @@ message GrpcExtraResults {
   GrpcHistogram priceHistogram = 2;
   // Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
   // (if they belong in one) and statistics of the facets that relates to it.
-  // deprecated renamed to `referenceGroupStatistics`
+  // Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
   repeated GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];
   // Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
   // the queried hierarchy entity.

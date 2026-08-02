@@ -1413,7 +1413,20 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest criteria) {
+	public Stream<ChangeCatalogCapture> getMutationsHistoryForward(@Nonnull ChangeCatalogCaptureRequest criteria) {
+		final MutationPredicate mutationPredicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(criteria);
+		final long sinceVersion = criteria.sinceVersion() != null ?
+			criteria.sinceVersion() : this.catalog.getFirstCatalogVersionAfter(null).startVersion();
+		return registerStreamAndReturnCloseableStream(
+			this.catalog
+				.getCommittedLiveMutationStream(sinceVersion, this.catalog.getVersion())
+				.flatMap(it -> it.toChangeCatalogCapture(mutationPredicate, criteria.content()))
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> getMutationsHistoryReversed(@Nonnull ChangeCatalogCaptureRequest criteria) {
 		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
 		return registerStreamAndReturnCloseableStream(
 			this.catalog

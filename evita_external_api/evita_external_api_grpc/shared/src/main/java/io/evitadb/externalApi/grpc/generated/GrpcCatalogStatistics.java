@@ -160,12 +160,12 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * true if the catalog is corrupted (other data will be not available)
-   * deprecated in favor of `catalogState` (compare against `CORRUPTED`)
+   * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
    * </pre>
    *
    * <code>bool corrupted = 3 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=493
+   *     See GrpcEvitaDataTypes.proto;l=494
    * @return The corrupted.
    */
   @java.lang.Override
@@ -1243,12 +1243,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
-     * deprecated in favor of `catalogState` (compare against `CORRUPTED`)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=493
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @return The corrupted.
      */
     @java.lang.Override
@@ -1258,12 +1258,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
-     * deprecated in favor of `catalogState` (compare against `CORRUPTED`)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=493
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @param value The corrupted to set.
      * @return This builder for chaining.
      */
@@ -1277,12 +1277,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * true if the catalog is corrupted (other data will be not available)
-     * deprecated in favor of `catalogState` (compare against `CORRUPTED`)
+     * Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
      * </pre>
      *
      * <code>bool corrupted = 3 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCatalogStatistics.corrupted is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=493
+     *     See GrpcEvitaDataTypes.proto;l=494
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearCorrupted() {

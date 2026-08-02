@@ -1918,7 +1918,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Nonnull
 	@Override
-	public Stream<ChangeCatalogCapture> getMutationsHistory(@Nonnull ChangeCatalogCaptureRequest request) {
+	public Stream<ChangeCatalogCapture> getMutationsHistoryReversed(@Nonnull ChangeCatalogCaptureRequest request) {
 		assertActive();
 
 		// Observer reference that needs to be used for closing the stream
@@ -1951,7 +1951,56 @@ public class EvitaClientSession implements EvitaSessionContract {
 			.onClose(() -> {
 				// when stream is closed and the observer is not completed (hasn't received the end of the stream)
 				// cancel the stream on the server side, and complete it locally
-				if (!streamObserver.isCompleted()) {
+				if (streamObserver.isStillRunning()) {
+					callRef.get().cancel("Stream closed by the client", null);
+					streamObserver.onCompleted();
+				}
+			});
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * If the stream is closed prematurely the server stream is cancelled and the server is notified about it.
+	 *
+	 * @param request request that specifies the criteria for the changes to be returned
+	 */
+	@Nonnull
+	@Override
+	public Stream<ChangeCatalogCapture> getMutationsHistoryForward(@Nonnull ChangeCatalogCaptureRequest request) {
+		assertActive();
+
+		// Observer reference that needs to be used for closing the stream
+		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout);
+		// Call reference is needed for cancelling stream on the server side
+		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
+
+		executeWithStreamingEvitaSessionService(
+			session -> {
+				final ClientCall<GetMutationsHistoryRequest, GetMutationsHistoryResponse> call = session.getChannel().newCall(
+					EvitaSessionServiceGrpc.getGetMutationsHistoryForwardMethod(),
+					session.getCallOptions()
+				);
+				callRef.set(call);
+
+				ClientCalls.asyncServerStreamingCall(
+					call,
+					toGrpcChangeCaptureRequest(request),
+					streamObserver
+				);
+				return null;
+			}
+		);
+
+		// now we wrap the observer to a blocking split iterator that will read from it
+		return StreamSupport.stream(
+				new ChangeCatalogCaptureSpliterator(streamObserver),
+				false
+			)
+			.onClose(() -> {
+				// when stream is closed and the observer is not completed (hasn't received the end of the stream)
+				// cancel the stream on the server side, and complete it locally
+				if (streamObserver.isStillRunning()) {
 					callRef.get().cancel("Stream closed by the client", null);
 					streamObserver.onCompleted();
 				}
@@ -3016,12 +3065,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 		}
 
 		/**
-		 * Returns true if the stream has been completed.
+		 * Returns true if the stream is still running.
 		 *
-		 * @return true if the stream has been completed
+		 * @return true if the stream is still running
 		 */
-		public boolean isCompleted() {
-			return this.completed.get();
+		public boolean isStillRunning() {
+			return !this.completed.get();
 		}
 	}
 

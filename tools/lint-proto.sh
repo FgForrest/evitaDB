@@ -30,11 +30,24 @@
 # a lint config has no business shipping to consumers of the JAR. `buf.yaml`'s own `modules[].path`
 # points at the actual proto directory a few levels down.
 #
-# Uses the official `bufbuild/buf` Docker image so a local `buf` install isn't required, matching
-# the pattern of the other schema-diff scripts in this directory (diff-openapi-schemas.sh,
-# diff-graphql-schemas.sh).
+# Prefers a natively installed `buf` on PATH (fastest - no container start), and falls back to the
+# official `bufbuild/buf` Docker image when there isn't one, matching the pattern of the other
+# schema-diff scripts in this directory (diff-openapi-schemas.sh, diff-graphql-schemas.sh). Neither
+# is mandatory, but at least one must be present.
 #
-# Works on Linux and macOS. Requires: bash, docker.
+# Install buf natively with any of:
+#   curl -fsSL -o ~/.local/bin/buf \
+#     https://github.com/bufbuild/buf/releases/download/v1.72.0/buf-Linux-x86_64 && chmod +x ~/.local/bin/buf
+#   npm install -g @bufbuild/buf
+#   brew install bufbuild/buf/buf
+#   go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+# Keep the version matched to DOCKER_IMAGE below so local runs and CI cannot disagree; the script
+# warns when they differ.
+#
+# Exit codes: 0 = clean, 3 = no linter available at all (neither buf nor a reachable Docker daemon),
+# anything else = buf's own exit code, i.e. lint violations were found.
+#
+# Works on Linux and macOS. Requires: bash, and either buf or docker.
 
 set -euo pipefail
 
@@ -47,6 +60,15 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MODULE_DIR="${MODULE_DIR:-${PROJECT_DIR}/evita_external_api/evita_external_api_grpc/shared}"
 
 DOCKER_IMAGE="${DOCKER_IMAGE:-bufbuild/buf:1.72.0}"
+
+# Explicit path to a `buf` binary. When unset, any `buf` on PATH is used; set FORCE_DOCKER=1 to skip
+# the native binary entirely and always go through the container.
+BUF_BIN="${BUF_BIN:-}"
+FORCE_DOCKER="${FORCE_DOCKER:-0}"
+
+# Exit code reserved for "no linter available", so callers (the PostToolUse hook) can tell a missing
+# toolchain apart from an actual lint violation.
+readonly NO_LINTER_EXIT=3
 
 # ============================================================================
 # CLI parsing
@@ -64,7 +86,10 @@ Options:
                       Defaults to: ${MODULE_DIR}
   -h, --help          Show this help.
 
-Environment overrides: MODULE_DIR, DOCKER_IMAGE.
+Runs a natively installed 'buf' when one is on PATH, otherwise falls back to the ${DOCKER_IMAGE}
+container. Exits ${NO_LINTER_EXIT} when neither is available.
+
+Environment overrides: MODULE_DIR, DOCKER_IMAGE, BUF_BIN, FORCE_DOCKER.
 EOF
 }
 
@@ -80,30 +105,59 @@ done
 # Prerequisite checks
 # ============================================================================
 
-if ! command -v docker >/dev/null 2>&1; then
-	echo "error: required command 'docker' is not available on PATH" >&2
-	echo "       (alternatively, install buf locally: https://buf.build/docs/cli/installation)" >&2
-	exit 1
-fi
-
 if [[ ! -f "${MODULE_DIR}/buf.yaml" ]]; then
 	echo "error: no buf.yaml found in ${MODULE_DIR}" >&2
 	exit 1
 fi
 
-# ============================================================================
-# Run buf lint via Docker
-# ============================================================================
+# FORCE_DOCKER always wins, even over an explicitly pinned BUF_BIN - otherwise a caller that sets
+# both (e.g. a BUF_BIN left over in the environment) would silently still get the native binary
+if [[ "${FORCE_DOCKER}" == "1" ]]; then
+	BUF_BIN=""
+elif [[ -z "${BUF_BIN}" ]] && command -v buf >/dev/null 2>&1; then
+	BUF_BIN="$(command -v buf)"
+fi
 
-echo "==> Linting ${MODULE_DIR} (docker image: ${DOCKER_IMAGE})"
+# a docker binary on PATH is not enough - with the daemon stopped, `docker run` fails with a
+# connection error that is indistinguishable from a lint violation by exit code alone
+DOCKER_AVAILABLE=0
+if [[ -z "${BUF_BIN}" ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+	DOCKER_AVAILABLE=1
+fi
+
+if [[ -z "${BUF_BIN}" && "${DOCKER_AVAILABLE}" -eq 0 ]]; then
+	echo "error: no linter available - install buf (https://buf.build/docs/cli/installation)" >&2
+	echo "       or start a Docker daemon so ${DOCKER_IMAGE} can be used instead" >&2
+	exit "${NO_LINTER_EXIT}"
+fi
+
+# ============================================================================
+# Run buf lint
+# ============================================================================
 
 set +e
-docker run --rm \
-	--volume "${MODULE_DIR}:/workspace:ro" \
-	--workdir /workspace \
-	"${DOCKER_IMAGE}" \
-	lint
-LINT_EXIT=$?
+if [[ -n "${BUF_BIN}" ]]; then
+	# warn rather than fail on a version skew - a mismatched local buf still lints usefully, it just
+	# may not agree with CI, and hard-failing would punish contributors for a newer install
+	PINNED_VERSION="${DOCKER_IMAGE##*:}"
+	LOCAL_VERSION="$("${BUF_BIN}" --version 2>/dev/null || echo unknown)"
+	if [[ "${LOCAL_VERSION}" != "${PINNED_VERSION}" ]]; then
+		echo "warning: local buf ${LOCAL_VERSION} differs from the pinned ${PINNED_VERSION}" >&2
+		echo "         (CI uses ${DOCKER_IMAGE}; results may diverge)" >&2
+	fi
+
+	echo "==> Linting ${MODULE_DIR} (native buf ${LOCAL_VERSION}: ${BUF_BIN})"
+	(cd "${MODULE_DIR}" && "${BUF_BIN}" lint)
+	LINT_EXIT=$?
+else
+	echo "==> Linting ${MODULE_DIR} (docker image: ${DOCKER_IMAGE})"
+	docker run --rm \
+		--volume "${MODULE_DIR}:/workspace:ro" \
+		--workdir /workspace \
+		"${DOCKER_IMAGE}" \
+		lint
+	LINT_EXIT=$?
+fi
 set -e
 
 echo "==> buf lint exit code: ${LINT_EXIT} (non-zero means lint violations were found)"

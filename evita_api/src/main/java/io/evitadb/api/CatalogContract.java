@@ -299,13 +299,16 @@ public interface CatalogContract {
 	PaginatedList<MaterializedVersionBlock> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
-	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
-	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
-	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
-	 * gradually as the stream provides the data.
+	 * Returns a list of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. A version
+	 * not known in history - because it was purged or never committed - is omitted from the result rather than
+	 * represented by a placeholder, so the result can be shorter than `catalogVersion` and does not align with it
+	 * positionally. An empty list is returned when no history is available at all. Correlate each returned
+	 * descriptor with the request by its own {@link WriteAheadLogVersionDescriptor#version()}, never by index.
+	 * Creating a descriptor could be an expensive operation, so it's recommended to request only as many
+	 * versions at once as the client actually needs, rather than materializing a large list up front.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a list of {@link WriteAheadLogVersionDescriptor} instances
+	 * @return descriptors for those requested versions still known to history; may be shorter than `catalogVersion`
 	 */
 	@Nonnull
 	List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
