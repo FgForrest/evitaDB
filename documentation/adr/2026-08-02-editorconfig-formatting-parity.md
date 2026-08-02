@@ -4,7 +4,7 @@ date: 2026-08-02
 updated: 2026-08-02 14:25
 status: accepted
 kind: infrastructure
-issues: []
+issues: [1119]
 prs: []
 areas: [.editorconfig, .claude/hooks, .claude/rules, .claude/settings.json]
 supersedes: []
