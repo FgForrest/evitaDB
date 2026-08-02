@@ -82,6 +82,10 @@ esac
 # every future upstream replay becomes a merge conflict. The documentation examples are editorial
 # and measurably space-indented (406 of 680 .java files), so tab enforcement there is pure noise --
 # this is a deliberate superset of .editorconfig's own carve-outs for the same paths.
+#
+# The single-star patterns below already match nested paths (e.g. "evita_roaring_bitmap/*" matches
+# "evita_roaring_bitmap/src/main/Foo.java"): bash `case` does not apply the pathname-expansion rule
+# that stops `*` at `/`, unlike filename globbing (`echo *`). Verified with `case ... in pattern)`.
 case "${REL_PATH}" in
 	*/target/*|target/*) exit 0 ;;
 	*/generated/*) exit 0 ;;
@@ -193,7 +197,7 @@ TAB_WIDTH="$(property tab_width)"
 # added side of the diff against HEAD; for an untracked file, the whole thing.
 collect_added_lines() {
 	if git -C "${PROJECT_DIR}" ls-files --error-unmatch "${REL_PATH}" >/dev/null 2>&1; then
-		git -C "${PROJECT_DIR}" diff -U0 --no-color -- "${REL_PATH}" | awk '
+		git -C "${PROJECT_DIR}" diff -U0 --no-color HEAD -- "${REL_PATH}" | awk '
 			/^@@/ {
 				# hunk header: @@ -old,count +new,count @@ -- take the start of the new-side range
 				split($3, range, ",")
