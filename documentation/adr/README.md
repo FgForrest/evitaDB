@@ -33,7 +33,8 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-08-02 | [Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless](2026-08-02-editorconfig-formatting-parity.md) | infrastructure | accepted | — |
+| 2026-08-02 | [Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master](2026-08-02-ci-release-pipeline-patch-versioning-fix.md) | infrastructure | accepted | #1359 |
+| 2026-08-02 | [Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless](2026-08-02-editorconfig-formatting-parity.md) | infrastructure | accepted | #1119 |
 | 2026-08-01 | [Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path](2026-08-01-bplustree-cursor-free-insert-path.md) | optimization | accepted | #1333, PR #1356 |
 | 2026-07-31 | [Take the four contained bulk-ingest wins, reject the two that trade an invariant or add complexity, and defer the one worth more than all of them](2026-07-31-bulk-ingest-write-path.md) | optimization | accepted | #1342, PR #1348 |
 | 2026-07-27 | [Cut commit-merge latency and write-path allocation by pruning the trunk merge, not inverting it](2026-07-27-write-path-performance-tuning/) | optimization | accepted | #760, PR #1317, PR #1298 |
