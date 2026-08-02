@@ -136,17 +136,27 @@ class EvitaSessionServiceFunctionalTest {
 	 * Ceiling for the waits that need a *bootstrap record* (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock})
 	 * to exist before a time-frame bound can be resolved against it.
 	 *
-	 * This is a hang detector, not a correctness bound. Bootstrap records are appended by the checkpoint
-	 * coordinator, either inline when `TransactionOptions#checkpointIntervalInMillis` has elapsed or from its
-	 * ticker otherwise - and the deferred path always arms that ticker
-	 * (`CheckpointCoordinator#noteCheckpointDeferred`), so the record is guaranteed to arrive; only its timing
-	 * is not. Raising the ceiling therefore cannot mask a missing record: a checkpoint that genuinely never
-	 * happens still fails the test, just later. What it buys is immunity to a full-reactor run, where dozens of
-	 * test classes each drive an embedded evitaDB instance concurrently and the 1s ticker - which shares a
-	 * four-thread scheduler with every other background task of its instance - gets starved well past a tight
-	 * budget. The tests below were written against a 60s ceiling and timed out on exactly that.
+	 * This is a hang detector, not a correctness bound. `DefaultCatalogPersistenceService` writes the bootstrap
+	 * record **inline, inside the committing round**, whenever `CheckpointCoordinator#isCheckpointDue` holds;
+	 * only when it does not does it defer and arm the 1s ticker. The tests that use this ceiling leave the
+	 * catalog idle for about a checkpoint interval before committing, which makes that inline path the likely
+	 * one and the wait below usually succeed on its first poll.
+	 *
+	 * That is a tendency, **not a guarantee**, and it is worth being precise about why: `isCheckpointDue`
+	 * measures from the last *completed* checkpoint, so a checkpoint deferred by earlier activity can fire
+	 * inside the idle window and restart the interval, leaving it unelapsed when the seeding commit lands.
+	 * Worse, the condition being defended against here - a ticker starved by a loaded reactor - is exactly the
+	 * one that makes such a deferred checkpoint arrive late. No amount of waiting closes that, and the
+	 * checkpoint cannot be forced either: `DefaultCatalogPersistenceService#checkpoint()` has no production
+	 * caller and is reachable only by a test that constructs the persistence service directly.
+	 *
+	 * So the ticker remains a real fallback and this ceiling is what covers it. The deferred path always arms
+	 * the ticker (`CheckpointCoordinator#noteCheckpointDeferred`), so the record is guaranteed to arrive and
+	 * only its timing is not - a generous ceiling cannot mask a missing record, since a checkpoint that
+	 * genuinely never happens still fails the test, just later. It is deliberately not raised any further than
+	 * this, because every second of it is added to an already-failing build.
 	 */
-	private static final int CHECKPOINT_AWAIT_TIMEOUT_SECONDS = 180;
+	private static final int CHECKPOINT_AWAIT_TIMEOUT_SECONDS = 120;
 	private static final QuadriConsumer<String, List<Object>, Map<String, Object>, String> NO_OP = (queryString, positionalArguments, namedArguments, error) -> {
 		// no-op
 	};
@@ -3490,7 +3500,20 @@ class EvitaSessionServiceFunctionalTest {
 		//    blocks are appended in timestamp order, so nothing written later can displace the one that
 		//    answers first. The single settle poll below establishes exactly that, which is why the boundary
 		//    is then read with one plain call rather than polled until two RPCs converge.
-		final OffsetDateTime beforeSeed = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1);
+		//
+		// Two seconds, not one, and the extra second is doing work rather than padding. It leaves this catalog
+		// idle for about a `checkpointIntervalInMillis` (1s by default), which usually makes
+		// `CheckpointCoordinator#isCheckpointDue` true by the time the seed below commits - and
+		// `DefaultCatalogPersistenceService` then writes the bootstrap record INLINE, inside that committing
+		// round, rather than deferring it to the 1s ticker that a loaded reactor can starve.
+		//
+		// "Usually", deliberately: this biases towards the inline path, it does not force it. `isCheckpointDue`
+		// measures from the last *completed* checkpoint, so one deferred by earlier activity can fire inside
+		// this window and restart the interval. The settle poll below therefore still has to tolerate the
+		// ticker - see CHECKPOINT_AWAIT_TIMEOUT_SECONDS, which is the part that actually covers that case.
+		//
+		// `truncatedTo` first so the bound still lands on a whole second; the resulting wait is one to two.
+		final OffsetDateTime beforeSeed = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(2);
 		await().alias("wall clock to reach the chosen time-frame bound")
 			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
 			.until(() -> !OffsetDateTime.now().isBefore(beforeSeed));
@@ -3618,9 +3641,10 @@ class EvitaSessionServiceFunctionalTest {
 		// here, exactly where the reverse RPC requires it to be absent.
 		//
 		// Bound chosen and then seeded exactly as in the reverse test - see there for why the bound is fixed
-		// up front at the next whole second rather than derived from an existing block's timestamp, and why
-		// that leaves the version resolved from it final after a single settle poll.
-		final OffsetDateTime boundary = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1);
+		// up front rather than derived from an existing block's timestamp, why that leaves the version
+		// resolved from it final after a single settle poll, and why the wait is two seconds (it biases the
+		// seed's checkpoint towards being written inline rather than by the ticker, without forcing it).
+		final OffsetDateTime boundary = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(2);
 		await().alias("wall clock to reach the chosen time-frame bound")
 			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
 			.until(() -> !OffsetDateTime.now().isBefore(boundary));
