@@ -133,34 +133,31 @@ import static io.evitadb.test.TestTags.SESSION;
 class EvitaSessionServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
 	/**
-	 * Ceiling for the waits that need a *bootstrap record* (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock})
-	 * to exist before a time-frame bound can be resolved against it.
+	 * Ceiling for the CDC time-frame waits in this class - both the plain wall-clock waits that let a chosen
+	 * bound arrive, and the waits that need a *bootstrap record*
+	 * (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock}) to exist before such a bound
+	 * can be resolved against it.
 	 *
-	 * This is a hang detector, not a correctness bound. `DefaultCatalogPersistenceService` writes the bootstrap
-	 * record **inline, inside the committing round**, whenever `CheckpointCoordinator#isCheckpointDue` holds;
-	 * only when it does not does it defer and arm the 1s ticker. The tests that use this ceiling leave the
-	 * catalog idle for about a checkpoint interval before committing, which makes that inline path the likely
-	 * one and the wait below usually succeed on its first poll.
+	 * This is a hang detector, not a correctness bound - and in particular it is **not** covering a checkpoint
+	 * ticker, because this fixture has none to cover. `EvitaParameterResolver` builds the test `Evita` with
+	 * `syncWrites(false)`, and `DefaultCatalogPersistenceService#createCheckpointCoordinator` returns null
+	 * unless BOTH `checkpointIntervalInMillis > 0` and `syncWrites()` hold. With no coordinator the deferral
+	 * branch in `storeHeader` is dead code: every trunk round writes its bootstrap record inline, as part of
+	 * the round, so a seeding commit produces the record the wait is looking for. What the ceiling actually
+	 * covers is a loaded reactor being slow to run that round.
 	 *
-	 * That is a tendency, **not a guarantee**, and it is worth being precise about why: `isCheckpointDue`
-	 * measures from the last *completed* checkpoint, so a checkpoint deferred by earlier activity can fire
-	 * inside the idle window and restart the interval, leaving it unelapsed when the seeding commit lands.
-	 * Worse, the condition being defended against here - a ticker starved by a loaded reactor - is exactly the
-	 * one that makes such a deferred checkpoint arrive late. No amount of waiting closes that.
+	 * Read the paragraph above as a warning, because this javadoc used to claim the opposite: it described the
+	 * deferral path as live and the 1s ticker as the thing being waited on. That sent an investigation into a
+	 * failure here chasing ticker starvation across three commits. The real cause was a leaked process-wide
+	 * test clock (`DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS`, since thread-scoped) that stamped
+	 * bootstrap records in the past, which made the wait *structurally unsatisfiable* rather than merely slow.
+	 * If one of these waits ever times out again, suspect what stamps the records before suspecting what
+	 * schedules them - and note that a wait failing on **every** run is pollution, not load.
 	 *
-	 * Nor is there a lightweight way to settle the checkpoint outright.
-	 * `DefaultCatalogPersistenceService#checkpoint()` does have production callers, but each one is an
-	 * operation that needs a self-sufficient on-disk catalog rather than a way to force a bootstrap record:
-	 * `createBackupTask`/`createFullBackupTask`, reachable from a test through `Catalog#backup`/`#fullBackup`
-	 * but only by writing an entire catalog backup, and `verifyIntegrity`, invoked solely from the internal
-	 * catalog-update and WAL-replay paths and not exposed as a callable operation. Driving a full backup to
-	 * obtain a checkpoint would cost more than the wait it removes.
-	 *
-	 * So the ticker remains a real fallback and this ceiling is what covers it. The deferred path always arms
-	 * the ticker (`CheckpointCoordinator#noteCheckpointDeferred`), so the record is guaranteed to arrive and
-	 * only its timing is not - a generous ceiling cannot mask a missing record, since a checkpoint that
-	 * genuinely never happens still fails the test, just later. It is deliberately not raised any further than
-	 * this, because every second of it is added to an already-failing build.
+	 * The value is deliberately generous rather than tuned: a hang detector costs nothing while the tests pass
+	 * and cannot mask a missing record, since a record that never arrives still fails the test, just later. It
+	 * was raised from 60 while chasing the ticker that turned out not to exist, and is left there because
+	 * re-tuning it would cost a CI round for no gain.
 	 */
 	private static final int CHECKPOINT_AWAIT_TIMEOUT_SECONDS = 120;
 	private static final QuadriConsumer<String, List<Object>, Map<String, Object>, String> NO_OP = (queryString, positionalArguments, namedArguments, error) -> {
@@ -3137,13 +3134,15 @@ class EvitaSessionServiceFunctionalTest {
 		// exercises the reverse handler's `to`-bound resolution and anchor echo end-to-end - coverage the
 		// reverse RPC lacked entirely before this test. It does NOT reproduce the `.endVersion()` vs
 		// `.startVersion()` checkpoint-batching regression itself: that only diverges when the resolved
-		// block spans more than one catalog version, and this shared, single-commit dataset's checkpoint
-		// (TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL, 1s) reliably fires once per commit here, so
-		// start() == end() always and the two resolutions coincide - confirmed empirically, including for
-		// the pre-existing forward-direction sibling test below, which has the same limitation despite
-		// asserting the analogous scenario. Reproducing an actual multi-version block needs a dedicated
-		// dataset with an inflated checkpoint interval (see DeferredCheckpointPersistenceTest), which is
-		// disproportionate to add here; noted as a known gap rather than a false regression guarantee.
+		// block spans more than one catalog version, and here each commit gets a block of its own - this
+		// fixture creates no checkpoint coordinator (see CHECKPOINT_AWAIT_TIMEOUT_SECONDS), so nothing
+		// batches rounds together, and this shared dataset commits one transaction at a time. start() ==
+		// end() and the two resolutions coincide - confirmed empirically, including for the pre-existing
+		// forward-direction sibling test below, which has the same limitation despite asserting the
+		// analogous scenario. Reproducing an actual multi-version block needs a dedicated dataset that
+		// turns the coordinator on and inflates its interval (see DeferredCheckpointPersistenceTest, whose
+		// own javadoc spells out that `syncWrites` must be true for a coordinator to exist at all), which
+		// is disproportionate to add here; noted as a known gap rather than a false regression guarantee.
 		final OffsetDateTime to = OffsetDateTime.now().plusMinutes(1);
 		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPage(
 			GetMutationsHistoryPageRequest.newBuilder()
@@ -3452,14 +3451,15 @@ class EvitaSessionServiceFunctionalTest {
 			.addCatalogVersion(firstVersion)
 			.build();
 
-		// a version only becomes resolvable once a checkpoint has materialised it into a bootstrap version
-		// block, and CheckpointCoordinator ticks on a timer (TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL,
-		// 1s) - poll until both are visible, otherwise the ordering assertion below could hold vacuously on
-		// a single surviving entry. `pollInSameThread()` is mandatory here: the gRPC session established by
-		// SessionInitializer above lives in this thread's client context, so awaitility's default poll
-		// executor would issue the call from a thread with no session and get UNAUTHENTICATED back.
+		// a version only becomes resolvable once it has been materialised into a bootstrap version block, which
+		// the trunk round that produced the version writes inline - no ticker is involved, see
+		// CHECKPOINT_AWAIT_TIMEOUT_SECONDS - so poll until both are visible, otherwise the ordering assertion
+		// below could hold vacuously on a single surviving entry. `pollInSameThread()` is mandatory here: the
+		// gRPC session established by SessionInitializer above lives in this thread's client context, so
+		// awaitility's default poll executor would issue the call from a thread with no session and get
+		// UNAUTHENTICATED back.
 		final AtomicReference<List<GrpcTransactionOverview>> overviews = new AtomicReference<>(List.of());
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
+		await().atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread().until(() -> {
 			overviews.set(
 				evitaSessionBlockingStub.getTransactionOverview(request).getTransactionOverviewsList()
 			);
@@ -3507,12 +3507,9 @@ class EvitaSessionServiceFunctionalTest {
 		//    answers first. The single settle poll below establishes exactly that, which is why the boundary
 		//    is then read with one plain call rather than polled until two RPCs converge.
 		//
-		// No checkpoint ticker is involved here, despite what the wait below might suggest: tests build their Evita
-		// with `syncWrites(false)` (EvitaParameterResolver), and `createCheckpointCoordinator` returns null unless
-		// BOTH `checkpointIntervalInMillis > 0` and `syncWrites()` hold - so every trunk round writes its bootstrap
-		// record inline, on the committing thread. The seed below therefore produces the record this test waits for
-		// as part of committing it; the generous ceiling covers a loaded reactor being slow to run that round, not
-		// a deferred checkpoint waiting on a 1s ticker.
+		// No checkpoint ticker is involved here, despite what the wait below might suggest - this fixture has none
+		// at all, so the seed below produces the record this test waits for as part of its own trunk round. See
+		// CHECKPOINT_AWAIT_TIMEOUT_SECONDS for why that is, and for what the generous ceiling really covers.
 		//
 		// Two seconds rather than one is plain slack: `truncatedTo` first so the bound lands on a whole second,
 		// which leaves the wait anywhere between one and two, and a bound that is only microseconds ahead would
@@ -3536,9 +3533,11 @@ class EvitaSessionServiceFunctionalTest {
 		);
 		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
 
-		// The ONLY step here that waits on a checkpoint. An earlier revision waited for two, the second of
-		// them for a checkpoint that had to cross a bound chosen in the future, and that is the wait that
-		// timed out under full-reactor CI load.
+		// The ONLY step here that waits on a bootstrap record. An earlier revision waited for two, the second
+		// of them for a record that had to cross a bound chosen in the future; it was dropped because the
+		// reasoning above makes it redundant, NOT because it was the cause of the timeouts seen in CI - those
+		// were the leaked test clock, and they broke this remaining wait just as thoroughly. See
+		// CHECKPOINT_AWAIT_TIMEOUT_SECONDS.
 		//
 		// `alias` so that a timeout names the poll that hung: the CI test report surfaces the Awaitility
 		// message and nothing else - the job log and the surefire artifact are not always reachable.
