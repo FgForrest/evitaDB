@@ -3079,6 +3079,56 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@Tag(CDC)
+	@DisplayName("Should include the last eligible version at an inclusive time-frame upper bound while paging mutations history in reverse")
+	void shouldIncludeLastEligibleVersionAtTimeFrameUpperBoundWhenPagingMutationsHistoryReverse(
+		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
+	) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
+			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
+
+		final SealedEntity target = entities.get(entities.size() - 29);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(target.getType(), target.getPrimaryKey(), QueryConstraints.entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 6200L)
+					.upsertVia(session);
+			}
+		);
+		final long lastVersion = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
+
+		// exercises the reverse handler's `to`-bound resolution and anchor echo end-to-end - coverage the
+		// reverse RPC lacked entirely before this test. It does NOT reproduce the `.endVersion()` vs
+		// `.startVersion()` checkpoint-batching regression itself: that only diverges when the resolved
+		// block spans more than one catalog version, and this shared, single-commit dataset's checkpoint
+		// (TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL, 1s) reliably fires once per commit here, so
+		// start() == end() always and the two resolutions coincide - confirmed empirically, including for
+		// the pre-existing forward-direction sibling test below, which has the same limitation despite
+		// asserting the analogous scenario. Reproducing an actual multi-version block needs a dedicated
+		// dataset with an inflated checkpoint interval (see DeferredCheckpointPersistenceTest), which is
+		// disproportionate to add here; noted as a known gap rather than a false regression guarantee.
+		final OffsetDateTime to = OffsetDateTime.now().plusMinutes(1);
+		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPage(
+			GetMutationsHistoryPageRequest.newBuilder()
+				.setTimeFrame(EvitaDataTypesConverter.toGrpcDateTimeRange(DateTimeRange.until(to)))
+				.setPage(Int32Value.of(1))
+				.setPageSize(Int32Value.of(100))
+				.build()
+		);
+
+		assertEquals(lastVersion, page.getSinceVersion());
+		assertTrue(
+			page.getChangeCaptureList().stream().anyMatch(capture -> capture.getVersion().getValue() == lastVersion),
+			"the last committed version, exactly at the resolved `to` boundary, must be included in the result"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@Tag(CDC)
 	@DisplayName("Should return an empty page instead of the newest mutations when the time-frame floor lies in the future")
 	void shouldReturnEmptyPageWhenTimeFrameFloorIsInTheFuture(
 		Evita evita, List<SealedEntity> entities, GrpcClientBuilder clientBuilder
