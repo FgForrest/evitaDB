@@ -211,8 +211,8 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 * represented by a placeholder, so the result can be shorter than `catalogVersion` and does not align with it
 	 * positionally. An empty list is returned when no history is available at all. Correlate each returned
 	 * descriptor with the request by its own {@link WriteAheadLogVersionDescriptor#version()}, never by index.
-	 * Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
-	 * gradually as the stream provides the data.
+	 * Creating a descriptor could be an expensive operation, so it's recommended to request only as many
+	 * versions at once as the client actually needs, rather than materializing a large list up front.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
 	 * @return descriptors for those requested versions still known to history; may be shorter than `catalogVersion`
