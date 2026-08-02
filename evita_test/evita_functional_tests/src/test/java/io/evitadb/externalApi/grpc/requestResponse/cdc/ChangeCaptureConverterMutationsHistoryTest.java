@@ -161,8 +161,11 @@ class ChangeCaptureConverterMutationsHistoryTest {
 		}
 
 		@Test
-		@DisplayName("should clamp a sinceVersion beyond the requested catalog version instead of rejecting it")
+		@DisplayName("should clamp a sinceVersion beyond the requested catalog version instead of rejecting it, resetting sinceIndex too")
 		void shouldClampVersionBeyondRequestedCatalogVersion() {
+			// the regression: sinceIndex was computed by the client against its own (excessive, now-discarded)
+			// sinceVersion, so carrying it over onto the clamped-down requestedCatalogVersion would silently
+			// skip or misalign records - it must fall back to the direction default just like an absent index
 			final GetMutationsHistoryPageRequest request = GetMutationsHistoryPageRequest
 				.newBuilder()
 				.setSinceVersion(Int64Value.of(REQUESTED_CATALOG_VERSION + 500L))
@@ -174,6 +177,7 @@ class ChangeCaptureConverterMutationsHistoryTest {
 			);
 
 			assertEquals(REQUESTED_CATALOG_VERSION, converted.sinceVersion());
+			assertEquals(Integer.MAX_VALUE, converted.sinceIndex());
 		}
 
 		@Test

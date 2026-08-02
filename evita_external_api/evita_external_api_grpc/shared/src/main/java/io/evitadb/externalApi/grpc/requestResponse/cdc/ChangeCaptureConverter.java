@@ -75,12 +75,20 @@ public class ChangeCaptureConverter {
 		long requestedCatalogVersion,
 		@Nonnull StreamDirection direction
 	) {
+		// an explicitly set `sinceVersion` above `requestedCatalogVersion` is clamped down to it (a stale/too-high
+		// anchor is not an error - see GetMutationsHistoryPageRequest.sinceVersion docs); when that clamp
+		// happens, a client-supplied `sinceIndex` was computed against the original, now-discarded version and
+		// no longer corresponds to a valid position in the clamped-to version, so it must be reset too. An
+		// absent `sinceVersion` is a different case - there is no client-claimed version for the index to be
+		// stale against, so an explicit `sinceIndex` supplied alongside it is still honoured
+		final boolean versionExceedsBound = request.hasSinceVersion() &&
+			request.getSinceVersion().getValue() > requestedCatalogVersion;
 		return new ChangeCatalogCaptureRequest(
-			request.hasSinceVersion() && request.getSinceVersion().getValue() <= requestedCatalogVersion ?
+			request.hasSinceVersion() && !versionExceedsBound ?
 				request.getSinceVersion().getValue() : requestedCatalogVersion,
 			// the index default must be derived from `sinceIndex` presence alone - deriving it from `sinceVersion`
 			// would collapse an unset index to 0, which is the slot reserved for the transaction header
-			request.hasSinceIndex()
+			!versionExceedsBound && request.hasSinceIndex()
 				? request.getSinceIndex().getValue()
 				: (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
 			request.getCriteriaList()

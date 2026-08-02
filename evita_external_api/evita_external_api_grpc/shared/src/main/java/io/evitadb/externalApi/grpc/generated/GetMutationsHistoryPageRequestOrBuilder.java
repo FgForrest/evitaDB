@@ -181,7 +181,11 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to 0 for
    * GetMutationsHistoryPageForward ("start from that version's transaction header") or `Integer.MAX_VALUE`
    * for GetMutationsHistoryPage ("start from the newest mutation of that version"). This default applies
-   * independently of whether `sinceVersion` is set.
+   * independently of whether `sinceVersion` is set - but not independently of whether the resolved
+   * `sinceVersion` ends up clamped (up to the forward floor, or down to the reverse ceiling - see
+   * `sinceVersion` above): an explicitly set `sinceIndex` is discarded and the direction default used
+   * instead whenever that clamp happens, since the client computed it against the original, un-clamped
+   * version, and it no longer identifies a valid position in the version actually resolved to.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -194,7 +198,11 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to 0 for
    * GetMutationsHistoryPageForward ("start from that version's transaction header") or `Integer.MAX_VALUE`
    * for GetMutationsHistoryPage ("start from the newest mutation of that version"). This default applies
-   * independently of whether `sinceVersion` is set.
+   * independently of whether `sinceVersion` is set - but not independently of whether the resolved
+   * `sinceVersion` ends up clamped (up to the forward floor, or down to the reverse ceiling - see
+   * `sinceVersion` above): an explicitly set `sinceIndex` is discarded and the direction default used
+   * instead whenever that clamp happens, since the client computed it against the original, un-clamped
+   * version, and it no longer identifies a valid position in the version actually resolved to.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
@@ -207,7 +215,11 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * are numbered from 1 upward; the transaction header itself occupies index 0. If unset, defaults to 0 for
    * GetMutationsHistoryPageForward ("start from that version's transaction header") or `Integer.MAX_VALUE`
    * for GetMutationsHistoryPage ("start from the newest mutation of that version"). This default applies
-   * independently of whether `sinceVersion` is set.
+   * independently of whether `sinceVersion` is set - but not independently of whether the resolved
+   * `sinceVersion` ends up clamped (up to the forward floor, or down to the reverse ceiling - see
+   * `sinceVersion` above): an explicitly set `sinceIndex` is discarded and the direction default used
+   * instead whenever that clamp happens, since the client computed it against the original, un-clamped
+   * version, and it no longer identifies a valid position in the version actually resolved to.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value sinceIndex = 4;</code>
