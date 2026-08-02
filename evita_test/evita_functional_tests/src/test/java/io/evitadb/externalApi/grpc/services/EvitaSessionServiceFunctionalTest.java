@@ -133,10 +133,10 @@ import static io.evitadb.test.TestTags.SESSION;
 class EvitaSessionServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
 	/**
-	 * Ceiling for the CDC time-frame waits in this class - both the plain wall-clock waits that let a chosen
-	 * bound arrive, and the waits that need a *bootstrap record*
-	 * (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock}) to exist before such a bound
-	 * can be resolved against it.
+	 * Ceiling for the waits in this class that hinge on bootstrap-record materialisation - those that need a
+	 * *bootstrap record* (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock}) to exist
+	 * before a time-frame bound or a catalog version can be resolved against it, plus the plain wall-clock
+	 * waits that pace them.
 	 *
 	 * This is a hang detector, not a correctness bound - and in particular it is **not** covering a checkpoint
 	 * ticker, because this fixture has none to cover. `EvitaParameterResolver` builds the test `Evita` with
