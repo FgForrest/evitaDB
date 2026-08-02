@@ -3,12 +3,17 @@
 name: CI Release branch
 
 on:
-  workflow_run:
-    workflows: ["CI Master branch"]
-    types:
-      - completed
-    branches:
-      - "master"
+  # Dispatched by CI Master branch once it has fast-forwarded (or created)
+  # the target release_* branch — see the "Dispatch release build" step
+  # there. There used to also be a `workflow_run` trigger fired from a
+  # successful "CI Master branch" run, but that path always minted "vX.Y.0"
+  # verbatim from pom.xml, so it could only ever cut a fresh release and
+  # errored out (after an already-completed Maven Central deploy!) on every
+  # later merge onto an already-released minor. workflow_dispatch runs the
+  # same tag-scanning version resolution used below for direct release_*
+  # pushes, so both a brand-new minor and its Nth hotfix are handled by one
+  # unified path.
+  workflow_dispatch:
   push:
     branches:
       - "release_*"
@@ -21,8 +26,10 @@ on:
 
 jobs:
   build:
-    # Run if the master workflow was successful OR if the branch is a release branch
-    if: ${{ github.event.workflow_run.conclusion == 'success' || startsWith(github.ref, 'refs/heads/release_') }}
+    # Guards against workflow_dispatch being fired against a non-release ref
+    # (e.g. manually from the Actions UI) — the version-resolution step below
+    # only makes sense for a release_* branch name.
+    if: startsWith(github.ref, 'refs/heads/release_')
 
     permissions:
       # write permission is required to create a github release
@@ -39,103 +46,102 @@ jobs:
 
     steps:
 
-    - name: Download release branch info
-      uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
-      if: ${{ github.event.workflow_run.conclusion == 'success' }}
-      with:
-        workflow: ${{ github.event.workflow_run.workflow_id }}
-        run_id: ${{ github.event.workflow_run.id }}
-        name: workflow-data
-
-    - name: Read release branch name
-      id: read_branch
-      if: ${{ github.event.workflow_run.conclusion == 'success' }}
-      run: |
-        if [ -f "release_branch.txt" ]; then
-          RELEASE_BRANCH=$(cat release_branch.txt)
-          echo "branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
-          echo "Using release branch: $RELEASE_BRANCH"
-        else
-          echo "release_branch.txt not found"
-          exit 1
-        fi
-
-    - name: Read release version
-      id: read_version
-      if: ${{ github.event.workflow_run.conclusion == 'success' }}
-      run: |
-        if [ -f "released_version.txt" ]; then
-          RELEASE_VERSION=$(cat released_version.txt)
-          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-          echo "Using release version: $RELEASE_VERSION"
-        else
-          echo "released_version.txt not found"
-          exit 1
-        fi
-
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 checkout sources
       with:
-        ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
         persist-credentials: false
 
     - name: Resolve new release version
       id: release_version
       env:
-        ARTIFACT_VERSION: ${{ steps.read_version.outputs.version }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Check if version was already read from workflow artifact (before checkout wiped it)
-        if [ -n "$ARTIFACT_VERSION" ]; then
-          VERSION="$ARTIFACT_VERSION"
-          echo "Using version from master workflow artifact: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        # Extract version from branch name (e.g., release_2025-7 -> 2025.7).
+        # This runs for every trigger now (workflow_dispatch from CI Master,
+        # or a direct push to a release_* branch) — there is no longer a
+        # shortcut that trusts a pre-computed version, because the only
+        # previous source of one (the pom.xml-derived "vX.Y.0" from CI
+        # Master) can't distinguish a fresh minor from its Nth hotfix.
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+        echo "Branch name: $BRANCH_NAME"
+
+        # Extract major.minor from branch name
+        MAJOR_MINOR=$(echo "$BRANCH_NAME" | sed 's/release_//' | sed 's/-/./')
+        echo "Extracted major.minor: $MAJOR_MINOR"
+
+        git fetch --tags
+
+        # Published versions — git tags on remote.
+        TAG_VERSIONS=$(git tag -l "v${MAJOR_MINOR}.*")
+
+        # Draft versions — releases that have not yet been published, so
+        # their git tag does not exist on remote. Without this, a failed
+        # partial run (draft created, but Maven deploy or asset upload
+        # failed later) would recompute the same version on the next push
+        # and collide with artefacts already deployed to Maven Central.
+        # The `gh api` call is intentionally allowed to fail the step (no
+        # `2>/dev/null`/`|| true` around it) — a silent API error here would
+        # otherwise look identical to "no drafts exist" and risk exactly the
+        # collision this is meant to prevent. Only the grep's own "no match"
+        # exit (1, when there are legitimately no matching drafts) is
+        # tolerated, and separately from the API call.
+        DRAFT_VERSIONS_RAW=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
+          --jq '.[] | select(.draft == true) | .name, .tag_name')
+        # MAJOR_MINOR's dot is escaped for regex use — unescaped, it matches
+        # any character, so e.g. "2026.2" would also match a stray tag like
+        # "v2026X2.5".
+        DRAFT_VERSIONS=$(printf '%s\n' "$DRAFT_VERSIONS_RAW" \
+          | grep -E "^v${MAJOR_MINOR//./\\.}\.[0-9]+$" || true)
+
+        ALL_VERSIONS=$(printf "%s\n%s\n" "$TAG_VERSIONS" "$DRAFT_VERSIONS" \
+          | sort -V -u | grep -v '^$' || true)
+        echo "Known versions (tags + drafts):"
+        printf "%s\n" "$ALL_VERSIONS"
+
+        # Extract patch numbers and find the max
+        MAX_PATCH=-1
+        for tag in $ALL_VERSIONS; do
+          PATCH="${tag##*.}"
+          case "$PATCH" in
+            ''|*[!0-9]*) continue ;;
+          esac
+          if [ "$PATCH" -gt "$MAX_PATCH" ]; then
+            MAX_PATCH=$PATCH
+          fi
+        done
+
+        # Increment patch number
+        NEW_PATCH=$((MAX_PATCH + 1))
+        VERSION="v${MAJOR_MINOR}.${NEW_PATCH}"
+        echo "Calculated new version: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+        # A MAJOR release is the first (".0") cut for this major.minor — the
+        # only case with a matching GitHub milestone to pull issues from.
+        # Any later merge onto an already-released minor is a patch/hotfix,
+        # regardless of how it got here (workflow_dispatch or a direct push).
+        if [ "$NEW_PATCH" -eq 0 ]; then
+          echo "is_major=true" >> $GITHUB_OUTPUT
         else
-          # Extract version from branch name (e.g., release_2025-7 -> 2025.7)
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          echo "Branch name: $BRANCH_NAME"
+          echo "is_major=false" >> $GITHUB_OUTPUT
+        fi
 
-          # Extract major.minor from branch name
-          MAJOR_MINOR=$(echo "$BRANCH_NAME" | sed 's/release_//' | sed 's/-/./')
-          echo "Extracted major.minor: $MAJOR_MINOR"
-
-          git fetch --tags
-
-          # Published versions — git tags on remote.
-          TAG_VERSIONS=$(git tag -l "v${MAJOR_MINOR}.*")
-
-          # Draft versions — releases that have not yet been published, so
-          # their git tag does not exist on remote. Without this, a failed
-          # partial run (draft created, but Maven deploy or asset upload
-          # failed later) would recompute the same version on the next push
-          # and collide with artefacts already deployed to Maven Central.
-          DRAFT_VERSIONS=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
-            --jq '.[] | select(.draft == true) | .name, .tag_name' 2>/dev/null \
-            | grep -E "^v${MAJOR_MINOR}\.[0-9]+$" || true)
-
-          ALL_VERSIONS=$(printf "%s\n%s\n" "$TAG_VERSIONS" "$DRAFT_VERSIONS" \
-            | sort -V -u | grep -v '^$' || true)
-          echo "Known versions (tags + drafts):"
-          printf "%s\n" "$ALL_VERSIONS"
-
-          # Extract patch numbers and find the max
-          MAX_PATCH=-1
-          for tag in $ALL_VERSIONS; do
-            PATCH="${tag##*.}"
-            case "$PATCH" in
-              ''|*[!0-9]*) continue ;;
-            esac
-            if [ "$PATCH" -gt "$MAX_PATCH" ]; then
-              MAX_PATCH=$PATCH
-            fi
-          done
-
-          # Increment patch number
-          NEW_PATCH=$((MAX_PATCH + 1))
-          VERSION="v${MAJOR_MINOR}.${NEW_PATCH}"
-          echo "Calculated new version: $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        # Whether this major.minor is the highest one with any release at
+        # all — used below to decide the GitHub "latest" flag. Previously
+        # that was inferred from `github.ref_name == 'master'`, which only
+        # a first-ever ".0" cut (via the now-removed workflow_run path) could
+        # satisfy; a hotfix on the current line would wrongly fall back to
+        # "legacy" and stop showing as the latest release.
+        HIGHEST_MAJOR_MINOR=$(git tag -l 'v*' \
+          | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+          | sed -E 's/^v([0-9]+\.[0-9]+)\.[0-9]+$/\1/' \
+          | sort -V -u | tail -1)
+        HIGHEST_OF_BOTH=$(printf "%s\n%s\n" "$HIGHEST_MAJOR_MINOR" "$MAJOR_MINOR" | sort -V -u | tail -1)
+        if [ "$HIGHEST_OF_BOTH" = "$MAJOR_MINOR" ]; then
+          echo "is_latest_line=true" >> $GITHUB_OUTPUT
+        else
+          echo "is_latest_line=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Setup Java JDK
@@ -204,7 +210,7 @@ jobs:
       continue-on-error: true
       env:
         VERSION: ${{ steps.release_version.outputs.version }}
-        IS_MAJOR: ${{ github.event.workflow_run.conclusion == 'success' }}
+        IS_MAJOR: ${{ steps.release_version.outputs.is_major }}
       run: |
         # Highest v* tag strictly less than VERSION, by semantic version sort.
         PREV=$( (git tag -l 'v*'; printf "%s\n" "$VERSION") \
@@ -215,8 +221,8 @@ jobs:
         echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
         echo "Resolved previous tag: ${PREV:-<none>}"
 
-        # Milestone is only set for MAJOR releases (triggered by workflow_run
-        # from CI Master); patch releases use commit-only mode.
+        # Milestone is only set for MAJOR releases (the first ".0" cut of a
+        # major.minor); patch/hotfix releases use commit-only mode.
         if [ "$IS_MAJOR" = "true" ]; then
           MILESTONE="${VERSION#v}"
           MILESTONE="${MILESTONE%.0}"
@@ -263,8 +269,8 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.release_version.outputs.version }}
-        COMMITISH: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
-        MAKE_LATEST: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
+        COMMITISH: ${{ github.ref }}
+        MAKE_LATEST: ${{ steps.release_version.outputs.is_latest_line == 'true' && 'true' || 'legacy' }}
         SKELETON_OK: ${{ steps.skeleton.outcome == 'success' }}
       run: |
         # GitHub API wants a plain branch name, not a full `refs/heads/*` ref.
