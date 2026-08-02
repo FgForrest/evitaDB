@@ -1,7 +1,7 @@
 ---
 title: Vendor RoaringBitmap as a full, renamed copy instead of a thin JPMS subclass
 date: 2026-07-07
-updated: 2026-07-31 19:28
+updated: 2026-08-02 14:25
 status: accepted
 kind: infrastructure
 issues: [1252]
@@ -9,7 +9,7 @@ prs: [1267, 1316]
 areas: [evita_roaring_bitmap, evita_engine]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-08-02-editorconfig-formatting-parity]
 ---
 
 # Vendor RoaringBitmap as a full, renamed copy under `io.evitadb.roaringbitmap`
@@ -157,6 +157,10 @@ and its tests are skipped by CI on pushes/PRs that don't touch the module (root 
   (it already has, four times during porting).
 - Further encapsulation cleanup on the exported package is explicitly deferred — see the
   "Still public-but-internal" note under Key technical details.
+- The vendored tree's whitespace must stay byte-identical to upstream or every replay becomes a
+  merge conflict, so `evita_roaring_bitmap/**` is carved out of `.editorconfig` and skipped by the
+  formatting hook — see
+  [2026-08-02-editorconfig-formatting-parity](2026-08-02-editorconfig-formatting-parity.md).
 
 ## Related work
 
