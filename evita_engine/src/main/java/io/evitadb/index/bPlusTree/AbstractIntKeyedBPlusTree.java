@@ -245,7 +245,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	 */
 	@Nonnull
 	protected Cursor createCursor(int key) {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final ArrayList<CursorLevel> path = new ArrayList<>(estimatedPathLength());
 		final BPlusTreeNode<?> theRoot = this.getRoot();
 		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
 		path.add(new CursorLevel(rootSiblings, 0, 0));

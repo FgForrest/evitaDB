@@ -1,2 +1,0 @@
-# seed=1 batchSize=500 numBatches=1
-0	1340209	rmRef(parameterValues:503663);chgAttr(productType=fz1-82376);rmRef(categories:142816);chgRefAttr(groups:1341663/assignmentValidity=[[2000-07-24T00:00:00Z,2011-07-24T00:00:00Z]]);	FAIL GenericEvitaInternalError | 62663481f4e06623dca9964d207b9599:af7e03290249dcf135c6dd7ad7cd6bc9:84: Key is already present in the tree!
