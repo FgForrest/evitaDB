@@ -1,7 +1,7 @@
 ---
 title: Replace JavaDocCopy with an LLM-generated JavaDoc summarizer for QueryConstraints
 date: 2026-03-15
-updated: 2026-07-31 21:15
+updated: 2026-08-02 14:25
 status: accepted
 kind: infrastructure
 issues: []
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_query/api/query, evita_test/evita_documentation_tests, tools]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-08-02-editorconfig-formatting-parity]
 ---
 
 # Replace JavaDocCopy with an LLM-generated JavaDoc summarizer for QueryConstraints
@@ -111,6 +111,10 @@ valid `OPENAI_API_KEY`.
   This is a one-line fix (`-pl evita_test/evita_documentation_tests`) but is recorded here rather
   than silently corrected, since the tool's history of actually working (514 generated hashes) must
   predate this drift — someone ran it directly against the correct module, not through this script.
+- **This is why evitaDB has no code formatter.** Because a stale hash triggers a paid API call, any
+  tool that reformats JavaDoc turns a whitespace change into an OpenAI bill. That is the decisive
+  argument against Spotless recorded in
+  [2026-08-02-editorconfig-formatting-parity](2026-08-02-editorconfig-formatting-parity.md).
 - No CI or scheduled job runs this tool; it is invoked manually against a paid external API key, so
   `QueryConstraints.java`'s summaries can silently go stale relative to the constraint classes'
   JavaDoc without anyone noticing, beyond the incremental MD5 check catching drift the next time
