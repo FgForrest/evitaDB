@@ -1,7 +1,7 @@
 ---
 title: Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master
 date: 2026-08-02
-updated: 2026-08-02 21:25
+updated: 2026-08-02 21:35
 status: accepted
 kind: infrastructure
 issues: [1359]
@@ -114,6 +114,16 @@ exactly what made the `workflow_run` side silently wrong (it never scanned tags)
   for them (major-mode releases never noticed, since `list-issues.sh` catches performance work via
   the `performance` issue label instead). Found while curating this hotfix's own release notes by
   hand; fixed alongside this change by routing `perf` into the same bucket as `feat`.
+- Two review-caught fixes to pre-existing code this PR moved but didn't originally introduce, both in
+  `Resolve new release version`: the draft-release regex match on `MAJOR_MINOR` treated its literal
+  `.` as a regex wildcard (now escaped, so a stray tag can't false-positive-match); and a `gh api`
+  failure listing draft releases was silently swallowed (`2>/dev/null ... || true` around the whole
+  pipeline) and would have looked identical to "no drafts exist" — now only the grep's own
+  legitimate no-match case is tolerated, and a real API failure aborts the step. Both mattered more
+  once this became the sole release-resolution path.
+- `Dispatch release build` retries `gh workflow run` a few times on failure — for a genuinely new
+  release branch (not the fast-forward case), GitHub's API index for the just-pushed ref could
+  plausibly lag by a beat, so this guards against a spurious "branch not found" on that path.
 
 ### The `MAKE_LATEST` bug this also fixes
 

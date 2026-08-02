@@ -156,5 +156,20 @@ jobs:
         # workflows sets it explicitly — matching that convention here too.
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh workflow run ci-release.yml --ref "$RELEASE_BRANCH"
-        echo "Dispatched CI Release branch workflow on $RELEASE_BRANCH"
+        # On the brand-new-branch path above (as opposed to the fast-forward
+        # of an existing branch), this dispatches immediately after the
+        # branch's first-ever push — GitHub's ref index for a just-created
+        # branch could plausibly lag that push by a beat. Retry a few times
+        # rather than fail the whole release on a transient "branch not
+        # found"; this is a bounded wait on GitHub's own eventual
+        # consistency, not a poll for a long-running task.
+        for attempt in 1 2 3 4 5; do
+          if gh workflow run ci-release.yml --ref "$RELEASE_BRANCH"; then
+            echo "Dispatched CI Release branch workflow on $RELEASE_BRANCH"
+            exit 0
+          fi
+          echo "Dispatch attempt $attempt failed, retrying in 3s..."
+          sleep 3
+        done
+        echo "::error::failed to dispatch CI Release branch on $RELEASE_BRANCH after 5 attempts"
+        exit 1

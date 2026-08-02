@@ -80,9 +80,19 @@ jobs:
         # partial run (draft created, but Maven deploy or asset upload
         # failed later) would recompute the same version on the next push
         # and collide with artefacts already deployed to Maven Central.
-        DRAFT_VERSIONS=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
-          --jq '.[] | select(.draft == true) | .name, .tag_name' 2>/dev/null \
-          | grep -E "^v${MAJOR_MINOR}\.[0-9]+$" || true)
+        # The `gh api` call is intentionally allowed to fail the step (no
+        # `2>/dev/null`/`|| true` around it) — a silent API error here would
+        # otherwise look identical to "no drafts exist" and risk exactly the
+        # collision this is meant to prevent. Only the grep's own "no match"
+        # exit (1, when there are legitimately no matching drafts) is
+        # tolerated, and separately from the API call.
+        DRAFT_VERSIONS_RAW=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
+          --jq '.[] | select(.draft == true) | .name, .tag_name')
+        # MAJOR_MINOR's dot is escaped for regex use — unescaped, it matches
+        # any character, so e.g. "2026.2" would also match a stray tag like
+        # "v2026X2.5".
+        DRAFT_VERSIONS=$(printf '%s\n' "$DRAFT_VERSIONS_RAW" \
+          | grep -E "^v${MAJOR_MINOR//./\\.}\.[0-9]+$" || true)
 
         ALL_VERSIONS=$(printf "%s\n%s\n" "$TAG_VERSIONS" "$DRAFT_VERSIONS" \
           | sort -V -u | grep -v '^$' || true)
