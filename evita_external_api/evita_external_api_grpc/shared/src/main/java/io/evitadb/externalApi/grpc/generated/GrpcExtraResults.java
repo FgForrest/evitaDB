@@ -300,7 +300,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
-   * deprecated renamed to `referenceGroupStatistics`
+   * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -313,7 +313,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
-   * deprecated renamed to `referenceGroupStatistics`
+   * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -327,7 +327,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
-   * deprecated renamed to `referenceGroupStatistics`
+   * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -340,7 +340,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
-   * deprecated renamed to `referenceGroupStatistics`
+   * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -353,7 +353,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <pre>
    * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
    * (if they belong in one) and statistics of the facets that relates to it.
-   * deprecated renamed to `referenceGroupStatistics`
+   * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1830,7 +1830,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1846,7 +1846,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1862,7 +1862,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1878,7 +1878,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1901,7 +1901,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1921,7 +1921,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1943,7 +1943,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1966,7 +1966,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -1986,7 +1986,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2006,7 +2006,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2027,7 +2027,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2046,7 +2046,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2065,7 +2065,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2078,7 +2078,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2094,7 +2094,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2111,7 +2111,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2124,7 +2124,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>
@@ -2138,7 +2138,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <pre>
      * Contains a collection of FacetGroupStatistics DTOs where each of them contains information about single facet group
      * (if they belong in one) and statistics of the facets that relates to it.
-     * deprecated renamed to `referenceGroupStatistics`
+     * Deprecated since 2026.2 - renamed to `referenceGroupStatistics`
      * </pre>
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3 [deprecated = true];</code>

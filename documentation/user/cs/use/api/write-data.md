@@ -1,12 +1,12 @@
 ---
 title: Zápis dat
-perex: Tento článek obsahuje hlavní principy pro zápis dat v evitaDB, popis datového API týkajícího se vkládání a mazání entit a související doporučení.
+perex: Tento článek obsahuje hlavní principy pro vytváření dat v evitaDB, popis datového API týkajícího se vkládání a mazání entit a související doporučení.
 date: '31.10.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: a5770aa82b3fd870e35cecd84d9243fd87cc77e3
 ---
 <LS to="e">
 
@@ -18,45 +18,67 @@ Bohužel v současné době není možné zapisovat data pomocí EvitaQL. Tato r
 
 ## Indexační režimy
 
-evitaDB předpokládá, že nebude primárním úložištěm vašich dat. Protože evitaDB je poměrně nová databázová implementace, je rozumné uchovávat primární data v osvědčené, časem prověřené a stabilní technologii, jako je relační databáze. evitaDB vám přináší potřebné funkce s nízkou latencí a optimalizací pro e-commerce jako sekundární rychlý index pro čtení, kde zrcadlíte/převádíte data z vašeho primárního úložiště. Rádi bychom se jednou stali vaším primárním úložištěm dat, ale buďme upřímní – zatím tam nejsme.
+evitaDB předpokládá, že nebude primárním úložištěm vašich dat. Protože evitaDB je relativně nová implementace databáze, je rozumné uchovávat primární data v osvědčené, časem prověřené a spolehlivé technologii, jako je relační databáze. evitaDB vám přináší potřebné funkce s nízkou latencí a optimalizované pro e-commerce jako sekundární rychlý index pro čtení, kde zrcadlíte/transformujete data z vašeho primárního úložiště. Rádi bychom se jednou stali vaším primárním úložištěm dat, ale buďme upřímní – zatím tam nejsme.
 
-Tato úvaha nás vedla k návrhu dvou různých typů [vkládání entitních dat](../data-model.md) a odpovídajících stavů katalogu:
+Tato úvaha nás vedla k návrhu dvou různých typů ingestování [dat entity](../data-model.md) a odpovídajících stavů katalogu:
 
 - [hromadné indexování](#hromadné-indexování), stav: <LS to="j,g,r">`WARMUP`</LS><LS to="c">`Warmup`</LS>
 - [inkrementální indexování](#inkrementální-indexování), stav: <LS to="j,g,r">`ALIVE`</LS><LS to="c">`Alive`</LS>
 
 ### Hromadné indexování
 
-Hromadné indexování se používá k rychlému indexování velkého množství zdrojových dat. Využívá se při počátečním vytváření katalogu z externích (primárních) datových úložišť. Nepodporuje transakce a umožňuje otevření pouze jedné relace (jednoho vlákna) ze strany klienta. Katalog je v takzvaném stavu <LS to="j,g,r">`WARMUP`</LS><LS to="c">`Warmup`</LS> (<LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Session/CatalogState.cs</SourceClass></LS>). Klient může data zapisovat i dotazovat se na již zapsaná data, ale žádný jiný klient nemůže otevřít další relaci, protože by pro něj nemohla být zaručena konzistence dat. Cílem je zde indexovat stovky až tisíce entit za sekundu.
+Hromadné indexování se používá pro rychlé indexování velkého množství zdrojových dat. Používá se pro počáteční vytvoření katalogu z externích (primárních) úložišť dat. Nepotřebuje podporovat transakce a umožňuje otevřít pouze jednu relaci (jeden vlákno) ze strany klienta. Katalog je v takzvaném stavu <LS to="j,g,r">`WARMUP`</LS><LS to="c">`Warmup`</LS> (<LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Session/CatalogState.cs</SourceClass></LS>). Klient může data zapisovat i dotazovat se na zapsaná data, ale žádný jiný klient nemůže otevřít další relaci, protože by pro něj nemohla být zaručena konzistence dat. Cílem je zde indexovat stovky nebo tisíce entit za sekundu.
 
-Pokud databáze během tohoto počátečního hromadného indexování havaruje, je nutné považovat stav a konzistenci dat za poškozené a celý katalog by měl být odstraněn a znovu vytvořen od začátku. Protože kromě zapisujícího klienta neexistuje žádný další klient, můžeme si toto dovolit.
+Pokud databáze během tohoto počátečního hromadného indexování havaruje, je třeba považovat stav a konzistenci dat za poškozené a celý katalog by měl být zcela vyprázdněn a znovu sestaven od začátku. Protože neexistuje žádný jiný klient než ten, který data zapisuje, můžeme si to dovolit.
 
-Totéž platí pro *jednotlivý* neúspěšný zápis: hromadné indexování **nepodporuje zpětné vrácení na úrovni jednotlivých entit**, takže pokud `upsertEntity` / `deleteEntity` selže v průběhu operace, může zanechat indexové záznamy dané entity pouze částečně zapsané. Obnova je odpovědností klienta — buď kompenzovat částečný zápis, nebo (doporučeno) katalog znovu vytvořit. Podrobnosti a rozdíly oproti transakční fázi (`ALIVE`) najdete v části [Atomicita jednotlivých zápisů](../../deep-dive/bulk-vs-incremental-indexing.md#atomicita-jednotlivých-zápisů).
+Totéž platí pro *jednotlivý* neúspěšný zápis: hromadné indexování **nepodporuje zpětné vrácení na úrovni entity** (rollback), takže pokud operace `upsertEntity` / `deleteEntity` selže v průběhu, může zanechat indexové záznamy entity pouze částečně aplikované. Obnova je odpovědností klienta — buď kompenzovat částečný zápis, nebo (doporučeno) znovu sestavit katalog. Podrobnosti a rozdíly oproti transakční fázi (`ALIVE`) najdete v [Atomicita jednotlivých zápisů](../../deep-dive/bulk-vs-incremental-indexing.md#atomicita-jednotlivých-zápisů).
+
+</LS>
+
+<LS to="j,c">
+
+Každý nově vytvořený katalog začíná ve stavu <LS to="j">`WARMUP`</LS><LS to="c">`Warmup`</LS> a musí být ručně přepnut do *transakčního* režimu provedením:
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Ukončení režimu zahřívání](/documentation/user/en/use/api/example/finalization-of-warmup-mode.java)
+
+</SourceCodeTabs>
+
+Metoda <LS to="j">`goLiveAndClose`</LS><LS to="c">`GoLiveAndClose`</LS> nastaví katalog do stavu <LS to="j">`ALIVE`</LS><LS to="c">`Alive`</LS> (transakčního) a uzavře aktuální relaci. Od tohoto okamžiku mohou k tomuto konkrétnímu katalogu paralelně otevírat relace pro čtení i zápis více klientů.
+
+</LS>
+<LS to="g,r">
+
+Každý nově vytvořený katalog začíná ve stavu `WARMUP` a musí být ručně přepnut do *transakčního* režimu pomocí <LS to="g">[system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LS><LS to="r">[system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LS> provedením:
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Ukončení režimu zahřívání](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
+
+</SourceCodeTabs>
+
+<LS to="g">Mutace `switchCatalogToAliveState`</LS><LS to="r">Endpoint `/catalogs/{catalog-name}` s metodou `PATCH`</LS> nastaví katalog do stavu `ALIVE` (transakčního). Od tohoto okamžiku mohou k tomuto konkrétnímu katalogu paralelně posílat dotazy nebo mutace více klientů.
+
+</LS>
+
+<LS to="j,g,r,c">
 
 ### Inkrementální indexování
 
-Režim inkrementálního indexování se používá k udržení aktuálnosti indexu vůči primárnímu datovému úložišti během jeho životnosti.
-Předpokládáme, že v primárním datovém úložišti je zabudován nějaký proces [zachycení změn dat](https://en.wikipedia.org/wiki/Change_data_capture).
-Jedním z nejzajímavějších nedávných vývojů v této oblasti je
-[projekt Debezium](https://debezium.io/), který umožňuje poměrně snadno streamovat změny z primárních datových úložišť do sekundárních
-indexů.
+Režim inkrementálního indexování se používá k udržení aktuálnosti indexu vůči primárnímu úložišti dat během jeho životnosti. Očekáváme, že v primárním úložišti dat bude implementován nějaký proces [zachycení změn dat](https://en.wikipedia.org/wiki/Change_data_capture). Jedním z nejzajímavějších nedávných vývojů v této oblasti je [projekt Debezium](https://debezium.io/), který umožňuje snadné streamování změn z primárních úložišť do sekundárních indexů.
 
-Když je katalog ve stavu <LS to="j">`ALIVE`</LS>
-<LS to="c">`Alive`</LS>, může k němu přistupovat více klientů, kteří data čtou i zapisují. Každá
-aktualizace katalogu je zabalena do *transakce*, která splňuje
-[úroveň izolace snapshotu](https://en.wikipedia.org/wiki/Snapshot_isolation). Více informací o zpracování transakcí najdete v [samostatné kapitole](../../deep-dive/transactions.md).
+Ve stavu <LS to="j">`ALIVE`</LS><LS to="c">`Alive`</LS> může ke stejnému katalogu číst a zapisovat data více klientů. Každá aktualizace katalogu je zabalena do *transakce*, která splňuje [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation). Více informací o práci s transakcemi najdete v [samostatné kapitole](../../deep-dive/transactions.md).
 
-V této fázi je každý zápis entity navíc **atomický sám o sobě**: pokud se jednotlivý `upsertEntity` / `deleteEntity`
-nezdaří v průběhu operace (například kvůli porušení unikátního omezení), jsou pouze částečné změny této entity vráceny zpět
-a zbytek transakce zůstává platný, takže klient může zachytit chybu a pokračovat v zápisu před potvrzením. Viz
-[Atomicita jednotlivých mutací entit](../../deep-dive/transactions.md#atomicita-jednotlivých-mutací-entit).
+V této fázi je každý zápis entity navíc **atomický sám o sobě**: pokud operace `upsertEntity` / `deleteEntity` selže v průběhu (například kvůli porušení unikátního omezení), pouze částečné změny této entity jsou vráceny zpět a zbytek transakce zůstává platný, takže klient může zachytit chybu a pokračovat v zápisu před potvrzením. Viz [Atomicita jednotlivých mutací entity](../../deep-dive/transactions.md#atomicita-jednotlivých-mutací-entit).
+
 ## Charakteristiky modelu
 
 Náš model má několik vlastností, které byste měli mít na paměti a využít je ve svůj prospěch:
 
 ### Neměnnost
 
-Všechny modelové třídy jsou **navrženy jako neměnné**. Důvodem je jednoduchost, implicitně správné chování při souběžném přístupu (jinými slovy, entity lze ukládat do cache bez obav z race conditions) a snadné ověřování identity (kde stačí pouze primární klíč a verze k určení, že dva datové objekty stejného typu jsou identické).
+Všechny modelové třídy jsou **navrženy jako neměnné**. Důvodem je jednoduchost, implicitně správné chování při souběžném přístupu (jinými slovy, entity lze cachovat bez obav z race conditions) a snadné ověřování identity (kde stačí pouze primární klíč a verze, abychom mohli tvrdit, že dva datové objekty stejného typu jsou identické).
 
 </LS>
 
@@ -73,7 +95,7 @@ Všechny modelové třídy jsou popsány pomocí rozhraní a neměl by být dův
     <dd>kombinuje rozhraní **Contract** a **Editor** a slouží k vytvoření instance</dd>
 </dl>
 
-Když vytvoříte novou entitu pomocí API evitaDB, získáte builder a můžete ihned začít nastavovat data entity a následně ji uložit do databáze:
+Při vytváření nové entity pomocí evitaDB API získáte builder, a můžete ihned začít nastavovat data pro entitu a poté ji uložit do databáze:
 
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
 
@@ -81,8 +103,7 @@ Když vytvoříte novou entitu pomocí API evitaDB, získáte builder a můžete
 
 </SourceCodeTabs>
 
-Když čtete existující entitu z katalogu, získáte pouze pro čtení
-<LS to="java>"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass></LS><LS to="csharp>"><SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass></LS>, což je v podstatě kontraktní rozhraní s několika metodami, které umožňují převést ji na builder instanci, kterou lze použít pro aktualizaci dat:
+Při čtení existující entity z katalogu získáte pouze pro čtení <LS to="java>"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass></LS><LS to="csharp>"><SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass></LS>, což je v podstatě kontraktové rozhraní s několika metodami umožňujícími převést ho na builder, který lze použít pro aktualizaci dat:
 
 <LS to="j,c">
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
@@ -96,7 +117,7 @@ Když čtete existující entitu z katalogu, získáte pouze pro čtení
 
 <LS to="g,r">
 
-V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API je neměnnost implicitní z podstaty návrhu. Vrácené objekty entit můžete ve své klientské aplikaci upravovat, ale tyto změny nelze propagovat na server evitaDB, proto doporučujeme, aby byl i váš klientský model neměnný (viz inspirace v Java API). Jediný způsob, jak data upravit, je použít <LS to="g">[catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LS><LS to="r">[catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LS> a ručně posílat mutace evitaDB s jednotlivými změnami pomocí některé z <LS to="g">mutací `updateCollectionName` specifických pro</LS><LS to="r">REST endpointů pro úpravu dat</LS> vaší zvolené [entity kolekce](/documentation/user/en/use/data-model.md#collection).
+V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API je neměnnost implicitní díky návrhu. Můžete sice v klientské aplikaci upravit vrácené objekty entit, ale tyto změny nelze propagovat na server evitaDB, proto doporučujeme, aby byl i váš klientský model neměnný (inspirujte se Java API). Jediný způsob, jak upravit data, je použít <LS to="g">[catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LS><LS to="r">[catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LS> a ručně posílat evitaDB mutace s jednotlivými změnami pomocí <LS to="g">`updateCollectionName` GraphQL mutací specifických pro</LS><LS to="r">REST endpointů pro úpravu dat</LS> vaší vybrané [entity kolekce](/documentation/user/en/use/data-model.md#collection).
 
 </LS>
 
@@ -104,7 +125,7 @@ V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API je neměnnost implicitní z po
 
 ### Verzování
 
-Všechny modelové třídy jsou verzované – jinými slovy, když je instance modelu upravena, číslo verze nové instance vytvořené z upraveného stavu se zvýší o jedna.
+Všechny modelové třídy jsou verzované — jinými slovy, když je instance modelu upravena, číslo verze nové instance vytvořené z upraveného stavu se zvýší o jedna.
 
 </LS>
 
@@ -124,8 +145,8 @@ Informace o verzi jsou dostupné na úrovni entity.
 
 Informace o verzi slouží dvěma účelům:
 
-1. **rychlé hashování & kontrola rovnosti:** pouze informace o primaryKey + verzi stačí k určení, zda jsou dvě instance stejné, a můžeme to s dostatečnou jistotou říci i v situaci, kdy byla z perzistentního úložiště načtena pouze [část entity](query-data.md#líné-načítání-obohacení)
-2. **optimistické zamykání:** pokud dojde ke konkurenční aktualizaci téže entity, můžeme konflikt automaticky vyřešit, pokud se změny vzájemně nepřekrývají.
+1. **rychlé hashování & kontrola rovnosti:** pouze informace o primaryKey + verzi stačí k určení, zda jsou dvě instance stejné, a to i v situaci, kdy byla z persistentního úložiště načtena pouze [část entity](query-data.md#líné-načítání-obohacení)
+2. **optimistické zamykání:** pokud dojde ke konkurenční aktualizaci stejné entity, můžeme konflikt automaticky vyřešit, pokud se samotné změny nepřekrývají.
 
 </LS>
 
@@ -154,30 +175,30 @@ Pokud potřebujete důkladné porovnání, které porovná všechna data modelu,
 
 Komunikace s instancí evitaDB vždy probíhá prostřednictvím rozhraní <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS>. Relace je jednovláknový komunikační kanál identifikovaný unikátním [náhodným UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
 
-Ve webovém prostředí je vhodné mít jednu relaci na požadavek, při dávkovém zpracování je doporučeno držet jednu relaci pro celou dávku.
+Ve webovém prostředí je dobré mít jednu relaci na požadavek, při dávkovém zpracování je doporučeno udržovat jednu relaci pro celou dávku.
 
 <Note type="warning">
-Pro úsporu prostředků server automaticky uzavírá relace po určité době nečinnosti. Interval je ve výchozím nastavení nastaven na `60 sekund`, ale [lze jej změnit](https://evitadb.io/documentation/operate/configure#server-configuration) na jinou hodnotu. Nečinnost znamená, že na rozhraní <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS> není zaznamenána žádná aktivita. Pokud potřebujete relaci uměle udržovat aktivní, musíte pravidelně volat některou metodu bez vedlejších účinků na rozhraní relace, například:
+Pro úsporu prostředků server automaticky uzavírá relace po určité době nečinnosti. Interval je ve výchozím nastavení nastaven na `60 sekund`, ale [lze jej změnit](https://evitadb.io/documentation/operate/configure#server-configuration) na jinou hodnotu. Nečinnost znamená, že na rozhraní <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS> není zaznamenána žádná aktivita. Pokud potřebujete relaci uměle udržet aktivní, musíte pravidelně volat některou metodu bez vedlejších účinků na rozhraní relace, například:
 
 <dl>
     <dt>`isActive`</dt>
     <dd>V případě použití embedded evitaDB.</dd>
     <dt>`getEntityCollectionSize`</dt>
     <dd>
-    V případě vzdáleného použití evitaDB. V tomto případě je nutné zavolat metodu, která vyvolá síťovou komunikaci. Mnoho metod v <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS> vrací pouze lokálně cachované výsledky, aby se předešlo nákladným a zbytečným síťovým voláním.
+    V případě vzdáleného použití evitaDB. V tomto případě je opravdu nutné zavolat metodu, která vyvolá síťovou komunikaci. Mnoho metod v <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS> vrací pouze lokálně cachované výsledky, aby se zabránilo drahým a zbytečným síťovým voláním.
     </dd>
 </dl>
 </Note>
 
-<LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass></LS> je obálka pro "jednotku práce" s evitaDB. Transakce existuje v rámci relace a je zaručena [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation) pro čtení. Změny v transakci jsou vždy izolované od ostatních transakcí a stanou se viditelnými až po potvrzení transakce. Pokud je transakce označena jako *pouze pro rollback*, všechny změny budou při zavření transakce zahozeny a nikdy se nedostanou do sdíleného stavu databáze. V jedné relaci může být aktivní pouze jedna transakce, ale během životnosti relace může být více po sobě jdoucích transakcí.
+<LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass></LS> je obálka pro "jednotku práce" s evitaDB. Transakce existuje v rámci relace a je zaručeno, že má [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation) pro čtení. Změny v transakci jsou vždy izolované od ostatních transakcí a stávají se viditelnými až po potvrzení transakce. Pokud je transakce označena jako *pouze pro rollback*, všechny změny budou při uzavření transakce zahozeny a nikdy se nedostanou do sdíleného stavu databáze. V relaci může být aktivní vždy pouze jedna transakce, ale během životnosti relace může být více po sobě jdoucích transakcí.
 
 </LS>
 
 <LS to="g,r">
 
-Komunikace s instancí evitaDB pomocí <LS to="g">GraphQL</LS><LS to="r">REST</LS> API vždy využívá nějaký typ relace. V případě <LS to="g">GraphQL</LS><LS to="r">REST</LS> API je relace komunikační kanál na úrovni požadavku, který je používán na pozadí.
+Komunikace s instancí evitaDB pomocí <LS to="g">GraphQL</LS><LS to="r">REST</LS> API vždy používá nějaký typ relace. V případě <LS to="g">GraphQL</LS><LS to="r">REST</LS> API je relace komunikační kanál na úrovni požadavku, který je používán na pozadí.
 
-Transakce je obálka pro "jednotku práce" s evitaDB. V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API existuje transakce po dobu trvání relace, resp. požadavku <LS to="g">GraphQL</LS><LS to="r">REST</LS> API, a je zaručena [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation) pro čtení. Změny v transakci jsou vždy izolované od ostatních transakcí a stanou se viditelnými až po potvrzení transakce, tj. po úspěšném zpracování požadavku <LS to="g">GraphQL</LS><LS to="r">REST</LS> API. Pokud požadavek <LS to="g">GraphQL</LS><LS to="r">REST</LS> API skončí chybou, transakce je automaticky vrácena zpět.
+Transakce je obálka pro "jednotku práce" s evitaDB. V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API existuje transakce po dobu trvání relace, přesněji řečeno po dobu požadavku na <LS to="g">GraphQL</LS><LS to="r">REST</LS> API, a je zaručeno, že má [úroveň izolace snapshot](https://en.wikipedia.org/wiki/Snapshot_isolation) pro čtení. Změny v transakci jsou vždy izolované od ostatních transakcí a stávají se viditelnými až po potvrzení transakce, tj. po úspěšném zpracování požadavku na <LS to="g">GraphQL</LS><LS to="r">REST</LS> API. Pokud požadavek na <LS to="g">GraphQL</LS><LS to="r">REST</LS> API skončí chybou, transakce je automaticky vrácena zpět.
 
 </LS>
 
@@ -193,7 +214,7 @@ evitaDB rozlišuje dva typy relací:
 
 <dl>
     <dt>pouze pro čtení (výchozí)</dt>
-	<dd>Relace pouze pro čtení se otevírají voláním metody <LS to="j">`queryCatalog`</LS><LS to="c">`QueryCatalog`</LS>. V relaci pouze pro čtení nejsou povoleny žádné zápisové operace. To umožňuje evitaDB optimalizovat své chování při práci s databází.</dd>
+	<dd>Relace pouze pro čtení se otevírají voláním metody <LS to="j">`queryCatalog`</LS><LS to="c">`QueryCatalog`</LS>. V relaci pouze pro čtení nejsou povoleny žádné zápisové operace. To také umožňuje evitaDB optimalizovat své chování při práci s databází.</dd>
     <dt>pro čtení a zápis</dt>
     <dd>Relace pro čtení a zápis se otevírají voláním metody <LS to="j">`updateCatalog`</LS><LS to="c">`UpdateCatalog`</LS></dd>
 </dl>
@@ -213,16 +234,16 @@ evitaDB rozlišuje dva typy relací:
 
 <dl>
     <dt>pouze pro čtení</dt>
-    <dd>Relace pouze pro čtení se otevírají voláním endpointů, které pouze vrací data, typicky endpointy končící na `/get`, `/list`, `/query` atd. V relaci pouze pro čtení nejsou povoleny žádné zápisové operace, což umožňuje evitaDB optimalizovat své chování při práci s databází.</dd>
+    <dd>Relace pouze pro čtení se otevírají voláním endpointů, které pouze vracejí data, typicky endpointy končící na `/get`, `/list`, `/query` atd. V relaci pouze pro čtení nejsou povoleny žádné zápisové operace, což umožňuje evitaDB optimalizovat své chování při práci s databází.</dd>
     <dt>pro čtení a zápis</dt>
-    <dd>Relace pro čtení a zápis se otevírají voláním endpointů, které mění jakákoliv data.</dd>
+    <dd>Relace pro čtení a zápis se otevírají voláním endpointů, které upravují jakákoli data.</dd>
 </dl>
 
 </LS>
 
 <LS to="j,g,r,c">
 
-Do budoucna mohou být relace pouze pro čtení distribuovány na více uzlů pro čtení, zatímco relace pro čtení a zápis musí komunikovat s hlavním uzlem.
+Do budoucna bude možné relace pouze pro čtení distribuovat na více uzlů pro čtení, zatímco relace pro čtení a zápis musí komunikovat s hlavním uzlem.
 
 </LS>
 
@@ -230,9 +251,9 @@ Do budoucna mohou být relace pouze pro čtení distribuovány na více uzlů pr
 
 #### Nebezpečný životní cyklus relace
 
-Doporučujeme otevírat relace pomocí metod <LS to="j">`queryCatalog` / `updateCatalog`</LS><LS to="c">`QueryCatalog` / `UpdateCatalog`</LS>, které přijímají lambda funkci pro provedení vaší business logiky. Tímto způsobem může evitaDB bezpečně spravovat životní cyklus *relací* a *transakcí*. Pokud je použita metoda `updateCatalog`, transakce se automaticky otevře při startu relace a uzavře na konci lambda funkce. Pokud během provádění lamdy dojde k výjimce, která není zachycena v rámci lamdy (tj. je přehozena mimo rozsah lamdy), transakce se automaticky vrátí zpět. Pokud lambda skončí úspěšně, transakce se automaticky potvrdí.
+Doporučujeme otevírat relace pomocí metod <LS to="j">`queryCatalog` / `updateCatalog`</LS><LS to="c">`QueryCatalog` / `UpdateCatalog`</LS>, které přijímají lambda funkci pro provedení vaší business logiky. Tímto způsobem může evitaDB bezpečně spravovat životní cyklus *relací* a *transakcí*. Pokud je použita metoda `updateCatalog`, transakce se automaticky otevře při startu relace a uzavře na konci lambda funkce. Pokud během provádění lamdy dojde k výjimce a není zachycena uvnitř lamdy (tj. je znovu vyhozena mimo rozsah lamdy), transakce je automaticky vrácena zpět. Pokud lambda skončí úspěšně, transakce je automaticky potvrzena.
 
-Tento přístup není vždy přijatelný – například pokud potřebujete aplikaci integrovat do existujícího frameworku, který poskytuje pouze callback metody životního cyklu, není možné "zabalit" celou business logiku do lambda funkce.
+Tento přístup není vždy přijatelný — například pokud vaše aplikace potřebuje být integrována do existujícího frameworku, který poskytuje pouze callback metody životního cyklu, není možné "obalit" celou business logiku do lambda funkce.
 
 Proto existuje alternativa – ne tak bezpečný – přístup ke správě relací a transakcí:
 
@@ -243,30 +264,30 @@ Proto existuje alternativa – ne tak bezpečný – přístup ke správě relac
 </SourceCodeTabs>
 
 <Note type="warning">
-Pokud používáte ruční správu *relací*, musíte zajistit, že pro každé otevření existuje odpovídající uzavření (i když během volání vaší business logiky dojde k výjimce).
+Pokud používáte ruční správu *relací*, musíte zajistit, že pro každé otevření rozsahu existuje odpovídající uzavření (i když během volání vaší business logiky dojde k výjimce).
 </Note>
 
 Obě rozhraní <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS> a <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass> implementují Java `Autocloseable`</LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> implementuje C# `IDisposable`</LS> rozhraní, takže je můžete použít tímto způsobem:
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
-[Výhoda chování Autocloseable](/documentation/user/en/use/api/example/autocloseable-transaction-management.java)
+[Využití chování Autocloseable](/documentation/user/en/use/api/example/autocloseable-transaction-management.java)
 
 </SourceCodeTabs>
 
-Tento přístup je bezpečný, ale má stejnou nevýhodu jako použití metod <LS to="j">`queryCatalog` / `updateCatalog`</LS><LS to="c">`QueryCatalog` / `UpdateCatalog`</LS> – musíte mít veškerou business logiku proveditelnou v rámci jednoho bloku.
+Tento přístup je bezpečný, ale má stejnou nevýhodu jako použití metod <LS to="j">`queryCatalog` / `updateCatalog`</LS><LS to="c">`QueryCatalog` / `UpdateCatalog`</LS> – musíte mít veškerou business logiku proveditelnou v jednom bloku.
 
-#### Relace "na sucho" (dry-run)
+#### Relace pro suchý běh (dry-run)
 
-Pro testovací účely existuje speciální příznak, který lze použít při otevírání nové relace – příznak **dry run**:
+Pro účely testování existuje speciální příznak, který lze použít při otevírání nové relace – příznak **dry run**:
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
-[Otevření relace dry-run](/documentation/user/en/use/api/example/dry-run-session.java)
+[Otevření relace pro suchý běh](/documentation/user/en/use/api/example/dry-run-session.java)
 
 </SourceCodeTabs>
 
-V této relaci budou všechny transakce automaticky mít nastaven příznak *rollback* při jejich otevření, aniž by bylo nutné nastavovat rollback ručně. To výrazně zjednodušuje [pattern rollbacku transakce při ukončení testu](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html) při implementaci vašich testů, nebo může být užitečné, pokud chcete zajistit, že změny nebudou v dané relaci potvrzeny, a nemáte snadný přístup k místům, kde je transakce otevírána.
+V této relaci budou všechny transakce automaticky mít při otevření nastaven příznak *rollback*, aniž by bylo nutné jej nastavovat ručně. To výrazně zjednodušuje [pattern rollback transakce při ukončení testu](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html) při implementaci vašich testů, nebo se může hodit, pokud chcete zajistit, že změny nebudou v konkrétní relaci potvrzeny a nemáte snadný přístup k místům, kde se transakce otevírá.
 
 </LS>
 
@@ -278,7 +299,7 @@ V této relaci budou všechny transakce automaticky mít nastaven příznak *rol
 
 <LS to="j,c">
 
-Očekává se, že většina instancí entit bude vytvářena servisními třídami evitaDB – například <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS>. Každopádně existuje také [možnost je vytvářet přímo](#vytváření-entit-v-odděleném-režimu).
+Očekává se, že většina instancí entit bude vytvářena službami evitaDB – například <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LS>. Každopádně existuje také [možnost jejich přímého vytvoření](#vytváření-entit-v-odděleném-režimu).
 
 Obvykle bude vytvoření entity vypadat takto:
 
@@ -288,9 +309,9 @@ Obvykle bude vytvoření entity vypadat takto:
 
 </SourceCodeTabs>
 
-Takto vytvořenou entitu lze ihned ověřit vůči schématu. Tento zápis je zkrácenou verzí a může být rozdělen do několika částí, což odhalí použitý "builder".
+Tímto způsobem lze vytvořenou entitu ihned ověřit vůči schématu. Tato forma kódu je zhuštěná verze a může být rozdělena do několika částí, což odhalí použitý "builder".
 
-Pokud potřebujete upravit existující entitu, nejprve ji načtete ze serveru, otevřete ji pro zápis (čímž ji převedete na builder), upravíte ji a nakonec změny odešlete zpět na server.
+Pokud potřebujete upravit existující entitu, nejprve ji načtete ze serveru, otevřete ji pro zápis (což ji převede na builder), upravíte ji a nakonec shromáždíte změny a odešlete je na server.
 
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
@@ -300,15 +321,15 @@ Pokud potřebujete upravit existující entitu, nejprve ji načtete ze serveru, 
 
 <Note type="info">
 
-Metoda <LS to="j">`upsertVia`</LS><LS to="c">`UpsertVia`</LS> je zkratka pro volání <LS to="j">`session.upsertEntity(builder.buildChangeSet())`</LS><LS to="c">`session.UpsertEntity(builder.BuildChangeSet())`</LS>. Pokud se podíváte na <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/BuilderContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IBuilder.cs</SourceClass></LS>, zjistíte, že na něm můžete volat buď:
+Metoda <LS to="j">`upsertVia`</LS><LS to="c">`UpsertVia`</LS> je zkratka pro volání <LS to="j">`session.upsertEntity(builder.buildChangeSet())`</LS><LS to="c">`session.UpsertEntity(builder.BuildChangeSet())`</LS>. Pokud se podíváte na <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/BuilderContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IBuilder.cs</SourceClass></LS>, uvidíte, že na něm můžete volat buď:
 
 <LS to="j">
 
 <dl>
     <dt>`buildChangeSet`</dt>
-    <dd>Vytvoří proud *mutací*, které reprezentují změny provedené na neměnném objektu.</dd>
+    <dd>Vytvoří proud *mutací*, které reprezentují změny, které jste provedli na neměnném objektu.</dd>
     <dt>`toInstance`</dt>
-    <dd>Vytvoří novou verzi neměnného objektu entity se všemi aplikovanými změnami. To umožňuje vytvořit novou instanci objektu lokálně bez odeslání změn na server. Pokud stejnou instanci znovu načtete ze serveru, uvidíte, že žádné změny nebyly do databázové entity aplikovány.</dd>
+    <dd>Vytvoří novou verzi neměnného objektu entity se všemi aplikovanými změnami. To vám umožní vytvořit novou instanci objektu lokálně bez odeslání změn na server. Když stejnou instanci znovu načtete ze serveru, uvidíte, že žádné změny nebyly na databázovou entitu aplikovány.</dd>
 </dl>
 
 </LS>
@@ -316,9 +337,9 @@ Metoda <LS to="j">`upsertVia`</LS><LS to="c">`UpsertVia`</LS> je zkratka pro vol
 
 <dl>
 	<dt>`BuildChangeSet`</dt>
-	<dd>Vytvoří proud *mutací*, které reprezentují změny provedené na neměnném objektu.</dd>
+	<dd>Vytvoří proud *mutací*, které reprezentují změny, které jste provedli na neměnném objektu.</dd>
 	<dt>`ToInstance`</dt>
-	<dd>Vytvoří novou verzi neměnného objektu entity se všemi aplikovanými změnami. To umožňuje vytvořit novou instanci objektu lokálně bez odeslání změn na server. Pokud stejnou instanci znovu načtete ze serveru, uvidíte, že žádné změny nebyly do databázové entity aplikovány.</dd>
+	<dd>Vytvoří novou verzi neměnného objektu entity se všemi aplikovanými změnami. To vám umožní vytvořit novou instanci objektu lokálně bez odeslání změn na server. Když stejnou instanci znovu načtete ze serveru, uvidíte, že žádné změny nebyly na databázovou entitu aplikovány.</dd>
 </dl>
 
 </LS>
@@ -340,17 +361,17 @@ Metoda <LS to="j">`upsertVia`</LS><LS to="c">`UpsertVia`</LS> je zkratka pro vol
 
 #### Vytváření entit v odděleném režimu
 
-Instance entity lze vytvořit i v případě, že není k dispozici instance evitaDB:
+Instance entit lze vytvářet i v případě, že není k dispozici žádná instance evitaDB:
 
 <SourceCodeTabs langSpecificTabOnly>
 [Příklad oddělené (detached) instance](/documentation/user/en/use/api/example/detached-instantiation.java)
 </SourceCodeTabs>
 
-I když tuto možnost pravděpodobně využijete pouze při psaní testovacích případů, stále umožňuje vytvořit proud mutací, které lze odeslat a zpracovat serverem evitaDB, jakmile se k jeho instanci dostanete.
+Ačkoli tuto možnost pravděpodobně využijete pouze při psaní testovacích případů, stále vám umožňuje vytvořit proud mutací, které lze odeslat a zpracovat serverem evitaDB, jakmile se vám podaří získat jeho instanci.
 
-Existuje také analogický builder, který přijímá existující entitu a sleduje na ní provedené změny.
+Existuje analogický builder, který přijímá existující entitu a sleduje provedené změny.
 
-<SourceCodeTabs setup="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly>
 
 [Příklad oddělené existující entity](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
 
@@ -360,27 +381,27 @@ Existuje také analogický builder, který přijímá existující entitu a sled
 
 <LS to="g,r">
 
-V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API není možné odeslat na server celý objekt entity k uložení. Místo toho posíláte kolekci mutací, které přidávají, mění nebo odstraňují jednotlivá data z entity (nové nebo existující), podobně jako je schéma definováno v <LS to="g">GraphQL</LS><LS to="r">REST</LS> API.
+V <LS to="g">GraphQL</LS><LS to="r">REST</LS> API není možné odeslat na server celý objekt entity k uložení. Místo toho odesíláte kolekci mutací, které přidávají, mění nebo odstraňují jednotlivá data z entity (nové nebo existující), podobně jako je schéma definováno v <LS to="g">GraphQL</LS><LS to="r">REST</LS> API.
 
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Proč používáme přístup mutací pro definici entity?
+##### Proč používáme přístup s mutacemi pro definici entity?
 </NoteTitle>
 
-Víme, že tento přístup není příliš uživatelsky přívětivý. Myšlenkou tohoto přístupu je však poskytnout jednoduchý a univerzální způsob, jak programově sestavit entitu s ohledem na transakce (ve skutečnosti takto funguje evitaDB interně, takže kolekce mutací je předána přímo enginu na serveru). Očekává se, že vývojáři používající <LS to="g">GraphQL</LS><LS to="r">REST</LS> API vytvoří knihovnu např. s entity buildery, které budou generovat kolekci mutací pro definici entity (viz inspirace v Java API).
+Víme, že tento přístup není příliš uživatelsky přívětivý. Myšlenkou tohoto přístupu je však poskytnout jednoduchý a univerzální způsob, jak programově sestavit entitu s ohledem na transakce (ve skutečnosti takto funguje evitaDB interně, takže kolekce mutací je předána přímo enginu na serveru). Očekává se, že vývojáři používající <LS to="g">GraphQL</LS><LS to="r">REST</LS> API vytvoří knihovnu např. s entity buildery, které budou generovat kolekci mutací pro definici entity (inspirujte se Java API).
 
 </Note>
 
 <LS to="g">
 
-Novou entitu můžete vytvořit nebo aktualizovat existující pomocí [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) na adrese `https://your-server:5555/gql/evita`. Toto API obsahuje GraphQL mutace `upsertCollectionName` pro každou [kolekci entit](/documentation/user/en/use/data-model.md#collection), které jsou přizpůsobeny schématům kolekcí ([schemas](/documentation/user/en/use/schema.md#entity)). Tyto mutace přijímají kolekci mutací evitaDB, které definují změny, které mají být na entitě provedeny. V jednom kroku můžete získat entitu s aplikovanými změnami definováním návratových dat.
+Novou entitu můžete vytvořit nebo aktualizovat existující pomocí [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) na adrese `https://your-server:5555/gql/evita`. Toto API obsahuje GraphQL mutace `upsertCollectionName` pro každou [kolekci entit](/documentation/user/en/use/data-model.md#collection), které jsou přizpůsobeny schématům kolekcí ([schemas](/documentation/user/en/use/schema.md#entity)). Tyto mutace přijímají kolekci evitaDB mutací, které definují změny, které mají být na entitě aplikovány. V jednom kroku můžete také získat entitu se změnami, pokud definujete návratová data.
 
 </LS>
 <LS to="r">
 
-Novou entitu můžete vytvořit nebo aktualizovat existující pomocí [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) na endpointu kolekce, například `https://your-server:5555/test/evita/product` s HTTP metodou `PUT`. Tyto endpointy jsou přizpůsobeny schématům kolekcí ([schemas](/documentation/user/en/use/schema.md#entity)). Endpointy přijímají kolekci mutací evitaDB, které definují změny, které mají být na entitě provedeny. V jednom kroku můžete získat entitu s aplikovanými změnami definováním požadavků na návratová data.
+Novou entitu můžete vytvořit nebo aktualizovat existující pomocí [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) na endpointu kolekce, například `https://your-server:5555/test/evita/product` s HTTP metodou `PUT`. Tyto endpointy jsou přizpůsobeny schématům kolekcí ([schemas](/documentation/user/en/use/schema.md#entity)). Endpointy přijímají kolekci evitaDB mutací, které definují změny, které mají být na entitě aplikovány. V jednom kroku můžete také získat entitu se změnami, pokud definujete požadavky (requirements).
 
 </LS>
 
@@ -412,7 +433,7 @@ Kromě použití builderů můžete také ručně vytvořit seznam mutací a ode
 
 </SourceCodeTabs>
 
-Můžete také inicializovat builder entity pomocí seznamu mutací:
+Entity builder můžete také inicializovat pomocí seznamu mutací:
 
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly local>
 
@@ -430,12 +451,12 @@ Můžete také inicializovat builder entity pomocí seznamu mutací:
 
 <LS to="j,r,c">
 
-Nejjednodušší způsob, jak odstranit entitu, je podle jejího *primárního klíče*. Pokud však potřebujete odstranit více entit najednou, musíte definovat dotaz, který vybere všechny entity k odstranění:
+Nejjednodušší způsob, jak odstranit entitu, je podle *primárního klíče*. Pokud však potřebujete odstranit více entit najednou, musíte definovat dotaz, který odpovídá všem entitám k odstranění:
 
 </LS>
 <LS to="g">
 
-Pro odstranění jedné nebo více entit musíte definovat dotaz, který vybere všechny entity k odstranění:
+Pro odstranění jedné nebo více entit musíte definovat dotaz, který odpovídá všem entitám k odstranění:
 
 </LS>
 
@@ -451,13 +472,13 @@ Pro odstranění jedné nebo více entit musíte definovat dotaz, který vybere 
 
 <LS to="j,c">
 
-Metoda <LS to="j">`deleteEntities`</LS><LS to="c">`DeleteEntities`</LS> vrací počet odstraněných entit. Pokud chcete vrátit těla smazaných entit, můžete použít alternativní metodu <LS to="j">`deleteEntitiesAndReturnBodies`</LS><LS to="c">`DeleteEntitiesAndReturnBodies`</LS>.
+Metoda <LS to="j">`deleteEntities`</LS><LS to="c">`DeleteEntities`</LS> vrací počet odstraněných entit. Pokud chcete vrátit těla odstraněných entit, můžete použít alternativní metodu <LS to="j">`deleteEntitiesAndReturnBodies`</LS><LS to="c">`DeleteEntitiesAndReturnBodies`</LS>.
 
 </LS>
 
 <LS to="g,r">
 
-<LS to="g">Mutace pro smazání</LS><LS to="r">Oba endpointy pro mazání</LS> mohou vracet těla entit, takže si můžete definovat návratovou strukturu dat dle potřeby, stejně jako při běžném získávání entit.
+<LS to="g">Mutace pro odstranění</LS><LS to="r">Oba endpointy pro mazání</LS> mohou vracet těla entit, takže si můžete definovat návratovou strukturu dat podle potřeby, stejně jako při běžném načítání entit.
 
 </LS>
 
@@ -465,9 +486,9 @@ Metoda <LS to="j">`deleteEntities`</LS><LS to="c">`DeleteEntities`</LS> vrací p
 
 <Note type="warning">
 
-evitaDB nemusí odstranit všechny entity vyhovující filtru v dotazu. Odstranění entit podléhá logice <LS to="j,r">podmínek `require` [`page` nebo `strip`](../../query/requirements/paging.md)</LS><LS to="c">podmínek `Require` [`Page` nebo `Strip`](../../query/requirements/paging.md)</LS><LS to="g">p paginačních argumentů [`offset` a `limit`](../../query/requirements/paging.md)</LS>. I když je zcela vynecháte, implicitní stránkování <LS to="j,r">(`page(1, 20)`)</LS><LS to="c">(`Page(1, 20)`)</LS><LS to="g">(`offset: 1, limit: 20`)</LS> bude použito. Pokud je počet odstraněných entit roven velikosti definovaného stránkování, měli byste příkaz pro odstranění zopakovat.
+evitaDB nemusí odstranit všechny entity odpovídající filtru v dotazu. Odstranění entit podléhá logice <LS to="j,r">podmínek `require` [`page` nebo `strip`](../../query/requirements/paging.md)</LS><LS to="c">podmínek `Require` [`Page` nebo `Strip`](../../query/requirements/paging.md)</LS><LS to="g">p paginačních argumentů [`offset` a `limit`](../../query/requirements/paging.md)</LS>. I když je zcela vynecháte, implicitně se použije stránkování <LS to="j,r">(`page(1, 20)`)</LS><LS to="c">(`Page(1, 20)`)</LS><LS to="g">(`offset: 1, limit: 20`)</LS>. Pokud je počet odstraněných entit roven velikosti definovaného stránkování, měli byste příkaz pro odstranění zopakovat.
 
-Masivní odstraňování entit je lepší provádět ve více transakčních kolech než v jedné velké transakci<LS to="g,r">, tj. více požadavků</LS>. Je to minimálně dobrá praxe, protože velké a dlouhotrvající transakce zvyšují pravděpodobnost konfliktů, které vedou k rollbackům ostatních transakcí.
+Hromadné odstraňování entit je lepší provádět v několika transakčních kolech než v jedné velké transakci<LS to="g,r">, tj. v několika požadavcích</LS>. Je to minimálně dobrá praxe, protože velké a dlouhotrvající transakce zvyšují pravděpodobnost konfliktů, které vedou k rollbackům ostatních transakcí.
 
 </Note>
 
@@ -475,7 +496,7 @@ Masivní odstraňování entit je lepší provádět ve více transakčních kol
 
 <LS to="j,c">
 
-Pokud odstraňujete hierarchickou entitu a potřebujete odstranit nejen samotnou entitu, ale i celý její podstrom, můžete využít metodu <LS to="j">`deleteEntityAndItsHierarchy`</LS><LS to="c">`DeleteEntityAndItsHierarchy`</LS>. Ve výchozím nastavení metoda vrací počet odstraněných entit, ale alternativně může vrátit tělo odstraněné kořenové entity ve velikosti a formě, kterou určíte v jejím argumentu <LS to="j">`require`</LS><LS to="c">`Require`</LS>. Pokud odstraníte pouze kořenový uzel bez odstranění jeho potomků, potomci se stanou [sirotky](../schema.md#sirotčí-uzly-v-hierarchii) a budete je muset připojit k jinému existujícímu rodiči.
+Pokud odstraňujete hierarchickou entitu a potřebujete odstranit nejen samotnou entitu, ale i celou její podstrom, můžete využít metodu <LS to="j">`deleteEntityAndItsHierarchy`</LS><LS to="c">`DeleteEntityAndItsHierarchy`</LS>. Ve výchozím nastavení metoda vrací počet odstraněných entit, ale alternativně může vrátit tělo odstraněné kořenové entity ve velikosti a formě, kterou určíte v jejím argumentu <LS to="j">`require`</LS><LS to="c">`Require`</LS>. Pokud odstraníte pouze kořenový uzel bez jeho potomků, potomci se stanou [sirotky](../schema.md#sirotčí-uzly-v-hierarchii) a budete je muset znovu připojit k jinému existujícímu rodiči.
 
 </LS>
 
@@ -485,16 +506,16 @@ Pokud odstraňujete hierarchickou entitu a potřebujete odstranit nejen samotnou
 
 <NoteTitle toggles="true">
 
-##### Jak evitaDB interně zpracovává mazání?
+##### Jak evitaDB interně zpracovává odstraňování?
 </NoteTitle>
 
-Žádná data nejsou ve skutečnosti odstraněna, jakmile jsou vytvořena a uložena. Pokud odstraníte referenci/atribut/cokoliv, zůstává v entitě a je pouze označena jako `dropped`. Viz implementace rozhraní <LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Droppable.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass></LS>.
+Žádná data nejsou po vytvoření a uložení skutečně odstraněna. Pokud odstraníte referenci/atribut/cokoli, zůstává v entitě a je pouze označena jako `dropped`. Viz implementace rozhraní <LS to="j,g,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Droppable.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass></LS>.
 
 Existuje několik důvodů pro toto rozhodnutí:
 
 1. je dobré mít poslední známou verzi dat k dispozici, když se něco pokazí, abychom se mohli vrátit do předchozího stavu.
-2. umožňuje sledovat změny v entitě během jejího životního cyklu pro účely ladění
-3. je to v souladu s naším *append-only* přístupem k ukládání, kde je třeba zapisovat [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) v případě odstranění entity nebo jiného objektu
+2. umožňuje nám sledovat změny v entitě během jejího životního cyklu pro účely ladění
+3. je to v souladu s naším *pouze přidávacím* přístupem ke storage, kde musíme v případě odstranění entity nebo jiného objektu zapisovat [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store))
 
 </Note>
 
@@ -504,45 +525,47 @@ Existuje několik důvodů pro toto rozhodnutí:
 
 ## Vlastní kontrakty
 
-Podobně jako při [dotazování dat pomocí vlastních kontraktů](query-data.md#vlastní-kontrakty) můžete také vytvářet nové entity a upravovat existující pomocí vlastních kontraktů. To vám umožní zcela obejít práci s interním modelem evitaDB a držet se vlastního – doménově specifického – modelu. Při modelování vašich kontraktů pro čtení/zápis doporučujeme držet se [principu sealed/open](../connectors/java.md#doporučení-pro-modelování-dat).
+Podobně jako při [dotazování na data pomocí vlastních kontraktů](query-data.md#vlastní-kontrakty) můžete také vytvářet nové entity a upravovat existující pomocí vlastních kontraktů. To vám umožňuje zcela obejít práci s interním modelem evitaDB a držet se vlastního – doménově specifického – modelu. Při modelování vašich read/write kontraktů doporučujeme držet se [principu sealed/open](../connectors/java.md#doporučení-pro-modelování-dat).
 
-Váš kontrakt pro zápis pravděpodobně rozšíří kontrakt pro čtení pomocí anotací popsaných v [schema API](schema-api.md#anotace-pro-řízení-schématu) a/nebo [query data API](query-data.md#vlastní-kontrakty). Pokud dodržíte konvenci pojmenování JavaBeans, nemusíte používat anotace na metodách pro zápis, ale pokud chcete použít jiná jména nebo upřesnit svůj kontrakt pro zápis, stačí použít [anotace pro query data](query-data.md#vlastní-kontrakty) na metodách pro zápis. V některých případech můžete chtít použít následující další anotace:
+Váš zápisový kontrakt pravděpodobně rozšíří read kontrakty pomocí anotací popsaných v [schema API](schema-api.md#anotace-pro-řízení-schématu) a/nebo [query data API](query-data.md#vlastní-kontrakty). Pokud dodržujete konvenci pojmenování JavaBeans, nemusíte používat anotace na zápisových metodách, ale pokud chcete použít jiná jména nebo upřesnit svůj zápisový kontrakt, stačí použít [anotace query data](query-data.md#vlastní-kontrakty) na zápisových metodách. V některých případech můžete chtít použít následující dodatečné anotace:
 
 <dl>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/CreateWhenMissing.java</SourceClass></dt>
     <dd>
-        Tato anotace může být použita na metodách přijímajících [Consumer](/https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html) nebo na metodách, které vrací/přijímají váš vlastní kontrakt. Když je metoda zavolána, automatická implementační logika vytvoří novou instanci tohoto kontraktu, se kterou můžete pracovat. Nová instance je uložena spolu s entitou, která byla zodpovědná za její vytvoření (viz detaily v následujících odstavcích).
+        Tato anotace může být použita na metodách přijímajících typ [Consumer](/https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html)
+        nebo na metodách, které vracejí/přijímají váš vlastní kontrakt. Když je metoda zavolána, automatická implementační logika vytvoří novou instanci tohoto kontraktu, se kterou můžete pracovat. Nová instance je uložena spolu s entitou, která byla zodpovědná za její vytvoření (podrobnosti viz následující odstavce).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/RemoveWhenExists.java</SourceClass></dt>
     <dd>
-        Tato anotace může být použita na metodách a vyvolá odstranění konkrétních dat entity – atributu, associated data, reference na rodiče, entity reference nebo ceny. Odstranění se týká pouze samotné entity, nikdy cílové entity. Fyzické odstranění je provedeno pouze tehdy, když je entita samotná upsertována do databáze.
+        Tato anotace může být použita na metodách a spustí odstranění konkrétních dat entity – atributu, asociovaných dat, reference na rodiče, reference na entitu nebo ceny. Odstranění ovlivní pouze samotnou entitu, nikdy cílovou entitu. Fyzické odstranění je provedeno pouze tehdy, když je samotná entita upsertována do databáze.
     </dd>
 </dl>
 
-Metody pro zápis mohou vracet několik typů (v některých případech je podporovaný seznam ještě delší – tyto případy jsou popsány v příslušných sekcích):
+Zápisové metody mohou vracet několik typů (v některých případech je podporovaný seznam ještě delší – tyto případy jsou popsány v příslušných sekcích):
 
 - `void` – metoda provede úpravu a nevrací žádnou hodnotu
-- `selfType` – metoda provede úpravu a vrací referenci na samotný kontrakt, což umožňuje řetězit více zápisových volání ([builder pattern](https://blogs.oracle.com/javamagazine/post/exploring-joshua-blochs-builder-design-pattern-in-java))
+- `selfType` – metoda provede úpravu a vrací referenci na samotný kontrakt, což umožňuje řetězit více zápisových volání dohromady ([builder pattern](https://blogs.oracle.com/javamagazine/post/exploring-joshua-blochs-builder-design-pattern-in-java))
 
-V následujících sekcích popíšeme chování automatické implementační logiky podrobně a s příklady:
+V následujících sekcích podrobně popíšeme chování automatické implementační logiky a uvedeme příklady:
 
 <Note type="info">
 
-Příklady obsahují pouze definice rozhraní/tříd, protože Java records jsou pouze pro čtení. Příklady popisují kontrakt pro čtení/zápis ve stejné třídě, což je jednodušší přístup, ale není zcela bezpečný z hlediska paralelního přístupu k datům. Pokud chcete dodržet doporučený [princip sealed/open](../connectors/java.md#doporučení-pro-modelování-dat), měli byste deklarovat `extends SealedEntity<MyEntity, MyEntityEditor>` v kontraktu pro čtení a `extends InstanceEditor<MyEntity>` v kontraktu pro zápis.
+Příklady obsahují pouze definice rozhraní/tříd, protože Java records jsou pouze pro čtení. Příklady popisují read/write kontrakt ve stejné třídě, což je jednodušší přístup, ale není zcela bezpečný z hlediska paralelního přístupu k datům. Pokud chcete dodržet doporučený [princip sealed/open](../connectors/java.md#doporučení-pro-modelování-dat), měli byste deklarovat `extends SealedEntity<MyEntity, MyEntityEditor>` v kontraktu pro čtení a `extends InstanceEditor<MyEntity>` v kontraktu pro zápis.
 
 </Note>
 
 <Note type="warning">
 
-Pokud vytváříte nové (neexistující) entity pomocí metod anotovaných `@CreateWhenMissing`, jsou tyto entity drženy v lokální paměti a jejich uložení je odloženo až do doby, kdy je entita, která je vytvořila, uložena pomocí metody `upsertDeeply`. Pokud tuto metodu nezavoláte, nebo pokud zavoláte pouze jednoduchou metodu `upsert`, vytvořené entity a reference na ně budou ztraceny. Můžete je také uložit samostatně nebo před hlavní entitou, která je vytvořila. V tomto případě můžete zavolat metodu `upsert` přímo na nich.
+Když vytváříte nové (neexistující) entity pomocí metod anotovaných `@CreateWhenMissing`, tyto entity jsou drženy v lokální paměti a jejich uložení je odloženo, dokud entita, která je vytvořila, není uložena pomocí metody `upsertDeeply`. Pokud tuto metodu nezavoláte, nebo pokud zavoláte pouze jednoduchou metodu `upsert`, vytvořené entity a reference na ně budou ztraceny. Možná je také budete chtít uložit samostatně nebo před hlavní entitou, která je vytvořila. V tomto případě můžete zavolat metodu `upsert` přímo na nich.
 
-API umožňuje vytvořit nekonečně hluboký řetězec závislých entit a logika `upsertDeeply` / `upsert` bude fungovat správně na všech úrovních. Pokud vytvoříte entitu `A`, ve které vytvoříte referenci na entitu `B`, ve které vytvoříte další referenci na entitu `C`, metoda `upsertDeeply` zavolaná na entitě `A` uloží všechny tři entity ve správném pořadí (`C`, `B`, `A`). Pokud zavoláte metodu `upsertDeeply` na entitě `B`, uloží pouze podřízené entity ve správném pořadí (`C`, `B`). Můžete také ručně zavolat metodu `upsert` na entitě `C`, pak na `B` a nakonec na `A`. Pokud však uložíte entitu `A` bez předchozího uložení entit `B` a `C`, reference mezi `A` a `B` bude ztracena. Stále však můžete zavolat `upsertDeeply` na entitě `B`, což zachová referenci mezi `B` a `C`.
+API vám umožňuje vytvořit řetězec závislých entit do nekonečné hloubky a logika `upsertDeeply` / `upsert` bude fungovat správně na všech úrovních. Pokud vytvoříte entitu `A`, ve které jste vytvořili referenci na entitu `B`, ve které jste vytvořili další referenci na entitu `C`, metoda `upsertDeeply` zavolaná na entitě `A` uloží všechny tři entity ve správném pořadí (`C`, `B`, `A`). Pokud zavoláte metodu `upsertDeeply` na entitě `B`, uloží pouze podřízené entity ve správném pořadí (`C`, `B`). Můžete také ručně zavolat metodu `upsert` na entitě `C`, poté na `B` a nakonec na `A`. Pokud však uložíte entitu `A` bez předchozího uložení entit `B` a `C`, reference mezi `A` a `B` bude ztracena. Stále však můžete zavolat `upsertDeeply` na entitě `B`, což zachová referenci mezi `B` a `C`.
 
 </Note>
 
 ### Primární klíč
 
-Primární klíč může být přiřazen evitaDB, ale může být také nastaven zvenčí. Pro umožnění nastavení primárního klíče musíte deklarovat metodu přijímající číselný datový typ (obvykle [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) a anotovat ji anotací `@PrimaryKey` nebo `@PrimaryKeyRef`:
+Primární klíč může být přiřazen evitaDB, ale může být také nastaven zvenčí. Aby bylo možné nastavit primární klíč, musíte deklarovat metodu přijímající číselný datový typ (obvykle
+[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) a anotovat ji anotací `@PrimaryKey` nebo `@PrimaryKeyRef`:
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/primary-key-read-interface.java" variants="interface|class">
 
@@ -552,9 +575,14 @@ Primární klíč může být přiřazen evitaDB, ale může být také nastaven
 
 ### Atributy
 
-Pro nastavení atributu entity nebo reference musíte použít odpovídající datový typ a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass> nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass> nebo mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
+Pro nastavení atributu entity nebo reference musíte použít odpovídající datový typ a anotovat jej
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass>
+nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass>
+anotací, případně mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
 
-Pokud atribut představuje vícenásobný typ (pole), můžete jej zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html) (nebo jejích specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) nebo předat jako jednoduché pole hodnot. Pravidla platí jak pro atributy entity, tak reference:
+Pokud atribut představuje vícenásobný typ (pole), můžete jej také zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(nebo jeho specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), nebo jej předat jako jednoduché pole hodnot. Pravidla platí jak pro atributy entity, tak pro atributy reference:
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/attribute-read-interface.java" variants="interface|class">
 
@@ -568,15 +596,20 @@ Datové typy Java enum jsou automaticky převáděny na stringový datový typ e
 
 </Note>
 
-### Associated Data
+### Asociovaná data
 
-Pro nastavení associated data entity musíte použít odpovídající datový typ a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass> nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass> nebo mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
+Pro nastavení asociovaných dat entity musíte použít odpovídající datový typ a anotovat jej
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass>
+nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass>
+anotací, případně mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
 
-Pokud associated data představuje vícenásobný typ (pole), můžete jej zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html) (nebo jejích specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) nebo předat jako jednoduché pole hodnot.
+Pokud asociovaná data představují vícenásobný typ (pole), můžete je také zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(nebo jeho specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), nebo je předat jako jednoduché pole hodnot.
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/associated-data-read-interface.java" variants="interface|class">
 
-[Příklad rozhraní s modifikátorem associated data](/documentation/user/en/use/api/example/associated-data-write-interface.java)
+[Příklad rozhraní s modifikátorem asociovaných dat](/documentation/user/en/use/api/example/associated-data-write-interface.java)
 
 </SourceAlternativeTabs>
 
@@ -584,13 +617,18 @@ Pokud metoda přijímá ["nepodporovaný datový typ"](../data-types.md#jednoduc
 
 ### Ceny
 
-Pro nastavení cen entity můžete pracovat s datovým typem <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> nebo předat všechna potřebná data v parametrech metody a anotovat metodu anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>. Jednotlivou cenu lze nastavit (vytvořit nebo aktualizovat) podle business klíče, který se skládá z:
+Pro nastavení cen entity můžete pracovat s datovým typem
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>
+nebo předat všechna potřebná data v parametrech metody a anotovat metody anotací
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>.
+Můžete nastavit (vytvořit nebo aktualizovat) jednu cenu podle jejího business klíče, který se skládá z:
 
 - **`priceId`** – číselný datový typ s externím identifikátorem ceny
-- **`currency`** – [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) nebo [string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) datový typ přijímající 3písmenný ISO kód měny
-- **`priceList`** – [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) s názvem ceníku
+- **`currency`** – [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) nebo [string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) datový typ akceptující 3písmenný měnový ISO kód
+- **`priceList`** – [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) datový typ s názvem ceníku
 
-nebo můžete nastavit všechny ceny pomocí metody, která přijímá pole, [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html), [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html) se všemi cenami entity.
+nebo můžete nastavit všechny ceny pomocí metody, která přijímá pole, [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html), [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) nebo
+[Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html) parametr se všemi cenami entity.
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/price-read-interface.java" variants="interface|class">
 
@@ -600,7 +638,10 @@ nebo můžete nastavit všechny ceny pomocí metody, která přijímá pole, [Co
 
 ### Hierarchie
 
-Pro nastavení informací o zařazení entity v hierarchii (tj. jejího rodiče) musíte použít buď číselný datový typ, vlastní rozhraní, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass> nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass> a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass> nebo mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
+Pro nastavení informací o umístění entity v hierarchii (tj. jejího rodiče) musíte použít buď číselný datový typ, vlastní typ rozhraní, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
+nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+datový typ a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass>
+nebo mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/parent-read-interface.java" variants="interface|class">
 
@@ -612,9 +653,16 @@ Pokud nastavíte hodnotu na `NULL`, entita se stane kořenovou entitou.
 
 ### Reference
 
-Pro nastavení referencí entity musíte použít buď číselný datový typ, vlastní rozhraní, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass> nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass> a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass> nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass> nebo mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
+Pro nastavení referencí entity musíte použít buď číselný datový typ, vlastní typ rozhraní,
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
+nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>
+datový typ a anotovat jej anotací <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass>
+nebo <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass>
+anotací, případně mít odpovídající getter (nebo pole) s touto anotací ve stejné třídě.
 
-Pokud má reference kardinálnost `ZERO_OR_MORE` nebo `ONE_OR_MORE`, můžete ji také zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html) (nebo jejích specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), nebo předat jako jednoduché pole pro přepsání všech hodnot najednou. Pokud má reference kardinálnost `ZERO_OR_ONE` a předáte hodnotu `NULL`, reference je automaticky odstraněna.
+Pokud má reference kardinalitu `ZERO_OR_MORE` nebo `ONE_OR_MORE`, můžete ji také zabalit do [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(nebo jeho specializací [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+nebo [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), nebo ji předat jako jednoduché pole pro přepsání všech hodnot najednou. Pokud má reference kardinalitu `ZERO_OR_ONE` a předáte hodnotu `NULL`, reference je automaticky odstraněna.
 
 <SourceAlternativeTabs requires="documentation/user/en/use/api/example/reference-read-interface.java" variants="interface|class">
 

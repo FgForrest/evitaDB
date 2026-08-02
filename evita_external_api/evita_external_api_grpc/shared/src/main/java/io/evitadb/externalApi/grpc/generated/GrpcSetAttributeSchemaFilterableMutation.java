@@ -123,7 +123,7 @@ private static final long serialVersionUID = 0L;
    * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
    * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
    * (memory/disk) space in the form of index.
-   * deprecated in favor of `filterableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
    * </pre>
    *
    * <code>bool filterable = 2 [deprecated = true];</code>
@@ -740,7 +740,7 @@ private static final long serialVersionUID = 0L;
      * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
      * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
      * (memory/disk) space in the form of index.
-     * deprecated in favor of `filterableInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
      * </pre>
      *
      * <code>bool filterable = 2 [deprecated = true];</code>
@@ -757,7 +757,7 @@ private static final long serialVersionUID = 0L;
      * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
      * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
      * (memory/disk) space in the form of index.
-     * deprecated in favor of `filterableInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
      * </pre>
      *
      * <code>bool filterable = 2 [deprecated = true];</code>
@@ -778,7 +778,7 @@ private static final long serialVersionUID = 0L;
      * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
      * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
      * (memory/disk) space in the form of index.
-     * deprecated in favor of `filterableInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
      * </pre>
      *
      * <code>bool filterable = 2 [deprecated = true];</code>

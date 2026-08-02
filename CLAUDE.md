@@ -56,6 +56,11 @@ to keep and what to delete: `.claude/rules/adr.md`.
 - No commented out code
 - `@Deprecated(since = ...)` follows a specific convention (and has a verification tool): see `.claude/rules/deprecation-policy.md`
 
+## Documentation
+
+User-facing docs live under `documentation/user/`. English is the only hand-written source; the
+Czech mirror is machine-translated, never hand-edited — see `.claude/rules/documentation.md`.
+
 ## Defensive Design
 
 - **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.

@@ -29,8 +29,9 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response to GetMutationsHistory request. The server sends one such message per mutation - each carries
- * exactly one `changeCapture` entry, not a batch (see the RPC's streaming semantics).
+ * Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
+ * per mutation - each carries exactly one `changeCapture` entry, not a batch (see the RPC's streaming
+ * semantics).
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse}
@@ -290,8 +291,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response to GetMutationsHistory request. The server sends one such message per mutation - each carries
-   * exactly one `changeCapture` entry, not a batch (see the RPC's streaming semantics).
+   * Response to GetMutationsHistory / GetMutationsHistoryForward request. The server sends one such message
+   * per mutation - each carries exactly one `changeCapture` entry, not a batch (see the RPC's streaming
+   * semantics).
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse}

@@ -54,9 +54,9 @@ public interface MutationPredicateFactory {
 
 	/**
 	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureRequest}
-	 * request. The predicate chain is created in such a way that it captures only mutations that are older than
-	 * the given version and index. Thus the method is named "reversed" as it is used to capture changes in the reversed
-	 * order.
+	 * request. The predicate chain is created in such a way that it captures only mutations that are at or newer than
+	 * the given version and index - i.e. `sinceVersion`/`sinceIndex` act as an inclusive lower bound. Used together
+	 * with a forward-ordered mutation stream (oldest first).
 	 *
 	 * @param request request to be used for creating the predicate chain
 	 * @return predicate chain that filters out mutations that match the given request

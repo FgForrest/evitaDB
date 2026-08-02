@@ -115,7 +115,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
@@ -128,7 +128,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4 [deprecated = true];</code>
@@ -142,7 +142,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
@@ -155,7 +155,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5 [deprecated = true];</code>
@@ -170,7 +170,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
    * as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
    * (memory/disk) space in the form of index.
-   * deprecated in favor of `filterableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
    * </pre>
    *
    * <code>bool filterable = 6 [deprecated = true];</code>
@@ -185,7 +185,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
    * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
    * (memory/disk) space in the form of index.
-   * deprecated in favor of `sortableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `sortableInScopes`
    * </pre>
    *
    * <code>bool sortable = 7 [deprecated = true];</code>

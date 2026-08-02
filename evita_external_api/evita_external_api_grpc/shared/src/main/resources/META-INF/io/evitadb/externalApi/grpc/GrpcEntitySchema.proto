@@ -178,7 +178,7 @@ message GrpcAttributeSchema {
   //
   // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
   // better to have this ensured by the database engine.
-  // deprecated in favor of `uniqueInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
   GrpcAttributeUniquenessType unique = 5 [deprecated = true];
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
   // entity having certain value of this attribute in the entire catalog.
@@ -186,7 +186,7 @@ message GrpcAttributeSchema {
   //
   // As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
   // better to have this ensured by the database engine.
-  // deprecated in favor of `uniqueGloballyInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
   GrpcGlobalAttributeUniquenessType uniqueGlobally = 6 [deprecated = true];
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
@@ -194,12 +194,12 @@ message GrpcAttributeSchema {
   //
   // When attribute is filterable, extra result `attributeHistogram`
   // can be requested for this attribute.
-  // deprecated in favor of `filterableInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `filterableInScopes`
   bool filterable = 7 [deprecated = true];
   // When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
   // as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
   // (memory/disk) space in the form of index.
-  // deprecated in favor of `sortableInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `sortableInScopes`
   bool sortable = 8 [deprecated = true];
   // When attribute is localized, it has to be ALWAYS used in connection with specific `Locale`.
   bool localized = 9;
@@ -335,13 +335,13 @@ message GrpcReferenceSchema {
   // that identifies type some external resource not maintained by Evita.
   string entityType = 5;
   // Contains `true` if `entityType` refers to any existing entity that is maintained by Evita.
-  // DEPRECATED!!! use referencedEntityTypeManaged instead
+  // Deprecated since 2024.10 - use referencedEntityTypeManaged instead
   bool entityTypeRelatesToEntity = 6 [deprecated = true];
   // Reference to `Entity.type` of the referenced entity. Might be also `String` that identifies type some external
   // resource not maintained by Evita.
   google.protobuf.StringValue groupType = 7;
   // Contains `true` if `groupType` refers to any existing entity that is maintained by Evita.
-  // DEPRECATED!!! use referencedGroupTypeManaged instead
+  // Deprecated since 2024.10 - use referencedGroupTypeManaged instead
   bool groupTypeRelatesToEntity = 8 [deprecated = true];
   // Contains `true` if the index for this reference should be created and maintained allowing to filter by
   // `reference_{reference name}_having` filtering constraints. Index is also required when reference is
@@ -351,7 +351,7 @@ message GrpcReferenceSchema {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
   // fetched.
-  // deprecated in favor of `indexedInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `indexedInScopes`
   bool indexed = 9 [deprecated = true];
   // Contains `true` if the statistics data for this reference should be maintained and this allowing to get
   // `facetStatistics` for this reference or use `facet_{reference name}_inSet`
@@ -361,7 +361,7 @@ message GrpcReferenceSchema {
   // occupies (memory/disk) space in the form of index.
   //
   // Reference that was marked as faceted is called Facet.
-  // deprecated in favor of `facetedInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
   bool faceted = 10 [deprecated = true];
   // Attributes related to reference allows defining set of data that are fetched in bulk along with the entity body.
   // Attributes may be indexed for fast filtering (`AttributeSchema.filterable`) or can be used to sort along
@@ -413,7 +413,7 @@ message GrpcReferenceSchema {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data can be
   // fetched.
-  // deprecated in favor of `scopedIndexTypes`
+  // Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 26 [deprecated = true];
   // Contains `true` if the statistics data for this reference should be maintained and this allowing to get
   // `facetStatistics` for this reference or use `facet_{reference name}_inSet`

@@ -68,8 +68,8 @@ public interface GrpcEntityReferenceOrBuilder extends
 
   /**
    * <pre>
-   * value is deprecated, it was available only for entity references used in entity body, in other use-cases it was left
-   * as zero - which was a mistake in the design.
+   * Deprecated since 2024.10 - value is deprecated, it was available only for entity references
+   * used in entity body, in other use-cases it was left as zero - which was a mistake in the design.
    * in order to get the entity version you need to fetch the entity itself (with entity body).
    * </pre>
    *

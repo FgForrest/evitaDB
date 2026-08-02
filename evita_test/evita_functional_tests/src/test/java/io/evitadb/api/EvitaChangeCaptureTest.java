@@ -27,7 +27,6 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -35,6 +34,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -50,6 +50,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
@@ -57,6 +59,7 @@ import org.junit.jupiter.api.Tag;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -359,9 +362,9 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			assertEquals(2, reverseCaptures.size());
 
 			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
-			assertEquals(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
+			assertSame(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
 			assertEquals(Entities.PRODUCT, reverseCaptures.get(1).entityType());
-			assertEquals(CURRENCY_CZK, ((UpsertPriceMutation)reverseCaptures.get(1).body()).getPriceKey().currency());
+			assertSame(CURRENCY_CZK, ((UpsertPriceMutation)reverseCaptures.get(1).body()).getPriceKey().currency());
 		}
 	}
 
@@ -530,6 +533,121 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			for (ChangeCatalogCapture reverseCapture : reverseSchemaCapturesAfterRename) {
 				assertEquals("brand_renamed", reverseCapture.entityType());
 			}
+		}
+	}
+
+	@Test
+	void shouldCaptureDataMutationsInBothDirectionsConsistently() {
+		makeCatalogAliveAndCreateMutationSet();
+
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.dataArea()
+						.build()
+				)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistoryReversed(request).toList();
+			final List<ChangeCatalogCapture> forwardCaptures = session.getMutationsHistoryForward(request).toList();
+
+			assertEquals(6, forwardCaptures.size());
+			assertEquals(reverseCaptures.size(), forwardCaptures.size());
+
+			// forward and reverse traverse the exact same physical records - only in opposite order, with the
+			// same index assigned to the same record regardless of direction
+			final List<ChangeCatalogCapture> reversedForwardCaptures = new ArrayList<>(forwardCaptures);
+			Collections.reverse(reversedForwardCaptures);
+			assertEquals(reverseCaptures, reversedForwardCaptures);
+
+			int index = -1;
+			for (ChangeCatalogCapture forwardCapture : forwardCaptures) {
+				assertTrue(
+					forwardCapture.index() >= index,
+					"Index " + forwardCapture.index() + " is not greater than or equal to " + index + " for " + forwardCapture
+				);
+				assertEquals(CaptureArea.DATA, forwardCapture.area());
+				index = forwardCapture.index();
+			}
+		}
+	}
+
+	@Test
+	void shouldEmitEntityAndLocalMutationCapturesInOppositeOrderByDirection() {
+		makeCatalogAliveAndCreateMutationSet();
+		setPricesToTheProduct();
+
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.criteria(
+					ChangeCatalogCaptureCriteria.builder()
+						.area(CaptureArea.DATA)
+						.site(
+							DataSite.builder()
+								.entityType(Entities.PRODUCT)
+								.entityPrimaryKey(1)
+								.build()
+						)
+						.build()
+				)
+				.content(ChangeCaptureContent.BODY)
+				.build();
+
+			// the price-setting upsert is the last of the seeded mutations (its own, later transaction), so its
+			// record - one entity-level capture plus the two local price captures it fanned out into - is the
+			// last group in forward (oldest-first) order
+			final List<ChangeCatalogCapture> forwardCaptures = session.getMutationsHistoryForward(request).toList();
+			final List<ChangeCatalogCapture> forwardPriceGroup = forwardCaptures.subList(forwardCaptures.size() - 3, forwardCaptures.size());
+			assertInstanceOf(EntityUpsertMutation.class, forwardPriceGroup.get(0).body());
+			assertInstanceOf(UpsertPriceMutation.class, forwardPriceGroup.get(1).body());
+			assertInstanceOf(UpsertPriceMutation.class, forwardPriceGroup.get(2).body());
+
+			// same record is the first group in reverse (newest-first) order, with locals preceding the
+			// entity-level capture - the opposite nesting order from forward
+			final List<ChangeCatalogCapture> reverseCaptures = session.getMutationsHistoryReversed(request).toList();
+			final List<ChangeCatalogCapture> reversePriceGroup = reverseCaptures.subList(0, 3);
+			assertInstanceOf(UpsertPriceMutation.class, reversePriceGroup.get(0).body());
+			assertInstanceOf(UpsertPriceMutation.class, reversePriceGroup.get(1).body());
+			assertInstanceOf(EntityUpsertMutation.class, reversePriceGroup.get(2).body());
+		}
+	}
+
+	@Test
+	void shouldAnchorForwardStreamAtInclusiveFloorVersion() {
+		makeCatalogAliveAndCreateMutationSet();
+		setPricesToTheProduct();
+
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final List<ChangeCatalogCapture> allCaptures = session.getMutationsHistoryForward(
+				ChangeCatalogCaptureRequest.builder()
+					.content(ChangeCaptureContent.HEADER)
+					.build()
+			).toList();
+
+			// two transactions were committed (schema+data, then prices) - the price transaction's header is the
+			// newest, i.e. the last INFRASTRUCTURE capture in forward order
+			final ChangeCatalogCapture priceTransactionHeader = allCaptures.stream()
+				.filter(capture -> capture.area() == CaptureArea.INFRASTRUCTURE)
+				.reduce((first, second) -> second)
+				.orElseThrow();
+
+			final List<ChangeCatalogCapture> anchoredCaptures = session.getMutationsHistoryForward(
+				ChangeCatalogCaptureRequest.builder()
+					.sinceVersion(priceTransactionHeader.version())
+					.content(ChangeCaptureContent.HEADER)
+					.build()
+			).toList();
+
+			// the floor is inclusive: the anchor version's own header capture is the first one returned
+			assertEquals(priceTransactionHeader.version(), anchoredCaptures.get(0).version());
+			assertTrue(anchoredCaptures.stream().allMatch(capture -> capture.version() >= priceTransactionHeader.version()));
+			// and it is exactly the tail of the unanchored stream - nothing gained or lost by anchoring
+			assertEquals(
+				allCaptures.subList(allCaptures.size() - anchoredCaptures.size(), allCaptures.size()),
+				anchoredCaptures
+			);
 		}
 	}
 

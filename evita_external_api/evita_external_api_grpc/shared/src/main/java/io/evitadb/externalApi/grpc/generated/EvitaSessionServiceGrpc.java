@@ -1221,6 +1221,37 @@ public final class EvitaSessionServiceGrpc {
     return getGetMutationsHistoryPageMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest,
+      io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> getGetMutationsHistoryPageForwardMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetMutationsHistoryPageForward",
+      requestType = io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest,
+      io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> getGetMutationsHistoryPageForwardMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> getGetMutationsHistoryPageForwardMethod;
+    if ((getGetMutationsHistoryPageForwardMethod = EvitaSessionServiceGrpc.getGetMutationsHistoryPageForwardMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getGetMutationsHistoryPageForwardMethod = EvitaSessionServiceGrpc.getGetMutationsHistoryPageForwardMethod) == null) {
+          EvitaSessionServiceGrpc.getGetMutationsHistoryPageForwardMethod = getGetMutationsHistoryPageForwardMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetMutationsHistoryPageForward"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("GetMutationsHistoryPageForward"))
+              .build();
+        }
+      }
+    }
+    return getGetMutationsHistoryPageForwardMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
       io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getGetMutationsHistoryMethod;
 
@@ -1250,6 +1281,37 @@ public final class EvitaSessionServiceGrpc {
       }
     }
     return getGetMutationsHistoryMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
+      io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getGetMutationsHistoryForwardMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetMutationsHistoryForward",
+      requestType = io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
+      io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getGetMutationsHistoryForwardMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getGetMutationsHistoryForwardMethod;
+    if ((getGetMutationsHistoryForwardMethod = EvitaSessionServiceGrpc.getGetMutationsHistoryForwardMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getGetMutationsHistoryForwardMethod = EvitaSessionServiceGrpc.getGetMutationsHistoryForwardMethod) == null) {
+          EvitaSessionServiceGrpc.getGetMutationsHistoryForwardMethod = getGetMutationsHistoryForwardMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetMutationsHistoryForward"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("GetMutationsHistoryForward"))
+              .build();
+        }
+      }
+    }
+    return getGetMutationsHistoryForwardMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GetTransactionOverviewRequest,
@@ -1761,7 +1823,8 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+     * the request criteria.
      * </pre>
      */
     default void getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
@@ -1771,12 +1834,35 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+     * match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+     * </pre>
+     */
+    default void getMutationsHistoryPageForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetMutationsHistoryPageForwardMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in reversed (newest-first) order that match the
+     * request criteria.
      * </pre>
      */
     default void getMutationsHistory(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetMutationsHistoryMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in chronological (oldest-first) order that match
+     * the request criteria - the forward counterpart of GetMutationsHistory.
+     * </pre>
+     */
+    default void getMutationsHistoryForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetMutationsHistoryForwardMethod(), responseObserver);
     }
 
     /**
@@ -2256,7 +2342,8 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+     * the request criteria.
      * </pre>
      */
     public void getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
@@ -2267,13 +2354,38 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+     * match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+     * </pre>
+     */
+    public void getMutationsHistoryPageForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetMutationsHistoryPageForwardMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in reversed (newest-first) order that match the
+     * request criteria.
      * </pre>
      */
     public void getMutationsHistory(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncServerStreamingCall(
           getChannel().newCall(getGetMutationsHistoryMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in chronological (oldest-first) order that match
+     * the request criteria - the forward counterpart of GetMutationsHistory.
+     * </pre>
+     */
+    public void getMutationsHistoryForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getGetMutationsHistoryForwardMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -2707,7 +2819,8 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+     * the request criteria.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) throws io.grpc.StatusException {
@@ -2717,7 +2830,19 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+     * match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPageForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetMutationsHistoryPageForwardMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in reversed (newest-first) order that match the
+     * request criteria.
      * </pre>
      */
     @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
@@ -2725,6 +2850,19 @@ public final class EvitaSessionServiceGrpc {
         getMutationsHistory(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request) {
       return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
           getChannel(), getGetMutationsHistoryMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in chronological (oldest-first) order that match
+     * the request criteria - the forward counterpart of GetMutationsHistory.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>
+        getMutationsHistoryForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getGetMutationsHistoryForwardMethod(), getCallOptions(), request);
     }
 
     /**
@@ -3154,7 +3292,8 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+     * the request criteria.
      * </pre>
      */
     public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPage(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) {
@@ -3164,13 +3303,37 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+     * match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse getMutationsHistoryPageForward(io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetMutationsHistoryPageForwardMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in reversed (newest-first) order that match the
+     * request criteria.
      * </pre>
      */
     public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getMutationsHistory(
         io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request) {
       return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
           getChannel(), getGetMutationsHistoryMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns stream of all past mutations in chronological (oldest-first) order that match
+     * the request criteria - the forward counterpart of GetMutationsHistory.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse> getMutationsHistoryForward(
+        io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getGetMutationsHistoryForwardMethod(), getCallOptions(), request);
     }
 
     /**
@@ -3587,13 +3750,26 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
-     * Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+     * Procedure that returns requested page of past mutations in reversed (newest-first) order that match
+     * the request criteria.
      * </pre>
      */
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> getMutationsHistoryPage(
         io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetMutationsHistoryPageMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that returns requested page of past mutations in chronological (oldest-first) order that
+     * match the request criteria - the forward counterpart of GetMutationsHistoryPage.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse> getMutationsHistoryPageForward(
+        io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetMutationsHistoryPageForwardMethod(), getCallOptions()), request);
     }
 
     /**
@@ -3646,9 +3822,11 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_GET_TRANSACTION_ID = 35;
   private static final int METHODID_GET_CATALOG_VERSION_AT = 36;
   private static final int METHODID_GET_MUTATIONS_HISTORY_PAGE = 37;
-  private static final int METHODID_GET_MUTATIONS_HISTORY = 38;
-  private static final int METHODID_GET_TRANSACTION_OVERVIEW = 39;
-  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 40;
+  private static final int METHODID_GET_MUTATIONS_HISTORY_PAGE_FORWARD = 38;
+  private static final int METHODID_GET_MUTATIONS_HISTORY = 39;
+  private static final int METHODID_GET_MUTATIONS_HISTORY_FORWARD = 40;
+  private static final int METHODID_GET_TRANSACTION_OVERVIEW = 41;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 42;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -3819,8 +3997,16 @@ public final class EvitaSessionServiceGrpc {
           serviceImpl.getMutationsHistoryPage((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>) responseObserver);
           break;
+        case METHODID_GET_MUTATIONS_HISTORY_PAGE_FORWARD:
+          serviceImpl.getMutationsHistoryPageForward((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>) responseObserver);
+          break;
         case METHODID_GET_MUTATIONS_HISTORY:
           serviceImpl.getMutationsHistory((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>) responseObserver);
+          break;
+        case METHODID_GET_MUTATIONS_HISTORY_FORWARD:
+          serviceImpl.getMutationsHistoryForward((io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>) responseObserver);
           break;
         case METHODID_GET_TRANSACTION_OVERVIEW:
@@ -4116,12 +4302,26 @@ public final class EvitaSessionServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>(
                 service, METHODID_GET_MUTATIONS_HISTORY_PAGE)))
         .addMethod(
+          getGetMutationsHistoryPageForwardMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageRequest,
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryPageResponse>(
+                service, METHODID_GET_MUTATIONS_HISTORY_PAGE_FORWARD)))
+        .addMethod(
           getGetMutationsHistoryMethod(),
           io.grpc.stub.ServerCalls.asyncServerStreamingCall(
             new MethodHandlers<
               io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
               io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>(
                 service, METHODID_GET_MUTATIONS_HISTORY)))
+        .addMethod(
+          getGetMutationsHistoryForwardMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryRequest,
+              io.evitadb.externalApi.grpc.generated.GetMutationsHistoryResponse>(
+                service, METHODID_GET_MUTATIONS_HISTORY_FORWARD)))
         .addMethod(
           getGetTransactionOverviewMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
@@ -4222,7 +4422,9 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getGetTransactionIdMethod())
               .addMethod(getGetCatalogVersionAtMethod())
               .addMethod(getGetMutationsHistoryPageMethod())
+              .addMethod(getGetMutationsHistoryPageForwardMethod())
               .addMethod(getGetMutationsHistoryMethod())
+              .addMethod(getGetMutationsHistoryForwardMethod())
               .addMethod(getGetTransactionOverviewMethod())
               .addMethod(getRegisterChangeCatalogCaptureMethod())
               .build();

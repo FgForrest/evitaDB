@@ -21,7 +21,8 @@ message GrpcEvitaServerStatusResponse {
   string instanceId = 4;
   // Number of corrupted catalogs
   int32 catalogsCorrupted = 5;
-  // Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+  // Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+  // renamed to `catalogsActive`
   int32 catalogsOk = 6 [deprecated = true];
   // Health problems currently detected by any of the server's health probes, deduplicated. Empty
   // means no problems were detected.

@@ -445,10 +445,11 @@ public final class GrpcEvitaSessionAPI {
       "adb.externalApi.grpc.generated.GrpcChang" +
       "eCaptureCriteria\022P\n\007content\030\007 \001(\0162?.io.e" +
       "vitadb.externalApi.grpc.generated.GrpcCh" +
-      "angeCaptureContent\"y\n\037GetMutationsHistor" +
-      "yPageResponse\022V\n\rchangeCapture\030\001 \003(\0132?.i" +
-      "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cChangeCatalogCapture\"\246\002\n\032GetMutationsHi" +
+      "angeCaptureContent\"\240\001\n\037GetMutationsHisto" +
+      "ryPageResponse\022V\n\rchangeCapture\030\001 \003(\0132?." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcChangeCatalogCapture\022\017\n\007hasNext\030\002 \001(\010\022" +
+      "\024\n\014sinceVersion\030\003 \001(\003\"\246\002\n\032GetMutationsHi" +
       "storyRequest\0221\n\014sinceVersion\030\001 \001(\0132\033.goo" +
       "gle.protobuf.Int64Value\022/\n\nsinceIndex\030\002 " +
       "\001(\0132\033.google.protobuf.Int32Value\022R\n\010crit" +
@@ -716,7 +717,7 @@ public final class GrpcEvitaSessionAPI {
       "SealedEntity\"y\n\027GrpcTransactionResponse\022" +
       "\026\n\016catalogVersion\030\001 \001(\003\022F\n\rtransactionId" +
       "\030\002 \001(\0132/.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcUuid2\261/\n\023EvitaSessionService\022" +
+      "erated.GrpcUuid2\2132\n\023EvitaSessionService\022" +
       "\230\001\n\020GetCatalogSchema\022B.io.evitadb.extern" +
       "alApi.grpc.generated.GrpcGetCatalogSchem" +
       "aRequest\032@.io.evitadb.externalApi.grpc.g" +
@@ -810,8 +811,8 @@ public final class GrpcEvitaSessionAPI {
       "db.externalApi.grpc.generated.GrpcRename" +
       "CollectionRequest\032C.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcRenameCollectionRe" +
-      "sponse\022\236\001\n\021ReplaceCollection\022C.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcReplace",
+      "sponse\022\236\001\n\021ReplaceCollection\022C.io.evitad",
+      "b.externalApi.grpc.generated.GrpcReplace" +
       "CollectionRequest\032D.io.evitadb.externalA" +
       "pi.grpc.generated.GrpcReplaceCollectionR" +
       "esponse\022\252\001\n\027GetEntityCollectionSize\022F.io" +
@@ -854,21 +855,30 @@ public final class GrpcEvitaSessionAPI {
       "ionsHistoryPage\022E.io.evitadb.externalApi" +
       ".grpc.generated.GetMutationsHistoryPageR" +
       "equest\032F.io.evitadb.externalApi.grpc.gen" +
-      "erated.GetMutationsHistoryPageResponse\022\236" +
-      "\001\n\023GetMutationsHistory\022A.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GetMutationsHisto" +
-      "ryRequest\032B.io.evitadb.externalApi.grpc." +
-      "generated.GetMutationsHistoryResponse0\001\022" +
-      "\245\001\n\026GetTransactionOverview\022D.io.evitadb." +
-      "externalApi.grpc.generated.GetTransactio" +
-      "nOverviewRequest\032E.io.evitadb.externalAp" +
-      "i.grpc.generated.GetTransactionOverviewR" +
-      "esponse\022\301\001\n\034RegisterChangeCatalogCapture" +
-      "\022N.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcRegisterChangeCatalogCaptureRequest" +
-      "\032O.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcRegisterChangeCatalogCaptureRespons" +
-      "e0\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "erated.GetMutationsHistoryPageResponse\022\257" +
+      "\001\n\036GetMutationsHistoryPageForward\022E.io.e" +
+      "vitadb.externalApi.grpc.generated.GetMut" +
+      "ationsHistoryPageRequest\032F.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GetMutationsHis" +
+      "toryPageResponse\022\236\001\n\023GetMutationsHistory" +
+      "\022A.io.evitadb.externalApi.grpc.generated" +
+      ".GetMutationsHistoryRequest\032B.io.evitadb" +
+      ".externalApi.grpc.generated.GetMutations" +
+      "HistoryResponse0\001\022\245\001\n\032GetMutationsHistor" +
+      "yForward\022A.io.evitadb.externalApi.grpc.g" +
+      "enerated.GetMutationsHistoryRequest\032B.io" +
+      ".evitadb.externalApi.grpc.generated.GetM" +
+      "utationsHistoryResponse0\001\022\245\001\n\026GetTransac" +
+      "tionOverview\022D.io.evitadb.externalApi.gr" +
+      "pc.generated.GetTransactionOverviewReque" +
+      "st\032E.io.evitadb.externalApi.grpc.generat" +
+      "ed.GetTransactionOverviewResponse\022\301\001\n\034Re" +
+      "gisterChangeCatalogCapture\022N.io.evitadb." +
+      "externalApi.grpc.generated.GrpcRegisterC" +
+      "hangeCatalogCaptureRequest\032O.io.evitadb." +
+      "externalApi.grpc.generated.GrpcRegisterC" +
+      "hangeCatalogCaptureResponse0\001B\014P\001\252\002\007Evit" +
+      "aDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -917,7 +927,7 @@ public final class GrpcEvitaSessionAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryPageResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryPageResponse_descriptor,
-        new java.lang.String[] { "ChangeCapture", });
+        new java.lang.String[] { "ChangeCapture", "HasNext", "SinceVersion", });
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryRequest_descriptor =
       getDescriptor().getMessageTypes().get(5);
     internal_static_io_evitadb_externalApi_grpc_generated_GetMutationsHistoryRequest_fieldAccessorTable = new

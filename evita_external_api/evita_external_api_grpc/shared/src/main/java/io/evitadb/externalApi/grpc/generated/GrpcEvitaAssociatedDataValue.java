@@ -163,14 +163,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * JSON-encoded `ComplexDataObject` value.
-   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
    * TOBEDONE #538: remove once no client older than 2025.4 remains in use
    * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=372
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return Whether the jsonValue field is set.
    */
   @java.lang.Deprecated public boolean hasJsonValue() {
@@ -179,14 +180,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * JSON-encoded `ComplexDataObject` value.
-   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
    * TOBEDONE #538: remove once no client older than 2025.4 remains in use
    * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=372
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return The jsonValue.
    */
   @java.lang.Deprecated public java.lang.String getJsonValue() {
@@ -209,14 +211,15 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * JSON-encoded `ComplexDataObject` value.
-   * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+   * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+   * precise data type information.
    * TOBEDONE #538: remove once no client older than 2025.4 remains in use
    * (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *
    * <code>string jsonValue = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-   *     See GrpcEvitaDataTypes.proto;l=372
+   *     See GrpcEvitaDataTypes.proto;l=373
    * @return The bytes for jsonValue.
    */
   @java.lang.Deprecated public com.google.protobuf.ByteString
@@ -1049,14 +1052,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @return Whether the jsonValue field is set.
      */
     @java.lang.Override
@@ -1066,14 +1070,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @return The jsonValue.
      */
     @java.lang.Override
@@ -1097,14 +1102,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @return The bytes for jsonValue.
      */
     @java.lang.Override
@@ -1129,14 +1135,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @param value The jsonValue to set.
      * @return This builder for chaining.
      */
@@ -1151,14 +1158,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearJsonValue() {
@@ -1172,14 +1180,15 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * JSON-encoded `ComplexDataObject` value.
-     * deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+     * Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+     * precise data type information.
      * TOBEDONE #538: remove once no client older than 2025.4 remains in use
      * (https://github.com/FgForrest/evitaDB/issues/538)
      * </pre>
      *
      * <code>string jsonValue = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue.jsonValue is deprecated.
-     *     See GrpcEvitaDataTypes.proto;l=372
+     *     See GrpcEvitaDataTypes.proto;l=373
      * @param value The bytes for jsonValue to set.
      * @return This builder for chaining.
      */

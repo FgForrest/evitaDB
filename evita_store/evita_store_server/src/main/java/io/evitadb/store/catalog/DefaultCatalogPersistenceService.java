@@ -234,9 +234,25 @@ public class DefaultCatalogPersistenceService
 		WAL_FILE_SUFFIX, 3
 	);
 	/**
-	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
+	 * The real clock, and the value {@link #CURRENT_TIME_MILLIS} hands out on any thread that has not overridden it.
+	 * Hoisted into a constant so the thread-local initial value costs no allocation per thread.
 	 */
-	static LongSupplier CURRENT_TIME_MILLIS = System::currentTimeMillis;
+	private static final LongSupplier SYSTEM_TIME_MILLIS = System::currentTimeMillis;
+	/**
+	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
+	 *
+	 * Scoped to the overriding thread on purpose. The functional test suite runs as a **single reused surefire fork**
+	 * (`forkCount=1`, `reuseForks=true`) with `parallel=all`, so a process-wide override is visible to every test
+	 * running concurrently with the one that installed it - and to every test that runs after it, if the override is
+	 * ever left in place. Both showed up as real failures: a test pinning this clock to a past instant stamps the
+	 * bootstrap records written by *unrelated* catalogs with that past instant, which silently breaks anything that
+	 * relates a bootstrap timestamp to the wall clock. Thread scoping removes that coupling by construction rather
+	 * than relying on every overriding test to restore the value.
+	 *
+	 * The override therefore only applies to writes performed on the overriding thread, which is what the tests that
+	 * use it do - they drive the persistence service directly, with a mocked scheduler.
+	 */
+	static final ThreadLocal<LongSupplier> CURRENT_TIME_MILLIS = ThreadLocal.withInitial(() -> SYSTEM_TIME_MILLIS);
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
 	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
@@ -994,7 +1010,7 @@ public class DefaultCatalogPersistenceService
 	 * @return current date & time in epoch milliseconds
 	 */
 	static long getNowEpochMillis() {
-		return CURRENT_TIME_MILLIS.getAsLong();
+		return CURRENT_TIME_MILLIS.get().getAsLong();
 	}
 
 	/**
@@ -2759,7 +2775,11 @@ public class DefaultCatalogPersistenceService
 				descriptors.forEach(it -> lookedUpVersions.removeAll(it.version()));
 			}
 
-			return Arrays.asList(result);
+			// versions unknown to history (purged, or never committed) leave their slot in `result` null - the
+			// documented contract is to omit them, not to hand callers a positionally-aligned array full of holes
+			return Arrays.stream(result)
+				.filter(Objects::nonNull)
+				.toList();
 		} else {
 			return Collections.emptyList();
 		}
