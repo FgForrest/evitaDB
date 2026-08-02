@@ -132,6 +132,21 @@ import static io.evitadb.test.TestTags.SESSION;
 @Tag(SESSION)
 class EvitaSessionServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
+	/**
+	 * Ceiling for the waits that need a *bootstrap record* (a {@link io.evitadb.api.requestResponse.system.MaterializedVersionBlock})
+	 * to exist before a time-frame bound can be resolved against it.
+	 *
+	 * This is a hang detector, not a correctness bound. Bootstrap records are appended by the checkpoint
+	 * coordinator, either inline when `TransactionOptions#checkpointIntervalInMillis` has elapsed or from its
+	 * ticker otherwise - and the deferred path always arms that ticker
+	 * (`CheckpointCoordinator#noteCheckpointDeferred`), so the record is guaranteed to arrive; only its timing
+	 * is not. Raising the ceiling therefore cannot mask a missing record: a checkpoint that genuinely never
+	 * happens still fails the test, just later. What it buys is immunity to a full-reactor run, where dozens of
+	 * test classes each drive an embedded evitaDB instance concurrently and the 1s ticker - which shares a
+	 * four-thread scheduler with every other background task of its instance - gets starved well past a tight
+	 * budget. The tests below were written against a 60s ceiling and timed out on exactly that.
+	 */
+	private static final int CHECKPOINT_AWAIT_TIMEOUT_SECONDS = 180;
 	private static final QuadriConsumer<String, List<Object>, Map<String, Object>, String> NO_OP = (queryString, positionalArguments, namedArguments, error) -> {
 		// no-op
 	};
@@ -3457,12 +3472,30 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub =
 			clientBuilder.build(EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub.class);
 
-		// A prior commit, checkpointed before the boundary moment is even chosen. Without it the boundary
-		// can resolve to the catalog's very first version block, whose `startVersion` is the bootstrap
-		// version - a version that carries no CDC captures at all, which makes the precondition below
-		// unsatisfiable. Running this test on its own used to do exactly that (it only ever passed because
-		// sibling CDC tests happened to commit first), so the history it needs is seeded here explicitly.
-		final OffsetDateTime priorMarker = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+		// The bound is fixed FIRST, at the start of the next whole second, and every later step is arranged
+		// around it. Three properties fall out of that ordering, and the test needs all three:
+		//
+		//  - whole seconds: `EvitaDataTypesConverter#toDateTimeRange` rebuilds the bound with
+		//    `Instant.ofEpochSecond(...getSeconds())` and so drops sub-second precision, whereas
+		//    GetCatalogVersionAt's `theMoment` keeps nanoseconds. At nanosecond precision the two calls
+		//    resolve instants up to a second apart; pinning the bound to a whole second makes them agree.
+		//  - a block strictly BEFORE the bound is guaranteed to exist, because the catalog was bootstrapped
+		//    before this test started and the bound lies in a later second. That is what keeps the resolved
+		//    `startVersion` a real committed version carrying captures, rather than the catalog's bootstrap
+		//    version, which carries none and would make the precondition below unsatisfiable. Deriving the
+		//    bound from an existing block's own timestamp instead is NOT equivalent: run on its own, this
+		//    catalog is younger than a second when the test starts, and the bound then lands on the very
+		//    first block.
+		//  - once a block at or after the bound exists, the version resolved from the bound is final -
+		//    blocks are appended in timestamp order, so nothing written later can displace the one that
+		//    answers first. The single settle poll below establishes exactly that, which is why the boundary
+		//    is then read with one plain call rather than polled until two RPCs converge.
+		final OffsetDateTime beforeSeed = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1);
+		await().alias("wall clock to reach the chosen time-frame bound")
+			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> !OffsetDateTime.now().isBefore(beforeSeed));
+
+		// seeded after the bound, so the checkpoint covering it is stamped at or after the bound too
 		final SealedEntity priorTarget = entities.get(entities.size() - 40);
 		evita.updateCatalog(
 			TEST_CATALOG,
@@ -3476,33 +3509,21 @@ class EvitaSessionServiceFunctionalTest {
 		);
 		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
 
-		final AtomicReference<GrpcCatalogVersionAtResponse> priorBlock = new AtomicReference<>();
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
-			priorBlock.set(
+		// The ONLY step here that waits on a checkpoint. An earlier revision waited for two, the second of
+		// them for a checkpoint that had to cross a bound chosen in the future, and that is the wait that
+		// timed out under full-reactor CI load.
+		//
+		// `alias` so that a timeout names the poll that hung: the CI test report surfaces the Awaitility
+		// message and nothing else - the job log and the surefire artifact are not always reachable.
+		await().alias("bootstrap record at or after the time-frame bound")
+			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> !EvitaDataTypesConverter.toOffsetDateTime(
 				evitaSessionBlockingStub.getCatalogVersionAt(
 					GrpcCatalogVersionAtRequest.newBuilder()
-						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(priorMarker))
+						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(beforeSeed))
 						.build()
-				)
-			);
-			return !EvitaDataTypesConverter.toOffsetDateTime(priorBlock.get().getIntroducedAt())
-				.isBefore(priorMarker);
-		});
-
-		// The boundary sits strictly after that block, so the block resolved from it further down is a
-		// strictly later one - hence its `startVersion` is a real committed transaction with captures,
-		// never the bootstrap version. Truncated to whole seconds on purpose:
-		// `EvitaDataTypesConverter#toDateTimeRange` rebuilds the bound with
-		// `Instant.ofEpochSecond(...getSeconds())` and so drops sub-second precision, whereas
-		// GetCatalogVersionAt's `theMoment` keeps nanoseconds - at nanosecond precision the two resolve
-		// instants up to a second apart, and the commits below land inside that second, which made the
-		// boundary read back from the server disagree with the one the paged RPC actually applied.
-		final OffsetDateTime beforeSeed = EvitaDataTypesConverter
-			.toOffsetDateTime(priorBlock.get().getIntroducedAt())
-			.truncatedTo(ChronoUnit.SECONDS)
-			.plusSeconds(1);
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread()
-			.until(() -> OffsetDateTime.now().isAfter(beforeSeed));
+				).getIntroducedAt()
+			).isBefore(beforeSeed));
 
 		// two commits, so something still remains on the far side of the bound once the version resolved
 		// from `from` has been excluded - otherwise an empty result would satisfy the assertion trivially
@@ -3534,25 +3555,18 @@ class EvitaSessionServiceFunctionalTest {
 		// and then keeps only strictly greater versions. Read that very number back over GetCatalogVersionAt,
 		// which runs the identical lookup on the identical session, instead of recomputing it client-side.
 		//
-		// The lookup is checkpoint-granular, and until a checkpoint covering the commits above has been
-		// written it clamps to the newest block it already knows - an older one. In that regime the answer
-		// still moves, so two separate RPCs could legitimately disagree. Poll until the resolved block is
-		// genuinely introduced at or after `beforeSeed`: past that point the answer is fixed, because blocks
-		// only appear on commit, this test commits nothing further, and the FIRST block at or after a fixed
-		// moment never moves once it exists.
+		// A single call suffices, with no settle poll: `beforeSeed` was chosen so that a block at or after it
+		// already exists, which fixes the answer for good (see the comment on `beforeSeed`). Note that the
+		// commits just made cannot disturb it either - whatever blocks they eventually produce are stamped
+		// later than the one that already answers first.
 		//
 		// NOTE the asymmetry: `from` is exclusive on the REVERSE RPC only. On the forward RPC the version
 		// resolved from `from` becomes the traversal anchor and is itself included.
-		final GrpcCatalogVersionAtRequest boundaryRequest = GrpcCatalogVersionAtRequest.newBuilder()
-			.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(beforeSeed))
-			.build();
-		final AtomicReference<GrpcCatalogVersionAtResponse> boundary = new AtomicReference<>();
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
-			boundary.set(evitaSessionBlockingStub.getCatalogVersionAt(boundaryRequest));
-			return !EvitaDataTypesConverter.toOffsetDateTime(boundary.get().getIntroducedAt())
-				.isBefore(beforeSeed);
-		});
-		final long excludedVersion = boundary.get().getStartVersion();
+		final long excludedVersion = evitaSessionBlockingStub.getCatalogVersionAt(
+			GrpcCatalogVersionAtRequest.newBuilder()
+				.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(beforeSeed))
+				.build()
+		).getStartVersion();
 
 		final GetMutationsHistoryPageResponse baseline = evitaSessionBlockingStub.getMutationsHistoryPage(
 			GetMutationsHistoryPageRequest.newBuilder()
@@ -3603,10 +3617,14 @@ class EvitaSessionServiceFunctionalTest {
 		// the traversal anchor, which is inclusive - so the version resolved from `from` must be present
 		// here, exactly where the reverse RPC requires it to be absent.
 		//
-		// Same prior-commit seeding as the reverse test, and for the same reason: without it the boundary
-		// can resolve to the catalog's very first block, whose `startVersion` is the capture-less bootstrap
-		// version, and the assertion below would be unsatisfiable.
-		final OffsetDateTime priorMarker = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+		// Bound chosen and then seeded exactly as in the reverse test - see there for why the bound is fixed
+		// up front at the next whole second rather than derived from an existing block's timestamp, and why
+		// that leaves the version resolved from it final after a single settle poll.
+		final OffsetDateTime boundary = OffsetDateTime.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1);
+		await().alias("wall clock to reach the chosen time-frame bound")
+			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> !OffsetDateTime.now().isBefore(boundary));
+
 		final SealedEntity priorTarget = entities.get(entities.size() - 41);
 		evita.updateCatalog(
 			TEST_CATALOG,
@@ -3620,27 +3638,15 @@ class EvitaSessionServiceFunctionalTest {
 		);
 		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
 
-		final AtomicReference<GrpcCatalogVersionAtResponse> priorBlock = new AtomicReference<>();
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
-			priorBlock.set(
+		await().alias("bootstrap record at or after the time-frame bound")
+			.atMost(CHECKPOINT_AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).pollInSameThread()
+			.until(() -> !EvitaDataTypesConverter.toOffsetDateTime(
 				evitaSessionBlockingStub.getCatalogVersionAt(
 					GrpcCatalogVersionAtRequest.newBuilder()
-						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(priorMarker))
+						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(boundary))
 						.build()
-				)
-			);
-			return !EvitaDataTypesConverter.toOffsetDateTime(priorBlock.get().getIntroducedAt())
-				.isBefore(priorMarker);
-		});
-
-		// truncated to whole seconds for the same reason as in the reverse test: `toDateTimeRange` rebuilds
-		// the bound at second granularity while GetCatalogVersionAt's `theMoment` keeps nanoseconds
-		final OffsetDateTime boundary = EvitaDataTypesConverter
-			.toOffsetDateTime(priorBlock.get().getIntroducedAt())
-			.truncatedTo(ChronoUnit.SECONDS)
-			.plusSeconds(1);
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread()
-			.until(() -> OffsetDateTime.now().isAfter(boundary));
+				).getIntroducedAt()
+			).isBefore(boundary));
 
 		final SealedEntity firstTarget = entities.get(entities.size() - 42);
 		final SealedEntity secondTarget = entities.get(entities.size() - 43);
@@ -3666,19 +3672,13 @@ class EvitaSessionServiceFunctionalTest {
 		);
 		SessionInitializer.setSession(clientBuilder, GrpcSessionType.READ_ONLY);
 
-		final AtomicReference<GrpcCatalogVersionAtResponse> anchorBlock = new AtomicReference<>();
-		await().atMost(60, TimeUnit.SECONDS).pollInSameThread().until(() -> {
-			anchorBlock.set(
-				evitaSessionBlockingStub.getCatalogVersionAt(
-					GrpcCatalogVersionAtRequest.newBuilder()
-						.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(boundary))
-						.build()
-				)
-			);
-			return !EvitaDataTypesConverter.toOffsetDateTime(anchorBlock.get().getIntroducedAt())
-				.isBefore(boundary);
-		});
-		final long includedVersion = anchorBlock.get().getStartVersion();
+		// one call, no settle poll - the block answering this moment already existed before the commits above
+		// were made, and nothing appended later can displace it (see the reverse test for the full argument)
+		final long includedVersion = evitaSessionBlockingStub.getCatalogVersionAt(
+			GrpcCatalogVersionAtRequest.newBuilder()
+				.setTheMoment(EvitaDataTypesConverter.toGrpcOffsetDateTime(boundary))
+				.build()
+		).getStartVersion();
 
 		final GetMutationsHistoryPageResponse page = evitaSessionBlockingStub.getMutationsHistoryPageForward(
 			GetMutationsHistoryPageRequest.newBuilder()
