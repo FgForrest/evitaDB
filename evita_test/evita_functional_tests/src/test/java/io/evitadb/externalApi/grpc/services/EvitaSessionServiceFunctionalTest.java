@@ -146,9 +146,15 @@ class EvitaSessionServiceFunctionalTest {
 	 * measures from the last *completed* checkpoint, so a checkpoint deferred by earlier activity can fire
 	 * inside the idle window and restart the interval, leaving it unelapsed when the seeding commit lands.
 	 * Worse, the condition being defended against here - a ticker starved by a loaded reactor - is exactly the
-	 * one that makes such a deferred checkpoint arrive late. No amount of waiting closes that, and the
-	 * checkpoint cannot be forced either: `DefaultCatalogPersistenceService#checkpoint()` has no production
-	 * caller and is reachable only by a test that constructs the persistence service directly.
+	 * one that makes such a deferred checkpoint arrive late. No amount of waiting closes that.
+	 *
+	 * Nor is there a lightweight way to settle the checkpoint outright.
+	 * `DefaultCatalogPersistenceService#checkpoint()` does have production callers, but each one is an
+	 * operation that needs a self-sufficient on-disk catalog rather than a way to force a bootstrap record:
+	 * `createBackupTask`/`createFullBackupTask`, reachable from a test through `Catalog#backup`/`#fullBackup`
+	 * but only by writing an entire catalog backup, and `verifyIntegrity`, invoked solely from the internal
+	 * catalog-update and WAL-replay paths and not exposed as a callable operation. Driving a full backup to
+	 * obtain a checkpoint would cost more than the wait it removes.
 	 *
 	 * So the ticker remains a real fallback and this ceiling is what covers it. The deferred path always arms
 	 * the ticker (`CheckpointCoordinator#noteCheckpointDeferred`), so the record is guaranteed to arrive and
