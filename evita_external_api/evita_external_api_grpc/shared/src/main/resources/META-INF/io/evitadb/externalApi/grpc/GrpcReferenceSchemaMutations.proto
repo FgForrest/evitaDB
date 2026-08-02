@@ -47,7 +47,7 @@ message GrpcCreateReferenceSchemaMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  // deprecated in favor of `indexedInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `indexedInScopes`
   bool filterable = 9 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
   // `referenceSummary` for this reference or use `facetInSet`
@@ -56,7 +56,7 @@ message GrpcCreateReferenceSchemaMutation {
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
-  // deprecated in favor of `facetedInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
   bool faceted = 10 [deprecated = true];
   // Whether the index for this reference should be created and maintained allowing to filter by
   // `referenceHaving` filtering constraints. Index is also required when reference is
@@ -66,7 +66,7 @@ message GrpcCreateReferenceSchemaMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  // deprecated in favor of `scopedIndexTypes`
+  // Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
   // `referenceSummary` for this reference or use `facetInSet`
@@ -125,6 +125,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
+  // Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
   google.protobuf.BoolValue faceted = 7 [deprecated = true];
   // Contains true if the attributes of the reflected reference are inherited from the target reference.
   GrpcAttributeInheritanceBehavior attributeInheritanceBehavior = 8;
@@ -142,7 +143,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  // deprecated in favor of `scopedIndexTypes`
+  // Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // when set to true, the value of `facetedInScope` field is ignored and the settings are inherited from the original
   // reference.
@@ -283,7 +284,7 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
-  // deprecated in favor of `facetedInScopes`
+  // Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
   bool faceted = 2 [deprecated = true];
   // Set to true when the faceted property should be inherited from the original.
   // This property makes sense only for inherited reference attributes on reflected reference. For all other cases it
@@ -329,7 +330,7 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
   // the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
   // alongside other references if requested.
-  // deprecated in favor of `scopedIndexTypes`
+  // Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 3 [deprecated = true];
   // Scoped reference index types that define both the scope and the type of index for the reference.
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.

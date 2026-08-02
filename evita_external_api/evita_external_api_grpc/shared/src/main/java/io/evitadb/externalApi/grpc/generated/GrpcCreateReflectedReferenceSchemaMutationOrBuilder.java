@@ -193,11 +193,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=127
+   *     See GrpcReferenceSchemaMutations.proto;l=128
    * @return Whether the faceted field is set.
    */
   @java.lang.Deprecated boolean hasFaceted();
@@ -210,11 +211,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=127
+   *     See GrpcReferenceSchemaMutations.proto;l=128
    * @return The faceted.
    */
   @java.lang.Deprecated com.google.protobuf.BoolValue getFaceted();
@@ -227,6 +229,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
    * occupies (memory/disk) space in the form of index.
    * Reference that was marked as faceted is called Facet.
+   * Deprecated since 2024.12 - deprecated in favor of `facetedInScopes`
    * </pre>
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
@@ -318,12 +321,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -337,12 +340,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -356,12 +359,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -376,12 +379,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -396,12 +399,12 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
    * the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
    * alongside other references if requested.
-   * deprecated in favor of `scopedIndexTypes`
+   * Deprecated since 2025.6 - deprecated in favor of `scopedIndexTypes`
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=145
+   *     See GrpcReferenceSchemaMutations.proto;l=146
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */

@@ -55,7 +55,7 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>
@@ -68,7 +68,7 @@ public interface GrpcSetAttributeSchemaGloballyUniqueMutationOrBuilder extends
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
    * entity having certain value of this attribute in entire catalog.
-   * deprecated in favor of `uniqueGloballyInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueGloballyInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 2 [deprecated = true];</code>

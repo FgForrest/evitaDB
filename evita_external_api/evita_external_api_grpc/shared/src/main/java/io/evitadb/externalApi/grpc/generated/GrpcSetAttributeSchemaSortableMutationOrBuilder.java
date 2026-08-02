@@ -56,7 +56,7 @@ public interface GrpcSetAttributeSchemaSortableMutationOrBuilder extends
    * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
    * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
    * (memory/disk) space in the form of index.
-   * deprecated in favor of `sortableInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `sortableInScopes`
    * </pre>
    *
    * <code>bool sortable = 2 [deprecated = true];</code>

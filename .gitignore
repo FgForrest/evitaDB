@@ -116,3 +116,4 @@ mcp-jdwp-inspector.log
 /.repro/
 /docs/
 /.claude/scheduled_tasks.lock
+/.codex-sandbox-proxy/

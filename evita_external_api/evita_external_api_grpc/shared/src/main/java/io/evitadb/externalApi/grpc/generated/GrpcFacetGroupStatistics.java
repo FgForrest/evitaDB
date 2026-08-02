@@ -30,7 +30,8 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * This DTO contains information about single facet group and statistics of the facets that relates to it.
- * deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the `referenceSummary` requirement
+ * Deprecated since 2026.2 - deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the
+ * `referenceSummary` requirement
  * TOBEDONE: remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
  * </pre>
  *
@@ -485,7 +486,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * This DTO contains information about single facet group and statistics of the facets that relates to it.
-   * deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the `referenceSummary` requirement
+   * Deprecated since 2026.2 - deprecated in favor of `GrpcReferenceGroupStatistics`, produced by the
+   * `referenceSummary` requirement
    * TOBEDONE: remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
    * </pre>
    *

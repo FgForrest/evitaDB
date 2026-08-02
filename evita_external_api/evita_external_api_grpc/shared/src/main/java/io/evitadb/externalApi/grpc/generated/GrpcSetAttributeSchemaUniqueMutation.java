@@ -123,7 +123,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -138,7 +138,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
-   * deprecated in favor of `uniqueInScopes`
+   * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -739,7 +739,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
-     * deprecated in favor of `uniqueInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -754,7 +754,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
-     * deprecated in favor of `uniqueInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -773,7 +773,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
-     * deprecated in favor of `uniqueInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -790,7 +790,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
-     * deprecated in favor of `uniqueInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>
@@ -812,7 +812,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
-     * deprecated in favor of `uniqueInScopes`
+     * Deprecated since 2024.12 - deprecated in favor of `uniqueInScopes`
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2 [deprecated = true];</code>

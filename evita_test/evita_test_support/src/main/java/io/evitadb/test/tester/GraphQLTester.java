@@ -71,6 +71,25 @@ import static org.hamcrest.Matchers.nullValue;
 @Slf4j
 public class GraphQLTester extends JsonExternalApiTester<Request> {
 
+	/**
+	 * Ceiling for the unconditional websocket waits ({@link #testWebSocket} and
+	 * {@link WebSocketContext#awaitEvents(int)}).
+	 *
+	 * This is a hang detector, not a correctness bound. Every CDC stream these waits sit on is
+	 * ring-buffer plus WAL backed, so a subscriber that registers late still reads the committed
+	 * history back from disk (`ChangeCatalogCaptureSharedPublisher#fillBuffer` falls back to
+	 * `readWal` whenever the ring buffer cannot serve the requested WAL pointer) - delivery is
+	 * guaranteed, only its timing is not. Raising the ceiling therefore cannot mask a lost event:
+	 * a genuinely undelivered event still fails the test, just later. What it does buy is immunity
+	 * to a full-reactor run where dozens of test classes each drive an embedded evitaDB instance
+	 * concurrently and a normally sub-second delivery gets starved past 30 seconds.
+	 *
+	 * The bounded, non-throwing {@link WebSocketContext#tryAwaitEvents} variants deliberately do
+	 * NOT use this value - their callers pass their own, much shorter budget because they poll to
+	 * detect a genuinely lost (non-replayable) host event and must fail fast to retry.
+	 */
+	private static final int WEBSOCKET_EVENT_TIMEOUT_SECONDS = 120;
+
 	public GraphQLTester(@Nonnull String baseUrl) {
 		super(baseUrl);
 	}
@@ -133,7 +152,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		writer.accept(new WebSocketContextImpl(catalogName, outbound, receivedEventsHolder));
 
 		try {
-			await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
+			await().atMost(WEBSOCKET_EVENT_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
 		} catch (RuntimeException ex) {
 			log.error(
 				"WebSocket test failed for catalog {} - only {} events received within timeout: {}",
@@ -167,7 +186,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 
 		/**
 		 * Block until at least {@code count} text frames have been received from the server,
-		 * or fail after the standard 30-second await timeout.
+		 * or fail after {@code WEBSOCKET_EVENT_TIMEOUT_SECONDS}.
 		 */
 		void awaitEvents(int count);
 
@@ -176,7 +195,8 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		 * {@code count} text frames have been received or {@code timeout} elapses, and reports
 		 * the outcome instead of failing. Intended for retry loops that trigger a live-tail
 		 * (backfill-less) event and need to re-fire the trigger when the server-side subscription
-		 * registration lost the race, without burning the whole 30-second budget on a single try.
+		 * registration lost the race, without burning the whole {@code WEBSOCKET_EVENT_TIMEOUT_SECONDS}
+		 * budget on a single try.
 		 *
 		 * @param count   minimum number of received frames to wait for
 		 * @param timeout maximum time to wait before giving up
@@ -220,7 +240,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		@Override
 		public void awaitEvents(int count) {
 			try {
-				await().atMost(30, TimeUnit.SECONDS).until(() -> this.receivedEvents.size() >= count);
+				await().atMost(WEBSOCKET_EVENT_TIMEOUT_SECONDS, TimeUnit.SECONDS).until(() -> this.receivedEvents.size() >= count);
 			} catch (RuntimeException ex) {
 				log.error(
 					"WebSocket awaitEvents failed for catalog {} - only {} of {} events received within timeout: {}",

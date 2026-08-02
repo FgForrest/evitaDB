@@ -249,12 +249,13 @@ private static final long serialVersionUID = 0L;
   private int catalogsOk_ = 0;
   /**
    * <pre>
-   * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+   * Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+   * renamed to `catalogsActive`
    * </pre>
    *
    * <code>int32 catalogsOk = 6 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.catalogsOk is deprecated.
-   *     See GrpcEvitaManagementAPI.proto;l=24
+   *     See GrpcEvitaManagementAPI.proto;l=25
    * @return The catalogsOk.
    */
   @java.lang.Override
@@ -1757,12 +1758,13 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     private int catalogsOk_ ;
     /**
      * <pre>
-     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+     * Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+     * renamed to `catalogsActive`
      * </pre>
      *
      * <code>int32 catalogsOk = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.catalogsOk is deprecated.
-     *     See GrpcEvitaManagementAPI.proto;l=24
+     *     See GrpcEvitaManagementAPI.proto;l=25
      * @return The catalogsOk.
      */
     @java.lang.Override
@@ -1771,12 +1773,13 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+     * Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+     * renamed to `catalogsActive`
      * </pre>
      *
      * <code>int32 catalogsOk = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.catalogsOk is deprecated.
-     *     See GrpcEvitaManagementAPI.proto;l=24
+     *     See GrpcEvitaManagementAPI.proto;l=25
      * @param value The catalogsOk to set.
      * @return This builder for chaining.
      */
@@ -1789,12 +1792,13 @@ io.evitadb.externalApi.grpc.generated.GrpcApiStatus defaultValue) {
     }
     /**
      * <pre>
-     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+     * Deprecated since 2025.7 - number of catalogs that are active and has been successfully loaded,
+     * renamed to `catalogsActive`
      * </pre>
      *
      * <code>int32 catalogsOk = 6 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.catalogsOk is deprecated.
-     *     See GrpcEvitaManagementAPI.proto;l=24
+     *     See GrpcEvitaManagementAPI.proto;l=25
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearCatalogsOk() {

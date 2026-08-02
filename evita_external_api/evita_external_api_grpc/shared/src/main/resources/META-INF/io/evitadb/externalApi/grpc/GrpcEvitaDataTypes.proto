@@ -367,7 +367,8 @@ message GrpcEvitaAssociatedDataValue {
     // is not a complex/structured object.
     GrpcEvitaValue primitiveValue = 1;
     // JSON-encoded `ComplexDataObject` value.
-    // deprecated in favor of `root`: this legacy JSON encoding loses precise data type information.
+    // Deprecated since 2025.4 - deprecated in favor of `root`: this legacy JSON encoding loses
+    // precise data type information.
     // TOBEDONE #538: remove once no client older than 2025.4 remains in use
     // (https://github.com/FgForrest/evitaDB/issues/538)
     string jsonValue = 2 [deprecated = true];
@@ -490,7 +491,7 @@ message GrpcCatalogStatistics {
   // The catalog's unique name, used to address it via the API.
   string catalogName = 2;
   // true if the catalog is corrupted (other data will be not available)
-  // deprecated in favor of `catalogState` (compare against `CORRUPTED`)
+  // Deprecated since 2025.7 - deprecated in favor of `catalogState` (compare against `CORRUPTED`)
   bool corrupted = 3 [deprecated = true];
   // Current lifecycle state of the catalog. Reflects `CORRUPTED` when the catalog failed to load
   // consistently, or `UNKNOWN_CATALOG_STATE` if the state could not be determined.
