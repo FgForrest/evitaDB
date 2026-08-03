@@ -1370,17 +1370,51 @@ public abstract sealed class SortIndex
 		}
 
 		/**
-		 * {@link ComparableArray} carries no ordering of its own: it is always ordered through the owning
-		 * {@link SortIndex}'s configured {@link ComparableArrayComparator} (per-element comparators with direction and
-		 * NULL handling). This method exists only to satisfy the {@link Comparable} key bound of the owner value tree,
-		 * which never invokes it because a comparator is always supplied, so a direct call is a programming error and
-		 * fails fast.
+		 * {@link ComparableArray} carries no *domain* ordering of its own: the owning {@link SortIndex} always orders
+		 * it through the configured {@link ComparableArrayComparator} (per-element comparators honouring direction and
+		 * NULL handling), which the index constructor wires unconditionally. This method deliberately does NOT
+		 * reproduce that ordering — it supplies only the element-wise natural order the {@link Comparable} contract
+		 * requires, and callers that need the index's ordering must keep using the comparator.
+		 *
+		 * It must never throw. {@link java.util.HashMap} promotes a bin holding at least eight entries into a
+		 * red-black tree and then navigates that tree by the key's natural order on every hash tie — it accepts any
+		 * class declaring `Comparable` of itself, which this record does. A `ComparableArray` used as an ordinary map
+		 * key (the sparse `value → cardinality` map of a sort index storage part, for one) therefore reaches this
+		 * method from inside the JDK, with no comparator in sight; refusing to answer there turns a plain lookup — or
+		 * even the `put` that triggers the promotion — into a hard failure, and only on datasets large enough to
+		 * treeify a bin.
+		 *
+		 * Ordering is element-wise with `null` first, falling back to array length. That is a total order across the
+		 * values of any single compound, because they all share the element types declared by the comparator base. It
+		 * is intentionally NOT consistent with {@link #equals(Object)} for element types whose own `compareTo`
+		 * disagrees with `equals` ({@link java.math.BigDecimal} scale, for one); {@link java.util.HashMap} tolerates
+		 * that, resolving identity through `equals` and ties through its own fallback ordering.
 		 */
 		@Override
 		public int compareTo(@Nonnull ComparableArray o) {
-			throw new GenericEvitaInternalError(
-				"ComparableArray must be ordered through the SortIndex comparator, never its natural order!"
-			);
+			final Serializable[] left = this.array;
+			final Serializable[] right = o.array;
+			final int sharedLength = Math.min(left.length, right.length);
+			for (int i = 0; i < sharedLength; i++) {
+				final Serializable leftValue = left[i];
+				final Serializable rightValue = right[i];
+				if (leftValue == null || rightValue == null) {
+					// nulls sort first; two nulls are equal on this element and the comparison moves on
+					if (leftValue != null) {
+						return 1;
+					}
+					if (rightValue != null) {
+						return -1;
+					}
+					continue;
+				}
+				//noinspection unchecked,rawtypes
+				final int result = ((Comparable) leftValue).compareTo(rightValue);
+				if (result != 0) {
+					return result;
+				}
+			}
+			return Integer.compare(left.length, right.length);
 		}
 
 	}
