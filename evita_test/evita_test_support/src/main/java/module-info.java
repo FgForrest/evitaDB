@@ -42,4 +42,15 @@ module evita.test.support {
 	requires org.reactivestreams;
 	requires io.netty.common;
 	requires awaitility;
+
+	/*
+		The test modules run on the classpath, where the `META-INF/services` files are what registers
+		these providers. These `provides` clauses are the module-path equivalent - without them a
+		module-path run would silently drop both the directory cleaner and the tag-policy gate, and
+		nothing would report the loss.
+	*/
+	provides org.junit.platform.launcher.TestExecutionListener
+		with io.evitadb.test.extension.CleaningTestExecutionListener;
+	provides org.junit.platform.launcher.PostDiscoveryFilter
+		with io.evitadb.test.extension.TestTagPolicyFilter;
 }
