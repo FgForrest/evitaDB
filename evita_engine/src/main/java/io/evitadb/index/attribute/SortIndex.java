@@ -1376,13 +1376,22 @@ public abstract sealed class SortIndex
 		 * reproduce that ordering — it supplies only the element-wise natural order the {@link Comparable} contract
 		 * requires, and callers that need the index's ordering must keep using the comparator.
 		 *
-		 * It must never throw. {@link java.util.HashMap} promotes a bin holding at least eight entries into a
-		 * red-black tree and then navigates that tree by the key's natural order on every hash tie — it accepts any
-		 * class declaring `Comparable` of itself, which this record does. A `ComparableArray` used as an ordinary map
-		 * key (the sparse `value → cardinality` map of a sort index storage part, for one) therefore reaches this
+		 * It must never *refuse* to answer. {@link java.util.HashMap} promotes a bin holding at least eight entries
+		 * into a red-black tree and then navigates it by the key's natural order on every hash tie — it accepts
+		 * any class declaring `Comparable` of itself, which this record does. A `ComparableArray` used as an ordinary
+		 * map key (the sparse `value → cardinality` map of a sort index storage part, for one) therefore reaches this
 		 * method from inside the JDK, with no comparator in sight; refusing to answer there turns a plain lookup — or
 		 * even the `put` that triggers the promotion — into a hard failure, and only on datasets large enough to
 		 * treeify a bin.
+		 *
+		 * The one case that still propagates is a {@link ClassCastException} from comparing two elements of different
+		 * types at the same position. That is deliberate and must not be swallowed: within a single compound every
+		 * value shares the element types declared by its {@link ComparatorSource} array — the write path enforces it
+		 * through the validating constructor — so mixed types mean corrupted data or a schema whose compound element
+		 * types changed without a reindex. Masking it with a fallback tie-break would trade a loud failure for a
+		 * silently wrong order. Note this differs from the refusal above: the refusal fired on perfectly valid data,
+		 * whereas this fires only on data that is genuinely broken. Arrays of *differing length* are not affected —
+		 * they never reach an element comparison past their shared prefix.
 		 *
 		 * Ordering is element-wise with `null` first, falling back to array length. That is a total order across the
 		 * values of any single compound, because they all share the element types declared by the comparator base. It

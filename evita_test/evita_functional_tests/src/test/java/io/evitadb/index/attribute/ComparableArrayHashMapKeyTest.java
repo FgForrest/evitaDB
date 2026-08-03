@@ -30,6 +30,7 @@ import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -37,6 +38,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -58,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
 @DisplayName("ComparableArray survives use as a treeified HashMap key")
 class ComparableArrayHashMapKeyTest {
 
