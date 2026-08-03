@@ -28,9 +28,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.OBSERVABILITY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -63,6 +69,43 @@ class ReadinessDiscoveryStallTrackerTest {
 		assertTrue(tracker.shouldWarnAboutStall());
 		assertFalse(tracker.shouldWarnAboutStall());
 		assertFalse(tracker.shouldWarnAboutStall());
+	}
+
+	@Test
+	@DisplayName("warns exactly once when called concurrently past the grace period")
+	void shouldWarnExactlyOnceUnderConcurrentAccess() throws InterruptedException {
+		final ReadinessDiscoveryStallTracker tracker = new ReadinessDiscoveryStallTracker(Duration.ofMillis(20));
+		assertFalse(tracker.shouldWarnAboutStall());
+		Thread.sleep(50);
+
+		final int threadCount = 16;
+		final ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+		try {
+			final CountDownLatch readyLatch = new CountDownLatch(threadCount);
+			final CountDownLatch startLatch = new CountDownLatch(1);
+			final AtomicInteger warnCount = new AtomicInteger();
+			for (int i = 0; i < threadCount; i++) {
+				executorService.submit(() -> {
+					readyLatch.countDown();
+					try {
+						startLatch.await();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+					if (tracker.shouldWarnAboutStall()) {
+						warnCount.incrementAndGet();
+					}
+				});
+			}
+			readyLatch.await();
+			startLatch.countDown();
+			executorService.shutdown();
+			assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
+
+			assertEquals(1, warnCount.get(), "Exactly one concurrent caller should have won the stall warning");
+		} finally {
+			executorService.shutdownNow();
+		}
 	}
 
 }

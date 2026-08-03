@@ -1,11 +1,11 @@
 ---
 title: Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR
 date: 2026-08-03
-updated: 2026-08-03 08:45
+updated: 2026-08-03 09:17
 status: proposed
 kind: fix
 issues: [1364]
-prs: []
+prs: [1366]
 areas: [evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_rest, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_system, evita_external_api/evita_external_api_observability, evita_external_api/evita_external_api_lab, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
@@ -88,7 +88,10 @@ timer and edge-triggered warn — was extracted into `ReadinessDiscoveryStallTra
 - `io.evitadb.externalApi.http.ReadinessDiscoveryStallTracker` — holds the 60s `GRACE_PERIOD` constant
   and `shouldWarnAboutStall()`, which records the first-attempt timestamp and returns `true` exactly
   once per instance, the first time the grace period has elapsed. A one-arg constructor overrides the
-  grace period (used by the unit test to avoid a real 60s wait).
+  grace period (used by the unit test to avoid a real 60s wait). State is held in `AtomicLong`/
+  `AtomicBoolean` with `compareAndSet` rather than plain fields, since a single tracker instance is
+  shared by its provider across concurrent readiness probes (e.g. an overlapping Docker health check
+  and Kubernetes readiness probe) and the exactly-once guarantee must hold under that concurrency.
 - Each provider's `isReady()` branches on `reachableUrl == null` (discovery) vs `!= null` (steady
   state); both branches call the same local `probe(url, Consumer<String> failureLogger)` /
   `checkReachable(uri, failureLogger)` helper, differing only in what the failure callback does
@@ -107,9 +110,10 @@ timer and edge-triggered warn — was extracted into `ReadinessDiscoveryStallTra
 ## Verification
 
 `mvn compile` on each touched module (`evita_external_api_core`, `_rest`, `_graphql`, `_system`,
-`_observability`, `_lab`, `_grpc/server`) succeeds. New unit test
-`ReadinessDiscoveryStallTrackerTest` (`evita_test/evita_functional_tests`) covers both cases: no warning
-before the grace period, exactly one warning after it elapses — 2/2 passing.
+`_observability`, `_lab`, `_grpc/server`) succeeds. `ReadinessDiscoveryStallTrackerTest`
+(`evita_test/evita_functional_tests`) covers: no warning before the grace period, exactly one warning
+after it elapses, and exactly one winner among 16 threads calling `shouldWarnAboutStall()` concurrently
+past the grace period — 3/3 passing.
 
 ## Consequences & open follow-ups
 

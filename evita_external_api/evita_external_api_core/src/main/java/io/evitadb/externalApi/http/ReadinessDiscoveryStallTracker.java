@@ -25,6 +25,8 @@ package io.evitadb.externalApi.http;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Helper used by {@link ExternalApiProvider#isReady()} implementations that probe several candidate URLs before
@@ -33,6 +35,10 @@ import java.time.Duration;
  * so they are not worth an alarming log line on their own. This tracker instead recognizes the case where an entire
  * discovery round has failed for longer than a reasonable grace period, and reports it exactly once so that a server
  * that never becomes ready produces a single warning instead of flooding the log on every subsequent probe.
+ *
+ * Instances are shared by a single provider across concurrent readiness probes (e.g. an overlapping Docker health
+ * check and Kubernetes readiness probe), so state is held in atomics rather than plain fields to keep the
+ * exactly-once guarantee correct under concurrent calls.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -45,8 +51,8 @@ public class ReadinessDiscoveryStallTracker {
 	public static final Duration GRACE_PERIOD = Duration.ofSeconds(60);
 
 	private final long gracePeriodMillis;
-	private long firstAttemptMillis = -1L;
-	private boolean stalledWarningLogged;
+	private final AtomicLong firstAttemptMillis = new AtomicLong(-1L);
+	private final AtomicBoolean stalledWarningLogged = new AtomicBoolean(false);
 
 	public ReadinessDiscoveryStallTracker() {
 		this(GRACE_PERIOD);
@@ -68,12 +74,9 @@ public class ReadinessDiscoveryStallTracker {
 	 */
 	public boolean shouldWarnAboutStall() {
 		final long now = System.currentTimeMillis();
-		if (this.firstAttemptMillis < 0) {
-			this.firstAttemptMillis = now;
-		}
-		if (!this.stalledWarningLogged && now - this.firstAttemptMillis >= this.gracePeriodMillis) {
-			this.stalledWarningLogged = true;
-			return true;
+		this.firstAttemptMillis.compareAndSet(-1L, now);
+		if (now - this.firstAttemptMillis.get() >= this.gracePeriodMillis) {
+			return this.stalledWarningLogged.compareAndSet(false, true);
 		}
 		return false;
 	}
