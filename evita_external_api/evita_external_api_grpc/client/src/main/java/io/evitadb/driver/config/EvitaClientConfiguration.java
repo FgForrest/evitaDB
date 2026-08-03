@@ -58,8 +58,12 @@ import java.util.concurrent.TimeUnit;
  *                                  information. Controls whether the once analyzed reflection information should be
  *                                  cached or freshly (and costly) retrieved each time asked.
  * @param openTelemetryInstance     OpenTelemetry instance used for tracing. If `null`, no tracing will be performed.
- * @param retry                     Whether the client will retry the call in case of timeout or other network related
- *                                  problems.
+ * @param retry                     Whether the broader, potentially-duplicating retry rule set is active (timeouts,
+ *                                  `503`/`504`/`UNKNOWN` statuses, `429` back-off). Defaults to `false`. Independently
+ *                                  of this flag, a request Armeria can prove never reached the server (a refused
+ *                                  connection, or a GOAWAY received before the request's stream was accepted) is
+ *                                  always retried automatically with backoff, bounded by the per-call timeout, since
+ *                                  that can never duplicate an already-applied mutation.
  * @param trackedTaskLimit          The maximum number of server tasks that can be tracked by the client.
  * @param changeCaptureQueueSize    The maximum number of change capture events that can be buffered for each
  *                                  subscriber. If this limit is reached, an error is reported to the subscriber.
@@ -656,6 +660,16 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		/**
+		 * Sets whether the broader, potentially-duplicating retry rule set is active (timeouts, `503`/`504`/`UNKNOWN`
+		 * statuses, `429` back-off). Defaults to `false`. Independently of this flag, a request Armeria can prove
+		 * never reached the server (a refused connection, or a GOAWAY received before the request's stream was
+		 * accepted) is always retried automatically with backoff, bounded by the per-call timeout, since replaying
+		 * it can never duplicate an already-applied mutation.
+		 *
+		 * @param retry whether the broader, potentially-duplicating retry rule set should be active
+		 * @return this builder
+		 */
 		@Nonnull
 		public EvitaClientConfiguration.Builder retry(boolean retry) {
 			this.retry = retry;
