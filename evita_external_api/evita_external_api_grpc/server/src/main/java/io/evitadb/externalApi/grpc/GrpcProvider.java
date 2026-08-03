@@ -38,12 +38,16 @@ import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.grpc.configuration.GrpcOptions;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ReadinessDiscoveryStallTracker;
+import io.evitadb.utils.CollectionUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Descriptor of external API provider that provides gRPC API.
@@ -64,8 +68,8 @@ public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 	@Getter
 	private final HttpService apiHandler;
 	/**
-	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in {@link #checkReachable(String)}
-	 * method.
+	 * Timeout taken from {@link ApiOptions#requestTimeoutInMillis()} that will be used in
+	 * {@link #checkReachable(String, Consumer)} method.
 	 */
 	private final long requestTimeout;
 	/**
@@ -76,6 +80,11 @@ public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 	 * Builder for gRPC client factory.
 	 */
 	private final ClientFactory clientFactory;
+	/**
+	 * Tracks how long the readiness discovery phase (see {@link #reachableUrl}) has been running, so a server that
+	 * never becomes reachable on any candidate URL is reported once instead of on every single probe.
+	 */
+	private final ReadinessDiscoveryStallTracker stallTracker = new ReadinessDiscoveryStallTracker();
 
 	public GrpcProvider(@Nonnull GrpcOptions configuration, @Nonnull HttpService apiHandler, long requestTimeout, long idleTimeout) {
 		this.configuration = configuration;
@@ -122,29 +131,62 @@ public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 
 	@Override
 	public boolean isReady() {
-		if (this.reachableUrl != null) {
-			if (checkReachable(this.reachableUrl)) {
+		if (this.reachableUrl == null) {
+			// discovery phase: individual host failures are expected until the reachable one is found (e.g. the
+			// server socket isn't bound yet), so they're only worth a DEBUG line here
+			final HostDefinition[] hosts = this.configuration.getHost();
+			final Map<String, String> failures = CollectionUtils.createLinkedHashMap(hosts.length);
+			for (HostDefinition hostDefinition : hosts) {
+				final String uri = toUri(hostDefinition);
+				if (checkReachable(uri, message -> {
+					failures.put(uri, message);
+					log.debug("Error while checking readiness of gRPC API: {}", message);
+				})) {
+					return true;
+				}
+			}
+			if (this.stallTracker.shouldWarnAboutStall()) {
+				log.warn(
+					"gRPC API has not become reachable on any of the {} configured URL(s) for over {}s " +
+						"(this can be normal while the server is still starting up): {}",
+					hosts.length, ReadinessDiscoveryStallTracker.GRACE_PERIOD.toSeconds(), failures
+				);
+			}
+			return false;
+		} else {
+			// steady state: this URL was reachable before, so a failure now is a genuine regression; fall back to
+			// the other configured hosts in case the service moved rather than went down
+			final Consumer<String> failureLogger =
+				message -> log.error("Error while checking readiness of gRPC API: {}", message);
+			if (checkReachable(this.reachableUrl, failureLogger)) {
 				return true;
 			}
-		}
-
-		for (HostDefinition hostDefinition : this.configuration.getHost()) {
-			final String uriScheme = this.configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
-
-			final String uri = uriScheme + "://" + hostDefinition.hostAddressWithPort() + "/";
-			if (!uri.equals(this.reachableUrl) && checkReachable(uri)) {
-				return true;
+			for (HostDefinition hostDefinition : this.configuration.getHost()) {
+				final String uri = toUri(hostDefinition);
+				if (!uri.equals(this.reachableUrl) && checkReachable(uri, failureLogger)) {
+					return true;
+				}
 			}
+			return false;
 		}
-		return false;
 	}
 
 	/**
-	 * Check if the given URI is reachable via gRPC client.
+	 * Assembles the gRPC endpoint URI for the given host, honoring the configured TLS mode.
+	 */
+	@Nonnull
+	private String toUri(@Nonnull HostDefinition hostDefinition) {
+		final String uriScheme = this.configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
+		return uriScheme + "://" + hostDefinition.hostAddressWithPort() + "/";
+	}
+
+	/**
+	 * Check if the given URI is reachable via gRPC client, reporting any failure message via {@code failureLogger}.
 	 * @param uri URI to check
+	 * @param failureLogger callback receiving the failure message, if the URI turns out unreachable
 	 * @return true if the URI is reachable, false otherwise
 	 */
-	public boolean checkReachable(@Nonnull String uri) {
+	public boolean checkReachable(@Nonnull String uri, @Nonnull Consumer<String> failureLogger) {
 		final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
 		try {
 			final EvitaServiceBlockingStub evitaService = GrpcClients.builder(uri)
@@ -158,21 +200,21 @@ public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 				return true;
 			} else {
 				readinessEvent.finish(Result.ERROR);
-				log.error("gRPC API is not ready at: {}", uri);
+				failureLogger.accept("gRPC API is not ready at: " + uri);
 				return false;
 			}
 		} catch (StatusRuntimeException e) {
 			if (e.getStatus().getCode() == Status.Code.DEADLINE_EXCEEDED) {
 				readinessEvent.finish(Result.TIMEOUT);
-				log.error("Timeout while checking readiness of gRPC API at: {}", uri);
+				failureLogger.accept("Timeout while checking readiness of gRPC API at: " + uri);
 			} else {
 				readinessEvent.finish(Result.ERROR);
-				log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
+				failureLogger.accept("Error while checking readiness of gRPC API: " + e.getMessage());
 			}
 			return false;
 		} catch (Exception e) {
 			readinessEvent.finish(Result.ERROR);
-			log.error("Error while checking readiness of gRPC API: {}", e.getMessage());
+			failureLogger.accept("Error while checking readiness of gRPC API: " + e.getMessage());
 			return false;
 		}
 	}

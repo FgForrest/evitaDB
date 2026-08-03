@@ -30,8 +30,10 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.http.ReadinessDiscoveryStallTracker;
 import io.evitadb.externalApi.system.configuration.SystemOptions;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
@@ -43,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.system.SystemProviderRegistrar.ENDPOINT_SERVER_NAME;
 
@@ -83,6 +85,12 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	 */
 	private String reachableUrl;
 
+	/**
+	 * Tracks how long the readiness discovery phase (see {@link #reachableUrl}) has been running, so a server that
+	 * never becomes reachable on any candidate URL is reported once instead of on every single probe.
+	 */
+	private final ReadinessDiscoveryStallTracker stallTracker = new ReadinessDiscoveryStallTracker();
+
 	public SystemProvider(
 		@Nonnull SystemOptions configuration,
 		@Nonnull HttpService apiHandler,
@@ -114,38 +122,59 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Override
 	public boolean isReady() {
-		final Predicate<String> isReady = url -> {
-			final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
-			final boolean reachable = NetworkUtils.isReachable(
-				url,
-				this.requestTimeout,
-				error -> {
-					log.error("Error while checking readiness of System API: {}", error);
-					readinessEvent.finish(Result.ERROR);
-				},
-				timeouted -> {
-					log.error("{}", timeouted);
-					readinessEvent.finish(Result.TIMEOUT);
-				}
-			);
-			if (reachable) {
-				readinessEvent.finish(Result.READY);
-			}
-			return reachable;
-		};
-		final String[] baseUrls = this.configuration.getBaseUrls();
 		if (this.reachableUrl == null) {
+			// discovery phase: some candidate URLs (e.g. a publicly exposed hostname) are expected to fail until
+			// the reachable one is found, so individual failures are only worth a DEBUG line here
+			final String[] baseUrls = this.configuration.getBaseUrls();
+			final Map<String, String> failures = CollectionUtils.createLinkedHashMap(baseUrls.length);
 			for (String baseUrl : baseUrls) {
 				final String nameUrl = baseUrl + ENDPOINT_SERVER_NAME;
-				if (isReady.test(nameUrl)) {
+				if (probe(nameUrl, message -> {
+					failures.put(nameUrl, message);
+					log.debug("Error while checking readiness of System API: {}", message);
+				})) {
 					this.reachableUrl = nameUrl;
 					return true;
 				}
 			}
+			if (this.stallTracker.shouldWarnAboutStall()) {
+				log.warn(
+					"System API has not become reachable on any of the {} configured URL(s) for over {}s " +
+						"(this can be normal while the server is still starting up): {}",
+					baseUrls.length, ReadinessDiscoveryStallTracker.GRACE_PERIOD.toSeconds(), failures
+				);
+			}
 			return false;
 		} else {
-			return isReady.test(this.reachableUrl);
+			// steady state: this URL was reachable before, so a failure now is a genuine regression
+			return probe(
+				this.reachableUrl,
+				message -> log.error("Error while checking readiness of System API: {}", message)
+			);
 		}
+	}
+
+	/**
+	 * Performs a single readiness probe against the given URL, reporting any failure message via {@code failureLogger}.
+	 */
+	private boolean probe(@Nonnull String url, @Nonnull Consumer<String> failureLogger) {
+		final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+		final boolean reachable = NetworkUtils.isReachable(
+			url,
+			this.requestTimeout,
+			error -> {
+				failureLogger.accept(error);
+				readinessEvent.finish(Result.ERROR);
+			},
+			timeouted -> {
+				failureLogger.accept(timeouted);
+				readinessEvent.finish(Result.TIMEOUT);
+			}
+		);
+		if (reachable) {
+			readinessEvent.finish(Result.READY);
+		}
+		return reachable;
 	}
 
 	@Nonnull
