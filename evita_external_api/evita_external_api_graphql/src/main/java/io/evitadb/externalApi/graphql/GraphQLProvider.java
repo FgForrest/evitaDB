@@ -29,13 +29,16 @@ import io.evitadb.externalApi.event.ReadinessEvent.Prospective;
 import io.evitadb.externalApi.event.ReadinessEvent.Result;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ReadinessDiscoveryStallTracker;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NetworkUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Optional;
-import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.graphql.io.GraphQLRouter.SYSTEM_PREFIX;
 
@@ -69,6 +72,12 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLOptions> {
      */
     private String reachableUrl;
 
+	/**
+	 * Tracks how long the readiness discovery phase (see {@link #reachableUrl}) has been running, so a server that
+	 * never becomes reachable on any candidate URL is reported once instead of on every single probe.
+	 */
+	private final ReadinessDiscoveryStallTracker stallTracker = new ReadinessDiscoveryStallTracker();
+
 	public GraphQLProvider(
 		@Nonnull GraphQLOptions configuration,
 		@Nonnull GraphQLManager graphQLManager,
@@ -99,43 +108,64 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLOptions> {
 	}
 
 	@Override
-    public boolean isReady() {
-        final Predicate<String> isReady = url -> {
-	        final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
-			final Optional<String> post = NetworkUtils.fetchContent(
-				url,
-				"POST",
-				"application/json",
-				"{\"query\":\"{liveness}\"}",
-				this.requestTimeout,
-				error -> {
-					log.error("Error while checking readiness of GraphQL API: {}", error);
-					readinessEvent.finish(Result.ERROR);
-				},
-				timeouted -> {
-					log.error("{}", timeouted);
-					readinessEvent.finish(Result.TIMEOUT);
+	public boolean isReady() {
+		if (this.reachableUrl == null) {
+			// discovery phase: some candidate URLs (e.g. a publicly exposed hostname) are expected to fail until
+			// the reachable one is found, so individual failures are only worth a DEBUG line here
+			final String[] baseUrls = this.configuration.getBaseUrls();
+			final Map<String, String> failures = CollectionUtils.createLinkedHashMap(baseUrls.length);
+			for (String baseUrl : baseUrls) {
+				final String url = baseUrl + SYSTEM_PREFIX;
+				if (probe(url, message -> {
+					failures.put(url, message);
+					log.debug("Error while checking readiness of GraphQL API: {}", message);
+				})) {
+					this.reachableUrl = url;
+					return true;
 				}
-			);
-			final Boolean result = post.map(content -> content.contains("true")).orElse(false);
-			if (result) {
-				readinessEvent.finish(Result.READY);
 			}
-			return result;
-        };
-        final String[] baseUrls = this.configuration.getBaseUrls();
-        if (this.reachableUrl == null) {
-	        for (String baseUrl : baseUrls) {
-		        final String url = baseUrl + SYSTEM_PREFIX;
-		        if (isReady.test(url)) {
-			        this.reachableUrl = url;
-			        return true;
-		        }
-	        }
-            return false;
-        } else {
-            return isReady.test(this.reachableUrl);
-        }
-    }
+			if (this.stallTracker.shouldWarnAboutStall()) {
+				log.warn(
+					"GraphQL API has not become reachable on any of the {} configured URL(s) for over {}s " +
+						"(this can be normal while the server is still starting up): {}",
+					baseUrls.length, ReadinessDiscoveryStallTracker.GRACE_PERIOD.toSeconds(), failures
+				);
+			}
+			return false;
+		} else {
+			// steady state: this URL was reachable before, so a failure now is a genuine regression
+			return probe(
+				this.reachableUrl,
+				message -> log.error("Error while checking readiness of GraphQL API: {}", message)
+			);
+		}
+	}
+
+	/**
+	 * Performs a single readiness probe against the given URL, reporting any failure message via {@code failureLogger}.
+	 */
+	private boolean probe(@Nonnull String url, @Nonnull Consumer<String> failureLogger) {
+		final ReadinessEvent readinessEvent = new ReadinessEvent(CODE, Prospective.CLIENT);
+		final Optional<String> post = NetworkUtils.fetchContent(
+			url,
+			"POST",
+			"application/json",
+			"{\"query\":\"{liveness}\"}",
+			this.requestTimeout,
+			error -> {
+				failureLogger.accept(error);
+				readinessEvent.finish(Result.ERROR);
+			},
+			timeouted -> {
+				failureLogger.accept(timeouted);
+				readinessEvent.finish(Result.TIMEOUT);
+			}
+		);
+		final Boolean result = post.map(content -> content.contains("true")).orElse(false);
+		if (result) {
+			readinessEvent.finish(Result.READY);
+		}
+		return result;
+	}
 
 }
