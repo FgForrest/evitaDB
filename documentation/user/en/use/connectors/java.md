@@ -305,7 +305,12 @@ The following options are configured directly on
     <dt>retry</dt>
     <dd>
         <p>**Default: `false`**</p>
-        <p>Whether the client will retry the call in case of timeout or other network related problems.</p>
+        <p>Whether the broader, potentially-duplicating retry rule set is active: timeouts, `503`/`504`/`UNKNOWN`
+        statuses, and `429` back-off. These can match a request the server already processed (e.g. a mutation
+        whose response was lost to a transport abort), so they stay opt-in. Independently of this flag, a request
+        Armeria can prove never reached the server (a refused connection, or a GOAWAY received before the request's
+        stream was accepted) is always retried automatically with backoff, bounded by the per-call timeout, since
+        replaying it can never duplicate an already-applied mutation.</p>
     </dd>
     <dt>trackedTaskLimit</dt>
     <dd>
