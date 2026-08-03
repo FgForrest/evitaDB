@@ -5,7 +5,7 @@ updated: 2026-08-03 22:40
 status: accepted
 kind: fix
 issues: [1374]
-prs: []
+prs: [1382]
 areas: [evita_test/evita_test_support, evita_test/evita_functional_tests, evita_test/evita_documentation_tests]
 supersedes: []
 superseded-by: []
