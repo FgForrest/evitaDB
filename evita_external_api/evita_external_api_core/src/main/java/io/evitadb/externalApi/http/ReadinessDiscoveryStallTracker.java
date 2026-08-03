@@ -54,6 +54,9 @@ public class ReadinessDiscoveryStallTracker {
 	private final AtomicLong firstAttemptMillis = new AtomicLong(-1L);
 	private final AtomicBoolean stalledWarningLogged = new AtomicBoolean(false);
 
+	/**
+	 * Uses the default {@link #GRACE_PERIOD}.
+	 */
 	public ReadinessDiscoveryStallTracker() {
 		this(GRACE_PERIOD);
 	}

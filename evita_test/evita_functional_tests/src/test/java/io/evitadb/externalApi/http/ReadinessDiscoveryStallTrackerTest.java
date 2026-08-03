@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.OBSERVABILITY;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("ReadinessDiscoveryStallTracker")
 @Tag(EXTERNAL_API)
-@Tag(OBSERVABILITY)
+@Tag(MANAGEMENT)
 class ReadinessDiscoveryStallTrackerTest {
 
 	@Test
@@ -61,10 +61,10 @@ class ReadinessDiscoveryStallTrackerTest {
 	@Test
 	@DisplayName("warns exactly once after the grace period elapses")
 	void shouldWarnExactlyOnceAfterGracePeriodElapses() throws InterruptedException {
-		final ReadinessDiscoveryStallTracker tracker = new ReadinessDiscoveryStallTracker(Duration.ofMillis(20));
+		final ReadinessDiscoveryStallTracker tracker = new ReadinessDiscoveryStallTracker(Duration.ofMillis(200));
 		assertFalse(tracker.shouldWarnAboutStall());
 
-		Thread.sleep(50);
+		Thread.sleep(400);
 
 		assertTrue(tracker.shouldWarnAboutStall());
 		assertFalse(tracker.shouldWarnAboutStall());
@@ -74,9 +74,9 @@ class ReadinessDiscoveryStallTrackerTest {
 	@Test
 	@DisplayName("warns exactly once when called concurrently past the grace period")
 	void shouldWarnExactlyOnceUnderConcurrentAccess() throws InterruptedException {
-		final ReadinessDiscoveryStallTracker tracker = new ReadinessDiscoveryStallTracker(Duration.ofMillis(20));
+		final ReadinessDiscoveryStallTracker tracker = new ReadinessDiscoveryStallTracker(Duration.ofMillis(200));
 		assertFalse(tracker.shouldWarnAboutStall());
-		Thread.sleep(50);
+		Thread.sleep(400);
 
 		final int threadCount = 16;
 		final ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
