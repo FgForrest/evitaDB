@@ -52,6 +52,11 @@ import static java.util.Optional.ofNullable;
  * @param idleTimeoutInMillis    The amount of time a connection can be idle for before it is timed out. An idle connection is a
  *                               connection that has had no data transfer in the idle timeout period. Note that this is a fairly coarse
  *                               grained approach, and small values will cause problems for requests with a long processing time.
+ *                               Defaults to `60000` (60 s), comfortably above the driver's default keep-alive ping
+ *                               interval (`ClientConnectionOptions.DEFAULT_PING_INTERVAL_MILLIS`, `30000` ms). An
+ *                               acknowledged inbound ping counts as activity (`ExternalApiServer`'s `keepAliveOnPing =
+ *                               true`), so an actively-pinging client is never reaped. Lowering this below the ping
+ *                               interval silently makes the keep-alive unable to keep up.
  * @param requestTimeoutInMillis The amount of time a connection can sit idle without processing a request, before it is closed by
  *                               the server.
  * @param pingIntervalMillis     The HTTP/2 keep-alive PING interval in milliseconds. When neither a read nor a write happens on a
@@ -79,7 +84,7 @@ public record ApiOptions(
 	@Nonnull Map<String, AbstractApiOptions> endpoints
 ) {
 	public static final int DEFAULT_WORKER_GROUP_THREADS = Runtime.getRuntime().availableProcessors();
-	public static final int DEFAULT_IDLE_TIMEOUT = 20 * 1000;
+	public static final int DEFAULT_IDLE_TIMEOUT = 60 * 1000;
 	public static final int DEFAULT_REQUEST_TIMEOUT = 1000;
 	public static final int DEFAULT_PING_INTERVAL = 0;
 	public static final long DEFAULT_MAX_ENTITY_SIZE = 2_097_152L;

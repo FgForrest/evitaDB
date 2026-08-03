@@ -98,7 +98,7 @@ cache:                                            # [see Cache configuration](#c
 
 api:                                              # [see API configuration](#api-configuration)
   workerGroupThreads: 4
-  idleTimeoutInMillis: 2K
+  idleTimeoutInMillis: 60K
   requestTimeoutInMillis: 2K  
   maxEntitySizeInBytes: 2MB
   accessLog: false
@@ -1093,10 +1093,13 @@ This section of the configuration allows you to selectively enable, disable, and
     </dd>
     <dt>idleTimeoutInMillis</dt>
     <dd>
-        <p>**Default:** `2K`</p>
+        <p>**Default:** `60K`</p>
         <p>The amount of time a connection can be idle for before it is timed out. An idle connection is a connection 
             that has had no data transfer in the idle timeout period. Note that this is a fairly coarse grained approach,
-            and small values will cause problems for requests with a long processing time.</p>
+            and small values will cause problems for requests with a long processing time. The default sits comfortably
+            above the Java driver's default keep-alive ping interval (30 s, see
+            [Connection options](../use/connectors/java.md#connection-options)) so an actively-pinging client
+            connection is never reaped.</p>
     </dd>
     <dt>requestTimeoutInMillis</dt>
     <dd>
