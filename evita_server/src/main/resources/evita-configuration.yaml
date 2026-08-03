@@ -85,7 +85,7 @@ cache:
 
 api:
   workerGroupThreads: ${api.workerGroupThreads:null}
-  idleTimeoutInMillis: ${api.idleTimeoutInMillis:2K}
+  idleTimeoutInMillis: ${api.idleTimeoutInMillis:60K}
   requestTimeoutInMillis: ${api.requestTimeoutInMillis:2K}
   maxEntitySizeInBytes: ${api.maxEntitySizeInBytes:2MB}
   accessLog: ${api.accessLog:false}

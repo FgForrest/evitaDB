@@ -47,11 +47,15 @@ import java.net.UnknownHostException;
  *                          idle timeout alone); a negative value falls back to the default, and any positive value below
  *                          `1000` ms (the minimum Armeria permits) is raised to that floor.
  *
- *                          **Precondition — the ping must stay strictly below {@link #idleTimeoutMillis()}.** Armeria
- *                          **silently disables** the ping (no error, no log) whenever `max(pingIntervalMillis, 1000)`
- *                          is greater than or equal to a positive connection idle timeout. The default pair
- *                          (`30000` ms ping, `300000` ms idle) satisfies this, so the watchdog is active out of the
- *                          box; `EvitaClient` logs a warning if a custom pair violates it. Also keep the interval below
+ *                          **Precondition — the ping must stay strictly below {@link #idleTimeoutMillis()} and below
+ *                          the server's own `idleTimeoutInMillis`.** Armeria **silently disables** the ping (no
+ *                          error, no log) whenever `max(pingIntervalMillis, 1000)` is greater than or equal to a
+ *                          positive connection idle timeout — the default pair (`30000` ms ping, `300000` ms idle)
+ *                          satisfies this on the client side, and `EvitaClient` logs a warning if a custom pair
+ *                          violates it. Separately, a ping at or above the *server's* idle timeout can never land
+ *                          before the server has already reaped the connection, making the keep-alive inert even
+ *                          though the client-side precondition still holds — the server's shipped default
+ *                          (`idleTimeoutInMillis`, 60 s) is chosen with this in mind. Also keep the interval below
  *                          any load-balancer / NAT idle window on the network path.
  * @param idleTimeoutMillis The connection idle timeout in milliseconds — how long a pooled HTTP/2 connection may sit
  *                          with no application traffic before Armeria closes it. This is deliberately **decoupled from
@@ -61,8 +65,8 @@ import java.net.UnknownHostException;
  *                          active and healthy connections are kept warm — the client counts keep-alive pings as
  *                          activity (`keepAliveOnPing = true`), so a connection whose pings are acknowledged never
  *                          idles out. `0` disables the idle timeout entirely (the connection then lives until closed
- *                          by the peer, a ping failure or the pool). A negative value falls back to the default; keep it
- *                          strictly above {@link #pingIntervalMillis()} to preserve the watchdog.
+ *                          by the peer, a ping failure or the pool). A negative value falls back to the default; keep
+ *                          it strictly above {@link #pingIntervalMillis()} to preserve the watchdog.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ClientConnectionOptions(
