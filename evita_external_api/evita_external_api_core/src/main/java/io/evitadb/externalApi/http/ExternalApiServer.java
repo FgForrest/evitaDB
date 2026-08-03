@@ -594,7 +594,11 @@ public class ExternalApiServer implements AutoCloseable {
 			.decorator(TracingDecorator.newDecorator())
 			.errorHandler(LoggingServerErrorHandler.INSTANCE)
 			.gracefulShutdownTimeout(gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO, gracefulShutdown ? Duration.ofSeconds(1) : Duration.ZERO)
-			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
+			// keepAliveOnPing = true makes a client's inbound keep-alive ping count as connection activity, so a
+			// connection with an actively pinging client is never reaped by the idle timeout - set explicitly
+			// rather than riding Armeria's global Flags.defaultServerKeepAliveOnPing (false by default). Without
+			// this, the server ignores the driver's own keep-alive ping and reaps the connection regardless.
+			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis(), true)
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.pingIntervalMillis(apiOptions.pingIntervalMillis())
 			.serviceWorkerGroup(workerGroup, true)
