@@ -8,8 +8,7 @@ proposed`). This folder holds the implementation intent and survives until the w
 point the ADR flips to `accepted` and this folder is deleted.
 
 The external-API resolution forces breaking changes to GraphQL and REST, which cannot ship into
-2026.2 mid-testing — hence the deferral. Reasoning and the rejected alternatives are in
-`graphql-rest-options.md` next to this file.
+2026.2 mid-testing — hence the deferral.
 
 ## The agreed semantics
 
@@ -589,7 +588,23 @@ GraphQL the non-null violation bubbles and collapses the whole `parents` list fo
 merely selected `parents { locales }`. Relaxing those fields to nullable would be a broader breaking
 change, weakening the contract for every entity rather than just for parents.
 
-Full option analysis, including the rejected G1/G2/R1/R2, is in `graphql-rest-options.md`.
+The three APIs do not share a chain shape, which is why only gRPC needs a new field:
+
+| API | parent chain shape | body → pointer → body today? |
+|---|---|---|
+| Java | nested chain, two types | yes |
+| gRPC | nested chain, pointer-only above the first pointer | **no** — needs a proto field |
+| REST | `parentEntity`, nested recursive object of the entity type | yes |
+| GraphQL | `parents`, flat list of the non-hierarchical entity object | yes — elements are independent |
+
+Rejected, one line each, so none of them gets re-proposed:
+
+- **element/object carrying nulls** (GraphQL G1, REST R1) — cheapest and needs no schema change, but
+  a pointer cannot answer `locales`, and in GraphQL that null bubbles and collapses the list. In REST
+  it merely degrades, but the response then violates its own `required` fields.
+- **a `bodyAvailable` discriminator flag** (G2, R2) — additive and non-breaking, but does **not**
+  solve the non-null problem: the client can still select `locales` on a pointer. Only viable if
+  those fields are relaxed to nullable, which is a broader break.
 
 ## Coarse implementation plan
 
@@ -614,8 +629,33 @@ Proto field on `GrpcEntityReferenceWithParent` with both fields populated, conve
 directions, the enum and its `GrpcQueryParam` binding.
 
 **Phase 5 — GraphQL + REST** *(needs 3)* — item 15
-The union and the `oneOf`. Size the break with `tools/diff-graphql-schemas.sh` and
-`tools/diff-openapi-schemas.sh` **before** writing code.
+Size the break with `tools/diff-graphql-schemas.sh` and `tools/diff-openapi-schemas.sh` **before**
+writing code. Target shapes, on the `3(cs,en) → 2(cs,en) → 1(en)` fixture queried in `cs`:
+
+```graphql
+{ parents {
+    ... on Category          { primaryKey code name locales }
+    ... on CategoryReference { primaryKey type }
+} }
+```
+```json
+"parents": [ { "__typename": "CategoryReference", "primaryKey": 1, "type": "Category" },
+             { "__typename": "Category", "primaryKey": 2, "code": "cameras",
+               "name": "Fotoaparáty", "locales": ["cs","en"] } ]
+```
+
+REST — `parentEntity` declared `oneOf: [Category, EntityReference]` with a discriminator:
+
+```json
+{ "primaryKey": 3, "attributes": { "code": "dslr", "name": "Zrcadlovky" },
+  "parentEntity": {
+      "primaryKey": 2, "attributes": { "code": "cameras", "name": "Fotoaparáty" },
+      "parentEntity": { "type": "Category", "primaryKey": 1 } } }
+```
+
+Verify first, since it shapes how R3 is written: whether the generated OpenAPI marks the affected
+fields `required`, and the exact null-bubbling blast radius in GraphQL (depends on the `parents`
+list wrapper).
 
 **Phase 6 — Documentation** *(needs 4 and 5)* — items 17–19
 `fetching.md`, the orphan section of `schema.md`, release notes for the breaking change.
@@ -634,6 +674,6 @@ Sequencing notes:
 
 None. The remaining unknowns are verification tasks, not decisions:
 
-- whether the generated OpenAPI marks the affected fields `required` (affects how R3 is written)
-- the exact null-bubbling blast radius in GraphQL (depends on the `parents` list wrapper)
+- whether the generated OpenAPI marks the affected fields `required`, and the exact null-bubbling
+  blast radius in GraphQL — both listed under phase 5, where they are acted on
 - whether anything outside the parent path still produces `CONCEALED_ENTITY`
