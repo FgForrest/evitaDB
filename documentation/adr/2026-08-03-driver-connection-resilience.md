@@ -5,7 +5,7 @@ updated: 2026-08-03 16:30
 status: accepted
 kind: fix
 issues: [1367, 1368]
-prs: []
+prs: [1371]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_external_api_core/http, evita_server/resources, documentation/user/en]
 supersedes: []
 superseded-by: []
