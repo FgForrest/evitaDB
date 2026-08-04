@@ -3,20 +3,34 @@
 name: DockerHub-deploy
 
 on:
-  workflow_run:
-    workflows: ['CI Release branch']                     # runs after CI workflow
-    types:
-      - completed
-  # Manual recovery / re-run path. Use when the upstream CI Release run failed
-  # late (e.g. release-drafter step failed, no workflow artifacts uploaded) but
-  # you have already manually created the GitHub release with `dist.zip`. The
-  # workflow downloads `dist.zip` from the release asset, extracts the JAR,
-  # and proceeds as in the normal flow.
+  # There used to also be a `workflow_run: workflows: ['CI Release branch']`
+  # trigger here. Removed: it only fires reliably when that run's own actor
+  # is a human (e.g. a direct push to a release_* branch) — when CI Master
+  # branch dispatches CI Release branch via `gh workflow run`
+  # (GITHUB_TOKEN-authored, the standard dev -> master path), the resulting
+  # run's actor is `github-actions[bot]`, and GitHub's anti-recursion rule
+  # blocks that run's completion from cascading into further automatic
+  # triggers — only workflow_dispatch/repository_dispatch are exempted, and
+  # only for one hop. CI Release branch now explicitly dispatches this
+  # workflow itself (same mechanism, applied one hop further), passing its
+  # own run_id so this can pull evita-server.jar/version.txt as workflow
+  # artifacts instead of from the release's zip asset — the release is
+  # typically still a draft at that point (publishing happens later,
+  # separately), and a draft release has no real downloadable git tag yet.
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release tag (e.g. v2025.7.18) — must already be a published GitHub release with the evitaDB-<version>.zip asset.'
+        description: 'Release tag (e.g. v2025.7.18).'
         required: true
+        type: string
+      run_id:
+        description: >-
+          Run id of the CI Release branch run to pull evita-server.jar/version.txt
+          artifacts from. Leave empty to instead download dist.zip from the
+          (already published) GitHub release for "version" — the original
+          manual-recovery path.
+        required: false
+        default: ''
         type: string
       push_latest:
         description: 'Force the :latest decision instead of auto-computing it. "auto" (default) pushes :latest when this version is the newest known release line (by YYYY.MM); "true"/"false" override that.'
@@ -30,13 +44,11 @@ on:
 
 permissions:
   contents: read          # Required for actions/checkout to read the repository
-  actions: read           # Required to download artifacts from the triggering workflow
+  actions: read           # Required to download artifacts from the dispatching workflow's run
 
 jobs:
   on-success:
     runs-on: ubuntu-latest
-    # workflow_dispatch always runs; workflow_run only runs on upstream success.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -54,32 +66,32 @@ jobs:
       - name: Resolve build inputs
         id: inputs
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
           INPUT_PUSH_LATEST: ${{ inputs.push_latest }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "source=release_asset" >> "$GITHUB_OUTPUT"
-            echo "version_tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "push_latest_override=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
-          else
+          echo "version_tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "push_latest_override=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT_RUN_ID" ]; then
             echo "source=workflow_artifact" >> "$GITHUB_OUTPUT"
-            echo "push_latest_override=auto" >> "$GITHUB_OUTPUT"
+            echo "run_id=$INPUT_RUN_ID" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=release_asset" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
+      - name: Download a JAR file to deploy # download `evita-server.jar` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
         uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
-          run_id: ${{ github.event.workflow_run.id }}
+          run_id: ${{ steps.inputs.outputs.run_id }}
           name: evita-server.jar
           path: docker
 
-      - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
+      - name: Download a version information # download `version.txt` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
         uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
-          run_id: ${{ github.event.workflow_run.id }}
+          run_id: ${{ steps.inputs.outputs.run_id }}
           name: version.txt
 
       # Recovery path: pull dist.zip from the release, extract evita-server.jar

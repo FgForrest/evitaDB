@@ -28,6 +28,7 @@ import com.google.protobuf.Empty;
 import com.linecorp.armeria.client.ClientFactory;
 import com.linecorp.armeria.client.ClientFactoryBuilder;
 import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.client.UnprocessedRequestException;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.client.retry.RetryRule;
@@ -308,6 +309,34 @@ public class EvitaClient implements EvitaContract {
 		return false;
 	}
 
+	/**
+	 * Builds the {@link RetryRule} installed on every driver instance's gRPC client. An `onUnprocessed()` rule is
+	 * always active, regardless of {@code retryEnabled}: Armeria raises {@link UnprocessedRequestException} only
+	 * when it is certain a request never reached the server (a refused connection, or a GOAWAY received before the
+	 * request's stream was accepted), so replaying it can never duplicate an already-applied mutation. When
+	 * {@code retryEnabled} is {@code true}, the broader rule set is layered on top — timeouts, `503`/`504`/`UNKNOWN`
+	 * statuses and `429` back-off — which can also match a request the server already processed (e.g. a mutation
+	 * whose response was lost to a transport abort), so that behaviour stays opt-in.
+	 *
+	 * @param retryEnabled whether the broader, potentially-duplicating retry rule set should be active
+	 * @return the {@link RetryRule} to install on the gRPC client
+	 */
+	@Nonnull
+	static RetryRule createRetryRule(boolean retryEnabled) {
+		final RetryRule alwaysSafeUnprocessedRetry = RetryRule.builder().onUnprocessed().thenBackoff();
+		if (!retryEnabled) {
+			return alwaysSafeUnprocessedRetry;
+		}
+		return RetryRule.of(
+			alwaysSafeUnprocessedRetry,
+			RetryRule.builder().onTimeoutException().thenBackoff(),
+			RetryRule.builder()
+				.onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN)
+				.thenBackoff(),
+			RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
+		);
+	}
+
 	@Nonnull
 	private static ClientTracingContext getClientTracingContext(@Nonnull EvitaClientConfiguration configuration) {
 		final ClientTracingContext context = ClientTracingContextProvider.getContext();
@@ -528,21 +557,13 @@ public class EvitaClient implements EvitaContract {
 			.serializationFormat(GrpcSerializationFormats.PROTO)
 			.intercept(new ClientSessionInterceptor(connectionOptions.clientId(), clientVersion));
 
-		if (configuration.retry()) {
-			grpcClientBuilder.decorator(
-				RetryingClient.builder(
-						RetryRule.of(
-							RetryRule.builder().onTimeoutException().thenBackoff(),
-							RetryRule.builder()
-								.onStatus(HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT, HttpStatus.UNKNOWN)
-								.thenBackoff(),
-							RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
-						)
-					)
-					.useRetryAfter(true)
-					.newDecorator()
-			);
-		}
+		// Always installed: requests Armeria can prove never reached the server are safe to replay regardless of
+		// the `retry` flag (see createRetryRule); the broader, potentially-duplicating rule set stays opt-in.
+		grpcClientBuilder.decorator(
+			RetryingClient.builder(createRetryRule(configuration.retry()))
+				.useRetryAfter(true)
+				.newDecorator()
+		);
 
 		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {
