@@ -191,11 +191,13 @@ which point the two renderers should merge rather than coexist.
 
 ## Verification
 
-- `FormulaPlanVisitorTest` — 6 tests. The defining one,
+- `FormulaPlanVisitorTest` — 9 tests. The defining one,
   `shouldLeaveEveryFormulaUncomputedAfterRenderingThePlan`, asserts `getMemoizedResult()` is still
   null on every node *after* rendering. `shouldReportAShortCircuitedBranchAsNeverHavingRun` pins the
   partially-computed case described above: an `AndFormula` over a cheap empty-yielding branch and an
   expensive constant, where the expensive branch stays unmemoized through rendering.
+  `shouldNotForceABranchWhoseCostPathWouldComputeIt` is the one that caught the `getCost()` hazard —
+  it failed before `getMemoizedCost()` existed, which is why it is worth keeping.
 - `QueryTelemetryRootFunctionalTest` — 10 tests, including
   `shouldDescribeRejectedAlternativesWithoutExecutingThem`, which asserts a real
   `PLANNING_FILTER_ALTERNATIVE` step carries a description but no `actualCost`, and
@@ -206,9 +208,11 @@ which point the two renderers should merge rather than coexist.
 - `QuerySerializationTest` gained a `queryTelemetry` block: the round-trip variants cover the bare
   form, the spelled-out default and `PLAN`, and `shouldPreservePlanLevel` pins the property the
   format break was taken for — a replayed `queryTelemetry(PLAN)` still asks for a plan.
-- Full reactor `mvn install` exit 0. Full `unitAndFunctional` suite: **20869 tests, 0 failures**. The
-  single error is `ExportS3ServiceTest`, which fails in `beforeAll` with
-  `Could not find a valid Docker environment` — environmental, and identical on `dev`.
+- Full reactor `mvn clean install` exit 0 after merging `dev`. Full `unitAndFunctional` suite:
+  **20894 tests, 0 failures**, 2 errors, both environmental rather than defects:
+  `ExportS3ServiceTest` fails in `beforeAll` with `Could not find a valid Docker environment`, and
+  `CatalogRestUpsertEntityMutationFunctionalTest.shouldUpdateProductWithNoMutations` fails its
+  dataset setup with `Java heap space` at the suite's `-Xmx8g` — it passes 12/12 run on its own.
 - `QuerySerializationTest` alone: **272 tests, 0 failures**, the run that pins the serializer format
   break. A targeted run suffices for it because the break is asymmetric — old bytes read by a new
   reader — so no test that writes and reads within one build can exercise it. What could have failed
