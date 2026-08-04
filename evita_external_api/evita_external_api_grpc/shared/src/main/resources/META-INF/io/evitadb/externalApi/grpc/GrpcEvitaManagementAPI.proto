@@ -7,6 +7,7 @@ option csharp_namespace = "EvitaDB";
 import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
+import "GrpcStatistics.proto";
 import "google/protobuf/wrappers.proto";
 
 // Response to a server status request.
@@ -122,6 +123,58 @@ message GrpcEvitaCatalogStatisticsResponse {
   // Per-catalog statistics for every catalog known to the server, including corrupted ones (see
   // `GrpcCatalogStatistics.unusable`, where most other fields fall back to a placeholder value).
   repeated GrpcCatalogStatistics catalogStatistics = 1;
+}
+
+// Request for a component-selected statistics snapshot of one named catalog.
+message GrpcCatalogStatisticsSnapshotRequest {
+  // Name of the catalog to describe. A catalog the server does not know is an error, not an empty response.
+  string catalogName = 1;
+  // The components to compute. Every one of them must have a catalog-level form - naming a collection-only component
+  // (`COMPONENT_INDEX_CARDINALITY`, `COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an
+  // empty list. `COMPONENT_IDENTITY` is delivered whether or not it appears here.
+  repeated GrpcCatalogStatisticsComponent components = 2;
+}
+
+// Response carrying the component-selected statistics snapshot of one catalog.
+message GrpcCatalogStatisticsSnapshotResponse {
+  // Statistics of the requested catalog. Present even when the catalog is corrupted, in which case `identity.unusable`
+  // is true and most components report `AVAILABILITY_CATALOG_UNUSABLE` instead of carrying a value.
+  GrpcCatalogStatisticsSnapshot catalogStatistics = 1;
+}
+
+// Request for component-selected statistics snapshots of every catalog known to the server. Replaces the deprecated
+// `GetCatalogStatistics` procedure, which always computed everything for everyone.
+message GrpcAllCatalogStatisticsSnapshotRequest {
+  // The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
+  // expensive collection-only components cannot be requested here and their cost can never be multiplied by the
+  // number of catalogs.
+  repeated GrpcCatalogStatisticsComponent components = 1;
+}
+
+// Response carrying one component-selected statistics snapshot per catalog.
+message GrpcAllCatalogStatisticsSnapshotResponse {
+  // Statistics of every catalog known to the server, ordered by catalog name, corrupted catalogs included.
+  repeated GrpcCatalogStatisticsSnapshot catalogStatistics = 1;
+}
+
+// Request for a component-selected statistics snapshot of one entity collection of one catalog.
+message GrpcEntityCollectionStatisticsSnapshotRequest {
+  // Name of the catalog holding the collection. A catalog the server does not know is an error.
+  string catalogName = 1;
+  // Name of the entity collection to describe, i.e. its entity type. A collection the catalog does not hold is an
+  // error, not an empty response - an empty response would be indistinguishable from an empty collection.
+  string entityType = 2;
+  // The components to compute. Every one of them must have a collection-level form - naming a catalog-only component
+  // (`COMPONENT_SESSIONS`, `COMPONENT_COMMIT_PIPELINE`, `COMPONENT_ACTIVITY`, `COMPONENT_HISTORY`,
+  // `COMPONENT_DURABILITY`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list. `COMPONENT_IDENTITY` is
+  // delivered whether or not it appears here.
+  repeated GrpcCatalogStatisticsComponent components = 3;
+}
+
+// Response carrying the component-selected statistics snapshot of one entity collection.
+message GrpcEntityCollectionStatisticsSnapshotResponse {
+  // Statistics of the requested entity collection.
+  GrpcEntityCollectionStatisticsSnapshot entityCollectionStatistics = 1;
 }
 
 // One chunk of a streamed catalog restore. The client sends a sequence of these messages over the
@@ -379,14 +432,28 @@ service EvitaManagementService {
   // Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
   // Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
   rpc GetEngineSettings(google.protobuf.Empty) returns (GrpcEvitaEngineSettingsResponse);
-  // Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
-  // procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
-  // shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
-  // unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
-  // collection. Its semantics are frozen and will not change while it remains.
+  // Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+  // `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+  // wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+  // whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+  // value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+  // semantics are frozen and will not change while it remains.
   rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse) {
     option deprecated = true;
   }
+  // Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+  // components it needs and the server computes only those, so a polled management screen pays for what it displays.
+  rpc GetCatalogStatisticsSnapshot(GrpcCatalogStatisticsSnapshotRequest)
+    returns (GrpcCatalogStatisticsSnapshotResponse);
+  // Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+  // catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+  rpc GetAllCatalogStatisticsSnapshots(GrpcAllCatalogStatisticsSnapshotRequest)
+    returns (GrpcAllCatalogStatisticsSnapshotResponse);
+  // Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+  // to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+  // collection.
+  rpc GetEntityCollectionStatisticsSnapshot(GrpcEntityCollectionStatisticsSnapshotRequest)
+    returns (GrpcEntityCollectionStatisticsSnapshotResponse);
   // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
   // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);

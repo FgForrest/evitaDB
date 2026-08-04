@@ -1,0 +1,503 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "google/protobuf/wrappers.proto";
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+
+// Outcome of one requested `GrpcCatalogStatisticsComponent`, telling the client whether the matching sub-message of
+// the snapshot is present because it was computed, or absent because it could not be. Only requested components get a
+// status - a component the client did not ask for is absent from the status list entirely, which is what lets a
+// client tell "I never asked for this" apart from "the server could not produce it".
+message GrpcComponentStatus {
+
+  // The component this status describes.
+  GrpcCatalogStatisticsComponent component = 1;
+  // Whether the component was delivered, and if not, the machine-readable class of reason.
+  GrpcComponentAvailability availability = 2;
+  // Human-readable explanation of why the component could not be delivered, meant to be shown to an operator. Unset
+  // when `availability` is `AVAILABILITY_DELIVERED`; never a substitute for reading `availability` itself.
+  google.protobuf.StringValue reason = 3;
+
+}
+
+// How much of a data store one storage-part type occupies. Shared by the catalog-level and the collection-level
+// storage composition, because the histogram has the same shape whichever data store it was read from.
+message GrpcStoragePartUsage {
+
+  // Simple class name of the storage part, e.g. `EntityBodyStoragePart`, `AttributesStoragePart`,
+  // `AssociatedDataStoragePart`.
+  string storagePartType = 1;
+  // Number of records of this type currently held (records).
+  int32 count = 2;
+  // Total size the records of this type occupy (bytes).
+  int64 totalBytes = 3;
+
+}
+
+// The `COMPONENT_IDENTITY` component - who this catalog is and what mode it is running in. Always present on both
+// catalog-level and collection-level snapshots, whether or not it was requested: no other component can be
+// interpreted without knowing which catalog produced it, at which version, and whether that catalog is usable.
+//
+// For a catalog that could not be loaded (`unusable` is true) most fields fall back: `catalogId` is unset,
+// `catalogState` reads `CORRUPTED` or `UNKNOWN_CATALOG_STATE`, `catalogVersion` and `entityCollectionCount` read `-1`
+// and `transactional` / `goingLive` read false. `catalogName` and `readOnly` stay valid - they are known without
+// loading anything.
+message GrpcCatalogIdentity {
+
+  // Unique identifier of the catalog. Unset when the catalog is unusable and its id could not be determined.
+  GrpcUuid catalogId = 1;
+  // The catalog's unique name, used to address it via the API. Always present, even for a corrupted catalog.
+  string catalogName = 2;
+  // Current lifecycle state of the catalog, or `UNKNOWN_CATALOG_STATE` when it could not be determined.
+  GrpcCatalogState catalogState = 3;
+  // Current version of the catalog, incremented on every commit. `-1` when the catalog is unusable.
+  int64 catalogVersion = 4;
+  // True when the catalog rejects mutations.
+  bool readOnly = 5;
+  // True when the catalog is corrupted and could not be loaded.
+  bool unusable = 6;
+  // True when writes go through the transactional pipeline. False in `WARMING_UP`, where writes are applied in bulk
+  // with no transactional guarantees.
+  bool transactional = 7;
+  // True while the catalog is transitioning out of `WARMING_UP` into `ALIVE`.
+  bool goingLive = 8;
+  // Number of entity collections the catalog holds; `-1` when the catalog is unusable. Reported explicitly rather
+  // than derived from the collection inventory, so it survives the corrupted case where that inventory is empty.
+  int32 entityCollectionCount = 9;
+
+}
+
+// The catalog-level `COMPONENT_RECORD_COUNTS` component - how many entities the catalog holds, split by scope.
+//
+// `totalRecords` counts entity body storage parts and archiving an entity does not remove its body storage part, so
+// the historically shipped total is live plus archived combined. It keeps that meaning here for backward
+// compatibility; `liveRecords` and `archivedRecords` are the numbers a caller usually wants.
+message GrpcRecordCounts {
+
+  // Live plus archived entities across all collections of the catalog (records).
+  int64 totalRecords = 1;
+  // Entities residing in the live scope (records).
+  int64 liveRecords = 2;
+  // Entities residing in the archive scope (records).
+  int64 archivedRecords = 3;
+
+}
+
+// Identification of a single entity collection - what to pass to a collection-level statistics call, plus the
+// internal primary key the engine knows the entity type by.
+message GrpcCollectionInfo {
+
+  // Name of the entity collection, i.e. the entity type.
+  string entityType = 1;
+  // Internal primary key assigned to the entity type itself.
+  int32 entityTypePrimaryKey = 2;
+
+}
+
+// The catalog-level `COMPONENT_COLLECTIONS` component - the inventory of the catalog's entity collections.
+//
+// Deliberately the only per-collection list a catalog-level snapshot carries, and it holds no statistics: it answers
+// "which collections exist", which is what a client needs before it can ask any of them for numbers.
+message GrpcCollectionsInfo {
+
+  // One entry per entity collection the catalog holds.
+  repeated GrpcCollectionInfo collections = 1;
+
+}
+
+// The `COMPONENT_SESSIONS` component - how many sessions are currently open against this catalog.
+//
+// Read-write sessions matter beyond their own count: an open read-write session pins a catalog version, which keeps
+// superseded data files from being purged. Pair a stubbornly non-zero `activeReadWriteSessions` with the history
+// component's `blockedByActiveReaderBytes` when disk space refuses to come back.
+message GrpcSessionStatistics {
+
+  // Total number of sessions currently open against the catalog (sessions).
+  int32 activeSessions = 1;
+  // Sessions opened in read-only mode (sessions).
+  int32 activeReadOnlySessions = 2;
+  // Sessions opened in read-write mode (sessions).
+  int32 activeReadWriteSessions = 3;
+
+}
+
+// The `COMPONENT_COMMIT_PIPELINE` component - the four version watermarks the commit pipeline maintains.
+//
+// A transaction is *assigned* a version at conflict resolution, *written* once it is in the write-ahead log,
+// *durable* once that has been forced to disk, and *finalized* once it is visible to readers. The watermarks are
+// always in that order, so the differences between them answer specific operational questions: assigned minus
+// written is work accepted but not yet logged, written minus durable is how much replay a crash would cost right
+// now, and written minus finalized is how far behind readers are.
+message GrpcCommitPipelineStatistics {
+
+  // Newest catalog version handed out by conflict resolution.
+  int64 lastAssignedCatalogVersion = 1;
+  // Newest catalog version appended to the write-ahead log.
+  int64 lastWrittenCatalogVersion = 2;
+  // Newest catalog version forced to durable storage.
+  int64 lastDurableCatalogVersion = 3;
+  // Newest catalog version visible to readers.
+  int64 lastFinalizedCatalogVersion = 4;
+
+}
+
+// The catalog-level `COMPONENT_STORAGE_SIZE` component - the catalog's disk footprint broken into the classes that
+// have different remedies, because a single total tells a developer nothing: data they inserted, garbage awaiting
+// compaction and time-travel history they could shorten by changing retention are three different problems.
+//
+// The total is measured, not derived - it is the sum of the actual lengths of every file in the catalog directory,
+// so `sizeOnDiskInBytes` equals the sum of all the other fields *by construction*. Anything the engine does not
+// track deliberately (a temporary file left by an interrupted compaction, a partial restore) lands in
+// `unaccountedBytes` as a visible signal rather than silently disappearing from the report.
+//
+// Delivered even when the catalog is unusable: file lengths are readable whether or not the catalog loads. The
+// in-memory-derived parts then read `0` and the bytes they would have accounted for surface in `unaccountedBytes`.
+message GrpcStorageSizeStatistics {
+
+  // Measured total - the sum of the lengths of every file in the catalog directory (bytes).
+  int64 sizeOnDiskInBytes = 1;
+  // Active records across the catalog and all collection data stores (bytes).
+  int64 liveBytes = 2;
+  // Superseded records inside the current data stores - what compaction reclaims (bytes).
+  int64 wasteBytes = 3;
+  // Retained write-ahead log files; `0` when time travel is disabled (bytes).
+  int64 walBytes = 4;
+  // Superseded data files that are no longer current but not yet deleted (bytes). Not a time-travel artefact - such
+  // files occur in both modes, only the purge timing differs - but with time travel enabled they survive the whole
+  // history window, so this is where that cost shows up. Deleting them by hand is never the remedy.
+  int64 awaitingDeletionBytes = 5;
+  // The part of `awaitingDeletionBytes` still referenced by an open reader or writer (bytes). A value that stays
+  // high means a long-running session is pinning disk space.
+  int64 blockedByActiveReaderBytes = 6;
+  // The part of `awaitingDeletionBytes` that nothing blocks, waiting only on the purge mechanism (bytes).
+  int64 purgeableBytes = 7;
+  // The catalog bootstrap / version index file (bytes).
+  int64 bootstrapBytes = 8;
+  // Everything present in the catalog directory that belongs to none of the classes above (bytes).
+  int64 unaccountedBytes = 9;
+
+}
+
+// The catalog-level `COMPONENT_STORAGE_COMPOSITION` component - where the bytes of the catalog's own data store
+// (schemas, catalog-level indexes) go, per storage-part type.
+//
+// Measured in bytes rather than record counts, because counts can invert the answer: a store holding 500k small
+// attribute parts and 2k large associated-data blobs reads as attribute-dominated by count while being
+// associated-data-dominated by bytes. Counts are reported alongside so the average per type is exact.
+//
+// There is deliberately no cross-collection sum - adding up records of different storage-part types from different
+// data stores produces a number with no operational meaning. One collection's histogram is fetched by naming it.
+message GrpcStorageCompositionStatistics {
+
+  // One entry per storage-part type present in the catalog's own data store.
+  repeated GrpcStoragePartUsage catalogParts = 1;
+
+}
+
+// The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, and how close
+// it is to being compacted.
+//
+// The compaction trigger is deterministic, so the configured thresholds that drive it are reported alongside the
+// measurements and a client can draw all of them on one gauge: a data store is compacted when its file exceeds
+// `fileSizeCompactionThresholdBytes` and either its active share is below `maxWasteActiveShare` (which overrides the
+// interval), or below `minimalActiveRecordShare` once `minCompactionIntervalMilliseconds` has elapsed.
+message GrpcFragmentationStatistics {
+
+  // Catalog-wide `liveBytes / (liveBytes + wasteBytes)`, in the range 0..1; `1.0` when nothing is stored yet.
+  double activeRecordShare = 1;
+  // Active records across the catalog and all collection data stores (bytes).
+  int64 liveBytes = 2;
+  // Bytes compaction would reclaim (bytes).
+  int64 wasteBytes = 3;
+  // True when at least one data store of this catalog already satisfies the compaction predicate.
+  bool compactionEligibleNow = 4;
+  // Configured minimum file size below which compaction never triggers (bytes).
+  int64 fileSizeCompactionThresholdBytes = 5;
+  // Configured active share below which compaction triggers once the minimum interval has elapsed, in the range 0..1.
+  double minimalActiveRecordShare = 6;
+  // Configured active share below which compaction triggers regardless of the interval, in the range 0..1.
+  double maxWasteActiveShare = 7;
+  // Configured minimum spacing between two compactions of the same file (milliseconds).
+  int64 minCompactionIntervalMilliseconds = 8;
+
+}
+
+// The `COMPONENT_HISTORY` component - how far back in time the catalog can be read, what that costs on disk, and what
+// is stopping superseded files from going away.
+//
+// `activeReaderFloor` is the actionable number: superseded files at a catalog version above it cannot be deleted in
+// either purge mode, so a floor that stops advancing is the direct explanation for disk space that will not come
+// back. evitaLab surfaces the same number as *deletion floor*.
+message GrpcHistoryStatistics {
+
+  // True when write-ahead log retention keeps history available for time travel.
+  bool timeTravelEnabled = 1;
+  // Oldest catalog version still readable; `-1` when no history is retained.
+  int64 oldestAvailableCatalogVersion = 2;
+  // Wall-clock time of `oldestAvailableCatalogVersion`. Unset when no history is retained or the time is unknown.
+  GrpcOffsetDateTime oldestAvailableTimestamp = 3;
+  // Newest catalog version; `-1` when it could not be determined.
+  int64 newestCatalogVersion = 4;
+  // Wall-clock time of `newestCatalogVersion`. Unset when it could not be determined.
+  GrpcOffsetDateTime newestTimestamp = 5;
+  // Number of retained write-ahead log files; `0` when time travel is disabled (files).
+  int32 walFileCount = 6;
+  // Total size of the retained write-ahead log files; `0` when time travel is disabled (bytes).
+  int64 walBytes = 7;
+  // Oldest catalog version still referenced by an open reader or writer.
+  int64 activeReaderFloor = 8;
+  // Number of superseded data files not yet purged (files).
+  int32 awaitingDeletionFileCount = 9;
+  // Total size of those files (bytes).
+  int64 awaitingDeletionBytes = 10;
+  // The part of them pinned above `activeReaderFloor` (bytes).
+  int64 blockedByActiveReaderBytes = 11;
+  // The part of them nothing blocks, waiting only on the purge mechanism (bytes).
+  int64 purgeableBytes = 12;
+
+}
+
+// The catalog-level `COMPONENT_INDEX_SUMMARY` component - how many indexes the catalog holds in total.
+//
+// Only a total here: the breakdown by index kind and scope requires a pass over the index keys of a collection, and
+// doing that for every collection on every polled refresh is exactly the cost this API is shaped to avoid. The
+// breakdown is fetched per collection instead.
+message GrpcIndexSummaryStatistics {
+
+  // Total number of indexes across the whole catalog, including the catalog-level index itself (indexes).
+  int64 totalIndexCount = 1;
+
+}
+
+// The catalog-level `COMPONENT_VOLATILE_STATE` component - what is held in memory but not yet on disk, and what is
+// being kept alive purely for readers that started long ago.
+//
+// `oldestRecordKeptTimestamp` is the one to watch: the multi-version history retained for still-open sessions is the
+// part of the heap that grows silently.
+message GrpcVolatileStateStatistics {
+
+  // Size the data stores occupy including data not yet flushed (bytes).
+  int64 totalSizeIncludingVolatileDataBytes = 1;
+  // Records written but not yet flushed to disk (records).
+  int32 nonFlushedRecordCount = 2;
+  // Size those records occupy (bytes).
+  int64 nonFlushedSizeBytes = 3;
+  // Creation time of the oldest record kept alive for an open session. Unset when nothing is being retained.
+  GrpcOffsetDateTime oldestRecordKeptTimestamp = 4;
+
+}
+
+// A component-selected snapshot of one catalog's statistics.
+//
+// Every component the caller did not request is absent here *and* absent from `componentStatus`; every component it
+// did request has a status entry saying whether it was delivered and, if not, why. Without that distinction a client
+// cannot tell an unrequested component from one the engine could not compute, which is how a corrupted catalog ends
+// up rendering as an empty catalog on a management screen.
+//
+// `identity` is always present, requested or not. Every other field is present only when its component was both
+// requested and delivered - a sub-message whose fields are all zero is a real, delivered measurement, not a
+// placeholder.
+//
+// Aggregates only: no component here carries a per-collection breakdown, so the size of this response does not grow
+// with the number of collections in the catalog. The single exception is the collection *inventory*, which carries
+// no statistics. Statistics of one collection are fetched by naming it, and the two responses are independent
+// snapshots that may observe different catalog versions - compare `identity.catalogVersion` when that matters.
+message GrpcCatalogStatisticsSnapshot {
+
+  // Who this catalog is and what mode it runs in; always present.
+  GrpcCatalogIdentity identity = 1;
+  // The `COMPONENT_RECORD_COUNTS` component; absent unless requested and delivered.
+  GrpcRecordCounts recordCounts = 2;
+  // The `COMPONENT_COLLECTIONS` component, i.e. the collection inventory; absent unless requested and delivered.
+  GrpcCollectionsInfo collections = 3;
+  // The `COMPONENT_SESSIONS` component; absent unless requested and delivered.
+  GrpcSessionStatistics sessions = 4;
+  // The `COMPONENT_COMMIT_PIPELINE` component; absent unless requested and delivered.
+  GrpcCommitPipelineStatistics commitPipeline = 5;
+  // The `COMPONENT_STORAGE_SIZE` component; absent unless requested and delivered.
+  GrpcStorageSizeStatistics storageSize = 6;
+  // The `COMPONENT_STORAGE_COMPOSITION` component; absent unless requested and delivered.
+  GrpcStorageCompositionStatistics storageComposition = 7;
+  // The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
+  GrpcFragmentationStatistics fragmentation = 8;
+  // The `COMPONENT_HISTORY` component; absent unless requested and delivered.
+  GrpcHistoryStatistics history = 9;
+  // The `COMPONENT_INDEX_SUMMARY` component; absent unless requested and delivered.
+  GrpcIndexSummaryStatistics indexSummary = 10;
+  // The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
+  GrpcVolatileStateStatistics volatileState = 11;
+  // Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
+  // entry here at all.
+  repeated GrpcComponentStatus componentStatus = 12;
+
+}
+
+// The collection-level `COMPONENT_COLLECTIONS` component - the counters carried by one collection's storage header.
+// The catalog-level counterpart lists only which collections exist; these are the numbers behind one of them.
+message GrpcCollectionHeaderInfo {
+
+  // Internal primary key assigned to the entity type itself.
+  int32 entityTypePrimaryKey = 1;
+  // Version of the collection header, incremented on every flush.
+  int64 version = 2;
+  // Highest entity primary key assigned so far. The gap between it and the collection's record count reveals how
+  // many entities have been deleted over the collection's lifetime.
+  int32 lastPrimaryKey = 3;
+  // Highest entity index primary key assigned so far.
+  int32 lastEntityIndexPrimaryKey = 4;
+  // Highest internal price id assigned so far.
+  int32 lastInternalPriceId = 5;
+  // Highest storage key id assigned so far.
+  int64 lastKeyId = 6;
+  // Largest single stored record ever observed in this collection (bytes). A high-water mark, not a current maximum:
+  // it is seeded from its previous value and only ever widened on flush, so removing the biggest record never lowers
+  // it. Label it "largest ever seen" wherever it is displayed.
+  int64 maxRecordSizeBytes = 7;
+
+}
+
+// The collection-level `COMPONENT_RECORD_COUNTS` component - how many entities one collection holds, split by scope.
+// The catalog-level counterpart is the sum of these across all collections; see it for why `totalRecords` means live
+// plus archived rather than live alone.
+message GrpcCollectionRecordCounts {
+
+  // Live plus archived entities in this collection (records).
+  int32 totalRecords = 1;
+  // Entities residing in the live scope (records).
+  int32 liveRecords = 2;
+  // Entities residing in the archive scope (records).
+  int32 archivedRecords = 3;
+
+}
+
+// The collection-level `COMPONENT_STORAGE_SIZE` component - the same decomposition the catalog level applies to the
+// whole catalog, narrowed to one collection's data files.
+//
+// The total is measured, not derived: it is the sum of the lengths of the files whose names belong to this
+// collection, so `sizeOnDiskInBytes` equals the sum of the other fields by construction. The write-ahead log and the
+// bootstrap file are catalog-wide and have no per-collection counterpart, so they appear at the catalog level only.
+message GrpcCollectionStorageSize {
+
+  // Measured total - the sum of the lengths of this collection's data files (bytes).
+  int64 sizeOnDiskInBytes = 1;
+  // Active records in this collection's data store (bytes).
+  int64 liveBytes = 2;
+  // Superseded records inside it - what compacting this collection reclaims (bytes).
+  int64 wasteBytes = 3;
+  // This collection's superseded data files that are no longer current but not yet purged (bytes). A short transient
+  // without time travel; retained for the whole history window with it, where the lever is write-ahead log retention
+  // rather than compaction, which has already run on these bytes.
+  int64 awaitingDeletionBytes = 4;
+  // Bytes among this collection's files that belong to none of the classes above (bytes).
+  int64 unaccountedBytes = 5;
+
+}
+
+// The collection-level `COMPONENT_STORAGE_COMPOSITION` component - where one collection's bytes go, per storage-part
+// type. See the catalog-level counterpart for why the breakdown is measured in bytes rather than record counts.
+message GrpcCollectionStorageComposition {
+
+  // One entry per storage-part type present in this collection's data store.
+  repeated GrpcStoragePartUsage parts = 1;
+
+}
+
+// The collection-level `COMPONENT_FRAGMENTATION` component - how much of one collection's data store is still live,
+// and whether it already satisfies the compaction predicate. The configured thresholds driving that predicate are
+// catalog-wide and are reported once at the catalog level rather than repeated for every collection.
+message GrpcCollectionFragmentation {
+
+  // `liveBytes / (liveBytes + wasteBytes)` for this collection's data store, in the range 0..1.
+  double activeRecordShare = 1;
+  // Active records in it (bytes).
+  int64 liveBytes = 2;
+  // Bytes compacting it would reclaim (bytes).
+  int64 wasteBytes = 3;
+  // True when this data store already satisfies the compaction predicate.
+  bool compactionEligibleNow = 4;
+
+}
+
+// Number of indexes of one kind within one scope.
+message GrpcIndexKindCount {
+
+  // Kind of the counted indexes.
+  GrpcEntityIndexKind indexKind = 1;
+  // Scope the counted indexes belong to.
+  GrpcEntityScope scope = 2;
+  // How many such indexes exist (indexes).
+  int32 count = 3;
+
+}
+
+// The collection-level `COMPONENT_INDEX_SUMMARY` component - how many indexes one collection holds, broken down by
+// kind and scope.
+//
+// This is what turns the historically opaque single index count into something a developer can act on: forty
+// thousand indexes of one referenced entity and forty global ones are very different situations that used to render
+// as the same number.
+message GrpcCollectionIndexSummary {
+
+  // Total number of indexes in this collection (indexes).
+  int32 totalIndexCount = 1;
+  // One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+  // reported as zero.
+  repeated GrpcIndexKindCount byKindAndScope = 2;
+
+}
+
+// The collection-level `COMPONENT_VOLATILE_STATE` component - what one collection's data store holds in memory but
+// not yet on disk, and what it keeps alive purely for readers that started long ago.
+message GrpcCollectionVolatileState {
+
+  // Size this data store occupies including data not yet flushed (bytes).
+  int64 totalSizeIncludingVolatileDataBytes = 1;
+  // Records written but not yet flushed (records).
+  int32 nonFlushedRecordCount = 2;
+  // Size those records occupy (bytes).
+  int64 nonFlushedSizeBytes = 3;
+  // Creation time of the oldest record kept for an open session. Unset when nothing is being retained.
+  GrpcOffsetDateTime oldestRecordKeptTimestamp = 4;
+
+}
+
+// A component-selected snapshot of exactly one entity collection's statistics.
+//
+// A separate message from the catalog-level snapshot rather than a row nested inside it: the catalog snapshot is the
+// one that gets polled, and nesting a row per collection would make its size grow with the number of collections and
+// would let the expensive per-collection components leak into a request that must stay cheap.
+//
+// Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, every other
+// field is present only when its component was requested and delivered, and `componentStatus` explains every
+// requested component that is missing. Requesting a catalog-only component here is an error, and so is naming a
+// collection the catalog does not hold.
+message GrpcEntityCollectionStatisticsSnapshot {
+
+  // The catalog this collection belongs to, and the version this snapshot was taken at; always present.
+  GrpcCatalogIdentity identity = 1;
+  // Name of the entity collection this snapshot describes; always present.
+  string entityType = 2;
+  // The `COMPONENT_COLLECTIONS` component, i.e. this collection's header counters; absent unless requested and
+  // delivered.
+  GrpcCollectionHeaderInfo header = 3;
+  // The `COMPONENT_RECORD_COUNTS` component; absent unless requested and delivered.
+  GrpcCollectionRecordCounts recordCounts = 4;
+  // The `COMPONENT_STORAGE_SIZE` component; absent unless requested and delivered.
+  GrpcCollectionStorageSize storageSize = 5;
+  // The `COMPONENT_STORAGE_COMPOSITION` component; absent unless requested and delivered.
+  GrpcCollectionStorageComposition storageComposition = 6;
+  // The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
+  GrpcCollectionFragmentation fragmentation = 7;
+  // The `COMPONENT_INDEX_SUMMARY` component; absent unless requested and delivered.
+  GrpcCollectionIndexSummary indexSummary = 8;
+  // The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
+  GrpcCollectionVolatileState volatileState = 9;
+  // Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
+  // entry here at all.
+  repeated GrpcComponentStatus componentStatus = 10;
+
+}
