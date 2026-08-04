@@ -314,10 +314,12 @@ public class Http2ConnectionMonitor {
 
 	public Http2ConnectionMonitor(int maxRstFramesPerWindow, int rstFrameWindowSeconds) {
 		this.maxRstFramesPerWindow = maxRstFramesPerWindow;
-		this.rstFrameWindowSeconds = rstFrameWindowSeconds;
+		// a zero or negative window would restart the count on every single frame, so the counter could never reach
+		// the threshold - enforcement asked for would be silently disabled instead of merely misconfigured
+		this.rstFrameWindowSeconds = Math.max(1, rstFrameWindowSeconds);
 		this.reportingThreshold = maxRstFramesPerWindow > 0 ?
 			maxRstFramesPerWindow : RST_FLOOD_REPORTING_THRESHOLD;
-		this.windowNanos = TimeUnit.SECONDS.toNanos(rstFrameWindowSeconds);
+		this.windowNanos = TimeUnit.SECONDS.toNanos(this.rstFrameWindowSeconds);
 	}
 
 	/**
@@ -737,9 +739,8 @@ public class Http2ConnectionMonitor {
 		}
 
 		/**
-		 * Counts one `RST_STREAM` frame into the current window and reports the connection the first time the window
-		 * exceeds the threshold. Mirrors the sliding window Netty's own limiter uses, so an enabled enforcement and
-		 * this counter agree on when the limit is reached.
+		 * Reports a `GOAWAY` the peer sent us, reading the error code out of the payload the walker captured. The
+		 * graceful `NO_ERROR` close that ends every ordinary connection is not news and is passed over.
 		 *
 		 * @param channel connection the frame arrived on
 		 */
@@ -756,6 +757,14 @@ public class Http2ConnectionMonitor {
 			}
 		}
 
+		/**
+		 * Counts one `RST_STREAM` frame into the current window and reports the connection the first time the count
+		 * passes the threshold. The window is **tumbling**, not sliding: once it elapses the count restarts at one.
+		 * That is deliberately the same shape Netty's `Http2MaxRstFrameListener` uses, so when enforcement is turned
+		 * on, this counter and Netty's limiter trip on the very same frame instead of drifting apart.
+		 *
+		 * @param channel connection the frame arrived on
+		 */
 		private void recordResetFrame(@Nonnull Channel channel) {
 			final long now = System.nanoTime();
 			if (now - this.windowStartNanos >= Http2ConnectionMonitor.this.windowNanos) {

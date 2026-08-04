@@ -41,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 import javax.annotation.Nonnull;
 import java.nio.charset.StandardCharsets;
@@ -306,6 +308,8 @@ class Http2ConnectionMonitorTest {
 				final ByteBuf forwarded = channel.readInbound();
 				assertNotNull(forwarded, "the buffer must reach the next handler");
 				assertEquals(payload.length, forwarded.readableBytes(), "no byte may be consumed on the way");
+				// finishAndReleaseAll() only releases what is still queued - anything read out has to be released here
+				forwarded.release();
 			} finally {
 				channel.finishAndReleaseAll();
 			}
@@ -474,6 +478,7 @@ class Http2ConnectionMonitorTest {
 				final ByteBuf forwarded = channel.readInbound();
 				assertNotNull(forwarded, "the buffer must still reach the HTTP/2 codec");
 				assertEquals(payload.length, forwarded.readableBytes(), "with every byte intact");
+				forwarded.release();
 
 				// monitoring is off for this connection now, but traffic keeps flowing through it
 				final byte[] more = rstStreamFrame(7);
@@ -481,6 +486,7 @@ class Http2ConnectionMonitorTest {
 				final ByteBuf second = channel.readInbound();
 				assertNotNull(second, "subsequent reads must keep being forwarded");
 				assertEquals(more.length, second.readableBytes());
+				second.release();
 			} finally {
 				channel.finishAndReleaseAll();
 			}
@@ -499,12 +505,14 @@ class Http2ConnectionMonitorTest {
 				final ByteBuf written = channel.readOutbound();
 				assertNotNull(written, "the frame must still reach the socket");
 				assertEquals(goAway.length, written.readableBytes());
+				written.release();
 
 				final byte[] more = frame(0x00, 1, new byte[16]);
 				channel.writeOutbound(Unpooled.wrappedBuffer(more));
 				final ByteBuf second = channel.readOutbound();
 				assertNotNull(second, "subsequent writes must keep going out");
 				assertEquals(more.length, second.readableBytes());
+				second.release();
 			} finally {
 				channel.finishAndReleaseAll();
 			}
@@ -524,6 +532,7 @@ class Http2ConnectionMonitorTest {
 				final ByteBuf forwarded = channel.readInbound();
 				assertNotNull(forwarded, "traffic must flow through an unmonitored pipeline unchanged");
 				assertEquals(payload.length, forwarded.readableBytes());
+				forwarded.release();
 			} finally {
 				channel.finishAndReleaseAll();
 			}
@@ -532,6 +541,9 @@ class Http2ConnectionMonitorTest {
 
 	@Nested
 	@DisplayName("configuration")
+	// these are the only tests here that touch JVM-global state, and the suite runs test classes concurrently -
+	// without the lock they could hand a half-set threshold to any server booting on another thread
+	@ResourceLock(Resources.SYSTEM_PROPERTIES)
 	class Configuration {
 
 		@AfterEach

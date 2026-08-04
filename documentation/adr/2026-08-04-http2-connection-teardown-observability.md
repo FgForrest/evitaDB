@@ -1,11 +1,11 @@
 ---
 title: Report HTTP/2 RST_STREAM floods instead of enforcing against them, and turn the Rapid-Reset defence off by default
 date: 2026-08-04
-updated: 2026-08-04 09:20
+updated: 2026-08-04 09:35
 status: accepted
 kind: fix
 issues: [1369]
-prs: []
+prs: [1383]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http, evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/event]
 supersedes: []
 superseded-by: []
