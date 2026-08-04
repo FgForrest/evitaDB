@@ -14088,6 +14088,26 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Enables detailed query execution metrics at the requested level of detail, returning a hierarchical breakdown
+	 * of all processing phases (parsing, filtering, etc.), their arguments, timings, and sub-steps in the
+	 * extra-results. Pass `PLAN` to additionally receive the formula plan the query engine built, including the
+	 * index-selection alternatives it costed and rejected. Explicitly include for debugging or profiling; avoid in
+	 * production due to overhead.
+	 *
+	 * ```evitaql
+	 * queryTelemetry(PLAN)
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/debug#query-telemetry)
+	 *
+	 * @see io.evitadb.api.query.require.QueryTelemetry
+	 */
+	@Nonnull
+	static QueryTelemetry queryTelemetry(@Nullable QueryTelemetryContent content) {
+		return new QueryTelemetry(content);
+	}
+
+	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
 	*/
 	@Nullable

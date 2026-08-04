@@ -15,8 +15,21 @@ preferredLang: 'evitaql'
 <LS to="e,j,r,c">
 
 ```evitaql-syntax
-queryTelemetry()
+queryTelemetry(
+    argument:enum(TIMINGS|PLAN)
+)
 ```
+
+<dl>
+	<dt>argument:enum(TIMINGS|PLAN)</dt>
+	<dd>
+		How much detail to profile at, `TIMINGS` being the default and an implicit argument — `queryTelemetry()`
+		and `queryTelemetry(TIMINGS)` are the same constraint, and both print as the former.
+		`PLAN` additionally returns the formula plan the query engine built — see
+		<LS to="j,e,r">[the formula plan](#the-formula-plan)</LS><LS to="c">the formula plan</LS> below. The two are
+		levels rather than flags: a profile carries the timings, or the timings *and* the plan.
+	</dd>
+</dl>
 
 </LS>
 
@@ -51,10 +64,26 @@ the following data:
 		node reports <code>null</code>, and its own wall-clock position is <code>startedAt</code> plus that node's
 		<code>start</code> offset.
 	</dd>
+	<LS to="j,e,c,r">
 	<dt>steps</dt>
 	<dd>
 		Internal steps of this telemetry step (operation decomposition). Same structure as the parent telemetry object.
 	</dd>
+	</LS>
+	<LS to="g">
+	<dt>level</dt>
+	<dd>
+		Depth of this step in the profile, the root always being <code>1</code>. GraphQL returns the profile as a
+		<strong>flat list</strong> rather than a nested tree — see the note below — and this is the property that
+		carries the structure. The steps arrive in pre-order, so the parent of any step is the closest preceding
+		step with a lower <code>level</code>.
+	</dd>
+	<dt>stepsCount</dt>
+	<dd>
+		Number of direct sub-steps this step decomposed into, so a leaf is recognizable without looking ahead in
+		the list. Legitimately <code>0</code> on the root as well, for a query whose planning short-circuited.
+	</dd>
+	</LS>
 	<dt>arguments</dt>
 	<dd>
 		Arguments of the processing phase — for example, which index was selected and at what estimated cost.
@@ -78,6 +107,12 @@ the following data:
 	</dd>
 	</LS>
 	<LS to="j,e,g,r">
+	<dt>plan</dt>
+	<dd>
+		Structure of the formula the engine built for this phase — see
+		<LS to="j,e,r">[the formula plan](#the-formula-plan)</LS><LS to="g">the formula plan</LS> below. Present
+		only when the query asked for it, and then only on the phases that own a formula.
+	</dd>
 	<dt>metrics</dt>
 	<dd>
 		Typed numeric measurements the engine computed while answering the query. Where the durations above say
@@ -114,6 +149,98 @@ compute the number, so its absence means "not measured for this phase" — which
 measured `0`. Several of these are legitimately zero: a query answered entirely from indexes really does perform
 `ioFetchCount: 0` storage reads. A client that defaults absent metrics to zero will report a query that fetched
 nothing as one that found nothing.
+
+</Note>
+
+</LS>
+
+<LS to="g">
+
+<Note type="info">
+
+**GraphQL returns the profile flattened.** The other APIs nest each step's sub-steps inside it; GraphQL returns a
+single list of steps in pre-order, each carrying its `level`. The reason is that in GraphQL the *client* decides how
+deep it selects, so a nested `steps` field would force you to write a selection set as deep as the deepest query you
+ever expect to profile — and would silently truncate anything deeper. A flat list has no depth limit, and it is
+already the shape a flame chart consumes. The `hierarchy` extra result makes the same trade for the same reason.
+
+Reconstruct the tree by walking the list and attaching each step to the closest preceding step with a lower `level`.
+
+Note also that the nanosecond durations arrive as **strings**, not numbers: `Long` is a custom scalar in this API so
+that values beyond JavaScript's safe integer range survive intact.
+
+</Note>
+
+</LS>
+
+<LS to="r">
+
+<Note type="warning">
+
+**The require shape changed.** `queryTelemetry` used to be written `"queryTelemetry": true`, the form a constraint
+with no arguments takes. Now that it carries an argument it is published as that argument's bare value:
+
+```json
+"queryTelemetry": "TIMINGS"   // timings only — the equivalent of the old `true`
+"queryTelemetry": "PLAN"      // timings plus the formula plan
+```
+
+This is a deliberate breaking change, made while nothing depends on the old shape yet rather than layering a
+compatible workaround over a shape that had to change regardless.
+
+</Note>
+
+</LS>
+
+<LS to="j,e,g,r">
+
+## The formula plan
+
+The timings say *where* the query spent itself; the plan says *what it was doing*. Ask for it by parametrizing the
+constraint — <LS to="j,e">`queryTelemetry(PLAN)`</LS><LS to="r">`"queryTelemetry": "PLAN"`</LS><LS to="g">selecting
+the `plan` field, which is how this API opts in</LS> — and the steps that own a formula additionally carry the
+structure of that formula:
+
+- every **index-selection alternative** carries the candidate the planner costed, *including the ones that lost*
+- the **root** carries the plan that actually ran
+
+That first point is the one worth the trouble. Every engine will tell you what it did; very few will tell you what it
+considered and rejected, and at what estimated cost. That is the information that explains a plan which looks wrong.
+
+Each node of the plan reports:
+
+| Property | Meaning |
+|---|---|
+| `id` | Identity of the formula **instance**, stable across its occurrences in the plan |
+| `refTo` | Set only on a repeat occurrence, pointing back at the `id` that describes it |
+| `hash` | Structural hash — what the cache keys on |
+| `description` | What the formula is, in human-readable form |
+| `estimatedCost` | What the planner expected this part to cost |
+| `actualCost` | What it really cost, or **absent** if it never ran |
+| `resultCount` | How many records it produced, or **absent** if it never ran |
+
+<Note type="info">
+
+**Why `refTo` exists.** The plan is a directed acyclic graph, not a tree: a formula's result is memoized per
+*instance*, so a sub-formula reachable by two paths is computed **once** and every later occurrence of it is free.
+Without the back-reference you would see the same expensive subtree twice and reasonably conclude it cost twice as
+much. A node with `refTo` set carries no detail and no children — resolve it against the node with that `id`.
+
+</Note>
+
+<Note type="warning">
+
+**An absent `actualCost` is not a zero cost — it means the formula never ran.** The planner costs every candidate
+index but executes only the winner, so a rejected alternative legitimately reports no real cost at all, and so does a
+branch of the winning plan that was short-circuited past.
+
+This is deliberate and is the reason rendering the plan is safe: **the renderer never computes anything.** Were it to
+call `compute()` to fill those fields in, asking for a profile would execute the plans the engine had decided to
+skip — telemetry would stop observing the query and start changing it.
+
+Note also that asking for the plan **changes the profile's own numbers**, because the rendering happens inside the
+query being measured. A run made with the plan is not directly comparable with one made without it; re-running the
+query to get the deeper view is the expected workflow.
 
 </Note>
 

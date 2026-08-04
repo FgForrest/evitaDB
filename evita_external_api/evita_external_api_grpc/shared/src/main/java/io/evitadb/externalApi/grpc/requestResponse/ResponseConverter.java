@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -69,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -557,7 +559,40 @@ public class ResponseConverter {
 		if (grpcQueryTelemetry.hasMetrics()) {
 			restoreMetrics(result, grpcQueryTelemetry.getMetrics());
 		}
+		// the plan is measured rather than derived too, so it is restored for the same reason - a driver caller
+		// asking for `queryTelemetry(PLAN)` gets the same tree an embedded caller would
+		if (grpcQueryTelemetry.hasPlan()) {
+			result.recordPlan(restorePlan(grpcQueryTelemetry.getPlan()));
+		}
 		return result;
+	}
+
+	/**
+	 * Rebuilds a formula plan node, and everything below it, from its gRPC representation.
+	 *
+	 * Each optional field maps back to `null`, which is the value that means "not computed" - restoring an absent
+	 * `actualCost` as `0` would turn a formula the engine deliberately never ran into one that reportedly ran for
+	 * free. The recursion terminates at back-reference nodes of its own accord, since they carry no children.
+	 *
+	 * @param plan the plan node as it arrived on the wire
+	 * @return the rebuilt node together with everything nested below it
+	 */
+	@Nonnull
+	private static FormulaPlan restorePlan(@Nonnull GrpcFormulaPlan plan) {
+		final List<FormulaPlan> children = new ArrayList<>(plan.getChildrenCount());
+		for (final GrpcFormulaPlan child : plan.getChildrenList()) {
+			children.add(restorePlan(child));
+		}
+		return new FormulaPlan(
+			plan.getId(),
+			plan.hasRefTo() ? plan.getRefTo() : null,
+			plan.getHash(),
+			plan.hasDescription() ? plan.getDescription() : null,
+			plan.getEstimatedCost(),
+			plan.hasActualCost() ? plan.getActualCost() : null,
+			plan.hasResultCount() ? plan.getResultCount() : null,
+			children
+		);
 	}
 
 	/**

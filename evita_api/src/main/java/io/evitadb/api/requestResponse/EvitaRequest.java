@@ -126,6 +126,7 @@ public class EvitaRequest {
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
 	@Nullable private Boolean queryTelemetryRequested;
+	@Nullable private Boolean queryTelemetryPlanRequested;
 	@Nullable private Boolean priceHistogramRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
 	@Nullable private Scope[] scopesAsArray;
@@ -558,6 +559,7 @@ public class EvitaRequest {
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = null;
 		this.queryTelemetryRequested = evitaRequest.queryTelemetryRequested;
+		this.queryTelemetryPlanRequested = evitaRequest.queryTelemetryPlanRequested;
 		this.priceHistogramRequested = evitaRequest.priceHistogramRequested;
 		this.scopes = scopes;
 		this.scopesAsArray = this.scopes == null ?
@@ -1265,6 +1267,23 @@ public class EvitaRequest {
 				QueryUtils.findRequire(this.query, QueryTelemetry.class) != null;
 		}
 		return this.queryTelemetryRequested;
+	}
+
+	/**
+	 * Returns TRUE if requirement {@link QueryTelemetry} is present in the query **and** asks for the formula plan
+	 * via {@link io.evitadb.api.query.require.QueryTelemetryContent#PLAN}. Accessor method caches the found result
+	 * so that consecutive calls of this method are pretty fast.
+	 *
+	 * This is the single guard that keeps plan rendering off every query that did not ask for it - a query at the
+	 * default {@link io.evitadb.api.query.require.QueryTelemetryContent#TIMINGS} level, i.e. plain
+	 * `queryTelemetry()`, gets its timings and builds no plan structure whatsoever.
+	 */
+	public boolean isQueryTelemetryPlanRequested() {
+		if (this.queryTelemetryPlanRequested == null) {
+			final QueryTelemetry telemetry = QueryUtils.findRequire(this.query, QueryTelemetry.class);
+			this.queryTelemetryPlanRequested = telemetry != null && telemetry.isPlanRequested();
+		}
+		return this.queryTelemetryPlanRequested;
 	}
 
 	/**

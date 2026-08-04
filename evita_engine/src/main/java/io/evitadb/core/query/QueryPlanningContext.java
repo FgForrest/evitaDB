@@ -785,6 +785,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns true when telemetry is being collected **and** the query asked for the formula plan - the guard a
+	 * caller must consult before walking a formula tree to describe it.
+	 *
+	 * Both halves are load-bearing. The stack test is what makes it false for a query without telemetry (and for
+	 * a dry run, whose planning context is never seeded with a root); the request test is what keeps plain
+	 * `queryTelemetry()` from paying for a structure it did not ask for.
+	 *
+	 * @return true when a plan recorded on the current step ends up in the response
+	 */
+	public boolean isTelemetryPlanCollected() {
+		return !this.telemetryStack.isEmpty() && this.evitaRequest.isQueryTelemetryPlanRequested();
+	}
+
+	/**
 	 * Finishes current query evaluation step, recording the time spent in it and making its parent the current
 	 * step again. Does nothing when telemetry is not being collected, which is what allows call sites to pop
 	 * unconditionally in a `finally` block.

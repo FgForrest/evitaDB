@@ -23,14 +23,17 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * The `queryTelemetry` require constraint instructs the engine to measure and expose detailed query execution
@@ -55,16 +58,26 @@ import java.io.Serializable;
  * The phase set is not guaranteed: a query whose index selection short-circuits, or a dry run, legitimately yields
  * a bare root with no steps at all. Clients must tolerate that.
  *
- * The constraint takes no arguments and is never implicit — it must be explicitly included when telemetry is needed.
- * Because gathering telemetry adds measurable overhead (a clock reading and a node per query *phase*), it should be
- * disabled in production hot paths and reserved for development, debugging, or profiling sessions. Conversely, a
- * query that does not ask for telemetry pays nothing at all for it — not even the strings describing the steps that
- * would have been recorded.
+ * The constraint is never implicit — it must be explicitly included when telemetry is needed. Because gathering
+ * telemetry adds measurable overhead (a clock reading and a node per query *phase*), it should be disabled in
+ * production hot paths and reserved for development, debugging, or profiling sessions. Conversely, a query that does
+ * not ask for telemetry pays nothing at all for it — not even the strings describing the steps that would have been
+ * recorded.
+ *
+ * Passing {@link QueryTelemetryContent#PLAN} additionally exposes the internal formula-tree the planner built, as
+ * {@link io.evitadb.api.requestResponse.extraResult.FormulaPlan} nodes attached to the phases that produced it —
+ * including the alternatives the planner considered and rejected, with the costs it estimated for them. Where the
+ * timings say *where* the query spent itself, the plan says *what it was doing*. It is opt-in because rendering it
+ * costs something, and because doing so inside the measured query perturbs the very numbers being measured: a run
+ * made with `PLAN` is not directly comparable with one made without it. Rendering never computes anything, so the
+ * parts of the plan the engine chose not to run are reported as "not computed" rather than being executed to fill
+ * the report in.
  *
  * **Example**
  *
  * ```evitaql
  * queryTelemetry()
+ * queryTelemetry(PLAN)
  * ```
  *
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/debug#query-telemetry)
@@ -76,49 +89,98 @@ import java.io.Serializable;
 	shortDescription = "The constraint triggers computation of query telemetry (explaining what operations were performed and how long they took) in extra results of the response.",
 	userDocsLink = "/documentation/query/requirements/debug#query-telemetry"
 )
-public class QueryTelemetry extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
+public class QueryTelemetry extends AbstractRequireConstraintLeaf
+	implements ConstraintWithDefaults<RequireConstraint>, GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5121347556508500340L;
 
 	/**
-	 * Rebuilds the constraint from a raw argument array. It exists solely to back
+	 * Rebuilds the constraint from a raw argument array. It exists to back
 	 * {@link #cloneWithArguments(Serializable[])}, which every constraint has to offer so that the generic visitors
-	 * rewriting constraint trees can reconstruct any node from the arguments it reports - without knowing that this
-	 * particular one reports none.
+	 * rewriting constraint trees can reconstruct any node from the arguments it reports.
 	 *
-	 * It is private because that is the only legitimate use: this constraint takes no arguments, so a non-empty
-	 * array describes a `queryTelemetry()` that cannot exist. Application code, the EvitaQL parser and Kryo
-	 * deserialization all go through {@link #QueryTelemetry()} instead.
+	 * It is private because the public surface is the two typed constructors below: the argument this constraint
+	 * accepts is a {@link QueryTelemetryContent} constant, and nothing else. A raw array reaching here has already
+	 * been produced by this very class.
 	 *
-	 * @param arguments arguments to rebuild the constraint from - in practice always empty
+	 * An empty array resolves to the {@link QueryTelemetryContent#TIMINGS} default, mirroring what the creator does
+	 * with a `null` level. This is not theoretical: the generic visitors feed `cloneWithArguments` whatever they
+	 * computed, and the string form of the default form carries no arguments at all - without this, such a rewrite
+	 * would produce a constraint whose {@link #getContent()} has nothing to return.
+	 *
+	 * @param arguments arguments to rebuild the constraint from - a single {@link QueryTelemetryContent} constant
 	 */
 	private QueryTelemetry(@Nonnull Serializable... arguments) {
-		super(arguments);
+		super(arguments.length == 0 ? new Serializable[]{QueryTelemetryContent.TIMINGS} : arguments);
 	}
 
 	/**
-	 * Creates the argument-less `queryTelemetry()` constraint, which is the only form this constraint has.
+	 * Creates the `queryTelemetry()` constraint at the default {@link QueryTelemetryContent#TIMINGS} level.
+	 *
+	 * @see #QueryTelemetry(QueryTelemetryContent)
+	 */
+	public QueryTelemetry() {
+		super(QueryTelemetryContent.TIMINGS);
+	}
+
+	/**
+	 * Creates the `queryTelemetry(...)` constraint at the requested level of detail.
 	 *
 	 * This is the constructor the constraint descriptor machinery reflects on - {@link Creator} marks it as *the*
 	 * way to instantiate the constraint, which is what lets the EvitaQL parser, the query builders and the external
-	 * API schemas derive a zero-parameter `queryTelemetry` from it. Adding a second `@Creator` here, or moving the
-	 * annotation to the varargs constructor above, would change the constraint's published signature in all of
-	 * them at once.
+	 * API schemas derive the constraint's published signature from it. It is also the constructor everything that
+	 * rebuilds the constraint from the wire ends up calling.
 	 *
-	 * It is also the constructor everything that rebuilds the constraint from the wire ends up calling: the
-	 * constraint carries no state, so its Kryo serializer writes nothing and reads it back by calling this.
+	 * The level is always stored, `null` resolving to {@link QueryTelemetryContent#TIMINGS}, so no call site has to
+	 * distinguish "unspecified" from "the default". It is the {@link ConstraintWithDefaults} contract below that
+	 * keeps the default out of the string form, so a bare `queryTelemetry()` still prints as `queryTelemetry()`.
+	 *
+	 * @param content level of detail to profile at; `null` for the {@link QueryTelemetryContent#TIMINGS} default
 	 */
 	@Creator
-	public QueryTelemetry() {
-		super();
+	public QueryTelemetry(@Nullable QueryTelemetryContent content) {
+		super(content == null ? QueryTelemetryContent.TIMINGS : content);
 	}
 
 	/**
-	 * Creates a copy of this constraint with the passed arguments, as every constraint is required to. The
-	 * constraint carries no arguments, so a meaningful clone always passes an empty array; `newArguments` is handed
-	 * over verbatim to the private constructor only because the contract is defined uniformly across all
-	 * constraints and the generic visitors that rebuild constraint trees rely on it.
+	 * Returns the level of detail this constraint asks the profile to be built at.
 	 *
-	 * @param newArguments the new arguments to use for the cloned constraint - always empty for this constraint
+	 * @return the requested level, never null and {@link QueryTelemetryContent#TIMINGS} unless asked otherwise
+	 */
+	@Nonnull
+	public QueryTelemetryContent getContent() {
+		return (QueryTelemetryContent) getArguments()[0];
+	}
+
+	/**
+	 * Returns TRUE when the formula plan was requested via {@link QueryTelemetryContent#PLAN}.
+	 *
+	 * It is a dedicated accessor rather than a `getContent() == ...` at each call site because it is the single
+	 * guard that keeps plan rendering out of every query that did not ask for one, and a named predicate is what
+	 * makes that guard recognisable at the sites where it matters.
+	 *
+	 * @return TRUE when the formula plan should be rendered into the telemetry
+	 */
+	public boolean isPlanRequested() {
+		return getContent() == QueryTelemetryContent.PLAN;
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getArgumentsExcludingDefaults() {
+		return Arrays.stream(getArguments())
+			.filter(it -> it != QueryTelemetryContent.TIMINGS)
+			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isArgumentImplicit(@Nonnull Serializable serializable) {
+		return serializable == QueryTelemetryContent.TIMINGS;
+	}
+
+	/**
+	 * Creates a copy of this constraint with the passed arguments, as every constraint is required to.
+	 *
+	 * @param newArguments the new arguments to use for the cloned constraint
 	 * @return a new `queryTelemetry` constraint instance
 	 */
 	@Nonnull

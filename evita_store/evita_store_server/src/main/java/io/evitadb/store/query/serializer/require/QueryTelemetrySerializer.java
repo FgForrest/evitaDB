@@ -28,10 +28,19 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.require.QueryTelemetry;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import lombok.RequiredArgsConstructor;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link QueryTelemetry} from/to binary format.
+ *
+ * The constraint used to carry no state at all, and this serializer used to write nothing. It now carries
+ * a {@link QueryTelemetryContent} level, which has to survive the round trip - dropping it would silently
+ * downgrade a `queryTelemetry(PLAN)` reaching the engine through the Java driver or replayed from a traffic
+ * recording back to a plain `queryTelemetry()`, with no error anywhere to explain the missing plan.
+ *
+ * The level is always written, {@link QueryTelemetryContent#TIMINGS} included, because it is always present on
+ * the constraint - it is implicit only in the EvitaQL string form, never in the object.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -40,12 +49,12 @@ public class QueryTelemetrySerializer extends Serializer<QueryTelemetry> {
 
 	@Override
 	public void write(Kryo kryo, Output output, QueryTelemetry object) {
-		// we don't need to serialize anything about this query
+		kryo.writeObject(output, object.getContent());
 	}
 
 	@Override
 	public QueryTelemetry read(Kryo kryo, Input input, Class<? extends QueryTelemetry> type) {
-		return new QueryTelemetry();
+		return new QueryTelemetry(kryo.readObject(input, QueryTelemetryContent.class));
 	}
 
 }

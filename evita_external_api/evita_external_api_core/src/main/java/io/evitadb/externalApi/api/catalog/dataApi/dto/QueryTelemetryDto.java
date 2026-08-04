@@ -66,6 +66,8 @@ import java.util.List;
  * @param formattedSelfTime  `selfTime` rendered for humans, in the same form as `formattedSpentTime`
  * @param metrics            typed numeric measurements recorded for this step, or `null` when it carries none - which
  *                           is the case for every node but the root today
+ * @param plan               structure of the formula this phase built or ran, or `null` when the query did not ask
+ *                           for it - which is every phase of every query that used a plain `queryTelemetry()`
  * @param startedAt          wall-clock instant the query began in ISO-8601 offset date-time form, carried by the
  *                           root step only and `null` on every other node
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -79,6 +81,7 @@ public record QueryTelemetryDto(@Nonnull String operation,
 								long selfTime,
 								@Nonnull String formattedSelfTime,
 								@Nullable QueryTelemetryMetricsDto metrics,
+								@Nullable FormulaPlanDto plan,
                                 @Nullable String startedAt) {
 
 	/**
@@ -119,6 +122,9 @@ public record QueryTelemetryDto(@Nonnull String operation,
 			StringUtils.formatNano(selfTime),
 			// null for every step the engine recorded no measurement on, which today is every step but the root
 			QueryTelemetryMetricsDto.from(queryTelemetry),
+			// null unless the query asked for the plan with `queryTelemetry(PLAN)`, and then only on the phases
+			// that own a formula - the filter alternatives and the root
+			FormulaPlanDto.from(queryTelemetry.getPlan()),
 			// only the root step carries the wall-clock stamp that anchors the whole tree in time
 			queryTelemetry.getStartedAt() == null ?
 				null : DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(queryTelemetry.getStartedAt())

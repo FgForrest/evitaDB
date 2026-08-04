@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.exception.InconsistentResultsException;
@@ -45,6 +46,7 @@ import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaPlanVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -373,6 +375,17 @@ public class QueryPlanner {
 						// the supplier has to capture an effectively final reference; it is resolved only when
 						// telemetry is on, and `toStringWithCosts` allocates two to three strings per candidate index
 						final Formula builtFormula = adeptFormula;
+						// the candidate's structure is recorded on its own step, which is the only node that can
+						// carry it: every alternative but the winner is discarded immediately after this loop and
+						// would otherwise leave nothing behind but a cost embedded in English. Rendering computes
+						// nothing - at this point not even the eventual winner has run, so the whole plan reports
+						// "not computed", and that is the honest answer rather than a gap to be filled in
+						if (builtFormula != null && queryContext.isTelemetryPlanCollected()) {
+							final QueryTelemetry alternativeStep = queryContext.getCurrentStep();
+							if (alternativeStep != null) {
+								alternativeStep.recordPlan(FormulaPlanVisitor.toPlan(builtFormula));
+							}
+						}
 						queryContext.popStep(
 							builtFormula == null ?
 								targetIndex::toString :

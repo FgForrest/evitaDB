@@ -237,4 +237,37 @@ public interface GrpcQueryTelemetryOrBuilder extends
    * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder();
+
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return Whether the plan field is set.
+   */
+  boolean hasPlan();
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return The plan.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan();
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder();
 }

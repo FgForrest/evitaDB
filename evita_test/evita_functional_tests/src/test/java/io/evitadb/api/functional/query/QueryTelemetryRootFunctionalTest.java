@@ -28,6 +28,8 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.query.require.QueryTelemetryContent;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
@@ -250,6 +252,64 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 		assertOnlyRootCarriesMetrics(telemetry);
 	}
 
+	@Test
+	@DisplayName("no formula plan is built for a query that did not ask for one")
+	void shouldNotBuildFormulaPlanUnlessRequested() {
+		// the zero-cost guarantee for this feature, stated as an observable: plain `queryTelemetry()` walks no
+		// formula tree and allocates no plan, anywhere in the profile
+		assertNoPlanInSubtree(queryTelemetryOf());
+	}
+
+	@Test
+	@DisplayName("the executed formula plan reaches the client on the root node")
+	void shouldDeliverExecutedFormulaPlanOnRoot() {
+		final FormulaPlan plan = queryTelemetryWithPlanOf().getPlan();
+		assertNotNull(plan, "The root must carry the plan that was actually executed!");
+		assertNotNull(plan.description(), "The described occurrence of a formula must say what it is!");
+		assertNull(plan.refTo(), "The plan root can never be a back-reference - nothing precedes it!");
+		// the winning plan is rendered after execution, so unlike the alternatives below it really has run
+		assertNotNull(plan.actualCost(), "The executed plan must report the cost it really incurred!");
+		assertNotNull(plan.resultCount(), "The executed plan must report how many records it produced!");
+	}
+
+	@Test
+	@DisplayName("a rejected plan alternative is described but never executed")
+	void shouldDescribeRejectedAlternativesWithoutExecutingThem() {
+		// This is the assertion the whole non-forcing renderer exists for. The planner builds and costs one formula
+		// per candidate index but executes only the winner; a renderer that called `compute()` to fill in the
+		// numbers would make asking for a profile run the plans the engine had deliberately decided to skip -
+		// telemetry would stop observing the query and start changing it. An alternative reporting a null
+		// `actualCost` is the observable proof that never happened.
+		final QueryTelemetry alternative = findPhase(
+			queryTelemetryWithPlanOf(), QueryPhase.PLANNING_FILTER_ALTERNATIVE
+		);
+		assertNotNull(
+			alternative,
+			"The query must actually consider an index alternative, or this test asserts nothing!"
+		);
+		final FormulaPlan plan = alternative.getPlan();
+		assertNotNull(plan, "A considered alternative must carry the candidate formula it was costed on!");
+		assertNotNull(plan.description(), "The candidate must say what it is, even though it never ran!");
+		// the estimate exists without running anything - it is what the candidate was ranked on
+		assertNull(plan.actualCost(), "A plan rendered during planning cannot have a real cost - nothing has run!");
+		assertNull(plan.resultCount(), "A plan rendered during planning cannot have a result count!");
+	}
+
+	/**
+	 * Asserts that no step anywhere in the passed tree carries a formula plan.
+	 *
+	 * @param step root of the subtree to check
+	 */
+	private static void assertNoPlanInSubtree(@Nonnull QueryTelemetry step) {
+		assertNull(
+			step.getPlan(),
+			"Step " + step.getOperation() + " built a formula plan for a query that never asked for one!"
+		);
+		for (final QueryTelemetry innerStep : step.getSteps()) {
+			assertNoPlanInSubtree(innerStep);
+		}
+	}
+
 	/**
 	 * Asserts that the passed tree carries query level metrics on its root and nowhere else, at any depth.
 	 *
@@ -363,6 +423,28 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 					)
 				),
 				SealedEntity.class
+			);
+			final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");
+			return telemetry;
+		}
+	}
+
+	/**
+	 * Runs the same query as {@link #queryTelemetryOf()} but additionally asking for the formula plan.
+	 *
+	 * @return the telemetry extra result of the executed query
+	 */
+	@Nonnull
+	private QueryTelemetry queryTelemetryWithPlanOf() {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<EntityReference> response = session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					filterBy(attributeStartsWith(ATTRIBUTE_CODE, "garmin")),
+					require(queryTelemetry(QueryTelemetryContent.PLAN))
+				),
+				EntityReference.class
 			);
 			final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
 			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");

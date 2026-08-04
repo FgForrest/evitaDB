@@ -177,6 +177,43 @@ message GrpcQueryTelemetry {
   // without parsing English. Absent when nothing was measured for this step, which is the case for every step but
   // the root.
   optional GrpcQueryTelemetryMetrics metrics = 8;
+  // Structure of the formula this phase built or ran. Present only when the query asked for it with
+  // queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+  // carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+  optional GrpcFormulaPlan plan = 9;
+}
+
+// One node of the formula plan a query phase was carried out with - the structural counterpart of the timings.
+//
+// The plan is a DAG rather than a tree: a formula's result is memoized per instance, so a subtree reachable by two
+// paths is computed once and every later occurrence of it is free. `refTo` is what keeps a reader from counting such
+// a subtree twice - the first occurrence is described in full, and every later one is a bare node pointing back at
+// it by id, with no children of its own.
+//
+// actualCost and resultCount are absent whenever the formula was not computed, which is the normal state for a
+// rejected plan alternative and for a short-circuited branch of the winning one. They are absent rather than 0
+// because the plan is rendered without ever computing anything: filling them in would make asking for the plan
+// change what the query does.
+message GrpcFormulaPlan {
+  // Identity of the formula instance this node stands for, unique within the plan and stable across its
+  // occurrences - it is what makes "computed once, reused twice" visible.
+  int32 id = 1;
+  // Absent on the occurrence that describes the instance; equal to `id` on every later occurrence, which carries no
+  // detail and no children and means "see the node with this id".
+  optional int32 refTo = 2;
+  // Structural hash of the formula, i.e. what the cache keys on. Two nodes with the same hash are interchangeable
+  // computations, whereas two nodes with the same id are the same object - the two answer different questions.
+  int64 hash = 3;
+  // Human readable description of the formula. Absent on a back-reference node.
+  optional string description = 4;
+  // Cost the planner estimated for this formula before running anything.
+  int64 estimatedCost = 5;
+  // Cost the formula really incurred. Absent when it was never computed.
+  optional int64 actualCost = 6;
+  // Number of records the formula produced. Absent when it was never computed.
+  optional int32 resultCount = 7;
+  // Inner formulas. Always empty on a back-reference node.
+  repeated GrpcFormulaPlan children = 8;
 }
 
 // Typed numeric measurements recorded for a single query telemetry step.

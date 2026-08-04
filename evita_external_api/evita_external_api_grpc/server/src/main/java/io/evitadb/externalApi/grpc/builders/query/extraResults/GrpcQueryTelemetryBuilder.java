@@ -23,9 +23,11 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -118,6 +120,49 @@ public class GrpcQueryTelemetryBuilder {
 		// left unset for a step the engine measured nothing on, which today is every step but the root
 		if (queryTelemetry.hasMetrics()) {
 			builder.setMetrics(buildMetrics(queryTelemetry));
+		}
+		// left unset unless the query asked for the plan, in which case only the phases owning a formula carry one
+		final FormulaPlan plan = queryTelemetry.getPlan();
+		if (plan != null) {
+			builder.setPlan(buildPlan(plan));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts a formula plan node and everything below it to its gRPC representation.
+	 *
+	 * The recursion mirrors the plan's own shape, and stops of its own accord at back-reference nodes because they
+	 * carry no children - which is the point of them: a sub-formula reachable by two paths is described once and
+	 * pointed at thereafter, so a reader does not count a shared computation twice.
+	 *
+	 * Every field that is `null` on the source node is left **unset** rather than defaulted. `actualCost` and
+	 * `resultCount` are null precisely when the formula was never computed, and a rejected plan alternative never
+	 * is; defaulting them to `0` would report an unexecuted formula as one that matched nothing.
+	 *
+	 * @param plan node to convert
+	 * @return built {@link GrpcFormulaPlan}
+	 */
+	@Nonnull
+	private static GrpcFormulaPlan buildPlan(@Nonnull FormulaPlan plan) {
+		final GrpcFormulaPlan.Builder builder = GrpcFormulaPlan.newBuilder()
+			.setId(plan.id())
+			.setHash(plan.hash())
+			.setEstimatedCost(plan.estimatedCost());
+		if (plan.refTo() != null) {
+			builder.setRefTo(plan.refTo());
+		}
+		if (plan.description() != null) {
+			builder.setDescription(plan.description());
+		}
+		if (plan.actualCost() != null) {
+			builder.setActualCost(plan.actualCost());
+		}
+		if (plan.resultCount() != null) {
+			builder.setResultCount(plan.resultCount());
+		}
+		for (final FormulaPlan child : plan.children()) {
+			builder.addChildren(buildPlan(child));
 		}
 		return builder.build();
 	}

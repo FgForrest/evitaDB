@@ -145,6 +145,14 @@ class MutableFormula implements Formula {
 		return getInnerFormula().compute();
 	}
 
+	@Nullable
+	@Override
+	public Bitmap getMemoizedResult() {
+		// this formula owns no result of its own - it forwards to whichever delegate is currently installed, so
+		// the availability question has to be forwarded with it, exactly as `compute()` above forwards the work
+		return getInnerFormula().getMemoizedResult();
+	}
+
 	@Override
 	@Nonnull
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {

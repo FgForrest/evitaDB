@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.PrettyPrintable;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Formula is an atomic computational step that allows to compute result of the input {@link io.evitadb.api.query.Query}.
@@ -70,6 +71,33 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 */
 	@Nonnull
 	Bitmap compute();
+
+	/**
+	 * Returns the result of this formula **if it is already available without performing any computation**, and
+	 * `null` otherwise. This method never computes anything and never memoizes anything - it is the read-only
+	 * counterpart of {@link #compute()}.
+	 *
+	 * It exists so that a formula tree can be *described* without being *executed*. That distinction is not a
+	 * performance nicety: the planner builds one formula per candidate index and computes only the winner
+	 * (`QueryPlanner#createFilterFormula`), so anything that renders a rejected alternative by calling
+	 * {@link #compute()} would make the query do work it had deliberately decided to skip - telemetry would stop
+	 * observing the query and start changing it. The same hazard exists inside the winning plan, whose
+	 * short-circuited branches are legitimately never computed.
+	 *
+	 * Read the return value as "a result is available for free", **not** as "this formula ran during this query":
+	 * a formula served from the cache ({@link io.evitadb.core.cache.payload.FlattenedFormula}) carries its result
+	 * from the outset and reports it here, having computed nothing.
+	 *
+	 * Note there is no supported way to derive this from the cost accessors. `getCost() != Long.MAX_VALUE` happens
+	 * to correlate today, but {@link #getEstimatedCost()} returns the very same sentinel on arithmetic overflow,
+	 * so the correlation is a coincidence rather than a contract.
+	 *
+	 * @return the already available result, or `null` when producing one would require computation
+	 */
+	@Nullable
+	default Bitmap getMemoizedResult() {
+		return null;
+	}
 
 	/**
 	 * Returns a copy of this formula with replaced inner formulas. The return value also encodes a behaviour

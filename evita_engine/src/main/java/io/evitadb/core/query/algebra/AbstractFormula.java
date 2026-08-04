@@ -193,6 +193,14 @@ public abstract class AbstractFormula implements Formula {
 		return this.memoizedResult;
 	}
 
+	@Nullable
+	@Override
+	public Bitmap getMemoizedResult() {
+		// deliberately just the field - the whole point of this accessor is that reading it can never trigger
+		// `computeInternal()`, which is what lets a rejected plan be described without being executed
+		return this.memoizedResult;
+	}
+
 	@Override
 	public void clearMemory() {
 		this.memoizedResult = null;

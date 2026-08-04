@@ -130,6 +130,19 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Nullable private long[] metrics;
 	/**
+	 * Structure of the formula this phase built or ran, recorded only when the query asked for it with
+	 * {@link io.evitadb.api.query.require.QueryTelemetryContent#PLAN} - `null` on every phase otherwise, which is
+	 * every phase of every query by default.
+	 *
+	 * Where {@link #metrics} says how much and {@link #spentTime} says how long, this says *what the engine was
+	 * actually doing*. It is attached to the phases that own a formula: each `PLANNING_FILTER_ALTERNATIVE` carries
+	 * the candidate it costed (including the ones that lost), and the root carries the plan that was executed.
+	 *
+	 * Like the metrics array it stays `null` until something records into it, so a query that did not ask for the
+	 * plan allocates nothing and walks no formula tree.
+	 */
+	@Nullable @Getter private FormulaPlan plan;
+	/**
 	 * Duration of this phase in nanoseconds, covering the phase itself and everything nested below it. It stays `0`
 	 * until the step is closed through {@link #finish()} / {@link #finish(String...)}, so an unfinished step is
 	 * indistinguishable from one that genuinely took no time.
@@ -355,6 +368,31 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	public boolean hasMetrics() {
 		return this.metrics != null;
+	}
+
+	/**
+	 * Records the structure of the formula this phase built or ran.
+	 *
+	 * Recording is unrelated to the one-shot assert on {@link #finish(String...)}, so a step can carry a
+	 * description *and* its plan - the same independence {@link #recordMetric(StepMetric, long)} has.
+	 *
+	 * @param plan structure of the formula, rendered without computing anything
+	 * @return self, so recordings can be chained
+	 */
+	@Nonnull
+	public QueryTelemetry recordPlan(@Nonnull FormulaPlan plan) {
+		this.plan = plan;
+		return this;
+	}
+
+	/**
+	 * Returns true when a formula plan was recorded on this step, which happens only for a query that asked for it
+	 * with {@link io.evitadb.api.query.require.QueryTelemetryContent#PLAN}.
+	 *
+	 * @return true when this step carries a formula plan
+	 */
+	public boolean hasPlan() {
+		return this.plan != null;
 	}
 
 	/**

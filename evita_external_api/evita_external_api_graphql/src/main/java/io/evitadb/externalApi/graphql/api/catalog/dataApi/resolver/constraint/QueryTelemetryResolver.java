@@ -25,7 +25,9 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -64,6 +66,14 @@ public class QueryTelemetryResolver {
 		if (queryTelemetryFields.isEmpty()) {
 			return Optional.empty();
 		}
-		return Optional.of(queryTelemetry());
+		// the formula plan is opted into by selecting it, rather than by a field argument. The constraint is
+		// synthesised from the selection set to begin with - there is no client-supplied `queryTelemetry()` here to
+		// hang an argument off - and asking for a field is already an unambiguous statement that you want it. It
+		// also keeps the guarantee the argument exists for: a client that does not select `plan` never pays for one
+		final boolean planRequested = queryTelemetryFields.stream()
+			.anyMatch(it -> it.getSelectionSet().contains(QueryTelemetryNodeDescriptor.PLAN.name()));
+		return Optional.of(
+			planRequested ? queryTelemetry(QueryTelemetryContent.PLAN) : queryTelemetry()
+		);
 	}
 }

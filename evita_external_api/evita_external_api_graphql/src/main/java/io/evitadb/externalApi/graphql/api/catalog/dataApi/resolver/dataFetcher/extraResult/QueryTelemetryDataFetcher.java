@@ -23,31 +23,33 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryTelemetryNodeDto;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
+import java.util.List;
+import java.util.Objects;
 
 /**
- * Extract {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} DTO from response's extra results and
- * converts it to JSON.
+ * Extracts the {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} tree from the response's extra
+ * results and publishes it as the flat, pre-order list of nodes this API declares - see
+ * {@link io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor}.
+ *
+ * The conversion goes through {@link QueryTelemetryDto} rather than reading the engine object directly, so that the
+ * `start` normalization, the derived self time and the reshaped metrics are computed in exactly one place and REST
+ * and GraphQL cannot disagree about them. Only the nesting is undone here.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class QueryTelemetryDataFetcher implements DataFetcher<JsonNode> {
-
-	// TOBEDONE LHO: use some shared object mapper
-	private static final ObjectMapper QUERY_TELEMETRY_OBJECT_MAPPER = new ObjectMapper();
+public class QueryTelemetryDataFetcher implements DataFetcher<List<QueryTelemetryNodeDto>> {
 
 	@Nullable
 	private static QueryTelemetryDataFetcher INSTANCE;
@@ -62,11 +64,12 @@ public class QueryTelemetryDataFetcher implements DataFetcher<JsonNode> {
 
 	@Nullable
 	@Override
-	public JsonNode get(DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public List<QueryTelemetryNodeDto> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final QueryTelemetry queryTelemetry = response.getExtraResult(QueryTelemetry.class);
-		return Optional.ofNullable(queryTelemetry)
-			.map(it -> (JsonNode) QUERY_TELEMETRY_OBJECT_MAPPER.valueToTree(QueryTelemetryDto.from(it)))
-			.orElse(null);
+		if (queryTelemetry == null) {
+			return null;
+		}
+		return QueryTelemetryNodeDto.flatten(QueryTelemetryDto.from(queryTelemetry));
 	}
 }

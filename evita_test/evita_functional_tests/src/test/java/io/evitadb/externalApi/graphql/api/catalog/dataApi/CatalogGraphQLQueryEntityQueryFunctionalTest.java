@@ -39,12 +39,10 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PriceRangeForSale;
-import io.evitadb.api.requestResponse.data.PriceRangeForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -86,6 +84,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.GraphQLExtraResultsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.InScopeDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -10350,10 +10349,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return query telemetry with typed metrics")
 	void shouldReturnQueryTelemetry(GraphQLTester tester) {
-		// `queryTelemetry` is declared as an opaque OBJECT scalar - GraphQL has no infinite recursive structures -
-		// so the field takes no sub-selection and the whole tree arrives as a JSON blob serialized straight from
-		// `QueryTelemetryDto`. Nothing in the GraphQL schema describes its contents, which is exactly why the shape
-		// has to be pinned here: there is no type for a schema test to catch a regression with.
+		// GraphQL publishes the telemetry tree flattened into a pre-order list of typed nodes carrying `level`,
+		// because the client - not the server - decides how deep it selects and a recursive `steps` field would
+		// silently truncate anything deeper than the selection set happens to reach. The list therefore starts at
+		// the root and its every subsequent entry is a descendant of the closest preceding entry with a lower level.
+		//
+		// Note the durations arrive as JSON *strings*: `Long` is a custom GraphQL scalar here (`LongCoercing`) that
+		// serializes to a string so that values beyond 2^53 survive a JavaScript client intact.
 		tester.test(TEST_CATALOG)
 			.document("""
 				{
@@ -10364,60 +10366,92 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							}
 						}
 						extraResults {
-							queryTelemetry
+							queryTelemetry {
+								level
+								operation
+								start
+								arguments
+								spentTime
+								formattedSpentTime
+								selfTime
+								formattedSelfTime
+								stepsCount
+								startedAt
+								metrics {
+									recordsReturned
+									actualCardinality
+									estimatedCardinality
+									prefetched
+								}
+							}
 						}
 					}
 				}
 				""")
 			.executeAndExpectOkAndThen()
-			.body(telemetryPath(QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
+			// a profile always has at least its root, and this query is decomposed well beyond that
+			.body(telemetryPath(), hasSize(greaterThan(1)))
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.LEVEL), equalTo(1))
+			.body(telemetryPath(0, QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
 			// the root is the zero point every other node is expressed against, so it reports exactly 0
-			.body(telemetryPath(QueryTelemetryDescriptor.START), equalTo(0))
-			.body(telemetryPath(QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
-			.body(telemetryPath(QueryTelemetryDescriptor.SELF_TIME), notNullValue())
-			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
-			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.START), equalTo("0"))
+			.body(telemetryPath(0, QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.SELF_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
 			// only the root is stamped with the wall-clock instant that anchors the tree in time
-			.body(telemetryPath(QueryTelemetryDescriptor.STARTED_AT), notNullValue())
-			.body(telemetryPath(QueryTelemetryDescriptor.STEPS), hasSize(greaterThan(0)))
+			.body(telemetryPath(0, QueryTelemetryDescriptor.STARTED_AT), notNullValue())
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.STEPS_COUNT), greaterThan(0))
 			// the page size is the one metric this query pins exactly; the rest depend on the data and the plan
 			.body(
-				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
-				equalTo(5)
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
+				equalTo("5")
 			)
 			.body(
-				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
 				notNullValue()
 			)
 			.body(
-				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY),
+				telemetryPath(
+					0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY
+				),
 				notNullValue()
 			)
 			// the flag must arrive as a JSON boolean - the engine packs it as 1/0 internally, and shipping that
 			// packing would push the decoding onto every client
 			.body(
-				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
+				telemetryPath(0, QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
 				instanceOf(Boolean.class)
 			)
+			// the node right after the root is its first child, which is what makes the pre-order claim testable
+			.body(telemetryPath(1, QueryTelemetryNodeDescriptor.LEVEL), equalTo(2))
 			// metrics describe the query as a whole and belong to the root alone
-			.body(
-				telemetryPath(QueryTelemetryDescriptor.STEPS) + "[0]." + QueryTelemetryDescriptor.METRICS.name(),
-				nullValue()
-			);
+			.body(telemetryPath(1, QueryTelemetryDescriptor.METRICS), nullValue());
 	}
 
 	/**
-	 * Builds the response body path of a property of the query telemetry root.
+	 * Builds the response body path of the whole query telemetry list.
 	 *
-	 * @param properties path of the property below the telemetry root
 	 * @return the full response path
 	 */
 	@Nonnull
-	private String telemetryPath(@Nonnull Object... properties) {
-		final String root = resultPath(
+	private String telemetryPath() {
+		return resultPath(
 			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.QUERY_TELEMETRY
 		);
-		return properties.length == 0 ? root : root + "." + resultPath(properties);
+	}
+
+	/**
+	 * Builds the response body path of a property of a single query telemetry node.
+	 *
+	 * @param index      position of the node in the flattened, pre-order telemetry list - `0` being the root
+	 * @param properties path of the property below that node
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath(int index, @Nonnull Object... properties) {
+		final String node = telemetryPath() + "[" + index + "]";
+		return properties.length == 0 ? node : node + "." + resultPath(properties);
 	}
 
 	/**

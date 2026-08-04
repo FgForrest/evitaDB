@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
@@ -59,10 +60,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
@@ -72,10 +73,10 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -90,7 +91,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -101,6 +101,10 @@ import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_H
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static io.evitadb.utils.MapBuilder.map;
@@ -108,10 +112,6 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.REST;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for REST catalog entity list query.
@@ -5324,6 +5324,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		// asserted over the wire rather than on the DTO, because the schema, the serializer and the DTO are three
 		// separate things and only this exercises all three - a property the OpenAPI document declares but the
 		// serializer never emits would pass every unit test and still break every generated client
+		//
+		// note the require shape: `queryTelemetry` used to be `true`, the form a constraint with no arguments
+		// takes. It now carries a `QueryTelemetryContent` level, and a single-argument constraint is published
+		// unwrapped - as the bare value, not an object around it. `"TIMINGS"` is the default this asserts;
+		// `"PLAN"` additionally asks for the formula plan. This is one of the breaking changes issue #1341
+		// accepts, and it is deliberate rather than a compatible workaround layered over a shape that was going
+		// to have to change anyway
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
@@ -5334,7 +5341,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				             			"number": 1,
 				             			"size": 5
 				             		},
-				             		"queryTelemetry": true
+				             		"queryTelemetry": "TIMINGS"
 				             	}
 				             }
 				             """)
@@ -5437,10 +5444,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		if (value.length() >= reference.length()) {
 			return value;
 		}
-		final StringBuilder padded = new StringBuilder(reference.length());
-		padded.append("0".repeat(reference.length() - value.length()));
-		padded.append(value);
-		return padded.toString();
+		return "0".repeat(reference.length() - value.length()) + value;
 	}
 
 	@Nonnull

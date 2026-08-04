@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaPlanVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.NoSorter;
@@ -454,6 +455,14 @@ public class QueryPlan {
 			// an unrecorded metric, not as a nine-quintillion cost on somebody's dashboard
 			recordCostIfKnown(telemetryRoot, StepMetric.ESTIMATED_COST, this.filter.getEstimatedCost());
 			recordCostIfKnown(telemetryRoot, StepMetric.ACTUAL_COST, this.filter.getCost());
+
+			// the plan that actually ran, recorded here rather than during planning on purpose: by now the winning
+			// formula has been computed, so its nodes can report the result counts and real costs the alternatives
+			// recorded at planning time necessarily could not. Rendering still computes nothing - a branch the
+			// formula short-circuited past is legitimately unmemoized and is reported as such
+			if (executionContext.isTelemetryPlanCollected()) {
+				telemetryRoot.recordPlan(FormulaPlanVisitor.toPlan(this.filter));
+			}
 		}
 	}
 

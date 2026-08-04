@@ -612,6 +612,20 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
+	 * Returns true when telemetry recorded through this context is kept **and** the query asked for the formula
+	 * plan - the guard every caller that would otherwise walk a formula tree has to consult first.
+	 *
+	 * It is deliberately stricter than {@link #isTelemetryCollected()}: rendering a plan is O(formula nodes) of
+	 * structure building, so plain `queryTelemetry()` must not pay for it. Telemetry being collected is necessary
+	 * but not sufficient.
+	 *
+	 * @return true when a formula plan recorded through this context ends up in the response
+	 */
+	public boolean isTelemetryPlanCollected() {
+		return isTelemetryCollected() && this.queryContext.getEvitaRequest().isQueryTelemetryPlanRequested();
+	}
+
+	/**
 	 * Finalizes telemetry data by stopping the timer - closing every step still open, root included, so the tree
 	 * already handed to the response carries complete timings.
 	 *

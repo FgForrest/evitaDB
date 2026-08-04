@@ -27,6 +27,9 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,6 +52,33 @@ public class QueryTelemetryConverter extends RequireConverter {
 			return;
 		}
 
-		extraResultsBuilder.addPrimitiveField(ExtraResultsDescriptor.QUERY_TELEMETRY);
+		// the telemetry field is a typed object rather than an opaque scalar, so it needs an explicit selection
+		// set; the tree arrives flattened, which is why `level` and `stepsCount` are selected in place of `steps`
+		extraResultsBuilder.addObjectField(
+			ExtraResultsDescriptor.QUERY_TELEMETRY,
+			telemetryBuilder -> telemetryBuilder
+				.addPrimitiveField(QueryTelemetryNodeDescriptor.LEVEL)
+				.addPrimitiveField(QueryTelemetryDescriptor.OPERATION)
+				.addPrimitiveField(QueryTelemetryDescriptor.START)
+				.addPrimitiveField(QueryTelemetryDescriptor.ARGUMENTS)
+				.addPrimitiveField(QueryTelemetryDescriptor.SPENT_TIME)
+				.addPrimitiveField(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME)
+				.addPrimitiveField(QueryTelemetryDescriptor.SELF_TIME)
+				.addPrimitiveField(QueryTelemetryDescriptor.FORMATTED_SELF_TIME)
+				.addPrimitiveField(QueryTelemetryNodeDescriptor.STEPS_COUNT)
+				.addPrimitiveField(QueryTelemetryDescriptor.STARTED_AT)
+				.addObjectField(
+					QueryTelemetryDescriptor.METRICS,
+					metricsBuilder -> metricsBuilder
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.ESTIMATED_COST)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.ACTUAL_COST)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.RECORDS_RETURNED)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.IO_FETCH_COUNT)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.IO_FETCHED_SIZE_BYTES)
+						.addPrimitiveField(QueryTelemetryMetricsDescriptor.PREFETCHED)
+				)
+		);
 	}
 }

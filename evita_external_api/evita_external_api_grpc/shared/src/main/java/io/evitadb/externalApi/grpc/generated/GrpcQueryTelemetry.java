@@ -351,6 +351,50 @@ private static final long serialVersionUID = 0L;
     return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
   }
 
+  public static final int PLAN_FIELD_NUMBER = 9;
+  private io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan_;
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return Whether the plan field is set.
+   */
+  @java.lang.Override
+  public boolean hasPlan() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   * @return The plan.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan() {
+    return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+  }
+  /**
+   * <pre>
+   * Structure of the formula this phase built or ran. Present only when the query asked for it with
+   * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+   * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder() {
+    return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -388,6 +432,9 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00000002) != 0)) {
       output.writeMessage(8, getMetrics());
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(9, getPlan());
     }
     getUnknownFields().writeTo(output);
   }
@@ -434,6 +481,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(8, getMetrics());
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(9, getPlan());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -469,6 +520,11 @@ private static final long serialVersionUID = 0L;
     if (hasMetrics()) {
       if (!getMetrics()
           .equals(other.getMetrics())) return false;
+    }
+    if (hasPlan() != other.hasPlan()) return false;
+    if (hasPlan()) {
+      if (!getPlan()
+          .equals(other.getPlan())) return false;
     }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
@@ -507,6 +563,10 @@ private static final long serialVersionUID = 0L;
     if (hasMetrics()) {
       hash = (37 * hash) + METRICS_FIELD_NUMBER;
       hash = (53 * hash) + getMetrics().hashCode();
+    }
+    if (hasPlan()) {
+      hash = (37 * hash) + PLAN_FIELD_NUMBER;
+      hash = (53 * hash) + getPlan().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -645,6 +705,7 @@ private static final long serialVersionUID = 0L;
         getStepsFieldBuilder();
         getStartedAtFieldBuilder();
         getMetricsFieldBuilder();
+        getPlanFieldBuilder();
       }
     }
     @java.lang.Override
@@ -673,6 +734,11 @@ private static final long serialVersionUID = 0L;
       if (metricsBuilder_ != null) {
         metricsBuilder_.dispose();
         metricsBuilder_ = null;
+      }
+      plan_ = null;
+      if (planBuilder_ != null) {
+        planBuilder_.dispose();
+        planBuilder_ = null;
       }
       return this;
     }
@@ -748,6 +814,12 @@ private static final long serialVersionUID = 0L;
             ? metrics_
             : metricsBuilder_.build();
         to_bitField0_ |= 0x00000002;
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
+        result.plan_ = planBuilder_ == null
+            ? plan_
+            : planBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -850,6 +922,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasMetrics()) {
         mergeMetrics(other.getMetrics());
       }
+      if (other.hasPlan()) {
+        mergePlan(other.getPlan());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -929,6 +1004,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000080;
               break;
             } // case 66
+            case 74: {
+              input.readMessage(
+                  getPlanFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000100;
+              break;
+            } // case 74
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1979,6 +2061,181 @@ private static final long serialVersionUID = 0L;
         metrics_ = null;
       }
       return metricsBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder> planBuilder_;
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     * @return Whether the plan field is set.
+     */
+    public boolean hasPlan() {
+      return ((bitField0_ & 0x00000100) != 0);
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     * @return The plan.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan getPlan() {
+      if (planBuilder_ == null) {
+        return plan_ == null ? io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+      } else {
+        return planBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder setPlan(io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan value) {
+      if (planBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        plan_ = value;
+      } else {
+        planBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder setPlan(
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder builderForValue) {
+      if (planBuilder_ == null) {
+        plan_ = builderForValue.build();
+      } else {
+        planBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder mergePlan(io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan value) {
+      if (planBuilder_ == null) {
+        if (((bitField0_ & 0x00000100) != 0) &&
+          plan_ != null &&
+          plan_ != io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance()) {
+          getPlanBuilder().mergeFrom(value);
+        } else {
+          plan_ = value;
+        }
+      } else {
+        planBuilder_.mergeFrom(value);
+      }
+      if (plan_ != null) {
+        bitField0_ |= 0x00000100;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public Builder clearPlan() {
+      bitField0_ = (bitField0_ & ~0x00000100);
+      plan_ = null;
+      if (planBuilder_ != null) {
+        planBuilder_.dispose();
+        planBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder getPlanBuilder() {
+      bitField0_ |= 0x00000100;
+      onChanged();
+      return getPlanFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder getPlanOrBuilder() {
+      if (planBuilder_ != null) {
+        return planBuilder_.getMessageOrBuilder();
+      } else {
+        return plan_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.getDefaultInstance() : plan_;
+      }
+    }
+    /**
+     * <pre>
+     * Structure of the formula this phase built or ran. Present only when the query asked for it with
+     * queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+     * carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan plan = 9;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder> 
+        getPlanFieldBuilder() {
+      if (planBuilder_ == null) {
+        planBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlan.Builder, io.evitadb.externalApi.grpc.generated.GrpcFormulaPlanOrBuilder>(
+                getPlan(),
+                getParentForChildren(),
+                isClean());
+        plan_ = null;
+      }
+      return planBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

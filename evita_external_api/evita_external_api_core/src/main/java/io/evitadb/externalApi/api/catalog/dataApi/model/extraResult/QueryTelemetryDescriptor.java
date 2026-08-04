@@ -164,6 +164,23 @@ public interface QueryTelemetryDescriptor {
 			""")
 		.type(nullableRef(QueryTelemetryMetricsDescriptor.THIS))
 		.build();
+
+	/**
+	 * Structure of the formula this phase built or ran, published only for a query that asked for it with
+	 * `queryTelemetry(PLAN)`. It is nullable twice over: null on every phase of a query that did not ask, and null
+	 * on the phases of one that did but that own no formula.
+	 */
+	PropertyDescriptor PLAN = PropertyDescriptor.builder()
+		.name("plan")
+		.description("""
+			Structure of the formula the query engine built for this phase - what it was computing, as opposed to
+			how long that took. Present only when the query asked for it with `queryTelemetry(PLAN)`, and then only
+			on the phases that own a formula: each index-selection alternative carries the candidate it costed
+			(including the ones that lost), and the root carries the plan that actually ran.
+			""")
+		.type(nullableRef(FormulaPlanDescriptor.THIS))
+		.build();
+
 	/**
 	 * The one value in the object that is an absolute point in time rather than a duration or an offset, which is
 	 * why it is a string in ISO-8601 form and not a number. Nullable because only the root step carries it - every
@@ -198,7 +215,7 @@ public interface QueryTelemetryDescriptor {
 			List.of(
 				OPERATION, START, STEPS, ARGUMENTS,
 				SPENT_TIME, FORMATTED_SPENT_TIME, SELF_TIME, FORMATTED_SELF_TIME,
-				METRICS, STARTED_AT
+				METRICS, PLAN, STARTED_AT
 			)
 		)
 		.build();
