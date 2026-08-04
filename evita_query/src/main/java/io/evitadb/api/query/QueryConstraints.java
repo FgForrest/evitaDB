@@ -364,7 +364,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Separates user-controlled filters (e.g., facets, price ranges) from mandatory system constraints, enabling the query engine to relax or exclude these filters during facet summary and histogram computations for broader result statistics. Forbidden children include locale, price context, hierarchy, reference filters, and nested userFilter to ensure consistent semantics.
+	 * Separates user-controlled filters (e.g., selected facets, price ranges) from mandatory system constraints, enabling EvitaDB to temporarily relax or exclude these conditions during facet summary and histogram computations for broader result statistics. Forbids nesting of certain context-defining constraints inside. 
 	 *
 	 * ```evitaql
 	 * userFilter(
@@ -378,7 +378,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.UserFilter
 	 */
-	@SourceHash("8a9c25cfa49ae405d36dd1d17b10542e")
+	@SourceHash("f424d22c8bc862ad368c959a6ab7871d")
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
 		if (constraints == null) {
@@ -884,7 +884,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters based on attributes or properties of the group entity associated with a reference, shifting the filtering scope from the reference or referenced entity to the group entity. Use only within `referenceHaving` or `facetHaving`. Accepts a single filter constraint; combine multiple conditions with logical containers like `and` or `or`.
+	 * Filters referenced group entities (e.g., a Store grouping brands) by their attributes or properties within a reference context. Use only inside `referenceHaving` or `facetHaving` to target group entity fields, not the reference or referenced entity itself. Accepts any valid entity filter constraint; combine multiple conditions with logical containers.
 	 *
 	 * ```evitaql
 	 * referenceHaving(
@@ -899,7 +899,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.GroupHaving
 	 */
-	@SourceHash("f61398e58d2ef2cbf7c00de2f2309b6b")
+	@SourceHash("ef3d6b5ae4ac15b65f6b1db4c0748682")
 	@Nullable
 	static GroupHaving groupHaving(@Nullable FilterConstraint filterConstraint) {
 		return filterConstraint == null ? null : new GroupHaving(filterConstraint);
@@ -1183,32 +1183,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific `[from, to]` range. Inside `userFilter` it both narrows the result
-	 * set and acts as a range carrier so the histogram's own baseline does not contract under the user's slider
-	 * handles. Outside `userFilter` it behaves identically to a `referenceHaving(...)` rewrite.
-	 *
-	 * This overload targets a reference that hosts exactly one histogram and has no group slot. Use the overloads
-	 * with `histogramName` / `groupSelector` to disambiguate multi-histogram references or to select a specific
-	 * group slot (e.g. `height` vs. `weight` on `parameterValues`).
-	 *
-	 * ```evitaql
-	 * userFilter(
-	 *     histogramHaving("price-range", 50, 120)
-	 * )
-	 * ```
-	 *
-	 * At least one of {@code from} / {@code to} must be non-null; the factory returns {@code null} when the
-	 * reference name is missing or both bounds are null, allowing call-sites to pass this through conditional
-	 * filter assembly.
+	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for the given reference, enabling slider-driven range selection on reference attributes. At least one bound must be non-null, and `from` must not exceed `to`. Used in `userFilter`, it also acts as a range carrier for histogram baseline calculations, ensuring sibling sliders remain independent. Bounds are accepted as any `Number` and converted to `BigDecimal` internally.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
-	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
-	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
-	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
+	@SourceHash("2b7a7f8f53f807a8aa4b84eb6980155a")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
 		@Nullable String referenceName,
@@ -1222,11 +1203,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Narrows a reference histogram identified by {@code histogramName} to a specific `[from, to]` range.
-	 *
-	 * Use this overload when the reference hosts multiple histograms distinguished by name (e.g. `basicUnitValue`
-	 * for product parameter values). Inside `userFilter` it both narrows the result set and acts as a range carrier
-	 * so the histogram's own baseline does not contract.
+	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for a given reference and histogram name, supporting slider-driven range selection on references with multiple histograms. Both bounds must not be null and `from` must be ≤ `to`. Used primarily in `userFilter` for precise histogram filtering and baseline management.
 	 *
 	 * ```evitaql
 	 * userFilter(
@@ -1236,13 +1213,9 @@ public interface QueryConstraints {
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
-	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
-	 * @param histogramName the histogram name within the reference; may be null for single-histogram references
-	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
-	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
+	@SourceHash("db105f6493a6c733785d809bf81a2261")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
 		@Nullable String referenceName,
@@ -1257,29 +1230,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Narrows a reference histogram to a specific `[from, to]` range within the group slot identified by the given
-	 * group selector.
-	 *
-	 * Use this overload for grouped histograms when the reference hosts a single histogram per group (no
-	 * histogram-name disambiguation needed). The group selector must be a single {@code groupHaving(...)}
-	 * constraint that resolves to exactly one group entity.
+	 * Narrows a reference histogram to a specific `[from, to]` range (inclusive) for a given reference and group, enabling precise slider-driven filtering on grouped histograms (e.g., selecting a height or weight range within `parameterValues`). At least one bound must be non-null, and if both are set, `from` must not exceed `to`. Used inside `userFilter`, it also acts as a range carrier for proper histogram baseline computation. Bounds accept any `Number` and are handled as `BigDecimal` internally.
 	 *
 	 * ```evitaql
 	 * userFilter(
-	 *     histogramHaving("parameterValues", 50, 120,
-	 *         groupHaving(attributeEquals("code", "height")))
+	 *     histogramHaving(
+	 *         "parameterValues", 50, 120,
+	 *         groupHaving(attributeEquals("code", "height"))
+	 *     )
 	 * )
 	 * ```
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
-	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
-	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
-	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @param groupHaving   optional single {@code groupHaving} constraint selecting the group slot; may be null
-	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
+	@SourceHash("82bf71b55acf1edf8cb47d9a95ce7dfa")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
 		@Nullable String referenceName,
@@ -1294,32 +1260,22 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Narrows a reference histogram identified by {@code histogramName} to a specific `[from, to]` range within the
-	 * group slot identified by the given group selector. This is the full-arity form of {@code histogramHaving}.
-	 *
-	 * Two independent ranges on the same reference are expressed by placing two `histogramHaving` siblings inside
-	 * the same `userFilter`, each targeting a different group. Inside `userFilter` each call acts as a range
-	 * carrier so a slider never contracts the `[min, max]` span of its sibling sliders.
+	 * Narrows a reference histogram to a specific inclusive `[from, to]` range, optionally within a selected group for grouped histograms. Used in `userFilter`, it acts as both a filter and a range carrier for independent slider-driven selection, ensuring sibling sliders retain their full `[min, max]` span. Accepts any numeric type; at least one bound must be non-null, and `from` must not exceed `to`. 
 	 *
 	 * ```evitaql
 	 * userFilter(
-	 *     histogramHaving("parameterValues", "basicUnitValue", 50, 120,
-	 *         groupHaving(attributeEquals("code", "height"))),
-	 *     histogramHaving("parameterValues", "basicUnitValue", 90, 140,
-	 *         groupHaving(attributeEquals("code", "weight")))
+	 *     histogramHaving(
+	 *         "parameterValues", "basicUnitValue",
+	 *         50, 120,
+	 *         groupHaving(attributeEquals("code", "height"))
+	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
 	 *
-	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
-	 * @param histogramName the histogram name within the reference; may be null for single-histogram references
-	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
-	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @param groupHaving   optional single {@code groupHaving} constraint selecting the group slot; may be null
-	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
+	@SourceHash("a7340689bfe77b9c99ed12a560435981")
 	@Nullable
 	static <T extends Number> HistogramHaving histogramHaving(
 		@Nullable String referenceName,
@@ -1469,102 +1425,90 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * The `entityPrimaryKeyGreaterThan` constraint filters the returned entities to only those whose primary key
-	 * is strictly greater than the specified value.
+	 * Filters entities to only those with a primary key strictly greater than the specified value, enabling efficient pagination or range queries based on entity identifiers.
 	 *
-	 * Example:
+	 * ```evitaql
+	 * filterBy(
+	 *   entityPrimaryKeyGreaterThan(100)
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than)
 	 *
-	 * <pre>
-	 * entityPrimaryKeyGreaterThan(100)
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than">Visit detailed user documentation</a></p>
-	 *
-	 * @param primaryKey the threshold value (exclusive lower bound), or null to skip the constraint
-	 * @return the constraint instance, or null if the primaryKey is null
-	*/
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThan
+	 */
+	@SourceHash("bb659041d776dea0de9c5ac777b9437a")
 	@Nullable
 	static EntityPrimaryKeyGreaterThan entityPrimaryKeyGreaterThan(@Nullable Integer primaryKey) {
 		return primaryKey == null ? null : new EntityPrimaryKeyGreaterThan(primaryKey);
 	}
 
 	/**
-	 * The `entityPrimaryKeyGreaterThanEquals` constraint filters the returned entities to only those whose primary key
-	 * is greater than or equal to the specified value.
+	 * Filters entities to include only those with a primary key greater than or equal to the specified value, enabling efficient pagination or range queries based on entity identifiers.
 	 *
-	 * Example:
+	 * ```evitaql
+	 * filterBy(
+	 *   entityPrimaryKeyGreaterThanEquals(100)
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than-equals)
 	 *
-	 * <pre>
-	 * entityPrimaryKeyGreaterThanEquals(100)
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than-equals">Visit detailed user documentation</a></p>
-	 *
-	 * @param primaryKey the threshold value (inclusive lower bound), or null to skip the constraint
-	 * @return the constraint instance, or null if the primaryKey is null
-	*/
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThanEquals
+	 */
+	@SourceHash("a4fc3dd7946a2bdc1a206bc0c2923f93")
 	@Nullable
 	static EntityPrimaryKeyGreaterThanEquals entityPrimaryKeyGreaterThanEquals(@Nullable Integer primaryKey) {
 		return primaryKey == null ? null : new EntityPrimaryKeyGreaterThanEquals(primaryKey);
 	}
 
 	/**
-	 * The `entityPrimaryKeyLessThan` constraint filters the returned entities to only those whose primary key
-	 * is strictly less than the specified value.
+	 * Filters entities to only those with a primary key strictly less than the specified value. Useful for pagination or retrieving entities in a specific key range.
 	 *
-	 * Example:
+	 * ```evitaql
+	 * filterBy(
+	 *   entityPrimaryKeyLessThan(100)
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than)
 	 *
-	 * <pre>
-	 * entityPrimaryKeyLessThan(100)
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than">Visit detailed user documentation</a></p>
-	 *
-	 * @param primaryKey the threshold value (exclusive upper bound), or null to skip the constraint
-	 * @return the constraint instance, or null if the primaryKey is null
-	*/
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyLessThan
+	 */
+	@SourceHash("181fcd269ad2caca457827cec3215959")
 	@Nullable
 	static EntityPrimaryKeyLessThan entityPrimaryKeyLessThan(@Nullable Integer primaryKey) {
 		return primaryKey == null ? null : new EntityPrimaryKeyLessThan(primaryKey);
 	}
 
 	/**
-	 * The `entityPrimaryKeyLessThanEquals` constraint filters the returned entities to only those whose primary key
-	 * is less than or equal to the specified value.
+	 * Filters entities to include only those with a primary key less than or equal to the specified value, enabling efficient range queries based on entity identifiers.
 	 *
-	 * Example:
+	 * ```evitaql
+	 * filterBy(
+	 *   entityPrimaryKeyLessThanEquals(100)
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than-equals)
 	 *
-	 * <pre>
-	 * entityPrimaryKeyLessThanEquals(100)
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than-equals">Visit detailed user documentation</a></p>
-	 *
-	 * @param primaryKey the threshold value (inclusive upper bound), or null to skip the constraint
-	 * @return the constraint instance, or null if the primaryKey is null
-	*/
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyLessThanEquals
+	 */
+	@SourceHash("3262fdd17f5cf9f15e08bf9c66a85679")
 	@Nullable
 	static EntityPrimaryKeyLessThanEquals entityPrimaryKeyLessThanEquals(@Nullable Integer primaryKey) {
 		return primaryKey == null ? null : new EntityPrimaryKeyLessThanEquals(primaryKey);
 	}
 
 	/**
-	 * The `entityPrimaryKeyBetween` constraint filters the returned entities to only those whose primary key
-	 * falls within the specified inclusive range. Either bound can be null to represent an open-ended range,
-	 * but at least one bound must be non-null.
+	 * Filters entities to those whose primary key is within the specified inclusive range; at least one of `from` or `to` must be non-null. Useful for paginating or restricting results by primary key intervals.
 	 *
-	 * Example:
+	 * ```evitaql
+	 * filterBy(
+	 *   entityPrimaryKeyBetween(10, 100)
+	 * )
+	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-between)
 	 *
-	 * <pre>
-	 * entityPrimaryKeyBetween(10, 100)
-	 * </pre>
-	 *
-	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-between">Visit detailed user documentation</a></p>
-	 *
-	 * @param from the lower bound of the range (inclusive), or null for unbounded lower
-	 * @param to   the upper bound of the range (inclusive), or null for unbounded upper
-	 * @return the constraint instance, or null if both from and to are null
-	*/
+	 * @see io.evitadb.api.query.filter.EntityPrimaryKeyBetween
+	 */
+	@SourceHash("5885b9b54b0893c1c3dfc0e09cef5022")
 	@Nullable
 	static EntityPrimaryKeyBetween entityPrimaryKeyBetween(@Nullable Integer from, @Nullable Integer to) {
 		if (from == null && to == null) {
@@ -2322,16 +2266,17 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary.
-	 * Used as a child of `referenceSummary` or `referenceSummaryOfReference` to request per-group histogram data
-	 * alongside facet statistics. Requires at least one histogram index name. Uses STANDARD bucket behavior by default.
+	 * Requests computation of histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of equal-width buckets (including empty ones by default). At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
 	 * histogramStatistics(20, "priceIndex")
 	 * ```
 	 *
-	 * @see ReferenceHistogramStatistics
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
+	@SourceHash("aa5b5b39a2ff5a19d1ef441ea67a737f")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable String... indexNames) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
@@ -2341,15 +2286,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary.
-	 * Supports custom bucket behavior (standard, optimized, equalized). Requires at least one histogram index name.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets with configurable behavior for bucket boundaries and empty-bucket handling. Each index name yields a separate histogram; at least one must be provided. Optionally, referenced entities can be fetched alongside the statistics.
 	 *
 	 * ```evitaql
-	 * histogramStatistics(20, OPTIMIZED, "priceIndex", "ratingIndex")
+	 * referenceSummary(
+	 *     histogramStatistics(10, OPTIMIZED, "priceIndex", "ratingIndex")
+	 * )
 	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
-	 * @see ReferenceHistogramStatistics
+	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
+	@SourceHash("c3c6826eacb3df2ead2464dcdfcc1bf5")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
@@ -2359,16 +2307,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary,
-	 * including richness definition of referenced entities via the provided `entityFetch`. Requires at least one
-	 * histogram index name. Uses STANDARD bucket behavior by default.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, producing the specified number of buckets for each index. Optionally, fetches referenced entities alongside the histogram data. At least one index name must be provided; otherwise, the constraint is ignored.
 	 *
 	 * ```evitaql
-	 * histogramStatistics(20, entityFetch(attributeContent("name")), "priceIndex")
+	 * referenceSummary(
+	 *     histogramStatistics(20, entityFetch(attributeContentAll()), "priceIndex")
+	 * )
 	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
-	 * @see ReferenceHistogramStatistics
+	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
+	@SourceHash("f4ed0e832e6de0ee7c9a3e9a6b50d4ab")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch, @Nullable String... indexNames) {
 		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
@@ -2378,16 +2328,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary,
-	 * with a custom bucket behavior and a richness definition of referenced entities via the provided `entityFetch`.
-	 * Requires at least one histogram index name.
+	 * Requests histogram statistics for one or more named histogram indexes within a reference summary, specifying the number of buckets, histogram behavior (e.g., empty bucket suppression, frequency equalization), and optionally fetching referenced entities. Ignored if no index names are provided.
 	 *
 	 * ```evitaql
-	 * histogramStatistics(20, OPTIMIZED, entityFetch(attributeContent("name")), "priceIndex")
+	 * referenceSummary(
+	 *     histogramStatistics(20, OPTIMIZED, entityFetch(attributeContent()), "priceIndex")
+	 * )
 	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#histogram-statistics)
 	 *
-	 * @see ReferenceHistogramStatistics
+	 * @see io.evitadb.api.query.require.ReferenceHistogramStatistics
 	 */
+	@SourceHash("e833d9e89392c7a9c82e655dfa61e2d3")
 	@Nullable
 	static ReferenceHistogramStatistics histogramStatistics(
 		int requestedBucketCount,
@@ -3516,7 +3468,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Limits hierarchy traversal to nodes within the specified number of edge hops from the pivot node, regardless of traversal direction. Use this to fetch relatives at a distance relative to the pivot's position (e.g., direct children with distance 1, or just the pivot itself with distance 0). Must be used as the sole inner constraint of `HierarchyStopAt`. Distance must be zero or greater.
+	 * Limits hierarchy traversal to nodes within the specified number of edge hops from the pivot node, counting both up and down the tree. A distance of 0 returns only the pivot; 1 returns direct children or parent, and so on. Use only as the inner constraint of `stopAt` for relative traversal depth. Not to be confused with absolute-level or filter-based stopping.
 	 *
 	 * ```evitaql
 	 * stopAt(distance(1))
@@ -3526,7 +3478,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.HierarchyDistance
 	 */
-	@SourceHash("73e82857c4cea06ef70cdf777618f9f1")
+	@SourceHash("eeba1b60b2dd7e622e5f72c51dfcd85e")
 	@Nullable
 	static HierarchyDistance distance(@Nullable Integer distance) {
 		return distance == null ? null : new HierarchyDistance(distance);
@@ -12158,31 +12110,33 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, providing counts of matching entities for each reference option and group. Only entities matching the current query are included. Use for basic faceted navigation UIs.
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts of matching entities for each reference option and group, reflecting the current query's filtering. Useful for building faceted navigation UIs. By default, only counts are computed; more detailed impact predictions can be requested. Supports filtering, sorting, and fetch customization for references and groups. For reference-specific filtering or overrides, use `referenceSummaryOfReference`.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("fd287c6cc2911128727e2503e5da6c0e")
+	@SourceHash("5445d91aec10f286aa3ca7ab60a96b76")
 	@Nonnull
 	static ReferenceSummary referenceSummary() {
 		return new ReferenceSummary();
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the result, providing counts (or impact predictions) for each selectable option and group, scoped to the current query. Supports filtering, sorting, and fetch customization for reference and group entities. Use filters to limit summary size and improve performance.
-	 *
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the current query scope, using the specified statistics depth (`COUNTS` or `IMPACT`). Supports filtering, ordering, and fetch customization for reference and group entities. Only one `EntityFetch` and one `EntityGroupFetch` may be attached; filters and ordering apply globally to all references. For reference-specific customization, use `referenceSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
-	 *     referenceSummary(IMPACT, entityFetch(attributeContent("name")))
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("4d8f0e0779aec0754c1a60820130eeb5")
+	@SourceHash("f209ce85f3a3ad8c33b3cc43b03dcb6b")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
 		return statisticsDepth == null ?
@@ -12191,7 +12145,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the result set, providing per-option statistics (counts or impact predictions) scoped to the current query. Supports filtering, ordering, and fetch customization for reference options and groups. Use filters to limit summary size; per-reference overrides use `referenceSummaryOfReference`.
+	 * Triggers calculation of a reference summary for all faceted references in the entity schema, providing counts (or impact predictions) for each reference option and group, scoped to the current query result. Supports filtering, ordering, and fetch customization for reference entities and groups. Use filters to limit summary size and improve performance on large datasets.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12203,11 +12157,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("7b4e3e9cc4bdc491a1f6ae59cd7e8d91")
+	@SourceHash("096d256f102ddbc9883c119d6db4fbc4")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12219,7 +12174,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (or impact predictions) for each selectable option and group, filtered and ordered as specified. Only entities matching the main query are counted; filters/orderings apply to the summary output, not the entity set. Attach at most one entity/group fetch constraint. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, reflecting only entities matching the current query. Supports filtering, ordering, and fetch customization for references and groups. Use filters to limit summary size; for per-reference logic, combine with `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12232,12 +12187,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("bd2f5639ffa5d95d1c126b315298d84a")
+	@SourceHash("eacc11252b2823d67dfb8b47084c983d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12250,7 +12204,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary with customizable statistics depth (`COUNTS` or `IMPACT`), group-level filtering, and ordering for both reference options and groups. Attach at most one `entityFetch` and one `entityGroupFetch` to control fetched data. Filters and ordering apply across all faceted references and only affect the summary, not the main query result. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 * Triggers calculation of a faceted reference summary for all entities matching the current query, returning statistics (counts or impact predictions) for each faceted reference and group. You can filter and order reference options/groups and specify which data to fetch for referenced entities and groups. Filters and ordering apply uniformly across all references; for per-reference customization, use `referenceSummaryOfReference`. Only one `entityFetch` and one `entityGroupFetch` constraint are allowed. Performance may be impacted by the number of faceted references and options.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12263,12 +12217,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("1800b19b7db265646f28521aca381f62")
+	@SourceHash("ac4dd0da571b93c664209bfe8485f793")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12281,12 +12234,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the schema, reporting counts (or impact predictions) for each reference and group, scoped to the current query result. Supports filtering and ordering of reference options/groups, and custom entity/group fetches. Use filters to limit large summaries; per-reference overrides use `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, based on the entities matching the current query. Supports filtering, ordering, and fetch customization for reference entities and groups. Use filters to limit summary size; only properties shared by all referenced types can be used. For reference-specific behavior, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeEquals("code", "a")),
+	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
@@ -12297,7 +12251,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("411f302c0521474c40e03f4f94f88f5e")
+	@SourceHash("a52dd08d5f03cb8ed96251ea0477bb57")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12310,7 +12264,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the current query result, providing counts (or impact predictions) for each selectable reference option and group. You can filter and order which reference options and groups appear, and control which data is fetched for referenced entities and their groups. Use this for building dynamic faceted navigation UIs; for reference-specific customization, combine with `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each selectable reference option and group, scoped to the current query result. Supports filtering and ordering of options/groups, and fetch customization for referenced entities. Use filters to limit summary size; for reference-specific logic, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12322,11 +12277,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("75b157758210418a350f93150ada2855")
+	@SourceHash("332b80d393ee05f2b9e04ed35d8a9c5c")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12339,7 +12295,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Requests calculation of a faceted reference summary, providing counts (or impact predictions) for each faceted reference and group based on the current query result. Supports filtering, ordering, and fetch customization for reference options and groups. Use filters to limit summary size; only one fetch constraint per type is allowed.
+	 * Triggers calculation of a faceted reference summary for the current query result, providing counts (or impact predictions) for each selectable reference option and group, filtered and ordered as specified. Only entities matching the main query are counted; filters and fetches can limit or enrich the summary. Overridden per-reference by `referenceSummaryOfReference` if both are present.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12347,17 +12303,15 @@ public interface QueryConstraints {
 	 *         IMPACT,
 	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         filterGroupBy(attributeEquals("visible", true)),
-	 *         entityFetch(attributeContent("name")),
-	 *         entityGroupFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("6d4f9692dc00ada326fbbabf22f0d6ab")
+	@SourceHash("7cc806096d52c2095443b54a9519fc34")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12369,14 +12323,16 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the query result, using the specified statistics depth (counts or impact prediction), and allows ordering of both reference options and groups. Attach at most one entityFetch and one entityGroupFetch; ordering and filtering apply only to shared properties across all references. For reference-specific customization, use referenceSummaryOfReference.
+	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each reference option and group, based on entities matching the current query. Use `statisticsDepth` to control detail level, and `orderBy`/`orderGroupBy` to sort options/groups. Only one `EntityFetch` and one `EntityGroupFetch` may be attached. Filters and ordering apply to the summary, not the main result set. For per-reference customization, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -12384,7 +12340,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("6e3a9bd3b05798c790a32b0c243e802c")
+	@SourceHash("e47a86edd98523292bbb2bba7b59232f")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12396,22 +12352,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for each faceted reference option among entities matching the current query. Supports filtering, sorting, and fetch customization for references/groups. Use filters to limit summary size; only one fetch per type allowed.
+	 * Triggers calculation of a reference summary containing statistics for all faceted references in the entity schema, reflecting only entities returned by the current query. The `statisticsDepth` argument controls whether only counts or also impact predictions are computed. Optional filters and fetch requirements can limit or enrich the summary, but only by properties shared across all referenced entity types. For reference-specific customization, use `referenceSummaryOfReference`. Performance may degrade with many faceted references or options.
 	 *
 	 * ```evitaql
-	 * require(
-	 *     referenceSummary(
-	 *         IMPACT,
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         entityFetch(attributeContent("name"))
-	 *     )
+	 * referenceSummary(
+	 *     IMPACT,
+	 *     filterBy(attributeStartsWith("code", "a")),
+	 *     entityFetch(attributeContent("name"))
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("48c37e3f289e8ef41bcde7134e29f319")
+	@SourceHash("012149d0781c0ecca32ab610177ea281")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12422,11 +12377,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, using the specified statistics depth and ordering. Only entities matching the main query are counted. Attach fetch requirements to load reference or group data as needed.
+	 * Triggers calculation of the reference summary extra result, providing faceted reference statistics for entities matching the current query. Lets you choose between simple counts or impact predictions, and order the reference/group options. Only one entityFetch and one entityGroupFetch may be attached. Use filters and ordering to control which reference options appear and in what order. For reference-specific filtering, use `referenceSummaryOfReference` instead.
 	 *
 	 * ```evitaql
 	 * require(
-	 *     referenceSummary(IMPACT, orderBy(attributeNatural("name", ASC)), entityFetch(attributeContent("name")))
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
 	 * )
 	 * ```
 	 *
@@ -12434,7 +12393,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("1267f294bf6072e3667d11476485c17f")
+	@SourceHash("1cfd64d3b21b5564f5968ae533260c49")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12445,7 +12404,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the result set, providing per-option entity counts or impact predictions. Supports filtering and sorting of reference options/groups, and fetch customization for referenced entities.
+	 * Triggers calculation of a reference summary containing statistics for all faceted references in the current query result, organized by reference and group. The `statisticsDepth` controls whether only counts or also impact predictions are computed. You can filter which reference groups appear using `facetGroupFilterBy`, and attach at most one `EntityFetch` and one `EntityGroupFetch` to control loaded data for referenced entities and their groups. Filters only affect summary options, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12455,11 +12415,12 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("2d42944ccc9f1fdb100743c372400f55")
+	@SourceHash("4066ed06c237178dd7bfe5502377879e")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12470,7 +12431,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary with statistics for all faceted references in the current query scope, using the specified statistics depth and group ordering. Only one entity/group fetch constraint of each type is allowed; filters and ordering apply to all references. For large datasets, limit summary size with filters to maintain performance.
+	 * Triggers calculation of a reference summary containing statistics for all faceted references in the entity schema, reflecting only entities matching the current query. The `statisticsDepth` argument controls whether only counts or also impact predictions are computed. You can order groups with `facetGroupOrderBy` and fetch additional data for referenced entities or their groups via `EntityFetchRequire`. Use filters and ordering constraints to limit or sort the summary, but these only affect the summary output, not the main query results.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12486,7 +12447,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("078acffb2bad4746ebbe69458e2bb49c")
+	@SourceHash("80c3a97f31cdc16072d7a744c554981a")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12497,7 +12458,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the current query result, providing counts or impact predictions for each selectable option, with optional filtering, ordering, and fetch requirements. Filters and ordering apply across all references, and only one entity/group fetch constraint of each type is allowed.
+	 * Triggers calculation of a faceted reference summary for all faceted references in the entity schema, returning grouped option counts (and optionally impact predictions) for entities matching the current query. You can filter or sort groups/options, and control which data is fetched for referenced entities or their groups. Use filters to limit summary size; for per-reference customization, see `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12513,7 +12474,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("6e8a2fe65d46e1d9a4ea1a1dbff01867")
+	@SourceHash("2a97f98dca25f93175e99af7a8e5a33f")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12525,23 +12486,24 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query scope. Supports filtering and ordering of reference options/groups, and can fetch reference/group entity data. Only one EntityFetch and one EntityGroupFetch allowed; filters/orderings apply across all references. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query result. Supports filtering and ordering of reference options/groups, and fetch customization for referenced entities. Use filters to limit summary size; only properties shared by all referenced types can be used for cross-reference filtering or ordering.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
-	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("9ce2d46cfa04ca883d37006a20e8efcf")
+	@SourceHash("b6806ef0101a2d4583103e0380f39123")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12553,8 +12515,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (or impact predictions) for all faceted references in the current query scope. You can filter and order reference groups, and fetch extra data for referenced entities or groups. Only one entityFetch and one entityGroupFetch are allowed. Reference-specific filtering is not supported; use ReferenceSummaryOfReference for that.
-	 *
+	 * Triggers calculation of a faceted reference summary, providing statistics (counts or impact predictions) for all faceted references in the current query scope. Supports filtering and ordering of reference groups, and allows fetching additional data for referenced entities or groups. Only one fetch constraint per type is allowed; filters/orderings apply across all references. For reference-specific customization, use `referenceSummaryOfReference`.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12569,7 +12530,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("b7c63498b6dfaa3d94a4290341e0aac4")
+	@SourceHash("bad1c11ae3db5dc962f1831b5ae42592")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12581,15 +12542,18 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for all faceted references in the current query result. Supports filtering, ordering, and fetch customization for reference options and groups. Only one fetch constraint per type is allowed; filters/orderings apply across all references. Use `IMPACT` for predictive UI, or `COUNTS` (default) for basic counts.
+	 * Triggers calculation of a summary with statistics for all faceted references in the entity schema, reflecting only entities matching the current query. Allows tuning the detail level (counts or impact), filtering and ordering of reference options/groups, and specifying which data to fetch for referenced entities or groups. Use filters to limit summary size; per-reference overrides are possible with `referenceSummaryOfReference`. For large datasets, keep faceted references minimal for best performance.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         IMPACT,
 	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -12597,7 +12561,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("bd758928205e0f546830f375adc7dc6a")
+	@SourceHash("fcefab056a0806ed8c0d9804be324e7a")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -12626,19 +12590,21 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary with statistics for all faceted references in the result set, counting only entities matching the current query. You can attach at most one `entityFetch` and one `entityGroupFetch` to control which data is loaded for referenced entities and their groups.
+	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the entity schema within the current query scope. Use this to retrieve counts (and optionally impact predictions) for each selectable reference option, enabling faceted navigation UIs. Attach at most one entityFetch and/or entityGroupFetch to control which data is loaded for referenced entities and their groups. Filtering and ordering of summary options can be customized, but only by properties shared across all referenced types.
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("7e1326779a9dcbe579d1b2a5339a9f8c")
+	@SourceHash("0d6b887508f828665974df18084ec7a7")
 	@Nonnull
 	static ReferenceSummary referenceSummary(@Nullable EntityFetchRequire... requirements) {
 		return new ReferenceSummary(FacetStatisticsDepth.COUNTS, requirements);
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the current query scope, providing counts (and optionally impact predictions) for each selectable reference option. You can filter and order which reference options appear in the summary using `facetFilterBy` and `facetOrderBy`, and control which data is fetched for referenced entities. Only entities matching the main query are counted; filters here do not affect the main result set.
+	 * Computes a summary of all faceted references in the current query result, providing counts (and optionally impact predictions) for each selectable reference option, grouped and ordered as specified. You can filter or sort the summary using `FilterBy` and `OrderBy` constraints, and control which data is fetched for referenced entities. Only one `EntityFetch` and one `EntityGroupFetch` are allowed. Filters affect only the summary, not the underlying entity count. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12652,7 +12618,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("b86d73bc29a2556d65bfb89799a11998")
+	@SourceHash("464ccd79b860e04bcc12d0c7fe188b00")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -12663,13 +12629,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references, reporting counts (or impacts) of matching entities per reference option and group, scoped to the current query. You can filter, order, and fetch data for both reference options and groups; filters only affect the summary, not the main result. For reference-specific filtering, use `referenceSummaryOfReference` instead.
+	 * Triggers calculation of a faceted reference summary for all entities matching the current query, providing counts (and optionally impact predictions) of matching entities per reference/group. Filters and ordering can be applied to limit and sort options/groups, and entity/group fetches can be specified. Use for building dynamic faceted navigation UIs; for reference-specific filtering, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
-	 *         filterBy(attributeStartsWith("code", "a")),
-	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterGroupBy(attributeEquals("active", true)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -12679,7 +12645,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("c1f776cc16bc8e95dc70aab561dc2042")
+	@SourceHash("88db0f2bc725ecc31042bdb0de7fdcca")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12691,7 +12657,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary for all faceted references in the entity schema, reporting counts (by default) or impact predictions for each option, grouped and ordered as specified. Filters and fetches can be applied to control which reference options and groups appear and what data is loaded, but do not affect entity counts. Use for building faceted navigation UIs over the current query result.
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (and optionally impact predictions) for each selectable option, grouped and ordered as specified. You can filter or order both reference options and groups, and control which data is fetched for referenced entities and their groups. Filters only affect which options appear, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12699,15 +12665,17 @@ public interface QueryConstraints {
 	 *         filterGroupBy(attributeEquals("visible", true)),
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("2e788fe0705caf4acae360296ffa9f14")
+	@SourceHash("982f9acd1c7808fbc3a7a20bbb851559")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12719,7 +12687,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the schema, reflecting only entities matching the current query. Allows filtering and ordering of reference options and groups, and fetch customization for referenced entities. Use filters to limit summary size; filters only affect summary content, not entity counts.
+	 * Triggers calculation of a faceted reference summary for all references marked as faceted in the entity schema, reflecting only entities in the current query result. Allows filtering and ordering of reference options and groups, and supports fetching additional data for referenced entities or groups. Only one EntityFetch and one EntityGroupFetch may be attached. Filters and ordering must target properties common to all referenced types. For reference-specific filtering or overrides, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12736,7 +12704,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("148834e67a8c5f3d1f7fa7a247d4cbf2")
+	@SourceHash("b0b57b77df0faf6d04e183af2b7c2ae3")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12748,7 +12716,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning grouped statistics for all faceted references in the current query result. You can filter and order reference options/groups, and control which data is fetched for reference entities and groups. Filters only affect which options appear, not the counted entities. Only one entityFetch and one entityGroupFetch allowed; supplying more throws an exception.
+	 * Triggers calculation of a faceted reference summary, providing counts (or impact predictions) for each selectable reference option and group, reflecting only entities matching the current query. You can filter and order which options/groups appear in the summary using `filterBy`, `filterGroupBy`, and `orderBy`. Attach at most one `entityFetch` and one `entityGroupFetch` to control loaded data. Filters only affect the summary, not the counted entities, and must target properties shared by all referenced types. For reference-specific customization, use `referenceSummaryOfReference`.
 	 *
 	 * ```evitaql
 	 * require(
@@ -12764,7 +12732,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("90c331e70b641c1af452e860d52b4959")
+	@SourceHash("1bb30640f0eaae62f2cb5cb5cac7b5e3")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12776,8 +12744,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (and optionally impact predictions) for all faceted references in the current query scope. You can filter or order the summary, and control which reference/group data is fetched. Filters only affect which options appear, not the counted entities.
-	 *
+	 * Calculates a summary of all faceted references in the current query result, providing counts (and optionally impact predictions) for each reference option and group, filtered and ordered as specified. You can further control which reference/group entities are fetched and limit the summary with cross-reference filters. Use when building faceted navigation UIs or analytics.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12787,12 +12754,11 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * ```
-	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("8c17da770d74a0d3b89c7d1f8039a90e")
+	@SourceHash("c238181a2ed5753d3d2b202365e4caff")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12803,13 +12769,15 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references in the current query result, organizing them by reference and group, and including counts or impact predictions for each option. You can control the sorting of both reference options and groups, and optionally fetch additional data for referenced entities or their groups. Only one entityFetch and one entityGroupFetch may be attached; duplicates throw an exception. Filtering and ordering apply uniformly across all faceted references.
+	 * Triggers calculation of a summary of all faceted references in the result set, returning counts and optionally impact predictions for each reference option and group, respecting the current query's filtering scope. You can specify ordering for both reference options and groups, and attach fetch requirements to control which data is loaded for referenced entities and their groups. For large or complex schemas, use filters and ordering to limit and organize the summary for performance and clarity.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
 	 *         orderBy(attributeNatural("name", ASC)),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
-	 *         entityFetch(attributeContent("name"))
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name"))
 	 *     )
 	 * )
 	 * ```
@@ -12817,7 +12785,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("c6e34ea0b8ad6306b4f6d5ebbbc4e5ae")
+	@SourceHash("657457032dc320a62f4a21413093971f")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderBy orderBy,
@@ -12828,7 +12796,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a summary of all faceted references for entities matching the current query, reporting counts (and optionally impact predictions) for each reference option and group. You can filter or sort which reference options appear, and fetch extra data for referenced entities or groups. Filters here only affect the summary, not the main entity result. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a reference summary extra result, providing statistics for all faceted references in the entity schema, scoped to the current query result. You can filter which reference options and groups appear in the summary using `filterBy`, while additional requirements (e.g., `entityFetch`, `entityGroupFetch`, ordering) control which data is loaded and how results are sorted. Filters only affect the summary's content, not which entities are counted. Use for faceted navigation UIs and to power option counts or impact predictions.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12841,7 +12810,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("d59c612ffd5d1389d04e1ad45dcc6277")
+	@SourceHash("3be5c87debac4e0230717fe9c6e1a193")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12851,12 +12820,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning counts (and optionally impact predictions) for all faceted references in the current query scope. You can control the sort order of reference options with `orderBy` and specify entity/group fetch requirements.
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, organizing counts (and optionally impact predictions) by reference and group. You can control the sort order of reference options and attach fetch/child requirements to load additional data for referenced entities or groups. Only one `EntityFetch` and one `EntityGroupFetch` may be attached; passing more throws an exception. Filtering and ordering constraints apply uniformly across all references.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("bf5d26920960a43460eb7de90b6d51b5")
+	@SourceHash("db698d7f3d6d7a48031ba1fbc05bf401")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderBy orderBy,
@@ -12866,8 +12843,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary with statistics for all faceted references in the result set, grouped by reference and group, reflecting only entities matching the current query. You can filter which reference groups appear and specify fetch requirements for referenced entities or groups.
-	 *
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, applying an optional filter to reference groups and allowing control over which data is fetched for reference/group entities. Only entities matching the main query are counted.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12880,7 +12856,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("c74a0c2d6cedd242e7e284692b68f0f7")
+	@SourceHash("6895c05cf373d440c50b2d8dc1edad95")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12890,12 +12866,20 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, returning grouped statistics for all faceted references in the current query scope. You can specify ordering of reference groups and attach fetch/filter constraints for reference/group entities. Only one fetch constraint per type is allowed.
+	 * Triggers calculation of a summary of all faceted references in the result set, providing counts (and optionally impact predictions) for each selectable reference option, grouped and ordered by the specified group ordering. Attach fetch or filter constraints to control which reference/group data is loaded or included.  
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("cd64b050474e1da13265f759f50c22f5")
+	@SourceHash("9eb3632498a7faca5bdeaa43ed711f57")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable OrderGroupBy facetGroupOrderBy,
@@ -12905,12 +12889,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a faceted reference summary, providing statistics (counts by default) for all faceted references in the current query result. You can filter reference groups, order reference options, and specify which data to fetch for referenced entities or groups. Use filters and ordering only on properties shared by all referenced types; for per-reference customization, use `referenceSummaryOfReference`.
+	 * Triggers calculation of the reference summary extra result, providing statistics for all faceted references in the current query result. Lets you filter reference groups, order individual reference options, and fetch reference or group entity data. Useful for building faceted navigation UIs that reflect the current filtering scope.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("e57a7065c27dec022fdfa1ccf0de14d1")
+	@SourceHash("c582375ae1b9b87ba7d51430bd7b4241")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12921,12 +12916,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a facet summary for all faceted references in the result set, reporting counts (and optionally impact predictions) for each reference option and group, filtered and ordered as specified. Only entities matching the query are counted.
-	 *
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the current query scope, organizing results by reference, group, and option. You can filter and order groups using `filterBy` and `orderGroupBy`, and fetch extra data for referenced entities. Only entities matching the main query are counted; filters here affect summary display, not entity counts. For large datasets, limit summary size for performance.  
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
-	 *         filterBy(attributeEquals("visible", true)),
+	 *         filterBy(attributeStartsWith("code", "a")),
 	 *         orderGroupBy(attributeNatural("name", ASC)),
 	 *         entityFetch(attributeContent("name"))
 	 *     )
@@ -12936,7 +12930,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("25bb87d2d8508a5c0b7c1ae5afd469f5")
+	@SourceHash("cc60c657e22cced76402b2c3054fcf0d")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy filterBy,
@@ -12947,12 +12941,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a summary of all faceted references in the result set, organized by reference and group, counting matching entities per option. You can filter or order groups using `FilterGroupBy` and `OrderGroupBy`, and fetch reference/group data with `EntityFetchRequire`.
+	 * Triggers calculation of a summary of all faceted references in the query result, organized by reference and group, showing counts and optionally impact predictions for each selectable option. Allows filtering and ordering of groups, and attaching fetch requirements for referenced entities and groups. Only entities matching the current query are counted; filters here affect only which options appear in the summary, not the entity result set.
+	 *
+	 * ```evitaql
+	 * require(
+	 *     referenceSummary(
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name"))
+	 *     )
+	 * )
+	 * ```
+	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("9f53c1d92afd0299101fa70cd9a535a5")
+	@SourceHash("4929a031050b02de3065f5af89faada1")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -12963,7 +12968,8 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Computes a summary of all faceted references in the current query scope, providing counts (and optionally impact predictions) for each selectable option, grouped and ordered as specified. You can filter and sort which reference options and groups appear, and control which data is fetched for referenced entities and their groups. Filters only affect the summary display, not the counted entities. For reference-specific filtering, use `referenceSummaryOfReference`.
+	 * Triggers calculation of a faceted reference summary, providing counts (and optionally impact predictions) for each reference option and group, scoped to entities matching the current query. Supports filtering and ordering of reference options/groups, and allows fetching extra data for referenced entities and their groups. Use filters to limit summary size; only properties shared by all referenced types can be used for filtering or ordering. For reference-specific customization, use `referenceSummaryOfReference`.
+	 *
 	 * ```evitaql
 	 * require(
 	 *     referenceSummary(
@@ -12980,7 +12986,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
-	@SourceHash("bf1e0e11c32b84afe18e203116ccd729")
+	@SourceHash("49c86f18e8903a34cde2ca799eef1932")
 	@Nonnull
 	static ReferenceSummary referenceSummary(
 		@Nullable FilterBy facetFilterBy,
@@ -13005,25 +13011,11 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary combining entity fetch requirements with one or more
-	 * {@link ReferenceHistogramStatistics} children. The histogram children request per-group histograms for named
-	 * histogram indexes defined on the reference schema.
-	 *
-	 * This variant is named distinctly from `referenceSummary` to avoid overload ambiguity with the existing
-	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
-	 *
-	 * ```evitaql
-	 * referenceSummaryWithHistograms(
-	 *     COUNTS,
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name")),
-	 *     histogramStatistics(20, "priceIndex"),
-	 *     histogramStatistics(10, OPTIMIZED, "ratingIndex")
-	 * )
-	 * ```
+	 * Triggers calculation of a reference summary with statistics for all faceted references in the result set, including entity and group fetch details and optional histogram statistics per reference. Useful for building faceted navigation UIs with counts or impact predictions. [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
+	@SourceHash("558114ed1dcbfb89582d5ecc63eacdbc")
 	@Nonnull
 	static ReferenceSummary referenceSummaryWithHistograms(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -13039,26 +13031,28 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Triggers calculation of a reference summary combining filtering and ordering constraints, entity fetch
-	 * requirements, and one or more {@link ReferenceHistogramStatistics} children. The histogram children request
-	 * per-group histograms for named histogram indexes defined on the reference schema.
-	 *
-	 * This variant is named distinctly from `referenceSummary` to avoid overload ambiguity with the existing
-	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 * Triggers calculation of the reference summary extra result, providing detailed statistics for all faceted references in the current query scope. Supports configurable statistics depth (`COUNTS` or `IMPACT`), filtering, ordering, and custom entity/group fetches. Optionally includes histogram statistics for reference options or groups. Filters and ordering apply uniformly across all faceted references and only affect the summary, not the counted entities. For reference-specific customization, use `referenceSummaryOfReference`. Use with care on large datasets due to performance impact.
 	 *
 	 * ```evitaql
-	 * referenceSummaryWithHistograms(
-	 *     IMPACT,
-	 *     filterBy(attributeStartsWith("code", "a")),
-	 *     orderBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name")),
-	 *     histogramStatistics(20, "priceIndex")
+	 * require(
+	 *     referenceSummary(
+	 *         IMPACT,
+	 *         filterBy(attributeStartsWith("code", "a")),
+	 *         filterGroupBy(attributeEquals("visible", true)),
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         orderGroupBy(attributeNatural("name", ASC)),
+	 *         entityFetch(attributeContent("name")),
+	 *         entityGroupFetch(attributeContent("name")),
+	 *         referenceHistogramStatistics(10)
+	 *     )
 	 * )
 	 * ```
 	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummary
 	 */
+	@SourceHash("90f5c7fa403f1d2709f2d500cce7dca3")
 	@Nonnull
 	static ReferenceSummary referenceSummaryWithHistograms(
 		@Nullable FacetStatisticsDepth statisticsDepth,
@@ -13983,25 +13977,13 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference combining entity fetch requirements with one or more
-	 * {@link ReferenceHistogramStatistics} children. The histogram children request per-group histograms for named
-	 * histogram indexes defined on the referenced schema.
+	 * Calculates a reference summary for a single named reference, overriding generic `referenceSummary` settings for that reference. Allows specifying statistics depth, entity/group fetch, and histogram statistics. Only affects the targeted reference; constraints are not merged with generic settings.
 	 *
-	 * This variant is named distinctly from `referenceSummaryOfReference` to avoid overload ambiguity with the existing
-	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
-	 *
-	 * ```evitaql
-	 * referenceSummaryOfReferenceWithHistograms(
-	 *     "brand",
-	 *     COUNTS,
-	 *     entityFetch(attributeContent("name")),
-	 *     entityGroupFetch(attributeContent("name")),
-	 *     histogramStatistics(20, "priceIndex")
-	 * )
-	 * ```
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
+	@SourceHash("fb27f7018c9e8b620d6bca379b1418ba")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
 		@Nullable String referenceName,
@@ -14022,29 +14004,29 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Calculates a reference summary for a single named reference combining filtering and ordering constraints, entity
-	 * fetch requirements, and one or more {@link ReferenceHistogramStatistics} children. The histogram children request
-	 * per-group histograms for named histogram indexes defined on the referenced schema.
-	 *
-	 * This variant is named distinctly from `referenceSummaryOfReference` to avoid overload ambiguity with the existing
-	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows fine-grained control over statistics depth, filtering, ordering, and fetched data for the reference and its groups, plus attaches histogram statistics for advanced analytics. Filters and ordering target only the referenced entity's properties. Throws if multiple fetches of the same type are provided.
 	 *
 	 * ```evitaql
-	 * referenceSummaryOfReferenceWithHistograms(
-	 *     "parameterValues",
-	 *     IMPACT,
-	 *     filterBy(attributeContains("code", "memory")),
-	 *     filterGroupBy(attributeInSet("code", "ram-memory")),
-	 *     orderBy(attributeNatural("name", ASC)),
-	 *     orderGroupBy(attributeNatural("name", ASC)),
-	 *     entityFetch(attributeContent("code", "name")),
-	 *     entityGroupFetch(attributeContent("code")),
-	 *     histogramStatistics(20, "priceIndex")
+	 * require(
+	 *     referenceSummaryOfReference(
+	 *         "brand",
+	 *         COUNTS,
+	 *         filterBy(attributeEquals("country", "US")),
+	 *         null,
+	 *         orderBy(attributeNatural("name", ASC)),
+	 *         null,
+	 *         entityFetch(attributeContent("name")),
+	 *         null,
+	 *         histogram(attributeHistogram("popularity", 5))
+	 *     )
 	 * )
 	 * ```
 	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
+	 *
 	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
 	 */
+	@SourceHash("fc67f98fdb2559efeaf5965d1b7f7ef8")
 	@Nullable
 	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
 		@Nullable String referenceName,
@@ -14071,30 +14053,23 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Enables detailed query execution metrics, returning a hierarchical breakdown of all processing phases (parsing, filtering, etc.), their arguments, timings, and sub-steps in the extra-results. Explicitly include for debugging or profiling; avoid in production due to overhead.
-	 *
-	 * ```evitaql
-	 * queryTelemetry()
-	 * ```
+	 * Enables detailed query execution profiling, capturing a hierarchical breakdown of all processing phases, their timings, and arguments. Telemetry is included only when explicitly requested, as it adds overhead; use it for debugging or profiling, not in production hot paths. The response includes a tree of operations, their durations, and phase-specific details to help diagnose performance bottlenecks.
 	 *
 	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/debug#query-telemetry)
 	 *
 	 * @see io.evitadb.api.query.require.QueryTelemetry
 	 */
-	@SourceHash("70c00683316e940545a00ee784f5d65d")
+	@SourceHash("ab12bc4a4c1081e5637274c937072740")
 	@Nonnull
 	static QueryTelemetry queryTelemetry() {
 		return new QueryTelemetry();
 	}
 
 	/**
-	 * Enables detailed query execution metrics at the requested level of detail, returning a hierarchical breakdown
-	 * of all processing phases (parsing, filtering, etc.), their arguments, timings, and sub-steps in the
-	 * extra-results. Pass `PLAN` to additionally receive the formula plan the query engine built, including the
-	 * index-selection alternatives it costed and rejected. Explicitly include for debugging or profiling; avoid in
-	 * production due to overhead.
+	 * Enables detailed query execution profiling, returning a hierarchical breakdown of all phases (planning, filtering, etc.) with timing, arguments, and sub-steps in the extra-results. Use for debugging or profiling; incurs overhead and is never implicit. Pass `PLAN` to also include the internal formula tree and planner decisions. Not recommended for production hot paths.
 	 *
 	 * ```evitaql
+	 * queryTelemetry()
 	 * queryTelemetry(PLAN)
 	 * ```
 	 *
@@ -14102,6 +14077,7 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.require.QueryTelemetry
 	 */
+	@SourceHash("234e4a08ed8de25067a80055336175e5")
 	@Nonnull
 	static QueryTelemetry queryTelemetry(@Nullable QueryTelemetryContent content) {
 		return new QueryTelemetry(content);
