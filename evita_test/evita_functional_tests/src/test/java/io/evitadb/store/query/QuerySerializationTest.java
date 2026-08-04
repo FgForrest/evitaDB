@@ -37,12 +37,15 @@ import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.QueryTelemetry;
+import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -60,6 +63,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1058,6 +1062,64 @@ public class QuerySerializationTest {
 					arguments("attributeHistogram(buckets + OPTIMIZED + names)",
 						attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b"))
 				);
+			}
+		}
+
+		@Nested
+		@DisplayName("queryTelemetry")
+		class Telemetry {
+			@ParameterizedTest(name = "{0}")
+			@MethodSource("variants")
+			void shouldRoundTrip(@Nonnull String desc, @Nonnull Object constraint) {
+				assertSerializationRound(constraint);
+			}
+
+			@Nonnull
+			static Stream<Arguments> variants() {
+				return Stream.of(
+					arguments("queryTelemetry()",
+						queryTelemetry()),
+					// spelling the default out is the same constraint, so it survives like the bare form
+					arguments("queryTelemetry(TIMINGS)",
+						queryTelemetry(QueryTelemetryContent.TIMINGS)),
+					arguments("require(queryTelemetry())",
+						require(queryTelemetry()))
+				);
+			}
+
+			@Test
+			@DisplayName("should degrade the formula plan level to the default rather than persist it")
+			void shouldDegradePlanLevelToDefault() {
+				// this serializer writes nothing on purpose. Persisting the level would break every traffic
+				// recording written before the level existed, because the old payload was zero bytes and the
+				// recording format carries no version stamp to tell the two apart - see QueryTelemetrySerializer.
+				// The price is exactly this: a replayed `queryTelemetry(PLAN)` runs as `queryTelemetry()`
+				final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
+				try (final Output output = new Output(os, 64)) {
+					kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
+				}
+				try (final Input input = new Input(os.toByteArray())) {
+					final QueryTelemetry deserialized = kryo.readObject(input, QueryTelemetry.class);
+					assertEquals(queryTelemetry(), deserialized);
+					assertFalse(deserialized.isPlanRequested());
+				}
+			}
+
+			@Test
+			@DisplayName("should consume no bytes, so recordings written before the level existed still read")
+			void shouldConsumeNoBytes() {
+				// the guarantee that keeps old recordings readable: anything this serializer consumed would be
+				// bytes belonging to the next element of a stream written by a build that wrote none
+				final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
+				try (final Output output = new Output(os, 64)) {
+					kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
+					kryo.writeObject(output, queryTelemetry());
+				}
+				try (final Input input = new Input(os.toByteArray())) {
+					kryo.readObject(input, QueryTelemetry.class);
+					// the second object still parses, which it could not if the first had eaten into it
+					assertEquals(queryTelemetry(), kryo.readObject(input, QueryTelemetry.class));
+				}
 			}
 		}
 
