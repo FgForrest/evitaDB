@@ -87,10 +87,15 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This is a context object that builds on top of {@link QueryPlanningContext} and captures the data related to the
- * query execution. Planning phase might create multiple plans from which only one us usually selected and executed,
- * but in case of tests of debugging we might want to evaluate the query with multiple plans and verify the results.
+ * query execution. Planning phase might create multiple plans from which only one is usually selected and executed,
+ * but in case of tests or debugging we might want to evaluate the query with multiple plans and verify the results.
  * The execution phase needs to be isolated one from another, so that different executions don't interfere with each
  * other.
+ *
+ * The planning context is shared by all such executions and therefore holds everything that is *not* per-execution
+ * state; this object holds what is - prefetched entities, the buffer pool lease and the dry-run flag. It is
+ * {@link Closeable} and must be used in a try-with-resources block, because {@link #close()} is what returns the
+ * borrowed buffers to the shared pool.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -137,12 +142,21 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	private Map<EntityReferenceContract, EntityDecorator> entityReferenceIndex;
 	/**
-	 * Contains lazy initialized local buffer pool.
+	 * Contains lazy initialized local buffer pool. Buffers are drawn from {@link SharedBufferPool} on first demand and
+	 * kept here for reuse within this single execution; {@link #close()} hands them all back.
 	 */
 	private Deque<int[]> buffers;
 
 	/**
 	 * Returns true if the context is inside {@link QueryPlanner#verifyConsistentResultsInAllPlans(QueryPlanningContext, List, List, QueryPlanBuilder)}  method.
+	 *
+	 * In that mode the same query is evaluated by several alternative plans purely to check they agree, so the run is
+	 * not the one the client observes. Two things follow, and both are relied upon across this class: the random
+	 * source is frozen so the plans cannot diverge on it (see {@link #frozenRandom}), and every telemetry mutation is
+	 * suppressed - the throw-away runs must not pollute the tree that the real execution reports.
+	 *
+	 * The flag is derived from {@link #frozenRandom} rather than stored separately: a frozen random source is only
+	 * ever supplied for plan verification, so its presence *is* the dry-run signal.
 	 */
 	public boolean isDryRun() {
 		return this.frozenRandom != null;
@@ -161,6 +175,15 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Method loads entity contents by specifying its type and primary key. Fetching logic respect language from
 	 * the original {@link EvitaRequest}
+	 *
+	 * This is the direct-read path - it ignores {@link #prefetchedEntities} entirely and always goes to the
+	 * collection.
+	 *
+	 * @param entityType       type of the entity to fetch; `null` falls back to the collection targeted by the query
+	 *                         and fails when the query targets none
+	 * @param entityPrimaryKey real primary key of the entity to fetch
+	 * @param requirements     the scope of data to load - the returned entity reveals no more than this
+	 * @return the entity, or empty when no entity of that primary key exists
 	 */
 	@Nonnull
 	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
@@ -171,6 +194,15 @@ public class QueryExecutionContext implements Closeable {
 
 	/**
 	 * Method loads requested entity contents by specifying its primary key.
+	 *
+	 * Bulk counterpart of {@link #fetchEntity(String, int, EntityFetchRequire)} and likewise a direct read that does
+	 * not consult {@link #prefetchedEntities}.
+	 *
+	 * @param entityType        type of the entities to fetch; `null` falls back to the collection targeted by the
+	 *                          query and fails when the query targets none
+	 * @param entityPrimaryKeys real primary keys of the entities to fetch
+	 * @param requirements      the scope of data to load - the returned entities reveal no more than this
+	 * @return the entities that exist; keys with no matching entity are simply absent from the result
 	 */
 	@Nonnull
 	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
@@ -183,6 +215,15 @@ public class QueryExecutionContext implements Closeable {
 	 * Method will return full entity object for passed `entityPrimaryKey`. The input primary key may represent the
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
+	 *
+	 * Unlike {@link #fetchEntities(String, int[], EntityFetchRequire)} this is the response-building path: it loads
+	 * the scope the original {@link EvitaRequest} asked for, reuses anything already prefetched, and wires up a
+	 * {@link ReferencedEntityFetcher} when references, parents or hierarchies also have to be resolved.
+	 *
+	 * @param entityPrimaryKey primary keys - real or masked - of the entities to fetch, in the order they should be
+	 *                         returned in
+	 * @return the entities that exist, in the order of `entityPrimaryKey`; missing ones are dropped, so the result
+	 *         may be shorter than the input
 	 */
 	@Nonnull
 	public List<SealedEntity> fetchEntities(int... entityPrimaryKey) {
@@ -231,6 +272,12 @@ public class QueryExecutionContext implements Closeable {
 	 * Method will return full entity object for passed `entityPrimaryKey`. The input primary key may represent the
 	 * real {@link EntityContract#getPrimaryKey()} or it may represent key masked by {@link QueryPlanningContext#translateEntityReference(EntityReferenceContract[])}
 	 * method.
+	 *
+	 * Prefetched entities are of no help here beyond identifying which records to read: the binary form is a distinct
+	 * representation, so the contents have to be re-read from the collection either way.
+	 *
+	 * @param entityPrimaryKey primary keys - real or masked - of the entities to fetch
+	 * @return the entities that exist, in binary form
 	 */
 	@Nonnull
 	public List<BinaryEntity> fetchBinaryEntities(int... entityPrimaryKey) {
@@ -259,6 +306,12 @@ public class QueryExecutionContext implements Closeable {
 
 	/**
 	 * Method loads requested entity contents by specifying its primary key (either virtual or real).
+	 *
+	 * Reads exclusively from what was already prefetched - it never falls back to the collection - so it returns
+	 * `null` both for an unknown key and for one that simply was not prefetched.
+	 *
+	 * @param primaryKey primary key of the entity - masked when the query assigned masked keys, real otherwise
+	 * @return the prefetched entity, or `null` when it is not among the prefetched ones
 	 */
 	@Nullable
 	public SealedEntity translateToEntity(int primaryKey) {
@@ -272,6 +325,13 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
+	 *
+	 * This overload **replaces** whatever was prefetched so far, and it is the one the query plan drives: the plan
+	 * decided during planning that reading these entities up front is cheaper than answering the filter from the
+	 * indexes. Entities that turn out not to exist are silently skipped, so the prefetched list may be shorter than
+	 * the order asked for.
+	 *
+	 * @param prefetcher carries both the entities to prefetch and the scope of data to load for them
 	 */
 	public void prefetchEntities(@Nonnull PrefetchOrder prefetcher) {
 		final Bitmap entitiesToPrefetch = prefetcher.getEntitiesToPrefetch();
@@ -299,6 +359,13 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
+	 *
+	 * Unlike {@link #prefetchEntities(PrefetchOrder)} this overload **appends** to the already prefetched entities,
+	 * and it accepts references that may span several entity types - those are grouped per type so each collection is
+	 * visited once. Entities that do not exist are silently skipped.
+	 *
+	 * @param entitiesToPrefetch references of the entities to load; an empty array is a no-op
+	 * @param requirements       the scope of data to load - the prefetched entities reveal no more than this
 	 */
 	public void prefetchEntities(@Nonnull EntityReferenceContract[] entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (entitiesToPrefetch.length != 0) {
@@ -337,13 +404,16 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Enriches the provided {@link EntityFetch} instance by updating its requirements
-	 * based on specified rules. If no {@link EntityFetch} is provided or no updates are needed,
-	 * the method returns the original or null input. When updates are applied, a new instance
-	 * of {@link EntityFetch} is created and returned.
+	 * Fills in the request-level defaults that an {@link EntityFetch} or {@link EntityGroupFetch} left unspecified,
+	 * by rewriting the {@link AccompanyingPriceContent} requirements nested anywhere inside the given requirement
+	 * tree - see {@link #updateRequirements(EntityContentRequire[])} for what exactly is substituted.
 	 *
-	 * @param entityFetchRequire the original {@link EntityFetch} instance to be enriched; may be null
-	 * @return the enriched {@link EntityFetch} instance if updates are applied, or the original instance if no updates are needed, or null if the input is null
+	 * Requirement trees are immutable, so this is a clone rather than an in-place edit - but a copy-on-write one:
+	 * any subtree that needs no substitution is reused by reference instead of being rebuilt, which is why an
+	 * untouched tree costs a traversal and nothing more.
+	 *
+	 * @param entityFetchRequire the requirement tree to enrich
+	 * @return the enriched tree, sharing every subtree that needed no enriching with the input
 	 */
 	@Nonnull
 	public <T extends EntityFetchRequire> T enrichEntityFetch(@Nonnull T entityFetchRequire) {
@@ -409,6 +479,11 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Method returns an array for buffering purposes. The buffer is obtained from shared resource, but kept locally
 	 * for multiple reuse within single query context.
+	 *
+	 * The buffer's contents are whatever the previous borrower left in it - callers must treat it as uninitialized
+	 * and never read past what they wrote themselves.
+	 *
+	 * @return a buffer to be handed back through {@link #returnBuffer(int[])}
 	 */
 	@Nonnull
 	public int[] borrowBuffer() {
@@ -421,7 +496,14 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Borrowed buffer is returned to local queue for reuse.
+	 * Borrowed buffer is returned to local queue for reuse. The buffer stays with this context until {@link #close()}
+	 * releases it to the shared pool, so returning it merely makes it available to the next
+	 * {@link #borrowBuffer()} within this same execution.
+	 *
+	 * May only be called with a buffer this context handed out: the local queue is created lazily by
+	 * {@link #borrowBuffer()}, so returning a buffer before ever borrowing one throws a {@link NullPointerException}.
+	 *
+	 * @param borrowedBuffer the buffer previously obtained from {@link #borrowBuffer()}
 	 */
 	public void returnBuffer(@Nonnull int[] borrowedBuffer) {
 		this.buffers.push(borrowedBuffer);
@@ -429,6 +511,13 @@ public class QueryExecutionContext implements Closeable {
 
 	/**
 	 * Adds new step of query evaluation.
+	 *
+	 * This wrapper exists solely to add the {@link #isDryRun()} guard to the identically named method on the planning
+	 * context: the telemetry tree belongs to the planning context and is shared by every execution of the query, so a
+	 * plan-verification run must not push its steps into it. Execution-time code must therefore always go through
+	 * this class and never reach for the {@link #queryContext} directly to record a step.
+	 *
+	 * @param phase the phase the pushed step measures
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
 		if (!isDryRun()) {
@@ -437,16 +526,16 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Adds new step of query evaluation.
-	 */
-	public void pushStep(@Nonnull QueryPhase phase, @Nonnull String message) {
-		if (!isDryRun()) {
-			this.queryContext.pushStep(phase, message);
-		}
-	}
-
-	/**
-	 * Adds new step of query evaluation.
+	 * Adds new step of query evaluation, describing what it is about to do.
+	 *
+	 * The message is resolved only when telemetry is actually being collected. There is deliberately no overload
+	 * taking a plain `String` - it would let the caller build the message before this guard is reached, which is
+	 * exactly the cost telemetry must not impose on a query that did not ask for it.
+	 *
+	 * Guarded by {@link #isDryRun()} for the same reason as {@link #pushStep(QueryPhase)}.
+	 *
+	 * @param phase           the phase the pushed step measures
+	 * @param messageSupplier supplies the step description; invoked only when the step is actually recorded
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
 		if (!isDryRun()) {
@@ -456,6 +545,10 @@ public class QueryExecutionContext implements Closeable {
 
 	/**
 	 * Finishes current query evaluation step.
+	 *
+	 * Guarded by {@link #isDryRun()} for the same reason as {@link #pushStep(QueryPhase)}. Every push made through
+	 * this class must be balanced by a pop made through this class - mixing the two contexts across a push/pop pair
+	 * unbalances the stack in dry-run mode, where only one half of the pair is suppressed.
 	 */
 	public void popStep() {
 		if (!isDryRun()) {
@@ -464,16 +557,32 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Finishes current query evaluation step.
+	 * Finishes current query evaluation step, describing the outcome it arrived at.
+	 *
+	 * The message is resolved only when telemetry is actually being collected - see {@link #pushStep(QueryPhase,
+	 * Supplier)} for why no plain `String` overload exists.
+	 *
+	 * @param messageSupplier supplies the outcome description; invoked only when the step is actually recorded
 	 */
-	public void popStep(@Nonnull String message) {
+	public void popStep(@Nonnull Supplier<String> messageSupplier) {
 		if (!isDryRun()) {
-			this.queryContext.popStep(message);
+			this.queryContext.popStep(messageSupplier);
 		}
 	}
 
 	/**
-	 * Returns root node of {@link QueryTelemetry} or throws an exception.
+	 * Returns the root node of the {@link QueryTelemetry} tree to be attached to the response, if there is one to
+	 * attach.
+	 *
+	 * Despite the shared name this does *not* behave like {@link QueryPlanningContext#getTelemetryRoot()}, which
+	 * asserts that telemetry is initialized. Here the three outcomes are:
+	 *
+	 * - **telemetry not requested** - empty, and nothing is attached to the response
+	 * - **telemetry requested** - the planning context's real root, still open at this point
+	 * - **dry run** - a freshly created throw-away root that is not this context's tree at all, so that the
+	 *   plan-verification runs produce a structurally valid response without touching the real telemetry
+	 *
+	 * @return the telemetry root to attach to the response, or empty when telemetry was not requested
 	 */
 	@Nonnull
 	public Optional<QueryTelemetry> getTelemetryRoot() {
@@ -486,7 +595,12 @@ public class QueryExecutionContext implements Closeable {
 	}
 
 	/**
-	 * Finalizes telemetry data by stopping the timer.
+	 * Finalizes telemetry data by stopping the timer - closing every step still open, root included, so the tree
+	 * already handed to the response carries complete timings.
+	 *
+	 * May be called at most once per query: it drains the planning context's telemetry stack and the underlying
+	 * {@link QueryPlanningContext#finalizeTelemetry()} asserts the stack is not already empty. Skipped entirely in a
+	 * dry run and when telemetry was not requested, in which case there is no stack to drain.
 	 */
 	public void finalizeTelemetry() {
 		if (!isDryRun() && this.queryContext.getEvitaRequest().isQueryTelemetryRequested()) {
@@ -494,6 +608,15 @@ public class QueryExecutionContext implements Closeable {
 		}
 	}
 
+	/**
+	 * Releases the buffers this execution borrowed back to the {@link SharedBufferPool}. This is the whole reason the
+	 * class is {@link Closeable}, so an execution context must always be created in a try-with-resources block.
+	 * Nothing breaks when it is not - the pool simply allocates a fresh array next time - but the reuse the pool
+	 * exists for is lost, which is precisely the GC pressure it was introduced to avoid.
+	 *
+	 * Note that only the buffers currently held in the local queue are released; a buffer that a caller borrowed and
+	 * never handed back through {@link #returnBuffer(int[])} is not tracked here and never reaches the pool either.
+	 */
 	@Override
 	public void close() {
 		if (this.buffers != null) {
@@ -596,6 +719,23 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Method retrieves already prefetched entities and uses them for response output by enriching them of additional
 	 * data that has been requested but not required for filtering or sorting operations.
+	 *
+	 * The input keys are walked in order and split into two runs - those already prefetched, which only need
+	 * enriching through `collector`, and those that must still be read, which go to `fetcher`. Both runs are
+	 * accumulated and flushed in batches rather than per record; a batch is closed whenever the entity type or the
+	 * request to use changes, which is why keeping keys of the same type adjacent keeps the batches large. The
+	 * request changes when an entity was matched through a globally unique attribute that implies a locale the
+	 * original request did not name - such an entity is fetched with a request fabricated for that locale.
+	 *
+	 * Results are re-indexed back onto the *input* keys, so masked keys are mapped back from the real primary keys
+	 * the collections return, and the original order is restored at the end.
+	 *
+	 * @param inputPrimaryKeys primary keys - real or masked - to resolve, in the order the result should follow
+	 * @param entityType       the entity type to use for keys with no prefetched entity; may only be `null` when
+	 *                         every key resolves to a prefetched entity, otherwise an exception is raised
+	 * @param fetcher          reads entities that were not prefetched, straight from a collection
+	 * @param collector        enriches already prefetched entities up to the requested scope
+	 * @return the resolved entities in the order of `inputPrimaryKeys`, with unresolvable keys dropped
 	 */
 	@Nonnull
 	private <T extends EntityClassifier> List<T> takeAdvantageOfPrefetchedEntities(

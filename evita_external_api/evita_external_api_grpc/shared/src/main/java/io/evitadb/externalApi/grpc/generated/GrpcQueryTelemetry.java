@@ -231,7 +231,7 @@ private static final long serialVersionUID = 0L;
   private long spentTime_ = 0L;
   /**
    * <pre>
-   * Duration in nanoseconds.
+   * Duration in nanoseconds, covering this step and everything nested below it.
    * </pre>
    *
    * <code>int64 spentTime = 5;</code>
@@ -283,6 +283,27 @@ private static final long serialVersionUID = 0L;
     return startedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : startedAt_;
   }
 
+  public static final int SELFTIME_FIELD_NUMBER = 7;
+  private long selfTime_ = 0L;
+  /**
+   * <pre>
+   * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+   * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+   * much of a phase is the phase itself rather than the phases inside it.
+   *
+   * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+   * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+   * that clients which consume the wire format directly do not each have to sum the children themselves.
+   * </pre>
+   *
+   * <code>int64 selfTime = 7;</code>
+   * @return The selfTime.
+   */
+  @java.lang.Override
+  public long getSelfTime() {
+    return selfTime_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -314,6 +335,9 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(6, getStartedAt());
+    }
+    if (selfTime_ != 0L) {
+      output.writeInt64(7, selfTime_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -352,6 +376,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getStartedAt());
     }
+    if (selfTime_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(7, selfTime_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -381,6 +409,8 @@ private static final long serialVersionUID = 0L;
       if (!getStartedAt()
           .equals(other.getStartedAt())) return false;
     }
+    if (getSelfTime()
+        != other.getSelfTime()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -412,6 +442,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + STARTEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getStartedAt().hashCode();
     }
+    hash = (37 * hash) + SELFTIME_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getSelfTime());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -571,6 +604,7 @@ private static final long serialVersionUID = 0L;
         startedAtBuilder_.dispose();
         startedAtBuilder_ = null;
       }
+      selfTime_ = 0L;
       return this;
     }
 
@@ -636,6 +670,9 @@ private static final long serialVersionUID = 0L;
             ? startedAt_
             : startedAtBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.selfTime_ = selfTime_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -732,6 +769,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasStartedAt()) {
         mergeStartedAt(other.getStartedAt());
       }
+      if (other.getSelfTime() != 0L) {
+        setSelfTime(other.getSelfTime());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -799,6 +839,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000020;
               break;
             } // case 50
+            case 56: {
+              selfTime_ = input.readInt64();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 56
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1398,7 +1443,7 @@ private static final long serialVersionUID = 0L;
     private long spentTime_ ;
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1410,7 +1455,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1426,7 +1471,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Duration in nanoseconds.
+     * Duration in nanoseconds, covering this step and everything nested below it.
      * </pre>
      *
      * <code>int64 spentTime = 5;</code>
@@ -1603,6 +1648,68 @@ private static final long serialVersionUID = 0L;
         startedAt_ = null;
       }
       return startedAtBuilder_;
+    }
+
+    private long selfTime_ ;
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @return The selfTime.
+     */
+    @java.lang.Override
+    public long getSelfTime() {
+      return selfTime_;
+    }
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @param value The selfTime to set.
+     * @return This builder for chaining.
+     */
+    public Builder setSelfTime(long value) {
+
+      selfTime_ = value;
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+     * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+     * much of a phase is the phase itself rather than the phases inside it.
+     *
+     * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+     * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+     * that clients which consume the wire format directly do not each have to sum the children themselves.
+     * </pre>
+     *
+     * <code>int64 selfTime = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearSelfTime() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      selfTime_ = 0L;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

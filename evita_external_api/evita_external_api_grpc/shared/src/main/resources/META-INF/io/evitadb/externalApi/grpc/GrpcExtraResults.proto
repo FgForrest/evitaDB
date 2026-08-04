@@ -159,11 +159,19 @@ message GrpcQueryTelemetry {
   repeated GrpcQueryTelemetry steps = 3;
   // Arguments of the processing phase.
   repeated string arguments = 4;
-  // Duration in nanoseconds.
+  // Duration in nanoseconds, covering this step and everything nested below it.
   int64 spentTime = 5;
   // Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
   // so the wall-clock position of any other node is startedAt plus that node's start offset.
   GrpcOffsetDateTime startedAt = 6;
+  // Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+  // direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+  // much of a phase is the phase itself rather than the phases inside it.
+  //
+  // This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+  // it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+  // that clients which consume the wire format directly do not each have to sum the children themselves.
+  int64 selfTime = 7;
 }
 
 // This DTO contains extra results that are computed based on the query results.

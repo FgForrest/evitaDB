@@ -53,6 +53,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.RandomUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -75,11 +76,21 @@ import static java.util.Optional.ofNullable;
  * Query plan contains the full recipe on how the query result is going to be computed. Final result can be acquired
  * by calling {@link #execute()} method.
  *
+ * The plan is assembled by {@link QueryPlanBuilder} during the planning phase and is **single-use** - see
+ * {@link #execute(byte[])} for the reasons why it must not be executed twice. The planner may build several
+ * alternative plans for the same request and execute all of them in a "dry run" to verify they agree on the result;
+ * each such execution gets its own isolated {@link QueryExecutionContext}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 @Slf4j
 public class QueryPlan {
+	/**
+	 * Converter placeholder used for result forms that cannot convert a {@link SealedEntity} into a client-requested
+	 * custom type - i.e. entity references and binary entities, where no {@link SealedEntity} can ever reach the
+	 * converter. Reaching it therefore signals a planning error rather than an unsupported client request.
+	 */
 	public static final Function<SealedEntity, ?> CONVERSION_NOT_SUPPORTED = (sealedEntity) -> {
 		throw new UnsupportedOperationException();
 	};
@@ -89,7 +100,9 @@ public class QueryPlan {
 	 */
 	@Delegate private final QueryPlanningContext queryContext;
 	/**
-	 * Source index description of this query plan.
+	 * Source index description of this query plan - the human-readable name of the index set the filtering formula
+	 * was built against. It distinguishes the alternative plans the planner considered and is echoed in
+	 * {@link #getDescription()}, so it must never contain client data.
 	 */
 	@Nonnull
 	private final String description;
@@ -108,12 +121,18 @@ public class QueryPlan {
 	/**
 	 * Contains prepared sorter implementation that takes output of the filtering process and sorts the entity
 	 * primary keys according to {@link OrderConstraint} in {@link EvitaRequest}.
+	 *
+	 * The sorters form a chain: each one fills as much of the requested slice as it can and hands the remainder to
+	 * the next - see {@link #sortAndSliceResult(QueryExecutionContext, int, Formula, Collection, OffsetAndLimit)}.
+	 * Never empty; a plan with no ordering carries a single {@link NoSorter#INSTANCE}.
 	 */
 	@Getter
 	@Nonnull
 	private final Collection<Sorter> sorters;
 	/**
-	 * Contains slicer implementation that calculates offset and limit for paginating the result.
+	 * Contains slicer implementation that calculates offset and limit for paginating the result. The slicer runs only
+	 * once the total record count is known, because the requested page may lie beyond the end of the result set and
+	 * the slicer is what clamps it.
 	 */
 	private final Slicer slicer;
 	/**
@@ -122,12 +141,16 @@ public class QueryPlan {
 	 */
 	private final Collection<ExtraResultProducer> extraResultProducers;
 	/**
-	 * Contains the total count of entities found when the query plan was executed.
+	 * Contains the total count of entities found when the query plan was executed - i.e. the size of the filtering
+	 * formula output before paging is applied. Stays `-1` until {@link #execute(byte[])} completes the filtering
+	 * phase.
 	 */
 	@Getter
 	private int totalRecordCount = -1;
 	/**
-	 * Contains the primary keys of the entities that were really returned when the query plan was executed.
+	 * Contains the primary keys of the entities that were really returned when the query plan was executed - that is
+	 * the requested page only, already sorted. Stays `null` until {@link #execute(byte[])} completes the sorting
+	 * phase.
 	 */
 	@Getter
 	private int[] primaryKeys;
@@ -135,6 +158,19 @@ public class QueryPlan {
 	/**
 	 * Creates slice of entity primary keys that respect filtering query, specified sorting and is sliced according
 	 * to requested offset and limit.
+	 *
+	 * The `sorters` are consulted in order, each one appending to `result` and reporting through
+	 * {@link SortingContext#peak()} how far the buffer is filled; the loop stops as soon as the page is complete.
+	 * Sorters are allowed to leave records they cannot order (for instance entities missing the sorted attribute),
+	 * so whatever remains unfilled is topped up by {@link NoSorter#INSTANCE} in the natural primary key order - this
+	 * is why a partially applicable ordering still yields a full page rather than a short one.
+	 *
+	 * @param queryContext     the execution context handed to the sorters
+	 * @param totalRecordCount total number of records matched by `filteringFormula`
+	 * @param filteringFormula the already-computed (memoized) filtering formula whose output is being sorted
+	 * @param sorters          the sorter chain to apply, in order
+	 * @param offsetAndLimit   the resolved slice of the sorted result to materialize
+	 * @return primary keys of the requested slice in sorted order, empty when the offset lies past the last record
 	 */
 	@Nonnull
 	private static int[] sortAndSliceResult(
@@ -183,6 +219,9 @@ public class QueryPlan {
 	/**
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
 	 * Method is expected to be called only once per request.
+	 *
+	 * @return the response of the form the {@link EvitaRequest} asked for
+	 * @see #execute(byte[]) for the full contract, including why a second call is not allowed
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
@@ -193,8 +232,20 @@ public class QueryPlan {
 	 * This method will {@link Formula#compute()} the filtered result, applies ordering and cuts out the requested page.
 	 * Method is expected to be called only once per request.
 	 *
+	 * The single-use rule is not merely a convention: the method publishes its outcome into the mutable
+	 * {@link #totalRecordCount} / {@link #primaryKeys} fields, so a second call silently overwrites the first one's
+	 * results. When query telemetry was requested it does not even get that far - the final
+	 * {@link QueryExecutionContext#finalizeTelemetry()} drains the telemetry stack owned by the *planning* context
+	 * and asserts that stack is not already empty, so the second call fails outright.
+	 *
+	 * Passing a non-null `frozenRandom` puts the execution context into "dry run" mode: results are computed for
+	 * plan-comparison purposes only, and telemetry collection is suppressed - see
+	 * {@link QueryExecutionContext#isDryRun()}.
+	 *
 	 * @param frozenRandom the frozen random state to use (non-null for deterministic results, null for random results)
-	 * @see io.evitadb.utils.RandomUtils#getFrozenRandom()
+	 * @return the response of the form the {@link EvitaRequest} asked for - entity references, full entity bodies or
+	 *         binary entities - carrying the requested page, the total record count and all requested extra results
+	 * @see RandomUtils#getFrozenRandom()
 	 */
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute(@Nullable byte[] frozenRandom) {
@@ -352,6 +403,15 @@ public class QueryPlan {
 	 * This method will process all {@link #extraResultProducers} and asks each an every of them to create an extra
 	 * result that was requested in the query. Result array is not cached and execution cost is paid for each method
 	 * call. This method is expected to be called only once, though.
+	 *
+	 * When query telemetry was requested, its root node is appended to the returned array as just another extra
+	 * result. Note that the node is appended here while it is still *open* - the telemetry tree is closed later, by
+	 * the {@link QueryExecutionContext#finalizeTelemetry()} call in {@link #execute(byte[])}. This is safe only
+	 * because what travels into the response is a reference to the very node that call finishes; do not defensively
+	 * copy the telemetry tree at this point or the response would carry unfinished timings.
+	 *
+	 * @param executionContext the execution context to fabricate the extra results with
+	 * @return the fabricated extra results, plus the telemetry root when telemetry was requested
 	 */
 	@Nonnull
 	public EvitaResponseExtraResult[] fabricateExtraResults(@Nonnull QueryExecutionContext executionContext) {
@@ -363,7 +423,7 @@ public class QueryPlan {
 					// register sub-step for each fabricator so that we can track which were the costly ones
 					executionContext.pushStep(
 						EXTRA_RESULT_ITEM_FABRICATION,
-						extraResultProducer.getClass().getSimpleName()
+						() -> extraResultProducer.getClass().getSimpleName()
 					);
 					try {
 						final EvitaResponseExtraResult extraResult = extraResultProducer.fabricate(executionContext);
@@ -416,9 +476,17 @@ public class QueryPlan {
 	}
 
 	/**
-	 * Returns the list of SpanAttributes associated with the Span.
+	 * Returns the attributes describing this query, to be attached to the tracing span covering its execution.
 	 *
-	 * @return an array of SpanAttribute objects representing the attributes of the Span
+	 * The attributes are read off the {@link FinishedEvent} the planning context collected, so this method is only
+	 * meaningful **after** {@link #execute(byte[])} has finished - before that the counters would still be zero.
+	 * When no {@link FinishedEvent} is being collected at all an empty array is returned rather than a set of blank
+	 * attributes, which keeps spans free of misleading zeroes.
+	 *
+	 * Unlike {@link #getDescription()}, the returned attributes **do** carry the query's constraints verbatim and any
+	 * client-supplied labels, so they are not suitable for a context where client data must not appear.
+	 *
+	 * @return attributes of the span covering this query, or an empty array when no metrics were collected
 	 */
 	@Nonnull
 	public SpanAttribute[] getSpanAttributes() {
@@ -457,6 +525,21 @@ public class QueryPlan {
 
 	/**
 	 * Method creates requested implementation of {@link DataChunk} with results.
+	 *
+	 * When `data` does not already hold instances of `expectedType`, the elements are run through `converter` - which
+	 * is how a client that asked for its own interface or POJO gets it. Only {@link SealedEntity} elements can be
+	 * converted this way; anything else is a mismatch between what was planned and what was requested and raises
+	 * {@link UnexpectedResultException}. The homogeneity of the list is assumed, so only its first element is probed.
+	 *
+	 * @param expectedType     the element type the client asked for
+	 * @param resultForm       whether a page-based or an offset-based chunk is to be created
+	 * @param offsetAndLimit   the resolved slice `data` was taken from
+	 * @param totalRecordCount total number of records matched by the query, before paging
+	 * @param data             the already-sliced results
+	 * @param converter        converts a {@link SealedEntity} into `expectedType`; pass
+	 *                         {@link #CONVERSION_NOT_SUPPORTED} for result forms where no conversion can occur
+	 * @return the data chunk of the form dictated by `resultForm`
+	 * @throws UnexpectedResultException when `data` holds elements that are neither `expectedType` nor convertible
 	 */
 	@Nonnull
 	public <T extends Serializable> DataChunk<T> createDataChunk(
@@ -500,7 +583,11 @@ public class QueryPlan {
 	}
 
 	/**
-	 * Method initializes sorter and all its nested sorters.
+	 * Binds every sorter in the chain to the execution context before any of them is asked to sort. Sorters that do
+	 * not participate in transactional data (they do not implement {@link TransactionalDataRelatedStructure}) need no
+	 * binding and are skipped. Must run before
+	 * {@link #sortAndSliceResult(QueryExecutionContext, int, Formula, Collection, OffsetAndLimit)}, since an
+	 * uninitialized sorter has no access to the indexes it sorts by.
 	 *
 	 * @param executionContext the execution context to use
 	 */

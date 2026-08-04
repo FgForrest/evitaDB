@@ -37,7 +37,19 @@ the following data:
 	</dd>
 	<dt>start</dt>
 	<dd>
-		Date and time of the start of this step in nanoseconds.
+		When this step began, in nanoseconds. This is <strong>not</strong> a wall-clock timestamp and must never be
+		rendered as a date.
+		<LS to="j,e,c">Embedded, it is a raw monotonic counter reading with no defined epoch — meaningful only
+		relative to another reading taken in the same JVM.</LS>
+		<LS to="g,r">It is the number of nanoseconds elapsed since the root step of the tree began, so the root
+		itself always reports <code>0</code>.</LS>
+	</dd>
+	<dt>startedAt</dt>
+	<dd>
+		The wall-clock instant at which the query began. Carried by the <strong>root</strong> step only — it is what
+		anchors the whole tree in time, so a profile can be correlated with logs, traces or another query. Every other
+		node reports <code>null</code>, and its own wall-clock position is <code>startedAt</code> plus that node's
+		<code>start</code> offset.
 	</dd>
 	<dt>steps</dt>
 	<dd>
@@ -45,18 +57,38 @@ the following data:
 	</dd>
 	<dt>arguments</dt>
 	<dd>
-		Arguments of the processing phase.
+		Arguments of the processing phase — for example, which index was selected and at what estimated cost.
 	</dd>
 	<dt>spentTime</dt>
 	<dd>
-		Duration in nanoseconds.
+		Duration in nanoseconds, covering this step and everything nested below it.
 	</dd>
+	<LS to="g,r">
+	<dt>selfTime</dt>
+	<dd>
+		Duration in nanoseconds this step spent on its own work — its <code>spentTime</code> less the time accounted
+		for by its direct children. A parent's <code>spentTime</code> is <strong>not</strong> the sum of its
+		children's, so this is the number that says how much of a phase is the phase itself rather than the phases
+		inside it.
+	</dd>
+	<dt>formattedSpentTime, formattedSelfTime</dt>
+	<dd>
+		The same two durations rendered in a human-readable form (e.g. <code>16.6 ms</code>), so a client does not
+		have to format them itself.
+	</dd>
+	</LS>
 </dl>
 
-<LS to="g">
-By default the number values of the telemetry object are returned in raw form. You can change that in the GraphQL by
-using argument `format` on the `queryTelemetry` field. This way human-readable values are returned.
-</LS>
+<Note type="warning">
+
+The set of phases is **not** guaranteed. A query whose index selection short-circuits, or a dry run, legitimately
+returns a bare root step with no children at all — clients must tolerate that rather than assume a fixed tree shape.
+
+Note also that with telemetry enabled the absolute numbers are **not** production latency: instrumenting every phase
+costs something, and that cost is included in what you are reading. Use the profile to find where the time goes
+relative to the rest of the query, not to quote an absolute figure.
+
+</Note>
 
 
 To demonstrate the information the query telemetry is providing, we will use the following query that filters and sorts

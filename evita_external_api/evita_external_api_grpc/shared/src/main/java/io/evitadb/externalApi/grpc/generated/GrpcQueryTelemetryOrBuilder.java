@@ -148,7 +148,7 @@ public interface GrpcQueryTelemetryOrBuilder extends
 
   /**
    * <pre>
-   * Duration in nanoseconds.
+   * Duration in nanoseconds, covering this step and everything nested below it.
    * </pre>
    *
    * <code>int64 spentTime = 5;</code>
@@ -185,4 +185,20 @@ public interface GrpcQueryTelemetryOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime startedAt = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getStartedAtOrBuilder();
+
+  /**
+   * <pre>
+   * Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+   * direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+   * much of a phase is the phase itself rather than the phases inside it.
+   *
+   * This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+   * it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+   * that clients which consume the wire format directly do not each have to sum the children themselves.
+   * </pre>
+   *
+   * <code>int64 selfTime = 7;</code>
+   * @return The selfTime.
+   */
+  long getSelfTime();
 }

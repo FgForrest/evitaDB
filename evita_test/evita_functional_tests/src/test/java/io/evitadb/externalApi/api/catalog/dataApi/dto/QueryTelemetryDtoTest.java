@@ -47,6 +47,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link QueryTelemetry#getStart()} into offsets relative to the root step. The raw readings are taken on the server
  * and carry no epoch, so they are meaningless to a REST / GraphQL client - only the offset is.
  *
+ * The same boundary is where the two values the engine does not carry are derived - `selfTime` and the wall-clock
+ * `startedAt` rendering - so those are pinned here as well. All of it is asserted against hand-built trees with
+ * constant timings rather than a measured query: the numbers a real query produces are not reproducible, which would
+ * leave nothing to compare the derived values against.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Tag(EXTERNAL_API)
@@ -59,6 +64,11 @@ class QueryTelemetryDtoTest {
 	 */
 	private static final long BASE_NANO_TIME = 987_654_321_000L;
 
+	/**
+	 * The core property, asserted at every depth of the tree at once. The fourth level is what makes it more than a
+	 * spot check: a conversion that normalized against the immediate parent instead of the root would still produce
+	 * a zero root and correct first-level offsets, and only start disagreeing further down.
+	 */
 	@Test
 	@DisplayName("Root step reports zero start and descendants report their offset from it")
 	void shouldNormalizeStartToOffsetFromRootThroughWholeTree() {
@@ -81,6 +91,11 @@ class QueryTelemetryDtoTest {
 		assertEquals(400L, execution.start());
 	}
 
+	/**
+	 * Guards the other side of the conversion: everything that is *not* the start must survive it verbatim. Phase,
+	 * duration and arguments are checked on a nested node as well as on the root, since the recursive branch and
+	 * the entry point are separate code paths and only one of them would break.
+	 */
 	@Test
 	@DisplayName("Normalization leaves the remaining contents of the node untouched")
 	void shouldKeepOtherPropertiesIntactWhenNormalizingStart() {
@@ -97,6 +112,70 @@ class QueryTelemetryDtoTest {
 		assertEquals(List.of("Selected index: PRODUCT"), planningFilter.arguments());
 	}
 
+	/**
+	 * Pins the derivation itself, and pins that it subtracts *direct* children only. The tree is deep enough for the
+	 * difference to show: an implementation summing all descendants would compute the root as `500 - 220` instead of
+	 * `500 - 180`, double counting the time already accounted for one level down.
+	 */
+	@Test
+	@DisplayName("Self time is the step's own time, with the time claimed by its children taken out")
+	void shouldDeriveSelfTimeAsSpentTimeLessChildrenTime() {
+		final QueryTelemetryDto converted = QueryTelemetryDto.from(createDeepTelemetryTree());
+
+		// root spends 500 with children claiming 100 (PLANNING) + 80 (EXECUTION)
+		assertEquals(320L, converted.selfTime());
+		assertTrue(converted.formattedSelfTime().length() > 0);
+
+		// PLANNING spends 100 with its sole child claiming 30
+		final QueryTelemetryDto planning = childAt(converted, 0);
+		assertEquals(70L, planning.selfTime());
+
+		// PLANNING_FILTER spends 30 with its sole child claiming 10
+		final QueryTelemetryDto planningFilter = childAt(planning, 0);
+		assertEquals(20L, planningFilter.selfTime());
+	}
+
+	/**
+	 * The boundary case of the derivation - with no children there is nothing to subtract, so the two durations must
+	 * coincide. It is the shape most steps in a real profile have, and the one a client is most likely to render
+	 * without checking, so it must not come out as zero.
+	 */
+	@Test
+	@DisplayName("A childless step spends all of its time on itself")
+	void shouldReportSelfTimeEqualToSpentTimeForLeafStep() {
+		final QueryTelemetryDto converted = QueryTelemetryDto.from(createDeepTelemetryTree());
+
+		final QueryTelemetryDto execution = childAt(converted, 1);
+		assertEquals(List.of(), execution.steps());
+		assertEquals(execution.spentTime(), execution.selfTime());
+	}
+
+	/**
+	 * Pins the clamp, which exists precisely because this input cannot arise from measuring - steps nest on a stack,
+	 * so a child can never outlast its parent. Deserialization and hand-built trees carry no such guarantee, and a
+	 * negative duration reaching a client is nonsense it has no way to render. Written with the deserializing
+	 * constructor rather than the shared fixture, since the fixture deliberately builds only consistent trees.
+	 */
+	@Test
+	@DisplayName("Self time never goes negative on a hand-assembled tree whose children outlast their parent")
+	void shouldClampSelfTimeAtZeroWhenChildrenOutlastParent() {
+		// the engine cannot produce this - steps nest on a stack - but a deserialized or hand-built tree can
+		final QueryTelemetry overlongChild = new QueryTelemetry(
+			QueryPhase.EXECUTION, BASE_NANO_TIME, 900L, new String[0], new QueryTelemetry[0]
+		);
+		final QueryTelemetry root = new QueryTelemetry(
+			QueryPhase.OVERALL, BASE_NANO_TIME, 100L, new String[0], new QueryTelemetry[]{overlongChild}
+		);
+
+		assertEquals(0L, QueryTelemetryDto.from(root).selfTime());
+	}
+
+	/**
+	 * Pins both halves of the wall-clock contract: the root renders the instant in ISO-8601 offset form, and no
+	 * other node repeats it. The "only" half is the one worth a test - a conversion that propagated the stamp down
+	 * the tree would still satisfy every client that reads it from the root, while doubling the payload of a large
+	 * profile and inviting clients to trust a value that says nothing about when that particular step ran.
+	 */
 	@Test
 	@DisplayName("Wall-clock start of the query is carried on the root step in ISO-8601 form")
 	void shouldExposeStartedAtOnRootStepOnly() {
@@ -112,6 +191,10 @@ class QueryTelemetryDtoTest {
 		assertNull(childAt(converted, 1).startedAt());
 	}
 
+	/**
+	 * A tree assembled without the stamp - which is what any node built through the non-root constructors is, and
+	 * what deserialized older payloads are - must convert rather than fail while formatting a `null` instant.
+	 */
 	@Test
 	@DisplayName("A tree with no wall-clock stamp converts without one")
 	void shouldTolerateMissingStartedAt() {
@@ -120,6 +203,11 @@ class QueryTelemetryDtoTest {
 		assertNull(converted.startedAt());
 	}
 
+	/**
+	 * The degenerate tree the engine legitimately produces - a query whose planning short-circuits, or a dry run,
+	 * yields a bare root with no steps at all. It has to normalize to zero and keep its duration, because this is a
+	 * shape clients will actually receive and not an artificial edge case.
+	 */
 	@Test
 	@DisplayName("A childless root still normalizes to zero")
 	void shouldNormalizeStartOfSoleRootStep() {
@@ -137,6 +225,8 @@ class QueryTelemetryDtoTest {
 	/**
 	 * Builds a deterministic four level deep telemetry tree whose starts are known constants, so that the expected
 	 * offsets can be asserted exactly.
+	 *
+	 * @return a tree without the wall-clock stamp, i.e. the shape a non-root construction produces
 	 */
 	@Nonnull
 	private static QueryTelemetry createDeepTelemetryTree() {
@@ -146,6 +236,13 @@ class QueryTelemetryDtoTest {
 	/**
 	 * Builds the same tree as {@link #createDeepTelemetryTree()}, additionally stamping the root with the passed
 	 * wall-clock instant of the query start.
+	 *
+	 * The tree mirrors the shape of a real profile - a deep `PLANNING` branch beside a shallow `EXECUTION` one - and
+	 * its durations are chosen so that no two steps share a `spentTime` or a `selfTime`, and so that no step with
+	 * children has the two equal - a conversion that mixes two nodes up therefore cannot pass by accident.
+	 *
+	 * @param startedAt wall-clock instant to stamp the root with, or `null` for a tree with no anchor
+	 * @return the root of the freshly built tree
 	 */
 	@Nonnull
 	private static QueryTelemetry createDeepTelemetryTree(@Nullable OffsetDateTime startedAt) {
@@ -171,6 +268,15 @@ class QueryTelemetryDtoTest {
 		);
 	}
 
+	/**
+	 * Reads a single child of a converted node, keeping the assertions above readable when they walk several levels
+	 * down. It intentionally does not guard the index - an out-of-range access means the conversion dropped a step,
+	 * which is a failure worth surfacing as loudly as possible.
+	 *
+	 * @param parent converted node to descend from
+	 * @param index  position of the child among {@link QueryTelemetryDto#steps()}
+	 * @return the child at that position
+	 */
 	@Nonnull
 	private static QueryTelemetryDto childAt(@Nonnull QueryTelemetryDto parent, int index) {
 		return parent.steps().get(index);

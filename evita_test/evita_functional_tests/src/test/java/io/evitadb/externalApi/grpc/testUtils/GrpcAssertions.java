@@ -815,6 +815,15 @@ public class GrpcAssertions {
 		assertEquals(expectedQueryTelemetry.getOperation(), QueryPhase.valueOf(actualQueryTelemetry.getOperation().name()));
 		assertEquals(expectedQueryTelemetry.getStart() - rootStart, actualQueryTelemetry.getStart());
 		assertEquals(expectedQueryTelemetry.getSpentTime(), actualQueryTelemetry.getSpentTime());
+		// self time is derived at the gRPC boundary - the engine object does not carry it
+		long expectedChildrenTime = 0;
+		for (QueryTelemetry step : expectedQueryTelemetry.getSteps()) {
+			expectedChildrenTime += step.getSpentTime();
+		}
+		assertEquals(
+			Math.max(0, expectedQueryTelemetry.getSpentTime() - expectedChildrenTime),
+			actualQueryTelemetry.getSelfTime()
+		);
 		assertArrayEquals(Arrays.stream(expectedQueryTelemetry.getArguments()).map(Object::toString).toArray(), actualQueryTelemetry.getArgumentsList().toArray());
 		assertEquals(expectedQueryTelemetry.getSteps().size(), actualQueryTelemetry.getStepsCount());
 		for (QueryTelemetry queryTelemetry : expectedQueryTelemetry.getSteps()) {

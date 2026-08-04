@@ -51,6 +51,9 @@ final class SortResolutionStrategies {
 	 */
 	private static final SortResolutionStrategy[] STRATEGIES = SortResolutionStrategy.values();
 
+	/**
+	 * This class is a holder of static helpers only and is never instantiated.
+	 */
 	private SortResolutionStrategies() {
 		throw new UnsupportedOperationException("This class cannot be instantiated!");
 	}
@@ -80,6 +83,10 @@ final class SortResolutionStrategies {
 	 * `null` when query telemetry is not being collected - in which case the caller skips tallying entirely and pays no
 	 * overhead.
 	 *
+	 * The probe is whether a telemetry step is currently open, which is the precondition {@link #report} actually
+	 * needs - there is no point tallying into an array that would have nowhere to be reported to. Deciding it once
+	 * here, up front, is what lets the per-record {@link #tally} collapse to a single null check.
+	 *
 	 * @param queryContext the execution context whose telemetry state is probed
 	 * @return a zeroed tally array, or `null` when telemetry is off
 	 */
@@ -101,9 +108,17 @@ final class SortResolutionStrategies {
 	}
 
 	/**
-	 * Emits the accumulated `tally` as a labeled child of the current {@link QueryPhase#EXECUTION_SORT_AND_SLICE}
-	 * telemetry step (e.g. `sortResolution=TREE_DENSE_WALKx1,ARRAY_MERGE_WALKx2`). A no-op when `tally` is `null`
-	 * (telemetry off) or the current step is absent.
+	 * Annotates the current {@link QueryPhase#EXECUTION_SORT_AND_SLICE} telemetry step with the accumulated `tally`
+	 * (e.g. `sortResolution=TREE_DENSE_WALKx1,ARRAY_MERGE_WALKx2`). A no-op when `tally` is `null` (telemetry off) or
+	 * the current step is absent.
+	 *
+	 * The tally is an argument *of* the sort step, not a step of its own. It used to be emitted as a child step, which
+	 * nothing ever finished - so it reported a `spentTime` of `0` and was indistinguishable from a span that genuinely
+	 * took no time, sprouting zero-width children in flame charts and nesting `EXECUTION_SORT_AND_SLICE` under itself.
+	 *
+	 * It also cannot be expressed as one of the typed numeric metrics: it is a count per
+	 * {@link PositionResolution#strategy()} value, keyed by an enum of the sorter's own, and lifting it into a shared
+	 * metric vocabulary would couple that vocabulary to the sorter's internals.
 	 *
 	 * @param queryContext the execution context whose current telemetry step is annotated
 	 * @param tally        the accumulated per-strategy counts, or `null` when telemetry is off
@@ -114,7 +129,7 @@ final class SortResolutionStrategies {
 		}
 		final QueryTelemetry currentStep = queryContext.getQueryContext().getCurrentStep();
 		if (currentStep != null) {
-			currentStep.addStep(QueryPhase.EXECUTION_SORT_AND_SLICE, formatTally(tally));
+			currentStep.annotate(formatTally(tally));
 		}
 	}
 

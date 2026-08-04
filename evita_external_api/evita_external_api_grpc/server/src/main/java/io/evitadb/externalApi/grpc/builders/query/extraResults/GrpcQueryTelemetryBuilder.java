@@ -106,12 +106,31 @@ public class GrpcQueryTelemetryBuilder {
 			.setStart(queryTelemetry.getStart() - rootStart)
 			.addAllSteps(steps)
 			.addAllArguments(Arrays.stream(queryTelemetry.getArguments()).map(Objects::toString).toList())
-			.setSpentTime(queryTelemetry.getSpentTime());
+			.setSpentTime(queryTelemetry.getSpentTime())
+			.setSelfTime(selfTimeOf(queryTelemetry));
 		// only the root step carries the wall-clock stamp that anchors the whole tree in time
 		final OffsetDateTime startedAt = queryTelemetry.getStartedAt();
 		if (startedAt != null) {
 			builder.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(startedAt));
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Returns the time this step spent on its own work - its `spentTime` less the time accounted for by its direct
+	 * children.
+	 *
+	 * The engine object does not carry this; it is derived here so that every remote client gets it without the engine
+	 * having to track it. Steps nest on a stack and therefore never overlap, so the result cannot legitimately be
+	 * negative - it is clamped at zero regardless, because a hand-assembled tree carries no such guarantee.
+	 *
+	 * @param queryTelemetry node whose self time is computed
+	 */
+	private static long selfTimeOf(@Nonnull QueryTelemetry queryTelemetry) {
+		long childrenTime = 0;
+		for (final QueryTelemetry step : queryTelemetry.getSteps()) {
+			childrenTime += step.getSpentTime();
+		}
+		return Math.max(0, queryTelemetry.getSpentTime() - childrenTime);
 	}
 }

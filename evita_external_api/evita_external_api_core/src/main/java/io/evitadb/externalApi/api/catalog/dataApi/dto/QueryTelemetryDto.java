@@ -40,6 +40,27 @@ import java.util.List;
  * therefore always reports `0`. The raw reading has no defined epoch and is taken on the server, which makes it
  * meaningless to a remote client; only the offset is.
  *
+ * This DTO also derives `selfTime`, which the engine object does not carry. A parent's `spentTime` is *not* the sum of
+ * its children's - the children do not tile the parent - so a client that assumes they do renders the profile wrong.
+ * Deriving the difference here means every remote client gets it without the engine having to track it.
+ *
+ * Both derivations happen here rather than in the engine on purpose: they are presentation concerns of the remote
+ * APIs, and paying for them on the embedded path - which needs neither - would tax every telemetry-enabled query.
+ *
+ * @param operation          {@link QueryTelemetry.QueryPhase} this step measured, by its enum name
+ * @param start              nanoseconds elapsed between the start of the root step and the start of this one, so the
+ *                           root itself always reports `0`
+ * @param steps              child steps this phase decomposed into, converted recursively and normalized against the
+ *                           very same root; empty for a phase that was not decomposed further
+ * @param arguments          human readable details of the phase - for example the index that was selected and its
+ *                           estimated cost
+ * @param spentTime          duration of this step in nanoseconds, covering the step and everything nested below it
+ * @param formattedSpentTime `spentTime` rendered for humans (e.g. `16.6 ms`), so that clients do not each invent
+ *                           their own nanosecond formatting
+ * @param selfTime           duration in nanoseconds this step spent on its own work - see {@link #selfTimeOf}
+ * @param formattedSelfTime  `selfTime` rendered for humans, in the same form as `formattedSpentTime`
+ * @param startedAt          wall-clock instant the query began in ISO-8601 offset date-time form, carried by the
+ *                           root step only and `null` on every other node
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public record QueryTelemetryDto(@Nonnull String operation,
@@ -48,6 +69,8 @@ public record QueryTelemetryDto(@Nonnull String operation,
                                 @Nonnull List<String> arguments,
                                 long spentTime,
                                 @Nonnull String formattedSpentTime,
+								long selfTime,
+								@Nonnull String formattedSelfTime,
                                 @Nullable String startedAt) {
 
 	/**
@@ -55,6 +78,7 @@ public record QueryTelemetryDto(@Nonnull String operation,
 	 *
 	 * @param queryTelemetry **root** of the telemetry tree - the start of this very node becomes the zero point
 	 *                       every other node in the tree is expressed against
+	 * @return the converted tree, whose root reports a `start` of `0`
 	 */
 	@Nonnull
 	public static QueryTelemetryDto from(@Nonnull QueryTelemetry queryTelemetry) {
@@ -64,21 +88,49 @@ public record QueryTelemetryDto(@Nonnull String operation,
 	/**
 	 * Recursively converts a single node of the telemetry tree, normalizing its start against the root step.
 	 *
+	 * The root start is threaded down through the whole recursion rather than re-read at each level, so that every
+	 * node in the tree ends up expressed against the same zero point - normalizing against the immediate parent
+	 * instead would make the offsets impossible to compare across branches.
+	 *
 	 * @param queryTelemetry node to be converted
 	 * @param rootStart      raw `nanoTime` reading of the root step of the entire tree
+	 * @return the converted node, together with everything nested below it
 	 */
 	@Nonnull
 	private static QueryTelemetryDto from(@Nonnull QueryTelemetry queryTelemetry, long rootStart) {
+		final long spentTime = queryTelemetry.getSpentTime();
+		final long selfTime = selfTimeOf(queryTelemetry);
 		return new QueryTelemetryDto(
 			queryTelemetry.getOperation().toString(),
 			queryTelemetry.getStart() - rootStart,
 			queryTelemetry.getSteps().stream().map(it -> from(it, rootStart)).toList(),
 			Arrays.stream(queryTelemetry.getArguments()).map(Object::toString).toList(),
-			queryTelemetry.getSpentTime(),
-			StringUtils.formatNano(queryTelemetry.getSpentTime()),
+			spentTime,
+			StringUtils.formatNano(spentTime),
+			selfTime,
+			StringUtils.formatNano(selfTime),
 			// only the root step carries the wall-clock stamp that anchors the whole tree in time
 			queryTelemetry.getStartedAt() == null ?
 				null : DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(queryTelemetry.getStartedAt())
 		);
+	}
+
+	/**
+	 * Returns the time this step spent on its own work - its `spentTime` less the time accounted for by its direct
+	 * children.
+	 *
+	 * Steps nest on a stack and therefore never overlap, so the children can never outlast the parent and the result
+	 * cannot legitimately be negative. It is clamped at zero regardless, because a telemetry tree that was assembled
+	 * by hand (deserialization, tests) carries no such guarantee and a negative duration would be nonsense to render.
+	 *
+	 * @param queryTelemetry node whose self time is computed
+	 * @return nanoseconds this step spent outside of its direct children, never negative
+	 */
+	private static long selfTimeOf(@Nonnull QueryTelemetry queryTelemetry) {
+		long childrenTime = 0;
+		for (final QueryTelemetry step : queryTelemetry.getSteps()) {
+			childrenTime += step.getSpentTime();
+		}
+		return Math.max(0, queryTelemetry.getSpentTime() - childrenTime);
 	}
 }
