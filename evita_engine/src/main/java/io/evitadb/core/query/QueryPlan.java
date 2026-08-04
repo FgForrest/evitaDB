@@ -459,7 +459,14 @@ public class QueryPlan {
 			// the plan that actually ran, recorded here rather than during planning on purpose: by now the winning
 			// formula has been computed, so its nodes can report the result counts and real costs the alternatives
 			// recorded at planning time necessarily could not. Rendering still computes nothing - a branch the
-			// formula short-circuited past is legitimately unmemoized and is reported as such
+			// formula short-circuited past is legitimately unmemoized and is reported as such.
+			//
+			// **This must stay below the ACTUAL_COST line above.** The renderer reads getCost() on every memoized
+			// node, and AbstractFormula's default getCostInternal() computes each inner formula - which matters
+			// for types whose computeInternal() skips children but whose cost path does not (DisentangleFormula's
+			// X\X guard is one). Reading the root's cost first forces all of that, so by the time the renderer
+			// runs there is nothing left for it to trigger. Reorder these two and telemetry starts executing
+			// branches the engine deliberately skipped
 			if (executionContext.isTelemetryPlanCollected()) {
 				telemetryRoot.recordPlan(FormulaPlanVisitor.toPlan(this.filter));
 			}

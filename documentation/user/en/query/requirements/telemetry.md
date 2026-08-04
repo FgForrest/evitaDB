@@ -135,7 +135,7 @@ The metrics themselves:
 | `recordsReturned` | How many records were handed back, i.e. the size of the requested page |
 | `ioFetchCount` | How many times the storage was read while assembling the response |
 | `ioFetchedSizeBytes` | How many bytes were read from the storage |
-| `prefetched` | Whether the planner filtered over prefetched entity bodies instead of consulting indexes |
+| `prefetched` | Whether the planner filtered over prefetched entity bodies instead of consulting indexes — read this before interpreting a plan, see below |
 
 The pair worth looking at first is `estimatedCardinality` against `actualCardinality`. An estimate that is off by
 orders of magnitude is *why* the engine chose the index it chose, and it is the usual explanation for a plan that
@@ -233,6 +233,13 @@ much. A node with `refTo` set carries no detail and no children — resolve it a
 **An absent `actualCost` is not a zero cost — it means the formula never ran.** The planner costs every candidate
 index but executes only the winner, so a rejected alternative legitimately reports no real cost at all, and so does a
 branch of the winning plan that was short-circuited past.
+
+There is a third case, and it is the one most often misread: when the planner decides it is cheaper to fetch a small
+number of entity bodies and filter over those, the node described `APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE`
+answers the query from the fetched bodies and **never evaluates the index branch beneath it**. That whole sub-tree is
+therefore reported with no `actualCost` and no `resultCount`, inside a plan that really did run. The metric that tells
+you this is what happened is `prefetched` — check it before concluding that a large part of your plan was skipped for
+some other reason.
 
 This is deliberate and is the reason rendering the plan is safe: **the renderer never computes anything.** Were it to
 call `compute()` to fill those fields in, asking for a profile would execute the plans the engine had decided to

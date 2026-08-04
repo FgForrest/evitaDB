@@ -152,8 +152,15 @@ public class QueryExecutionContext implements Closeable {
 	 *
 	 * In that mode the same query is evaluated by several alternative plans purely to check they agree, so the run is
 	 * not the one the client observes. Two things follow, and both are relied upon across this class: the random
-	 * source is frozen so the plans cannot diverge on it (see {@link #frozenRandom}), and every telemetry mutation is
-	 * suppressed - the throw-away runs must not pollute the tree that the real execution reports.
+	 * source is frozen so the plans cannot diverge on it (see {@link #frozenRandom}), and every telemetry step
+	 * pushed or popped *through this class* is suppressed - the throw-away runs must not pollute the tree that the
+	 * real execution reports.
+	 *
+	 * The suppression covers steps, not annotations, and it only covers callers that go through this class. Code
+	 * that reaches the planning context directly - `SortResolutionStrategies` is the one such caller today - can
+	 * still annotate the open step during a dry run, so a query run under
+	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} may carry annotations
+	 * contributed by a verification pass rather than by the run the client observes.
 	 *
 	 * The flag is derived from {@link #frozenRandom} rather than stored separately: a frozen random source is only
 	 * ever supplied for plan verification, so its presence *is* the dry-run signal.
@@ -515,7 +522,7 @@ public class QueryExecutionContext implements Closeable {
 	 * This wrapper exists solely to add the {@link #isDryRun()} guard to the identically named method on the planning
 	 * context: the telemetry tree belongs to the planning context and is shared by every execution of the query, so a
 	 * plan-verification run must not push its steps into it. Execution-time code must therefore always go through
-	 * this class and never reach for the {@link #queryContext} directly to record a step.
+	 * this class and never reach for the {@link #queryContext} directly to push or pop a step.
 	 *
 	 * @param phase the phase the pushed step measures
 	 */

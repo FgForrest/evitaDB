@@ -1,7 +1,7 @@
 ---
 title: Turn query telemetry into an actionable profile, and render the formula plan without ever computing it
 date: 2026-08-04
-updated: 2026-08-04 11:40
+updated: 2026-08-04 12:45
 status: accepted
 kind: feature
 issues: [1341]
@@ -105,6 +105,7 @@ which point the two renderers should merge rather than coexist.
 | Metrics **round-trip** through `ResponseConverter` | So an embedded caller and a gRPC caller see the same numbers | Deriving them client-side, as `selfTime` is — it is a pure function of the tree, metrics are not |
 | `QueryTelemetryContent` is a single-valued **level** (`TIMINGS`, `PLAN`) following `ConstraintWithDefaults` | A one-constant enum cannot express its own default and publishes as a single-value enum in the generated schemas. As a set, `queryTelemetry(TIMINGS, PLAN)` would be self-contradictory | A vararg content set, which is what `StatisticsType` does — right for genuine flag sets, wrong for levels |
 | Item 2's orphaned node fixed by **appending an argument** | The issue's own recommendation — relaxing `QueryTelemetry.finish()`'s one-shot assert — throws on the `NestedContextSorter` path | Relaxing the assert |
+| The telemetry level is **not persisted** by the Kryo serializer | The old payload was zero bytes and the traffic-recording format has no version stamp, so any reader that consumes bytes corrupts every recording written before the level existed. Losing the level on replay is a debug constraint degrading to its default; the alternative loses whole recordings | Writing the level (implemented, then reverted); a `SerialVersionBasedSerializer` compat reader — impossible, constraints carry no `serialVersionUID` and Kryo binds one id per class |
 
 ## Key technical details
 
@@ -113,13 +114,40 @@ which point the two renderers should merge rather than coexist.
   cached `FlattenedFormula` reports one having computed nothing. That `getCost()` happens to return
   `Long.MAX_VALUE` for an uncomputed formula is a coincidence, not a contract — it is also what an
   estimate returns on arithmetic overflow.
-- **The non-forcing guarantee has a dependency a future change can silently break.**
-  `AbstractFormula.getCostInternal()` computes every inner formula unconditionally, and the visitor
-  *does* call `getCost()` on a short-circuited `AndFormula` — the AND itself is memoized, having
-  produced an empty result. It stays non-forcing only because `AndFormula` overrides the cost path
-  with one that short-circuits at the same index, and `NotFormula` handles its empty-superset case
-  explicitly. **A new formula type that skips children in `computeInternal()` while inheriting the
-  default `getCostInternal()` would make plan rendering execute the branch the engine skipped.**
+- **What actually makes the renderer non-forcing is call *ordering*, not the formula types.** The
+  visitor reads `getCost()` on any node that is memoized, and `AbstractFormula.getCostInternal()`
+  computes every inner formula unconditionally. Several types skip children in `computeInternal()` —
+  `AndFormula` (sorted-conjunction short-circuit) and `NotFormula` (empty superset) override the cost
+  path to match, `SelectionFormula` skips its delegate on the prefetch path and overrides
+  consistently, but `DisentangleFormula`'s X\X guard returns empty without computing its inner
+  formulas while its cost path falls through to `super.getCostInternal()`, which computes both. So
+  "no type skips a child" is **not** the invariant, and must not be relied on.
+
+  The guarantee holds because of where the calls sit. At the execution site
+  `QueryPlan.recordQueryMetrics` reads `this.filter.getCost()` for the `ACTUAL_COST` metric *before*
+  it renders the plan, so anything the cost path would force has already been forced — by the metric,
+  not by the renderer. At the planning site nothing is memoized yet, so the visitor calls `getCost()`
+  on no node at all. **Move the plan rendering above the cost metric, or render a memoized tree from
+  anywhere else, and the renderer starts executing branches the engine skipped.**
+  `FormulaPlanVisitorTest.shouldReportAShortCircuitedBranchAsNeverHavingRun` pins the `AndFormula`
+  case; the ordering itself is not pinned by any test.
+- **Prefetch produces a third kind of unexecuted node, and it is the one users will misread.**
+  `SelectionFormula` answers from prefetched entity bodies when the planner judges that cheaper, and
+  then never computes its delegate — so the whole index sub-tree below it reports no `actualCost` and
+  no `resultCount` *inside the plan that ran*. That is honest, and it is what the `PREFETCHED` metric
+  exists to explain; the two must be read together.
+  `QueryTelemetryRootFunctionalTest.shouldReportTheIndexBranchAsUnexecutedWhenFilteringOverPrefetchedBodies`
+  pins it, forcing the path with `DebugMode.PREFER_PREFETCHING` because the cost-based selector will
+  not prefetch for a test-sized catalog.
+
+  A related trap sits one level down and is **pre-existing**, not introduced here:
+  `SelectionFormula.computeInternal()` branches on `isPrefetchExecution()` while its
+  `getCostInternal()` branches on `getPrefetchedEntities() != null`. Those are different questions,
+  and `verifyConsistentResultsInAllPlans` drives them apart — it runs the index plan with prefetched
+  entities still present, so the cost path returns the prefetch constant for work the index branch
+  actually did. Any `actualCost` read off a `SelectionFormula` node under
+  `VERIFY_ALTERNATIVE_INDEX_RESULTS` is understated for that reason.
+
 - **The plan is a DAG, not a tree.** Memoization is per *instance*, so a sub-formula reachable by two
   paths is computed once. Repeat occurrences are emitted as childless `refTo` pointers; without them
   a reader would count an expensive shared subtree twice. Identity, not structural equality, is what
@@ -129,11 +157,19 @@ which point the two renderers should merge rather than coexist.
   `QueryPlan.recordQueryMetrics` (memoized — real costs and result counts). A node with no
   `actualCost` is therefore not necessarily a rejected alternative; a branch of the *winning* plan
   that the computation short-circuited past is legitimately unmemoized too.
-- **A constraint gaining its first argument needs its Kryo serializer revisited.**
-  `QueryTelemetrySerializer` wrote nothing, which was correct while the constraint was stateless and
-  became silent data loss the moment it was not — a `queryTelemetry(PLAN)` arriving via the Java
-  driver or replayed from a traffic recording would have been downgraded to the default with no error
-  anywhere.
+- **`QueryTelemetrySerializer` still writes nothing, and that is now a decision rather than an
+  oversight.** Persisting the level was implemented first, on the reasoning that a constraint gaining
+  its first argument needs its Kryo serializer revisited — then reverted, because it cannot be done
+  compatibly. `QuerySerializationKryoConfigurer` has exactly two production users, both traffic
+  recording; the remote drivers send EvitaQL as a string and never reach it. Before the level existed
+  the serializer emitted **zero bytes**, and the recording format carries no version, magic or length
+  stamp, so a reader that consumes an enum eats into the *next* element of any recording written by an
+  earlier build. Query constraints are also registered directly rather than through
+  `SerialVersionBasedSerializer`, so there is no `serialVersionUID` to dispatch a backward-compatible
+  reader on, and Kryo binds one registration id per class. The price of writing nothing is that
+  replaying a recorded `queryTelemetry(PLAN)` re-executes it as `queryTelemetry()`; the price of the
+  alternative was every pre-existing recording becoming unreadable, silently. Revisit if the recording
+  format ever gains a version stamp.
 - **GraphQL `Long` is a custom scalar serialising to a JSON string** (`LongCoercing`), so telemetry
   durations and metrics arrive quoted. This is deliberate — the values exceed JavaScript's safe
   integer range — but it surprises every first-time consumer.
@@ -152,6 +188,10 @@ which point the two renderers should merge rather than coexist.
 - Wire-level coverage on both JSON APIs (`shouldReturnQueryTelemetry` in the REST and GraphQL
   catalog query tests), asserted over HTTP rather than on the DTO — a property the schema declares
   but the serializer never emits would pass every unit test and still break every generated client.
+- `QuerySerializationTest` gained a `queryTelemetry` block pinning the Kryo decision from both sides:
+  `shouldDegradePlanLevelToDefault` records the accepted cost, and `shouldConsumeNoBytes` writes two
+  constraints back to back and reads both, which only succeeds while the serializer consumes nothing —
+  it is the guard that keeps recordings written before the level existed readable.
 - Full reactor `mvn install` exit 0. Targeted sweep: **116 tests** across the API/parser/functional
   suites and **45 tests** across `FormulaPlanVisitorTest` + `QueryTelemetryTest`, 0 failures,
   0 errors. The full functional suite was not run.

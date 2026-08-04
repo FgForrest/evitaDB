@@ -28,6 +28,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.QueryTelemetryContent;
 import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -49,10 +50,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 
+import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeStartsWith;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -92,6 +96,12 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final int PRODUCT_COUNT = 4;
+	/**
+	 * `SelectionFormula#toString()`, which is what the plan reports as that node's description. Kept here rather
+	 * than referenced from the engine class so that a change to the wording surfaces as a failure in the test that
+	 * documents the behaviour, rather than silently following it.
+	 */
+	private static final String PREFETCH_FORMULA_DESCRIPTION = "APPLY PREDICATE ON PREFETCHED ENTITIES IF POSSIBLE";
 
 	private TestPaths paths;
 	private Evita evita;
@@ -295,6 +305,57 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 		assertNull(plan.resultCount(), "A plan rendered during planning cannot have a result count!");
 	}
 
+	@Test
+	@DisplayName("a plan filtered over prefetched bodies reports its index branch as never executed")
+	void shouldReportTheIndexBranchAsUnexecutedWhenFilteringOverPrefetchedBodies() {
+		// The second way a node of the *winning* plan legitimately reports no outcome numbers, and the one most
+		// likely to be misread. When the planner decides it is cheaper to fetch a handful of entity bodies and
+		// filter over those, `SelectionFormula` evaluates its alternative and never computes its delegate - so
+		// the entire index sub-tree below it is honestly reported as never having run, in a plan that did run.
+		// Read against the `PREFETCHED` metric, which is what says why: without it this is indistinguishable
+		// from a rejected alternative at a glance.
+		final QueryTelemetry telemetry = queryTelemetryOfPrefetchedQuery();
+
+		assertEquals(
+			1L, telemetry.getMetric(StepMetric.PREFETCHED).orElseThrow(
+				() -> new AssertionError("The root step must report whether the query filtered over prefetched bodies!")
+			),
+			"This query must actually take the prefetch path, or the assertions below assert nothing!"
+		);
+
+		final FormulaPlan plan = telemetry.getPlan();
+		assertNotNull(plan, "The root must carry the plan that was actually executed!");
+
+		final FormulaPlan prefetchNode = findPlanNodeByDescription(plan, PREFETCH_FORMULA_DESCRIPTION);
+		assertNotNull(
+			prefetchNode,
+			"The executed plan must contain the prefetch-capable node, or the query did not take that path!"
+		);
+		// the node itself ran - it produced the result the query was answered from
+		assertNotNull(prefetchNode.actualCost(), "The prefetch node itself really ran and must report its cost!");
+		assertNotNull(prefetchNode.resultCount(), "The prefetch node itself really ran and must report a count!");
+
+		// ...and everything below it did not, because the alternative answered the query instead
+		assertFalse(
+			prefetchNode.children().isEmpty(),
+			"The prefetch node must still describe the index branch it skipped - structure is not outcome!"
+		);
+		for (final FormulaPlan skipped : prefetchNode.children()) {
+			assertNull(
+				skipped.actualCost(),
+				"The index branch was skipped in favour of prefetched bodies and cannot have a real cost!"
+			);
+			assertNull(
+				skipped.resultCount(),
+				"The index branch was skipped in favour of prefetched bodies and cannot have a result count!"
+			);
+			assertNotNull(
+				skipped.description(),
+				"A skipped branch must still say what it would have done - that is the point of describing it!"
+			);
+		}
+	}
+
 	/**
 	 * Asserts that no step anywhere in the passed tree carries a formula plan.
 	 *
@@ -428,6 +489,63 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");
 			return telemetry;
 		}
+	}
+
+	/**
+	 * Runs a query the planner answers by prefetching entity bodies rather than by consulting indexes: a small,
+	 * conjunctive primary-key set combined with a body requirement is the shape that makes prefetching
+	 * worthwhile, which is what puts a `SelectionFormula` into the plan and leaves its delegate uncomputed.
+	 *
+	 * @return the telemetry extra result of the executed query
+	 */
+	@Nonnull
+	private QueryTelemetry queryTelemetryOfPrefetchedQuery() {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<SealedEntity> response = session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						and(
+							entityPrimaryKeyInSet(1, 2),
+							attributeStartsWith(ATTRIBUTE_CODE, "garmin")
+						)
+					),
+					require(
+						// the cost-based selector would not bother prefetching for a catalog this small, so the
+						// path is forced rather than coaxed - the point of the test is the shape of the plan on
+						// that path, not the heuristic that picks it
+						debug(DebugMode.PREFER_PREFETCHING),
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						queryTelemetry(QueryTelemetryContent.PLAN)
+					)
+				),
+				SealedEntity.class
+			);
+			final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");
+			return telemetry;
+		}
+	}
+
+	/**
+	 * Walks a formula plan depth-first and returns the first node whose description matches exactly.
+	 *
+	 * @param plan        the plan node to start from
+	 * @param description the description to look for
+	 * @return the matching node, or `null` when the plan contains none
+	 */
+	@Nullable
+	private static FormulaPlan findPlanNodeByDescription(@Nonnull FormulaPlan plan, @Nonnull String description) {
+		if (description.equals(plan.description())) {
+			return plan;
+		}
+		for (final FormulaPlan child : plan.children()) {
+			final FormulaPlan found = findPlanNodeByDescription(child, description);
+			if (found != null) {
+				return found;
+			}
+		}
+		return null;
 	}
 
 	/**

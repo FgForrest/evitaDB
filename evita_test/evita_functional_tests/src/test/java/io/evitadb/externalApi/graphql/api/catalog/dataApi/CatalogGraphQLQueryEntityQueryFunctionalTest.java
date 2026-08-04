@@ -65,6 +65,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.Referen
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
@@ -84,6 +85,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.GraphQLExtraResultsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.InScopeDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FormulaPlanNodeDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -10427,6 +10429,109 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(telemetryPath(1, QueryTelemetryNodeDescriptor.LEVEL), equalTo(2))
 			// metrics describe the query as a whole and belong to the root alone
 			.body(telemetryPath(1, QueryTelemetryDescriptor.METRICS), nullValue());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return formula plan in query telemetry")
+	void shouldReturnQueryTelemetryWithFormulaPlan(GraphQLTester tester) {
+		// this API has no field argument for the level - selecting `plan` *is* the opt-in, resolved from the
+		// selection set by `QueryTelemetryResolver`. The plan is flattened exactly as the steps are, and for the
+		// same reason, so it too carries `level` and `childrenCount` in place of a recursive `children` field
+		tester.test(TEST_CATALOG)
+			// two constraints so the formula is a conjunction rather than a single node - an unfiltered query
+			// produces a one-node plan, which cannot show that the flattening carries structure at all
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: [1, 2, 3, 4, 5, 6]
+							entityPrimaryKeyGreaterThan: 2
+						}
+					) {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry {
+								level
+								operation
+								plan {
+									level
+									id
+									refTo
+									hash
+									description
+									estimatedCost
+									actualCost
+									resultCount
+									childrenCount
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(telemetryPath(0, QueryTelemetryNodeDescriptor.PLAN), hasSize(greaterThan(1)))
+			// the plan list is pre-order like the steps, so its first entry is the root of the executed formula
+			.body(planPath(0, 0, FormulaPlanNodeDescriptor.LEVEL), equalTo(1))
+			.body(planPath(0, 0, FormulaPlanDescriptor.DESCRIPTION), notNullValue())
+			.body(planPath(0, 0, FormulaPlanDescriptor.ESTIMATED_COST), notNullValue())
+			// the executed plan really ran, so unlike a rejected alternative it reports outcome numbers
+			.body(planPath(0, 0, FormulaPlanDescriptor.ACTUAL_COST), notNullValue())
+			.body(planPath(0, 0, FormulaPlanDescriptor.RESULT_COUNT), notNullValue())
+			// nothing precedes the plan root, so it can never be a back-reference into an earlier node
+			.body(planPath(0, 0, FormulaPlanDescriptor.REF_TO), nullValue())
+			// the entry after the root is its first child - the same pre-order claim the step list makes
+			.body(planPath(0, 1, FormulaPlanNodeDescriptor.LEVEL), equalTo(2));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should omit formula plan from query telemetry when not selected")
+	void shouldOmitFormulaPlanWhenNotSelected(GraphQLTester tester) {
+		// the zero-cost guarantee stated on the wire: not selecting `plan` must resolve to the timings level, so
+		// the engine never builds a plan at all. The GraphQL half of what `QueryTelemetryResolverTest` unit-pins
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry {
+								level
+								operation
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(telemetryPath(), hasSize(greaterThan(0)))
+			// the field was not selected, so it cannot appear in the response either way - what this pins is that
+			// the query still succeeds and the profile still arrives, i.e. the plan is genuinely optional
+			.body(telemetryPath(0, QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()));
+	}
+
+	/**
+	 * Builds the response body path of a property of a single formula plan node.
+	 *
+	 * @param stepIndex position of the owning step in the flattened telemetry list - `0` being the root
+	 * @param planIndex position of the node in that step's flattened, pre-order plan list - `0` being its root
+	 * @param properties path of the property below that plan node
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String planPath(int stepIndex, int planIndex, @Nonnull Object... properties) {
+		final String node = telemetryPath(stepIndex, QueryTelemetryNodeDescriptor.PLAN) + "[" + planIndex + "]";
+		return properties.length == 0 ? node : node + "." + resultPath(properties);
 	}
 
 	/**

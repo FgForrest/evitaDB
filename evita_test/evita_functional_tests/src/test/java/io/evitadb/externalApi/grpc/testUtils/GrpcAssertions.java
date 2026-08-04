@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
@@ -828,9 +829,68 @@ public class GrpcAssertions {
 		);
 		assertArrayEquals(Arrays.stream(expectedQueryTelemetry.getArguments()).map(Object::toString).toArray(), actualQueryTelemetry.getArgumentsList().toArray());
 		assertQueryTelemetryMetrics(expectedQueryTelemetry, actualQueryTelemetry);
+		assertQueryTelemetryPlan(expectedQueryTelemetry, actualQueryTelemetry);
+		// the wall-clock anchor belongs to the root alone - every other node derives its position from it
+		assertEquals(expectedQueryTelemetry.getStartedAt() != null, actualQueryTelemetry.hasStartedAt());
 		assertEquals(expectedQueryTelemetry.getSteps().size(), actualQueryTelemetry.getStepsCount());
 		for (QueryTelemetry queryTelemetry : expectedQueryTelemetry.getSteps()) {
 			assertQueryTelemetry(queryTelemetry, actualQueryTelemetry.getStepsList().get(expectedQueryTelemetry.getSteps().indexOf(queryTelemetry)), rootStart);
+		}
+	}
+
+	/**
+	 * Compares the formula plan of a single telemetry node with the one its gRPC counterpart carries.
+	 *
+	 * The absent-vs-zero rule of the metrics applies here too and matters more: a node the engine never executed
+	 * reports no `actualCost` and no `resultCount` at all, and a wire form that defaulted those to zero would
+	 * present a rejected plan alternative as one that ran and matched nothing. Presence is therefore asserted
+	 * before value, on every node of the tree.
+	 *
+	 * @param expected node as the engine rendered it
+	 * @param actual   the same node as it travels on the wire
+	 */
+	private static void assertQueryTelemetryPlan(
+		@Nonnull QueryTelemetry expected,
+		@Nonnull GrpcQueryTelemetry actual
+	) {
+		assertEquals(expected.getPlan() != null, actual.hasPlan(), "Presence of the formula plan differs!");
+		if (expected.getPlan() != null) {
+			assertFormulaPlan(expected.getPlan(), actual.getPlan());
+		}
+	}
+
+	/**
+	 * Recursively compares one node of a formula plan with its gRPC counterpart.
+	 *
+	 * @param expected plan node as the engine rendered it
+	 * @param actual   the same node as it travels on the wire
+	 */
+	private static void assertFormulaPlan(@Nonnull FormulaPlan expected, @Nonnull GrpcFormulaPlan actual) {
+		assertEquals(expected.id(), actual.getId());
+		assertEquals(expected.hash(), actual.getHash());
+		assertEquals(expected.estimatedCost(), actual.getEstimatedCost());
+		// a repeat occurrence points back at the node that describes it and carries nothing else - collapsing that
+		// into a full copy would invite a reader to count a shared sub-tree's cost twice
+		assertEquals(expected.refTo() != null, actual.hasRefTo(), "Presence of `refTo` differs!");
+		if (expected.refTo() != null) {
+			assertEquals(expected.refTo().intValue(), actual.getRefTo());
+		}
+		assertEquals(expected.description() != null, actual.hasDescription(), "Presence of `description` differs!");
+		if (expected.description() != null) {
+			assertEquals(expected.description(), actual.getDescription());
+		}
+		// the two that say whether this node ran at all
+		assertEquals(expected.actualCost() != null, actual.hasActualCost(), "Presence of `actualCost` differs!");
+		if (expected.actualCost() != null) {
+			assertEquals(expected.actualCost().longValue(), actual.getActualCost());
+		}
+		assertEquals(expected.resultCount() != null, actual.hasResultCount(), "Presence of `resultCount` differs!");
+		if (expected.resultCount() != null) {
+			assertEquals(expected.resultCount().intValue(), actual.getResultCount());
+		}
+		assertEquals(expected.children().size(), actual.getChildrenCount(), "Plan children count differs!");
+		for (int i = 0; i < expected.children().size(); i++) {
+			assertFormulaPlan(expected.children().get(i), actual.getChildren(i));
 		}
 	}
 

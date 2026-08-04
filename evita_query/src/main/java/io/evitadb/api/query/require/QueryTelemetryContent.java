@@ -33,6 +33,8 @@ import io.evitadb.dataType.SupportedEnum;
  * what a bare `queryTelemetry()` resolves to.
  *
  * This enum is marked as {@link SupportedEnum}, making it available for use in generated API schemas.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @SupportedEnum
 public enum QueryTelemetryContent {

@@ -64,7 +64,7 @@ public class QueryTelemetryDataFetcher implements DataFetcher<List<QueryTelemetr
 
 	@Nullable
 	@Override
-	public List<QueryTelemetryNodeDto> get(DataFetchingEnvironment environment) throws Exception {
+	public List<QueryTelemetryNodeDto> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final QueryTelemetry queryTelemetry = response.getExtraResult(QueryTelemetry.class);
 		if (queryTelemetry == null) {

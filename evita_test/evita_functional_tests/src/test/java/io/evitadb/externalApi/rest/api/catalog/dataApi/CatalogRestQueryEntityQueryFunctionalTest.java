@@ -58,6 +58,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
@@ -5328,8 +5329,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		// note the require shape: `queryTelemetry` used to be `true`, the form a constraint with no arguments
 		// takes. It now carries a `QueryTelemetryContent` level, and a single-argument constraint is published
 		// unwrapped - as the bare value, not an object around it. `"TIMINGS"` is the default this asserts;
-		// `"PLAN"` additionally asks for the formula plan. This is one of the breaking changes issue #1341
-		// accepts, and it is deliberate rather than a compatible workaround layered over a shape that was going
+		// `"PLAN"` additionally asks for the formula plan. The break is deliberate and was taken while nothing
+		// consumed the old shape yet, rather than layering a compatible workaround over a shape that was going
 		// to have to change anyway
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
@@ -5385,6 +5386,75 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				telemetryPath(QueryTelemetryDescriptor.STEPS) + "[0]." + QueryTelemetryDescriptor.METRICS.name(),
 				nullValue()
 			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return the formula plan when the query telemetry asks for it")
+	void shouldReturnQueryTelemetryWithFormulaPlan(RestTester tester) {
+		// the other half of the require shape: `"PLAN"` in place of `"TIMINGS"` is the whole opt-in. REST keeps
+		// the plan nested, unlike GraphQL which flattens it, so this asserts the nested `children` shape as well
+		// as the fields - a plan whose children never serialize would satisfy every field assertion on the root
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			// two constraints so the formula is a conjunction rather than a single node - the point of asserting
+			// the nested shape is that children serialize at all, which an unfiltered query cannot show
+			.requestBody("""
+				             {
+				             	"filterBy": {
+				             		"entityPrimaryKeyInSet": [1, 2, 3, 4, 5, 6],
+				             		"entityPrimaryKeyGreaterThan": 2
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": "PLAN"
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.DESCRIPTION), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.ESTIMATED_COST), notNullValue())
+			// the root of the executed plan really ran, so unlike a rejected alternative it carries outcome numbers
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.ACTUAL_COST), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.RESULT_COUNT), notNullValue())
+			// nothing precedes the plan root, so it can never be a back-reference into an earlier node
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.REF_TO), nullValue())
+			// REST nests the plan rather than flattening it - the property GraphQL deliberately does not have
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.PLAN, FormulaPlanDescriptor.CHILDREN),
+				hasSize(greaterThan(0))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should omit the formula plan when the query telemetry does not ask for it")
+	void shouldOmitFormulaPlanWhenNotRequested(RestTester tester) {
+		// the zero-cost guarantee stated on the wire: asking for timings must not deliver a plan, because building
+		// one is what the level exists to gate
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				             {
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": "TIMINGS"
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.PLAN), nullValue());
 	}
 
 	/**
