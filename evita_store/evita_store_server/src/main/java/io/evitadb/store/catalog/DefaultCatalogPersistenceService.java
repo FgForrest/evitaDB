@@ -84,6 +84,7 @@ import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStor
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -3014,6 +3015,14 @@ public class DefaultCatalogPersistenceService
 				"Catalog WAL version mismatch! Expected `" + this.bootstrapUsed.catalogVersion() + "` but found `" + theCatalogWal.getLastWrittenVersion() + "`!"
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public StoragePartFootprint[] measureStoragePartComposition() {
+		// the catalog's own data store - schemas and catalog-level indexes. Collections keep their records in their
+		// own data stores and are asked separately, so nothing here is summed across them
+		return getStoragePartPersistenceService(this.bootstrapUsed.catalogVersion()).measureStoragePartComposition();
 	}
 
 	@Nonnull

@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex;
 
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.shared.model.FileLocation;
 
 import javax.annotation.Nonnull;
@@ -73,13 +74,16 @@ public interface OffsetIndexBuilder {
 
 	/**
 	 * Returns the histogram of record types in the built index. The histogram is a map from {@link RecordKey#recordType()}
-	 * to the number of occurrences of the record type in the built index. We return here the specific map implementation
-	 * to avoid unnecessary copying.
+	 * to the {@link RecordTypeUsage} of that record type in the built index - how many records of it there are and how
+	 * many bytes they occupy. We return here the specific map implementation to avoid unnecessary copying.
+	 *
+	 * The summed {@link RecordTypeUsage#totalBytes()} of every entry equals {@link #getTotalSizeBytes()}: both are
+	 * accumulated at the same statements, so the per-type breakdown reconciles with the whole by construction.
 	 *
 	 * @return The histogram of record types in the built index.
 	 */
 	@Nonnull
-	ConcurrentHashMap<Byte, Integer> getHistogram();
+	ConcurrentHashMap<Byte, RecordTypeUsage> getHistogram();
 
 	/**
 	 * Returns total size of all active records in the built index on disk.

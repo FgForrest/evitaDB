@@ -39,7 +39,8 @@ import java.util.Arrays;
  * {@link CollectionHeaderInfo#maxRecordSizeBytes()}, and a number whose label does not match its meaning is worse than
  * an absent number.
  *
- * **Scope of this component** - the catalog's own data store only, which holds schemas and catalog-level indexes. The
+ * **Scope of this component** - the catalog's own data store only, which holds the catalog schema, the catalog and
+ * collection headers, and the catalog-level indexes. The
  * histogram of one entity collection's data store is fetched separately - see {@link CollectionStorageComposition}.
  * There is no catalog-wide sum across collections: adding up records of different storage-part types from different
  * data stores produces a number with no operational meaning.
@@ -51,7 +52,13 @@ import java.util.Arrays;
  *
  * Not delivered for an unusable catalog; the histogram lives in the loaded data stores.
  *
- * @param catalogParts storage-part usage of the catalog's own data store (schemas, catalog indexes)
+ * **Order is part of the contract** - entries arrive largest `totalBytes` first, ties broken by type name. The
+ * underlying histogram is a hash map, so without a fixed order the same data would come back in a different sequence
+ * from one poll to the next, and this record's array-based `equals` would report two identical compositions as
+ * different.
+ *
+ * @param catalogParts storage-part usage of the catalog's own data store (catalog schema, headers, catalog
+ *                     indexes), largest `totalBytes` first
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record StorageCompositionStatistics(

@@ -36,6 +36,7 @@ import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
@@ -1429,7 +1430,8 @@ public final class Catalog
 				case INDEX_SUMMARY -> builder.withIndexSummary(new IndexSummaryStatistics(countIndexes()));
 				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
 				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
-				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, STORAGE_COMPOSITION,
+				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
+				case SESSIONS, COMMIT_PIPELINE, ACTIVITY,
 					FRAGMENTATION, HISTORY, DURABILITY, VOLATILE_STATE -> builder.withUnavailable(
 						component,
 						ComponentAvailability.NOT_SUPPORTED,
@@ -1481,6 +1483,22 @@ public final class Catalog
 	@Nonnull
 	private StorageSizeStatistics measureStorageSize() {
 		return StorageSizeProjection.toStorageSizeStatistics(this.persistenceService.measureStorageFootprint());
+	}
+
+	/**
+	 * Breaks the catalog's own data store down by storage-part type - the file holding the catalog schema, the
+	 * headers and the catalog-level indexes. There is deliberately no sum across the entity collections: each keeps
+	 * its records - its entity schema included - in its own data store, and adding records of different types out of
+	 * different data stores produces a number with no operational meaning. A collection's own breakdown is fetched
+	 * through its collection-level snapshot.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_COMPOSITION} component
+	 */
+	@Nonnull
+	private StorageCompositionStatistics composeStorageParts() {
+		return new StorageCompositionStatistics(
+			StoragePartProjection.toStoragePartUsage(this.persistenceService.measureStoragePartComposition())
+		);
 	}
 
 	/**

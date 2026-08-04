@@ -30,10 +30,11 @@ import java.util.Arrays;
  * The {@link CatalogStatisticsComponent#STORAGE_COMPOSITION} component of one entity collection - where this
  * collection's bytes actually go, broken down by storage-part type.
  *
- * See {@link StorageCompositionStatistics} for why the breakdown is measured in bytes rather than record counts, and
- * why no per-type maximum is reported.
+ * See {@link StorageCompositionStatistics} for why the breakdown is measured in bytes rather than record counts, why
+ * no per-type maximum is reported, and why the entry order is fixed rather than incidental. See
+ * {@link StoragePartUsage} for what the flushed-state measurement does and does not include.
  *
- * @param parts one entry per storage-part type present in this collection's data store
+ * @param parts one entry per storage-part type present in this collection's data store, largest `totalBytes` first
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record CollectionStorageComposition(

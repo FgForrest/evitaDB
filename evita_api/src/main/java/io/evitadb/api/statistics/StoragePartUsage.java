@@ -30,6 +30,12 @@ import javax.annotation.Nonnull;
  * {@link StorageCompositionStatistics} and the collection-level {@link CollectionStorageComposition}, because the
  * histogram has the same shape whichever data store it was read from.
  *
+ * **Measured on the flushed state.** Records written but not yet flushed to the data store file count towards
+ * neither `count` nor `totalBytes`. That is the correct reading for a breakdown whose question is where the bytes on
+ * disk went - but it does mean this `count` can trail the record counts of
+ * {@link CatalogStatisticsComponent#RECORD_COUNTS}, which include in-flight data, while writes are pending. The two
+ * are not expected to agree except immediately after a flush.
+ *
  * @param storagePartType simple class name of the storage part, e.g. `EntityBodyStoragePart`,
  *                        `AttributesStoragePart`, `AssociatedDataStoragePart`
  * @param count           number of records of this type currently held

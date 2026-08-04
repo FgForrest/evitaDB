@@ -29,6 +29,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
+import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -40,6 +41,7 @@ import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
@@ -50,7 +52,9 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
@@ -107,7 +111,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	/**
 	 * Last observed histogram of record types.
 	 */
-	private Map<String, Integer> lastObservedHistogram;
+	private Map<String, RecordTypeUsage> lastObservedHistogram;
 
 	public OffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
@@ -312,20 +316,23 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 					this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
 				).commit();
 
-				// emit event for record type count changes
-				final Map<String, Integer> histogram = this.offsetIndex.getHistogram();
+				// emit event for record type count changes. The histogram carries bytes per type as well now, but
+				// the comparison stays on the count alone on purpose: a record replaced by a larger one moves bytes
+				// without moving the count, and firing this event for it would raise the emission rate of a metric
+				// whose value did not change
+				final Map<String, RecordTypeUsage> histogram = this.offsetIndex.getHistogram();
 				histogram.forEach(
-					(recordType, count) -> {
+					(recordType, usage) -> {
 						final int lastCount = this.lastObservedHistogram == null ?
-							0 : this.lastObservedHistogram.getOrDefault(recordType, 0);
-						if (lastCount != count) {
+							0 : this.lastObservedHistogram.getOrDefault(recordType, RecordTypeUsage.EMPTY).count();
+						if (lastCount != usage.count()) {
 							// emit event
 							new OffsetIndexRecordTypeCountChangedEvent(
 								this.catalogName,
 								this.fileType,
 								this.name,
 								recordType,
-								count
+								usage.count()
 							).commit();
 						}
 					}
@@ -380,6 +387,46 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		if (this.offsetIndex.isOperative()) {
 			this.offsetIndex.close();
 		}
+	}
+
+	/**
+	 * Breaks the data store this service writes to down by storage-part type. Shared by the catalog-level and the
+	 * collection-level persistence services, because the breakdown has the same shape whichever data store it was
+	 * read from - and because the ordering below must be decided in exactly one place.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	public StoragePartFootprint[] measureStoragePartComposition() {
+		if (!this.offsetIndex.isOperative()) {
+			throw new PersistenceServiceClosed();
+		}
+		final Map<String, RecordTypeUsage> histogram = this.offsetIndex.getHistogram();
+		// a type whose last record was removed keeps a zero entry in the histogram - the promotion loop folds deltas
+		// in and never drops a key. The zero is load-bearing there: it is what lets the flush path notice the
+		// count-went-to-zero transition and emit `OffsetIndexRecordTypeCountChangedEvent` for it. It has no place in
+		// a breakdown of what a data store holds, so it is filtered here and not upstream
+		int presentTypes = 0;
+		for (final RecordTypeUsage usage : histogram.values()) {
+			if (usage.count() > 0) {
+				presentTypes++;
+			}
+		}
+		final StoragePartFootprint[] composition = new StoragePartFootprint[presentTypes];
+		int index = 0;
+		for (final Entry<String, RecordTypeUsage> entry : histogram.entrySet()) {
+			final RecordTypeUsage usage = entry.getValue();
+			if (usage.count() > 0) {
+				composition[index++] = new StoragePartFootprint(
+					entry.getKey(), usage.count(), usage.totalBytes()
+				);
+			}
+		}
+		// the histogram is a hash map, so the iteration order above is arbitrary and may differ between two calls on
+		// identical data - sort before handing it out, or the array-comparing statistics records built from this
+		// would report two identical compositions as different
+		Arrays.sort(composition, StoragePartFootprint.LARGEST_FIRST);
+		return composition;
 	}
 
 }

@@ -694,6 +694,22 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	CatalogStorageFootprint measureStorageFootprint();
 
 	/**
+	 * Breaks the catalog's **own** data store down by storage-part type - the file holding the catalog schema, the
+	 * headers and the catalog-level indexes. Entity collections keep their records - their entity schema included - in
+	 * their own data stores and answer for themselves through
+	 * {@link EntityCollectionPersistenceService#measureStoragePartComposition()}; there is deliberately no
+	 * catalog-wide sum, because adding records of different types out of different data stores yields a number with
+	 * no operational meaning.
+	 *
+	 * The breakdown is an in-memory map read - the per-type counts and bytes are maintained as the flush is promoted,
+	 * never recomputed by walking the file.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	StoragePartFootprint[] measureStoragePartComposition();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *

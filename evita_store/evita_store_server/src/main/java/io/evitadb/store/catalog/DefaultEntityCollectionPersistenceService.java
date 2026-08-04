@@ -72,6 +72,7 @@ import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -947,6 +948,12 @@ public class DefaultEntityCollectionPersistenceService
 				)
 			)
 		).mapToLong(File::length).sum();
+	}
+
+	@Nonnull
+	@Override
+	public StoragePartFootprint[] measureStoragePartComposition() {
+		return getStoragePartPersistenceService().measureStoragePartComposition();
 	}
 
 	@Nonnull

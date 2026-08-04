@@ -28,6 +28,7 @@ import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
@@ -103,6 +104,7 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.catalog.StoragePartProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
@@ -1041,7 +1043,8 @@ public final class EntityCollection implements
 				case INDEX_SUMMARY -> builder.withIndexSummary(summarizeIndexes());
 				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
 				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
-				case COLLECTIONS, STORAGE_COMPOSITION, FRAGMENTATION,
+				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
+				case COLLECTIONS, FRAGMENTATION,
 					VOLATILE_STATE -> builder.withUnavailable(
 						component,
 						ComponentAvailability.NOT_SUPPORTED,
@@ -1120,6 +1123,25 @@ public final class EntityCollection implements
 	 *
 	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
 	 */
+	/**
+	 * Breaks this collection's data store down by storage-part type - where its bytes actually go. Measured in bytes
+	 * rather than record counts, because counts invert the answer whenever many small records share a data store with
+	 * a few large ones; the counts travel alongside so the average per type stays exact.
+	 *
+	 * The breakdown describes the data store as it was last flushed. Records written but not yet flushed are absent
+	 * from it, which is why the entity-body count here can trail
+	 * {@link CatalogStatisticsComponent#RECORD_COUNTS} while writes are pending - bytes that have not reached the
+	 * disk have no place in a breakdown of the disk.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_COMPOSITION} component of this collection
+	 */
+	@Nonnull
+	private CollectionStorageComposition composeStorageParts() {
+		return new CollectionStorageComposition(
+			StoragePartProjection.toStoragePartUsage(this.persistenceService.measureStoragePartComposition())
+		);
+	}
+
 	@Nonnull
 	private CollectionStorageSize measureStorageSize() {
 		final CollectionStorageFootprint footprint = this.persistenceService.measureStorageFootprint();

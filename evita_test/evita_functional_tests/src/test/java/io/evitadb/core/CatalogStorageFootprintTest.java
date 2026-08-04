@@ -48,6 +48,7 @@ import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -213,6 +214,57 @@ class CatalogStorageFootprintTest implements EvitaTestSupport {
 				storageSize.awaitingDeletionBytes() + storageSize.bootstrapBytes() + storageSize.unaccountedBytes(),
 			"The storage classes do not reconcile once a write-ahead log exists: " + storageSize
 		);
+	}
+
+	@Test
+	@DisplayName("Superseded record versions show up as reclaimable waste")
+	void shouldAttributeDeadRecordVersionsAsWaste() {
+		// stage 2 shipped `wasteBytes` with no test asserting it responds to anything, which is the one shape that
+		// cannot tell a working implementation from one that never attributes waste at all. A data store file grows
+		// by append, so overwriting the same entities leaves their previous versions in it as dead bytes - exactly
+		// what compaction reclaims. The assertion is on the *increase* rather than on an absolute value, because
+		// building the catalog already rewrites schemas and headers a few times and therefore starts above zero.
+		// No compaction runs here: the default `fileSizeCompactionThresholdBytes` is far above anything this writes
+		final StorageSizeStatistics before = fetchCatalogStorageSize();
+
+		for (int round = 0; round < 5; round++) {
+			final int version = round;
+			this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					for (int i = 1; i <= 50; i++) {
+						// rewriting an existing entity leaves the previous version of its body in the file as dead
+						// bytes - the attributes have to be fetched for the builder to accept an overwrite
+						session.upsertEntity(
+							session.getEntity(ENTITY_PRODUCT, i, attributeContentAll())
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute("rewrittenIn", version)
+						);
+					}
+				}
+			);
+		}
+
+		final StorageSizeStatistics after = fetchCatalogStorageSize();
+		assertTrue(
+			after.wasteBytes() > before.wasteBytes(),
+			"Overwritten records must be attributed as reclaimable waste, not as live data - waste went from " +
+				before.wasteBytes() + " to " + after.wasteBytes()
+		);
+		assertTrue(
+			after.liveBytes() > 0,
+			"The current versions of those records must still be live: " + after
+		);
+		// the decomposition still has to reconcile once a class that was empty before is populated - a waste
+		// attribution that double-counted the file would break exactly here and nowhere else
+		assertEquals(
+			after.sizeOnDiskInBytes(),
+			after.liveBytes() + after.wasteBytes() + after.walBytes() +
+				after.awaitingDeletionBytes() + after.bootstrapBytes() + after.unaccountedBytes(),
+			"The storage classes do not reconcile once waste exists: " + after
+		);
+		assertAllNonNegative(after);
 	}
 
 	@Test

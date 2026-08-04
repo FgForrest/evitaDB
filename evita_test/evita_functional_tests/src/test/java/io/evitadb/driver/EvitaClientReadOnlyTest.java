@@ -40,6 +40,7 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2267,7 +2268,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final EntityCollectionStatistics statistics = evitaClient.management().getEntityCollectionStatistics(
 			TEST_CATALOG,
 			Entities.PRODUCT,
-			EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS, CatalogStatisticsComponent.INDEX_SUMMARY)
+			EnumSet.of(
+				CatalogStatisticsComponent.RECORD_COUNTS,
+				CatalogStatisticsComponent.INDEX_SUMMARY,
+				CatalogStatisticsComponent.STORAGE_COMPOSITION
+			)
 		);
 
 		assertEquals(Entities.PRODUCT, statistics.entityType());
@@ -2280,6 +2285,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			indexSummary.byKindAndScope().length > 0,
 			"The kind and scope breakdown is the reason this component exists at the collection level"
 		);
+
+		// a genuinely computed repeated sub-message crossing the wire - the converter round-trip test builds its
+		// arrays by hand, so this is the only place a breakdown produced by the engine is asserted after decoding
+		final StoragePartUsage[] parts = statistics.storageCompositionIfPresent().orElseThrow().parts();
+		assertTrue(parts.length > 0, "A populated collection cannot come back with an empty breakdown");
+		long summedBytes = 0L;
+		for (final StoragePartUsage part : parts) {
+			assertTrue(part.count() > 0, "A type with no record must not survive the wire: " + part);
+			assertTrue(part.totalBytes() > 0, "A type holding records must report bytes: " + part);
+			summedBytes += part.totalBytes();
+		}
+		assertTrue(summedBytes > 0, "The breakdown lost every byte on the way through the wire");
 	}
 
 	/**

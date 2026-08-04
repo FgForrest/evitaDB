@@ -49,6 +49,7 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
 import io.evitadb.store.offsetIndex.map.OffsetLocationChampMap;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
@@ -94,7 +95,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import java.util.stream.Collectors;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -405,7 +405,7 @@ public class OffsetIndex {
 					.orElseGet(OffsetLocationChampMap::empty),
 				fileOffsetIndexBuilder
 					.map(CollectingOffsetIndexBuilder::getHistogram)
-					.<Map<Byte, Integer>>map(Map::copyOf)
+					.map(Map::copyOf)
 					.orElseGet(Map::of),
 				System.currentTimeMillis()
 			);
@@ -697,8 +697,9 @@ public class OffsetIndex {
 		final byte recordTypeId = this.recordTypeRegistry.idFor(recordType);
 		// the per-version histogram holds the exact per-type count as of catalogVersion; add only the net delta of
 		// any not-yet-flushed (in-flight) versions visible at catalogVersion
-		return this.roots.floorHistogram(catalogVersion).getOrDefault(
-			recordTypeId, 0) + this.volatileValues.countDifference(catalogVersion, recordTypeId);
+		return this.roots.floorHistogram(catalogVersion)
+			.getOrDefault(recordTypeId, RecordTypeUsage.EMPTY)
+			.count() + this.volatileValues.countDifference(catalogVersion, recordTypeId);
 	}
 
 	/**
@@ -1192,19 +1193,30 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns histogram (counts) of particular record types in this index.
+	 * Returns the histogram of particular record types in this index - how many records of each type are held and how
+	 * many bytes they occupy, keyed by the record type's simple class name.
+	 *
+	 * The histogram describes the **flushed** state only: it is the snapshot published by the last promotion, so
+	 * records written but not yet flushed are not part of it. That is deliberate - the question this breakdown answers
+	 * is where the bytes on disk went, and unflushed records have not reached the disk. It is also why the per-type
+	 * count here can lag {@link #count(long, Class)}, which does add the in-flight delta.
+	 *
+	 * The summed {@link RecordTypeUsage#totalBytes()} of every entry is the **record payload** the index holds - the
+	 * same accumulator {@link #getTotalSizeBytes()} builds on, before that method adds the offset-index entry
+	 * overhead of `MEM_TABLE_RECORD_SIZE` per live record. So the exact relation is
+	 * `Σ totalBytes + Σ count * MEM_TABLE_RECORD_SIZE == getTotalSizeBytes()`; the per-type numbers deliberately
+	 * carry no share of the index's own bookkeeping, which belongs to no record type.
 	 *
 	 * @return histogram of particular record types in this index
 	 */
 	@Nonnull
-	public Map<String, Integer> getHistogram() {
-		return this.roots.latestHistogram().entrySet().stream()
-			.collect(
-				Collectors.toMap(
-					it -> this.recordTypeRegistry.typeFor(it.getKey()).getSimpleName(),
-					Entry::getValue
-				)
-			);
+	public Map<String, RecordTypeUsage> getHistogram() {
+		final Map<Byte, RecordTypeUsage> latestHistogram = this.roots.latestHistogram();
+		final Map<String, RecordTypeUsage> result = CollectionUtils.createHashMap(latestHistogram.size());
+		for (final Entry<Byte, RecordTypeUsage> entry : latestHistogram.entrySet()) {
+			result.put(this.recordTypeRegistry.typeFor(entry.getKey()).getSimpleName(), entry.getValue());
+		}
+		return result;
 	}
 
 	/**
@@ -1555,12 +1567,12 @@ public class OffsetIndex {
 		// root + histogram snapshot is retained per promoted version, so a reader pinned to any of them resolves the
 		// exact per-version state through Roots.floorRoot (replacing the former overwritten-value reconstruction).
 		OffsetLocationChampMap root = currentRoots.latestRoot();
-		Map<Byte, Integer> histogram = currentRoots.latestHistogram();
+		Map<Byte, RecordTypeUsage> histogram = currentRoots.latestHistogram();
 
 		final int batchSize = nonFlushedValueSets.size();
 		final long[] addVersions = new long[batchSize];
 		final OffsetLocationChampMap[] addRoots = new OffsetLocationChampMap[batchSize];
-		@SuppressWarnings("unchecked") final Map<Byte, Integer>[] addHistograms = new Map[batchSize];
+		@SuppressWarnings("unchecked") final Map<Byte, RecordTypeUsage>[] addHistograms = new Map[batchSize];
 		final long[] addTimestamps = new long[batchSize];
 		// all versions in one flush become durable together, so they share a single promotion timestamp
 		final long promotedAt = System.currentTimeMillis();
@@ -1571,12 +1583,16 @@ public class OffsetIndex {
 
 		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
 		for (NonFlushedValueSet nonFlushedValueSet : nonFlushedValueSets) {
-			final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(histogram.size());
+			final Map<Byte, RecordTypeUsage> histogramDiff = CollectionUtils.createHashMap(histogram.size());
 			for (Entry<RecordKey, VersionedValue> entry : nonFlushedValueSet.entrySet()) {
 				final RecordKey recordKey = entry.getKey();
 				final VersionedValue nonFlushedValue = entry.getValue();
 
 				final int count;
+				// every branch feeds the per-type byte delta with exactly what it feeds `recordLengthDelta`,
+				// the count-neutral update included - that is what keeps the per-type breakdown reconciling with
+				// `totalSizeBytes` by construction instead of by coincidence
+				final long byteDelta;
 				if (nonFlushedValue.removed()) {
 					// read the dropped record's length before path-copying it away (primitive fast path,
 					// no FileLocation materialization)
@@ -1585,9 +1601,11 @@ public class OffsetIndex {
 					if (removedLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT) {
 						root = root.removed(recordKey);
 						count = -1;
+						byteDelta = -removedLength;
 						recordLengthDelta -= removedLength;
 					} else {
 						count = 0;
+						byteDelta = 0L;
 					}
 				} else if (nonFlushedValueSet.wasAdded(recordKey)) {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
@@ -1602,6 +1620,7 @@ public class OffsetIndex {
 					);
 					root = root.updated(recordKey, recordLocation);
 					count = 1;
+					byteDelta = currentRecordLength;
 				} else {
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
 					// read the replaced record's length before path-copying the new one in (primitive
@@ -1615,18 +1634,19 @@ public class OffsetIndex {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
 					count = 0;
+					byteDelta = newRecordLocation.recordLength() - existingLength;
 				}
 
 				histogramDiff.merge(
-					recordKey.recordType(), count, Integer::sum
+					recordKey.recordType(), new RecordTypeUsage(count, byteDelta), RecordTypeUsage::plus
 				);
 			}
 
 			// snapshot this version's histogram (reuse the prior immutable map when no record type changed)
 			if (!histogramDiff.isEmpty()) {
-				final Map<Byte, Integer> updatedHistogram = new HashMap<>(histogram);
-				for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
-					updatedHistogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
+				final Map<Byte, RecordTypeUsage> updatedHistogram = new HashMap<>(histogram);
+				for (Entry<Byte, RecordTypeUsage> entry : histogramDiff.entrySet()) {
+					updatedHistogram.merge(entry.getKey(), entry.getValue(), RecordTypeUsage::plus);
 				}
 				histogram = Map.copyOf(updatedHistogram);
 			}
@@ -1828,7 +1848,7 @@ public class OffsetIndex {
 		long currentVersion,
 		@Nonnull long[] versions,
 		@Nonnull OffsetLocationChampMap[] locationRoots,
-		@Nonnull Map<Byte, Integer>[] histograms,
+		@Nonnull Map<Byte, RecordTypeUsage>[] histograms,
 		@Nonnull long[] timestamps
 	) {
 
@@ -1845,7 +1865,7 @@ public class OffsetIndex {
 		static Roots initial(
 			long version,
 			@Nonnull OffsetLocationChampMap root,
-			@Nonnull Map<Byte, Integer> histogram,
+			@Nonnull Map<Byte, RecordTypeUsage> histogram,
 			long timestamp
 		) {
 			return new Roots(
@@ -1862,8 +1882,8 @@ public class OffsetIndex {
 
 		@SuppressWarnings("unchecked")
 		@Nonnull
-		private static Map<Byte, Integer>[] asHistogramArray(@Nonnull Map<Byte, Integer> histogram) {
-			return (Map<Byte, Integer>[]) new Map[]{histogram};
+		private static Map<Byte, RecordTypeUsage>[] asHistogramArray(@Nonnull Map<Byte, RecordTypeUsage> histogram) {
+			return (Map<Byte, RecordTypeUsage>[]) new Map[]{histogram};
 		}
 
 		/**
@@ -1898,7 +1918,7 @@ public class OffsetIndex {
 			long newCurrentVersion,
 			@Nonnull long[] addVersions,
 			@Nonnull OffsetLocationChampMap[] addRoots,
-			@Nonnull Map<Byte, Integer>[] addHistograms,
+			@Nonnull Map<Byte, RecordTypeUsage>[] addHistograms,
 			@Nonnull long[] addTimestamps
 		) {
 			if (addVersions.length == 0) {
@@ -1919,7 +1939,7 @@ public class OffsetIndex {
 			System.arraycopy(addVersions, 0, nv, keep, addLen);
 			final OffsetLocationChampMap[] nr = Arrays.copyOf(this.locationRoots, total);
 			System.arraycopy(addRoots, 0, nr, keep, addLen);
-			final Map<Byte, Integer>[] nh = Arrays.copyOf(this.histograms, total);
+			final Map<Byte, RecordTypeUsage>[] nh = Arrays.copyOf(this.histograms, total);
 			System.arraycopy(addHistograms, 0, nh, keep, addLen);
 			final long[] nt = new long[total];
 			System.arraycopy(this.timestamps, 0, nt, 0, keep);
@@ -1997,7 +2017,7 @@ public class OffsetIndex {
 		 * @return the resolved histogram
 		 */
 		@Nonnull
-		Map<Byte, Integer> floorHistogram(long catalogVersion) {
+		Map<Byte, RecordTypeUsage> floorHistogram(long catalogVersion) {
 			return this.histograms[floorIndex(catalogVersion)];
 		}
 
@@ -2017,7 +2037,7 @@ public class OffsetIndex {
 		 * @return the latest histogram
 		 */
 		@Nonnull
-		Map<Byte, Integer> latestHistogram() {
+		Map<Byte, RecordTypeUsage> latestHistogram() {
 			return this.histograms[this.histograms.length - 1];
 		}
 	}

@@ -280,6 +280,19 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	CollectionStorageFootprint measureStorageFootprint();
 
 	/**
+	 * Breaks this collection's data store down by storage-part type - where the bytes of this collection actually go
+	 * (entity bodies, attributes, references, prices, associated data, indexes).
+	 *
+	 * The breakdown is an in-memory map read - the per-type counts and bytes are maintained as the flush is promoted,
+	 * never recomputed by walking the file. It therefore describes the flushed state only; see
+	 * {@link StoragePartFootprint} for why that is the right reading and where it can diverge from record counts.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	StoragePartFootprint[] measureStoragePartComposition();
+
+	/**
 	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
 	 * file). This method is only temporary and will be removed in the future.
 	 *

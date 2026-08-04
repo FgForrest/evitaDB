@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex;
 
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.shared.model.FileLocation;
 import lombok.RequiredArgsConstructor;
 
@@ -89,10 +90,17 @@ class FilteringOffsetIndexBuilder implements OffsetIndexBuilder {
 
 	@Nonnull
 	@Override
-	public ConcurrentHashMap<Byte, Integer> getHistogram() {
-		return this.filteredLocation.get() == null ?
-			new ConcurrentHashMap<>(0) :
-			new ConcurrentHashMap<>(this.filteredKey.recordType(), 1);
+	public ConcurrentHashMap<Byte, RecordTypeUsage> getHistogram() {
+		final FileLocation location = this.filteredLocation.get();
+		if (location == null) {
+			return new ConcurrentHashMap<>(0);
+		}
+		// this used to read `new ConcurrentHashMap<>(recordType, 1)`, which is the (initialCapacity, loadFactor)
+		// constructor rather than a single-entry map - it returned an empty histogram while `contains` and
+		// `getBuiltIndex` reported the record as present. Nothing calls this method, so the divergence never surfaced
+		final ConcurrentHashMap<Byte, RecordTypeUsage> histogram = new ConcurrentHashMap<>(1);
+		histogram.put(this.filteredKey.recordType(), new RecordTypeUsage(1, location.recordLength()));
+		return histogram;
 	}
 
 	@Override

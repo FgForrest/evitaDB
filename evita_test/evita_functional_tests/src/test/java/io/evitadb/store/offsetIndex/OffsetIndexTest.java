@@ -43,6 +43,7 @@ import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocation
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.settings.StorageSettings;
@@ -71,6 +72,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,6 +93,7 @@ import java.util.stream.Stream;
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.computeExpectedRecordCount;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.MEM_TABLE_RECORD_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -2289,7 +2292,7 @@ class OffsetIndexTest implements EvitaTestSupport {
 
 		/**
 		 * Histogram view: {@link OffsetIndex#getHistogram()} maps each record type's simple name to the exact
-		 * live count of that type in the current state.
+		 * live count of that type in the current state, and to the bytes those records occupy.
 		 */
 		@Nested
 		@DisplayName("Histogram view")
@@ -2311,23 +2314,177 @@ class OffsetIndexTest implements EvitaTestSupport {
 					offsetIndex.flush(2L);
 
 					final long currentVersion = 2L;
-					final Map<String, Integer> histogram = offsetIndex.getHistogram();
+					final Map<String, RecordTypeUsage> histogram = offsetIndex.getHistogram();
 
 					assertEquals(
-						Integer.valueOf(offsetIndex.count(currentVersion, EntityBodyStoragePart.class)),
-						histogram.get(EntityBodyStoragePart.class.getSimpleName()),
+						offsetIndex.count(currentVersion, EntityBodyStoragePart.class),
+						histogram.get(EntityBodyStoragePart.class.getSimpleName()).count(),
 						"the histogram body part count matches the per-type count"
 					);
 					assertEquals(
-						Integer.valueOf(offsetIndex.count(currentVersion, ReferencesStoragePart.class)),
-						histogram.get(ReferencesStoragePart.class.getSimpleName()),
+						offsetIndex.count(currentVersion, ReferencesStoragePart.class),
+						histogram.get(ReferencesStoragePart.class.getSimpleName()).count(),
 						"the histogram references part count matches the per-type count"
 					);
-					assertEquals(1, histogram.get(EntityBodyStoragePart.class.getSimpleName()),
+					assertEquals(1, histogram.get(EntityBodyStoragePart.class.getSimpleName()).count(),
 						"one body part survives the removal");
-					assertEquals(3, histogram.get(ReferencesStoragePart.class.getSimpleName()),
+					assertEquals(3, histogram.get(ReferencesStoragePart.class.getSimpleName()).count(),
 						"three references parts are live");
 				});
+			}
+
+			/**
+			 * The per-type byte totals are not an independent measurement - they are accumulated at the same
+			 * statements as the index-wide `totalSizeBytes`, in every branch including the count-neutral update.
+			 * Summing them back to that one number is therefore the check that the pairing did not drift: drop the
+			 * byte delta from any single branch of the promotion loop and this fails, while every count assertion
+			 * above still passes.
+			 */
+			@DisplayName("the per-type byte totals sum back to the index-wide total size")
+			@Test
+			void shouldAccountForEveryByteInThePerTypeBreakdown() {
+				runWithIndex((offsetIndex, decoder) -> {
+					// v1: adds only
+					offsetIndex.put(1L, bodyPartWithLocales(1, 1, Locale.ENGLISH));
+					offsetIndex.put(1L, bodyPartWithLocales(1, 2, Locale.GERMAN, Locale.FRENCH, Locale.ITALIAN));
+					offsetIndex.put(1L, new ReferencesStoragePart(1));
+					offsetIndex.flush(1L);
+					// v2: an update that grows a record, an update that shrinks one, an add and a removal - so every
+					// branch of the promotion loop contributes a byte delta
+					// deliberately asymmetric - a grow of two locales against a shrink of one, so dropping the byte
+					// delta from the update branch cannot cancel itself out across the two records
+					offsetIndex.put(2L, bodyPartWithLocales(2, 1, Locale.ENGLISH, Locale.GERMAN, Locale.FRENCH));
+					offsetIndex.put(2L, bodyPartWithLocales(2, 2, Locale.GERMAN, Locale.FRENCH));
+					offsetIndex.put(2L, new ReferencesStoragePart(2));
+					offsetIndex.remove(2L, 1, ReferencesStoragePart.class);
+					offsetIndex.flush(2L);
+
+					final Map<String, RecordTypeUsage> histogram = offsetIndex.getHistogram();
+					long summedBytes = 0L;
+					int summedCount = 0;
+					for (final RecordTypeUsage usage : histogram.values()) {
+						assertTrue(usage.totalBytes() >= 0, "no record type may report negative bytes");
+						summedBytes += usage.totalBytes();
+						summedCount += usage.count();
+					}
+
+					// the per-type figures carry record payload only; the index's own per-record entry overhead belongs
+					// to no storage part type, so it is added back here rather than attributed to one
+					assertEquals(
+						offsetIndex.getTotalSizeBytes(),
+						summedBytes + (long) summedCount * MEM_TABLE_RECORD_SIZE,
+						"the per-type byte totals must sum back to the index-wide total size"
+					);
+					assertEquals(
+						offsetIndex.count(2L), summedCount,
+						"the per-type counts must sum back to the index-wide record count"
+					);
+				});
+			}
+
+			/**
+			 * A record type whose last record is removed keeps a zero entry in the histogram - the promotion loop
+			 * folds signed deltas in and never drops a key. That is deliberate, because it is what lets the flush
+			 * path see the count-went-to-zero transition and emit `OffsetIndexRecordTypeCountChangedEvent` for it.
+			 * It is also why the statistics breakdown built on top filters zero-count types out rather than having
+			 * them removed here: dropping the key would silence that metric.
+			 */
+			@DisplayName("a record type whose last record is removed stays in the histogram as a zero entry")
+			@Test
+			void shouldKeepAZeroEntryForAnEmptiedRecordType() {
+				runWithIndex((offsetIndex, decoder) -> {
+					offsetIndex.put(1L, bodyPartWithLocales(1, 1, Locale.ENGLISH));
+					offsetIndex.put(1L, new ReferencesStoragePart(1));
+					offsetIndex.flush(1L);
+					offsetIndex.remove(2L, 1, ReferencesStoragePart.class);
+					offsetIndex.flush(2L);
+
+					final RecordTypeUsage emptied = offsetIndex.getHistogram()
+						.get(ReferencesStoragePart.class.getSimpleName());
+					assertNotNull(emptied, "The emptied record type must keep its histogram entry");
+					assertEquals(0, emptied.count(), "The emptied record type must report no record");
+					assertEquals(0L, emptied.totalBytes(), "The emptied record type must report no bytes");
+					assertEquals(
+						0, offsetIndex.count(2L, ReferencesStoragePart.class),
+						"The per-type count must agree with the zeroed histogram entry"
+					);
+				});
+			}
+
+			/**
+			 * The same reconciliation has to survive a reload, which rebuilds the histogram by scanning the file
+			 * through `CollectingOffsetIndexBuilder` instead of by promoting flushes - a completely separate
+			 * accumulation of the same two numbers, and the only one that runs on server start-up.
+			 */
+			@DisplayName("the per-type breakdown is rebuilt identically when the index is loaded from disk")
+			@Test
+			void shouldRebuildThePerTypeBreakdownOnReload() {
+				final StorageSettings storageSettings = new StorageSettings(
+					StorageOptions.temporary(),
+					DEFAULT_TRANSACTION_OPTIONS
+				);
+				try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+					final Map<String, RecordTypeUsage> beforeReload;
+					final long totalSizeBeforeReload;
+					OffsetIndexDescriptor descriptor = null;
+
+					final OffsetIndex offsetIndex = createNewOffsetIndex(
+						0L,
+						storageSettings,
+						createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+						OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+					);
+					try {
+						offsetIndex.put(1L, bodyPartWithLocales(1, 1, Locale.ENGLISH));
+						offsetIndex.put(1L, bodyPartWithLocales(1, 2, Locale.GERMAN, Locale.FRENCH));
+						offsetIndex.put(1L, new ReferencesStoragePart(1));
+						offsetIndex.flush(1L);
+						offsetIndex.put(2L, bodyPartWithLocales(2, 1, Locale.ENGLISH, Locale.ITALIAN));
+						offsetIndex.remove(2L, 2, EntityBodyStoragePart.class);
+						offsetIndex.flush(2L);
+						beforeReload = offsetIndex.getHistogram();
+						totalSizeBeforeReload = offsetIndex.getTotalSizeBytes();
+						descriptor = offsetIndex.flush(2L);
+					} finally {
+						IOUtils.closeQuietly(offsetIndex::close);
+					}
+
+					OffsetIndex reloaded = null;
+					try {
+						reloaded = loadOffsetIndex(
+							2L,
+							descriptor,
+							storageSettings,
+							createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+							OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+						);
+
+						final Map<String, RecordTypeUsage> afterReload = reloaded.getHistogram();
+						assertEquals(
+							beforeReload, afterReload,
+							"the rebuilt histogram must match the one the promotions produced, bytes included"
+						);
+						long summedBytes = 0L;
+						int summedCount = 0;
+						for (final RecordTypeUsage usage : afterReload.values()) {
+							summedBytes += usage.totalBytes();
+							summedCount += usage.count();
+						}
+						assertEquals(
+							reloaded.getTotalSizeBytes(),
+							summedBytes + (long) summedCount * MEM_TABLE_RECORD_SIZE,
+							"the rebuilt per-type byte totals must sum back to the index-wide total size"
+						);
+						assertEquals(
+							totalSizeBeforeReload, reloaded.getTotalSizeBytes(),
+							"reloading must not change the total size"
+						);
+					} finally {
+						if (reloaded != null) {
+							IOUtils.closeQuietly(reloaded::close);
+						}
+					}
+				}
 			}
 		}
 
@@ -2581,6 +2738,31 @@ class OffsetIndexTest implements EvitaTestSupport {
 	 * @param locale     single locale used to make the payload distinguishable
 	 * @return a new, immutable payload instance
 	 */
+	/**
+	 * Same as {@link #bodyPartWithLocale(int, int, Locale)} but with a controllable number of locales, so the
+	 * serialized payload has a controllable size - which is what lets a test tell a byte delta apart from a count
+	 * delta when a record is overwritten.
+	 *
+	 * @param version    entity version stored in the payload
+	 * @param primaryKey primary key shared across overwrites of the same record
+	 * @param locales    locales making up the payload, and therefore its size
+	 * @return a new, immutable payload instance
+	 */
+	@Nonnull
+	private static EntityBodyStoragePart bodyPartWithLocales(int version, int primaryKey,
+		@Nonnull Locale... locales) {
+		return new EntityBodyStoragePart(
+			version,
+			primaryKey,
+			Scope.LIVE,
+			null,
+			new HashSet<>(Arrays.asList(locales)),
+			new HashSet<>(),
+			new HashSet<>(),
+			-1
+		);
+	}
+
 	@Nonnull
 	private static EntityBodyStoragePart bodyPartWithLocale(int version, int primaryKey,
 		@Nonnull Locale locale) {
