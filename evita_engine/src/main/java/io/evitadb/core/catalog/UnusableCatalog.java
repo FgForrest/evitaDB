@@ -26,6 +26,10 @@ package io.evitadb.core.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -274,6 +278,46 @@ public final class UnusableCatalog implements CatalogContract {
 	@Override
 	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+	}
+
+	@Nonnull
+	@Override
+	public io.evitadb.api.statistics.CatalogStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		final io.evitadb.api.statistics.CatalogStatistics.Builder builder =
+			io.evitadb.api.statistics.CatalogStatistics.builder(
+				new CatalogIdentity(
+					null,
+					this.catalogName,
+					this.catalogState,
+					-1L,
+					false,
+					true,
+					false,
+					false,
+					-1
+				)
+			);
+		for (final CatalogStatisticsComponent component : components) {
+			if (!component.isCatalogLevel()) {
+				throw new EvitaInvalidUsageException(
+					"Statistics component `" + component + "` has no catalog-level form - ask the entity collection " +
+						"it belongs to for it."
+				);
+			}
+			// nothing but the identity survives an unusable catalog: every other component is derived from state
+			// that could not be loaded. Reporting that explicitly is the point - a client must be able to tell this
+			// apart from a catalog that is merely empty.
+			if (component != CatalogStatisticsComponent.IDENTITY) {
+				builder.withUnavailable(
+					component,
+					ComponentAvailability.CATALOG_UNUSABLE,
+					"Catalog `" + this.catalogName + "` could not be loaded, so `" + component + "` cannot be computed."
+				);
+			}
+		}
+		return builder.build();
 	}
 
 	@Nonnull

@@ -28,6 +28,13 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionsInfo;
+import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
@@ -1406,6 +1413,96 @@ public final class Catalog
 	@Override
 	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
 		return this.persistenceService.duplicateCatalog(targetCatalogName, this.evitaConfiguration.storage());
+	}
+
+	@Nonnull
+	@Override
+	public io.evitadb.api.statistics.CatalogStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		final io.evitadb.api.statistics.CatalogStatistics.Builder builder =
+			io.evitadb.api.statistics.CatalogStatistics.builder(getIdentity());
+		for (final CatalogStatisticsComponent component : components) {
+			if (!component.isCatalogLevel()) {
+				throw new EvitaInvalidUsageException(
+					"Statistics component `" + component + "` has no catalog-level form - ask the entity collection " +
+						"it belongs to for it."
+				);
+			}
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				case COLLECTIONS -> builder.withCollections(collectCollectionInventory());
+				case INDEX_SUMMARY -> builder.withIndexSummary(new IndexSummaryStatistics(countIndexes()));
+				case RECORD_COUNTS, SESSIONS, COMMIT_PIPELINE, ACTIVITY, STORAGE_SIZE, STORAGE_COMPOSITION,
+					FRAGMENTATION, HISTORY, DURABILITY, VOLATILE_STATE -> builder.withUnavailable(
+						component,
+						ComponentAvailability.NOT_SUPPORTED,
+						"Statistics component `" + component + "` is not computed by this version yet."
+					);
+				// unreachable - both are collection-level only and the assertion above already rejected them
+				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> throw new GenericEvitaInternalError(
+					"Collection-level component `" + component + "` passed the catalog-level check!"
+				);
+			}
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Describes who this catalog is and what mode it runs in. Shared by the catalog-level and the collection-level
+	 * statistics snapshots, so a client can tell which catalog version each of them observed.
+	 *
+	 * @return the identity component of the statistics model
+	 */
+	@Nonnull
+	public CatalogIdentity getIdentity() {
+		final CatalogState catalogState = getCatalogState();
+		return new CatalogIdentity(
+			getCatalogId(),
+			getName(),
+			catalogState,
+			getVersion(),
+			this.readOnly.get(),
+			!catalogState.isActive(),
+			supportsTransaction(),
+			isGoingLive(),
+			this.entityCollections.size()
+		);
+	}
+
+	/**
+	 * Lists the entity collections the catalog holds. Carries no statistics - it is the inventory a client needs
+	 * before it can ask any single collection for its numbers.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COLLECTIONS} component
+	 */
+	@Nonnull
+	private CollectionsInfo collectCollectionInventory() {
+		final CollectionInfo[] collections = new CollectionInfo[this.entityCollections.size()];
+		int index = 0;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			collections[index++] = new CollectionInfo(
+				collection.getEntityType(),
+				collection.getEntityTypePrimaryKey()
+			);
+		}
+		return new CollectionsInfo(collections);
+	}
+
+	/**
+	 * Counts the indexes of the whole catalog. Each collection answers from the size of its index map, so the cost is
+	 * independent of how large those indexes are - which is what allows this component to stay catalog-level.
+	 *
+	 * @return number of indexes including the catalog-level index itself
+	 */
+	private long countIndexes() {
+		// the catalog-level index is counted first, then every collection adds its own
+		long totalIndexCount = 1L;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			totalIndexCount += collection.getIndexCount();
+		}
+		return totalIndexCount;
 	}
 
 	@Nonnull

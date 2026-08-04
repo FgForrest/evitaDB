@@ -25,6 +25,12 @@ package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityIndexKind;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -1026,6 +1032,123 @@ public final class EntityCollection implements
 			this.indexes.size(),
 			this.persistenceService.getSizeOnDiskInBytes()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public io.evitadb.api.statistics.EntityCollectionStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		// this.catalog is single-assign (see attachCatalogShell), so it is the catalog generation this collection
+		// instance belongs to - the identity and the indexes walked below therefore describe the same version
+		final io.evitadb.api.statistics.EntityCollectionStatistics.Builder builder =
+			io.evitadb.api.statistics.EntityCollectionStatistics.builder(
+				this.catalog.getIdentity(), getEntityType()
+			);
+		for (final CatalogStatisticsComponent component : components) {
+			if (!component.isCollectionLevel()) {
+				throw new EvitaInvalidUsageException(
+					"Statistics component `" + component + "` has no entity collection form - ask the catalog for it."
+				);
+			}
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				case INDEX_SUMMARY -> builder.withIndexSummary(summarizeIndexes());
+				case COLLECTIONS, RECORD_COUNTS, STORAGE_SIZE, STORAGE_COMPOSITION, FRAGMENTATION,
+					VOLATILE_STATE -> builder.withUnavailable(
+						component,
+						ComponentAvailability.NOT_SUPPORTED,
+						"Statistics component `" + component + "` is not computed by this version yet."
+					);
+				// kept apart from the arm above because these two are the expensive pair - they arrive last and
+				// their absence is a different statement than "not implemented yet for this collection"
+				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> builder.withUnavailable(
+					component,
+					ComponentAvailability.NOT_SUPPORTED,
+					"Statistics component `" + component + "` walks index contents and is not implemented yet; it " +
+						"will never be part of a polled refresh."
+				);
+				// unreachable - all of these are catalog-level only and the assertion above already rejected them
+				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
+					"Catalog-level component `" + component + "` passed the collection-level check!"
+				);
+			}
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Returns the number of indexes this collection holds. Read from the size of the index map, so the cost does not
+	 * depend on how large those indexes are - which is what lets the catalog sum it across all collections on every
+	 * statistics request.
+	 *
+	 * @return number of indexes of this collection
+	 */
+	public int getIndexCount() {
+		return this.indexes.size();
+	}
+
+	/**
+	 * Counts this collection's indexes per (kind, scope) pair by walking the index keys. Pairs with no index are
+	 * omitted rather than reported as zero.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#INDEX_SUMMARY} component of this collection
+	 */
+	@Nonnull
+	private CollectionIndexSummary summarizeIndexes() {
+		final EntityIndexKind[] kinds = EntityIndexKind.values();
+		final Scope[] scopes = Scope.values();
+		final int[][] countsByKindAndScope = new int[kinds.length][scopes.length];
+		int totalIndexCount = 0;
+		for (final EntityIndexKey indexKey : this.indexes.keySet()) {
+			countsByKindAndScope[toIndexKind(indexKey.type()).ordinal()][indexKey.scope().ordinal()]++;
+			totalIndexCount++;
+		}
+		int occupiedPairCount = 0;
+		for (int kind = 0; kind < kinds.length; kind++) {
+			for (int scope = 0; scope < scopes.length; scope++) {
+				if (countsByKindAndScope[kind][scope] > 0) {
+					occupiedPairCount++;
+				}
+			}
+		}
+		final IndexKindCount[] byKindAndScope = new IndexKindCount[occupiedPairCount];
+		int index = 0;
+		for (int kind = 0; kind < kinds.length; kind++) {
+			for (int scope = 0; scope < scopes.length; scope++) {
+				if (countsByKindAndScope[kind][scope] > 0) {
+					byKindAndScope[index++] = new IndexKindCount(
+						kinds[kind], scopes[scope], countsByKindAndScope[kind][scope]
+					);
+				}
+			}
+		}
+		return new CollectionIndexSummary(totalIndexCount, byKindAndScope);
+	}
+
+	/**
+	 * Maps the engine's index type onto its API counterpart.
+	 *
+	 * `REFERENCED_HIERARCHY_NODE` has no API counterpart - it was merged into
+	 * {@link EntityIndexType#REFERENCED_ENTITY} in 2024.12 for holding the same data, and the new statistics API does
+	 * not carry deprecated values. It is folded into the kind it was merged into, which is exactly what the engine
+	 * itself does whenever it reads a legacy index part
+	 * (`EntityIndexStoragePartSerializer_2024_11` rewrites the type before building the key). Failing here instead
+	 * would kill a statistics call on the very catalog an operator is trying to inspect.
+	 *
+	 * @param indexType the engine-side index type
+	 * @return its API-side counterpart
+	 */
+	@Nonnull
+	private static EntityIndexKind toIndexKind(@Nonnull EntityIndexType indexType) {
+		return switch (indexType) {
+			case GLOBAL -> EntityIndexKind.GLOBAL;
+			case REFERENCED_ENTITY_TYPE -> EntityIndexKind.REFERENCED_ENTITY_TYPE;
+			case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> EntityIndexKind.REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY_TYPE -> EntityIndexKind.REFERENCED_GROUP_ENTITY_TYPE;
+			case REFERENCED_GROUP_ENTITY -> EntityIndexKind.REFERENCED_GROUP_ENTITY;
+		};
 	}
 
 	/**

@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -48,6 +47,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -472,6 +472,28 @@ public interface EntityCollectionContract {
 	 */
 	@Nonnull
 	EntityCollectionStatistics getStatistics();
+
+	/**
+	 * Returns a component-selected snapshot of this entity collection's statistics.
+	 *
+	 * Only the named components are computed; each of them gets an entry in
+	 * {@link io.evitadb.api.statistics.EntityCollectionStatistics#componentStatus()} saying whether it was delivered
+	 * and, if not, why. {@link io.evitadb.api.statistics.CatalogStatisticsComponent#IDENTITY} is always delivered,
+	 * requested or not.
+	 *
+	 * This is the only way to obtain per-collection numbers - {@link CatalogContract#getStatistics(Set)} reports
+	 * catalog-wide aggregates and never breaks them down by collection. The two are independent snapshots that may
+	 * observe different catalog versions.
+	 *
+	 * @param components the components to compute; every one of them must satisfy
+	 *                   {@link io.evitadb.api.statistics.CatalogStatisticsComponent#isCollectionLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws EvitaInvalidUsageException when a component that has no collection-level form is requested
+	 */
+	@Nonnull
+	io.evitadb.api.statistics.EntityCollectionStatistics getStatistics(
+		@Nonnull Set<io.evitadb.api.statistics.CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
 
 	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to

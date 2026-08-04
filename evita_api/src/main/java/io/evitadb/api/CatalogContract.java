@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -395,6 +396,28 @@ public interface CatalogContract {
 	 */
 	@Nonnull
 	CatalogStatistics getStatistics();
+
+	/**
+	 * Returns a component-selected snapshot of this catalog's statistics.
+	 *
+	 * Only the named components are computed; each of them gets an entry in
+	 * {@link io.evitadb.api.statistics.CatalogStatistics#componentStatus()} saying whether it was delivered and, if
+	 * not, why. {@link io.evitadb.api.statistics.CatalogStatisticsComponent#IDENTITY} is always delivered, requested
+	 * or not.
+	 *
+	 * The result carries **catalog-wide aggregates only** - never a per-collection breakdown. Statistics of a single
+	 * entity collection are obtained from {@link EntityCollectionContract#getStatistics(Set)}, and the two are
+	 * independent snapshots that may observe different catalog versions.
+	 *
+	 * @param components the components to compute; every one of them must satisfy
+	 *                   {@link io.evitadb.api.statistics.CatalogStatisticsComponent#isCatalogLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws EvitaInvalidUsageException when a component that has no catalog-level form is requested
+	 */
+	@Nonnull
+	io.evitadb.api.statistics.CatalogStatistics getStatistics(
+		@Nonnull Set<io.evitadb.api.statistics.CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
