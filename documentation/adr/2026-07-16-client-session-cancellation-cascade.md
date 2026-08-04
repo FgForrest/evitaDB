@@ -9,7 +9,7 @@ prs: [1284]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_engine/core, evita_api/exception, evita_api/configuration, evita_server, evita_test_support, evita_test/evita_functional_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-03-driver-connection-resilience]
+relates: [2026-08-03-driver-connection-resilience, 2026-08-04-http2-connection-teardown-observability]
 ---
 
 # Fix the gRPC keep-alive self-kill and session-cancellation cascade

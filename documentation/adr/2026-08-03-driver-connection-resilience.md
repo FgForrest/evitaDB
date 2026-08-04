@@ -9,7 +9,7 @@ prs: [1371]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_external_api_core/http, evita_server/resources, documentation/user/en]
 supersedes: []
 superseded-by: []
-relates: [2026-07-16-client-session-cancellation-cascade]
+relates: [2026-07-16-client-session-cancellation-cascade, 2026-08-04-http2-connection-teardown-observability]
 ---
 
 # Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls

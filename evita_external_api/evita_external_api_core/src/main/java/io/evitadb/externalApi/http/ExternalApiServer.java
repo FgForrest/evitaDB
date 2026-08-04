@@ -564,6 +564,9 @@ public class ExternalApiServer implements AutoCloseable {
 			.eventLoopMetrics(workerGroup, new MeterIdPrefix("armeria.netty.worker"))
 			.bindTo(meterRegistry);
 
+		// reports RST_STREAM floods and erroneous GOAWAY teardowns that would otherwise leave no trace on the server
+		final Http2ConnectionMonitor http2ConnectionMonitor = Http2ConnectionMonitor.fromSystemProperties();
+
 		serverBuilder
 			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
@@ -601,6 +604,15 @@ public class ExternalApiServer implements AutoCloseable {
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis(), true)
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.pingIntervalMillis(apiOptions.pingIntervalMillis())
+			// Netty's Rapid-Reset (CVE-2023-44487) defence, which stock Armeria enables at 400 resets per minute -
+			// evitaDB turns it OFF by default, because it kills the whole connection (and every unrelated in-flight
+			// request on it) for a client that is merely timing out a lot, and evitaDB's clients are usually trusted.
+			// The flood is reported by Http2ConnectionMonitor instead of being enforced against
+			.http2MaxResetFramesPerWindow(
+				http2ConnectionMonitor.getMaxRstFramesPerWindow(),
+				http2ConnectionMonitor.getRstFrameWindowSeconds()
+			)
+			.childChannelPipelineCustomizer(http2ConnectionMonitor::install)
 			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
 			.workerGroup(workerGroup, true)
