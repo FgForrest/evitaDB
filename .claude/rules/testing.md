@@ -19,13 +19,30 @@ paths:
 
 ## Tag taxonomy
 
-Every test method must carry **at least one layer tag** and **at least one capability tag** from `io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyListener` in **strict mode by default** — an untagged test fails the build before any test executes. Set `-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags (`slow`, `flaky`) are optional.
+Every test method must carry **at least one layer tag** and **at least one capability tag** from
+`io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyFilter` in **strict mode by
+default** — an untagged test aborts discovery, so the build fails before any test executes. Set
+`-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the
+check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags
+(`slow`, `flaky`) are optional.
 
 - **Cost (optional, mutually exclusive)**: `slow`, `flaky`
-- **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`, `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`
-- **Capability (≥1 required)**: `query`, `filter`, `order`, `require`, `attribute`, `hierarchy`, `facet`, `price`, `histogram`, `reference`, `schema`, `transaction`, `wal`, `cdc`, `cache`, `session`, `proxy`, `export`, `stream`, `serialization`, `expression`, `comparator`, `observability`, `task`, `security`, `data_type`, `traffic_engine`, `management`
+- **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`,
+  `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`,
+  `test_harness`
+- **Capability (≥1 required)**: `query`, `filter`, `order`, `require`, `attribute`, `hierarchy`,
+  `facet`, `price`, `histogram`, `reference`, `schema`, `transaction`, `wal`, `cdc`, `cache`,
+  `session`, `proxy`, `export`, `stream`, `serialization`, `expression`, `comparator`,
+  `observability`, `task`, `security`, `data_type`, `traffic_engine`, `management`, `test_harness`
 
-A facet test exercising the GraphQL surface should carry e.g. `@Tag(GRAPHQL) @Tag(EXTERNAL_API) @Tag(FACET)`. Tags can be applied at class level (inherited by all methods) or per method.
+A facet test exercising the GraphQL surface should carry e.g.
+`@Tag(GRAPHQL) @Tag(EXTERNAL_API) @Tag(FACET)`. Tags can be applied at class level (inherited by all
+methods) or per method. `indexing` and `test_harness` are listed on both axes and satisfy the policy
+on their own.
+
+Reworking the gate: it must raise from a phase whose exceptions JUnit propagates — a
+`TestExecutionListener` will not do, the platform swallows those. Prove it by making a real build
+fail; see `documentation/adr/2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md`.
 
 When introducing a new tag, add it to `TestTags` and register it in either `LAYER_TAGS` or `CAPABILITY_TAGS`. The taxonomy is intentionally flat — no `cap:` / `surface:` prefixes.
 

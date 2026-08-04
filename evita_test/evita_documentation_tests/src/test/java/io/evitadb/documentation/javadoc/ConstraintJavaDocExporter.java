@@ -33,6 +33,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.StringUtils;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -45,11 +46,16 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+
 /**
  * Exports all constraint definitions to a JSON file for external tools (namely evitaLab).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 public class ConstraintJavaDocExporter implements EvitaTestSupport {
 
 	/**
