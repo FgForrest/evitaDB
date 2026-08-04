@@ -19,8 +19,12 @@
     <dd><strong>Conflict policy</strong>: The coarse conflict policy (NONE/CATALOG/COLLECTION/ENTITY) in force for the conflicting scope.</dd>
     <dt>conflictScope</dt>
     <dd><strong>Conflict scope</strong>: The granularity of the conflicting key (e.g. entity, attribute, price, reference).</dd>
+    <dt>direction</dt>
+    <dd><strong>GOAWAY direction</strong>: SENT when the server closed the connection, RECEIVED when the peer did.</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
+    <dt>errorCode</dt>
+    <dd><strong>GOAWAY error code</strong>: The RFC 9113 error code carried by the GOAWAY frame, for example ENHANCE_YOUR_CALM(11).</dd>
     <dt>error_type</dt>
     <dd><strong>Error type</strong>: Class of the error being counted.</dd>
     <dt>fileType</dt>
@@ -95,6 +99,10 @@ duration of the probe.</dd>
 #### API
 
 <dl>
+  <dt><code>io_evitadb_external_api_http2_go_away_total</code> (COUNTER)</dt>
+  <dd>HTTP/2 connections closed with an erroneous GOAWAY total<br/><br/><strong>Labels:</strong> <Term>direction</Term>, <Term>errorCode</Term><br/></dd>
+  <dt><code>io_evitadb_external_api_http2_rst_flood_total</code> (COUNTER)</dt>
+  <dd>HTTP/2 RST_STREAM floods detected total</dd>
   <dt><code>io_evitadb_external_api_readiness_duration_milliseconds</code> (HISTOGRAM)</dt>
   <dd>Readiness probe duration<br/><br/><strong>Labels:</strong> <Term>api</Term>, <Term>probeResult</Term>, <Term>prospective</Term><br/></dd>
   <dt><code>io_evitadb_external_api_readiness_total</code> (COUNTER)</dt>
