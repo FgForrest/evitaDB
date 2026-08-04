@@ -23,6 +23,11 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
+
+import javax.annotation.Nonnull;
+import java.util.Set;
+
 /**
  * Enumerates the independently selectable parts of {@link CatalogStatistics} and
  * {@link EntityCollectionStatistics}. A client names the components it wants, and the engine computes only those.
@@ -192,6 +197,64 @@ public enum CatalogStatisticsComponent {
 	 */
 	public boolean isCollectionLevel() {
 		return this.collectionLevel;
+	}
+
+	/**
+	 * Rejects a selection a catalog-level call cannot answer, so that the dispatch that follows may treat every
+	 * remaining component as valid and throw on anything else as a programming error.
+	 *
+	 * @param components the requested components
+	 * @throws EvitaInvalidUsageException when the selection is empty or names a component with no catalog-level form
+	 */
+	public static void assertCatalogLevel(@Nonnull Set<CatalogStatisticsComponent> components)
+		throws EvitaInvalidUsageException {
+		assertNotEmpty(components);
+		for (final CatalogStatisticsComponent component : components) {
+			if (!component.isCatalogLevel()) {
+				throw new EvitaInvalidUsageException(
+					"Statistics component `" + component + "` has no catalog-level form - ask the entity collection " +
+						"it belongs to for it."
+				);
+			}
+		}
+	}
+
+	/**
+	 * Rejects a selection an entity-collection-level call cannot answer.
+	 *
+	 * @param components the requested components
+	 * @throws EvitaInvalidUsageException when the selection is empty or names a component with no collection-level
+	 *                                    form
+	 */
+	public static void assertCollectionLevel(@Nonnull Set<CatalogStatisticsComponent> components)
+		throws EvitaInvalidUsageException {
+		assertNotEmpty(components);
+		for (final CatalogStatisticsComponent component : components) {
+			if (!component.isCollectionLevel()) {
+				throw new EvitaInvalidUsageException(
+					"Statistics component `" + component + "` has no entity collection form - ask the catalog for it."
+				);
+			}
+		}
+	}
+
+	/**
+	 * Rejects a request that names no component at all.
+	 *
+	 * Answering it with the always-delivered identity alone would look like a successful, empty catalog rather than
+	 * like the malformed request it is - a caller that wants only the identity asks for
+	 * {@link #IDENTITY} explicitly.
+	 *
+	 * @param components the requested components
+	 * @throws EvitaInvalidUsageException when nothing was requested
+	 */
+	private static void assertNotEmpty(@Nonnull Set<CatalogStatisticsComponent> components)
+		throws EvitaInvalidUsageException {
+		if (components.isEmpty()) {
+			throw new EvitaInvalidUsageException(
+				"No statistics component was requested - name at least one component to compute."
+			);
+		}
 	}
 
 }

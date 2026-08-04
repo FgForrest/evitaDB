@@ -25,6 +25,7 @@ package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
@@ -32,6 +33,13 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.proxy.mock.CategoryInterface;
 import io.evitadb.api.proxy.mock.ProductInterface;
 import io.evitadb.api.proxy.mock.TestEntity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.ComponentStatus;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2200,6 +2208,151 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		return query(
 			collection(entityType),
 			filterBy(entityPrimaryKeyInSet(primaryKeys))
+		);
+	}
+
+	/**
+	 * Verifies that the driver asks for the components it was given and reports each of the three possible outcomes
+	 * distinguishably.
+	 *
+	 * This is the end-to-end counterpart of `CatalogStatisticsConverterTest`: that one proves the translation is
+	 * lossless in isolation, this one proves the same distinctions survive a real server, a real gRPC call and a real
+	 * driver. `SESSIONS` is requested precisely because this build does not compute it yet - a component the server
+	 * declined must arrive as a status, never as a silently absent field.
+	 */
+	@Test
+	@DisplayName("retrieve component-selected catalog statistics")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveComponentSelectedCatalogStatistics(EvitaClient evitaClient) {
+		final CatalogStatistics statistics = evitaClient.management().getCatalogStatistics(
+			TEST_CATALOG,
+			EnumSet.of(
+				CatalogStatisticsComponent.RECORD_COUNTS,
+				CatalogStatisticsComponent.STORAGE_SIZE,
+				CatalogStatisticsComponent.SESSIONS
+			)
+		);
+
+		// identity is delivered whether or not it was asked for
+		assertEquals(TEST_CATALOG, statistics.identity().catalogName());
+		assertTrue(statistics.isDelivered(CatalogStatisticsComponent.IDENTITY));
+		assertFalse(statistics.identity().unusable());
+		assertNotNull(statistics.identity().catalogId());
+
+		// requested and delivered
+		final RecordCounts recordCounts = statistics.recordCountsIfPresent().orElseThrow();
+		assertTrue(recordCounts.totalRecords() > 0, "Expected a populated catalog, got " + recordCounts);
+		assertEquals(recordCounts.liveRecords() + recordCounts.archivedRecords(), recordCounts.totalRecords());
+		assertTrue(statistics.storageSizeIfPresent().orElseThrow().sizeOnDiskInBytes() > 0);
+
+		// requested but this build cannot compute it - the client must be told why, not left guessing
+		assertNull(statistics.sessions());
+		final ComponentStatus sessionStatus = statistics.statusOf(CatalogStatisticsComponent.SESSIONS).orElseThrow();
+		assertEquals(ComponentAvailability.NOT_SUPPORTED, sessionStatus.availability());
+		assertNotNull(sessionStatus.reason());
+
+		// never requested - absent, and with no status entry to be mistaken for one
+		assertNull(statistics.collections());
+		assertTrue(statistics.statusOf(CatalogStatisticsComponent.COLLECTIONS).isEmpty());
+	}
+
+	/**
+	 * Verifies that per-collection statistics are reachable over the driver, including the index breakdown that only
+	 * exists at the collection level.
+	 */
+	@Test
+	@DisplayName("retrieve component-selected entity collection statistics")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveComponentSelectedEntityCollectionStatistics(EvitaClient evitaClient) {
+		final EntityCollectionStatistics statistics = evitaClient.management().getEntityCollectionStatistics(
+			TEST_CATALOG,
+			Entities.PRODUCT,
+			EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS, CatalogStatisticsComponent.INDEX_SUMMARY)
+		);
+
+		assertEquals(Entities.PRODUCT, statistics.entityType());
+		assertEquals(TEST_CATALOG, statistics.identity().catalogName());
+		assertEquals(PRODUCT_COUNT, statistics.recordCountsIfPresent().orElseThrow().totalRecords());
+
+		final CollectionIndexSummary indexSummary = statistics.indexSummaryIfPresent().orElseThrow();
+		assertTrue(indexSummary.totalIndexCount() > 0);
+		assertTrue(
+			indexSummary.byKindAndScope().length > 0,
+			"The kind and scope breakdown is the reason this component exists at the collection level"
+		);
+	}
+
+	/**
+	 * Verifies the instance-wide variant, which replaces the deprecated procedure that computed everything for every
+	 * catalog on every call.
+	 */
+	@Test
+	@DisplayName("retrieve statistics of every catalog at once")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveAllCatalogStatistics(EvitaClient evitaClient) {
+		final Collection<CatalogStatistics> statistics = evitaClient.management().getAllCatalogStatistics(
+			EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS)
+		);
+
+		assertEquals(1, statistics.size());
+		final CatalogStatistics catalogStatistics = statistics.iterator().next();
+		assertEquals(TEST_CATALOG, catalogStatistics.identity().catalogName());
+		assertTrue(catalogStatistics.recordCountsIfPresent().orElseThrow().totalRecords() > 0);
+	}
+
+	/**
+	 * Verifies that the four ways to ask a malformed statistics question are all refused rather than answered with
+	 * something plausible-looking.
+	 *
+	 * Note the expected type: everything the server rejects arrives back as a plain
+	 * {@link EvitaInvalidUsageException}, because the driver reconstructs `INVALID_ARGUMENT` responses from the error
+	 * code and does not restore the original subclass. Asserting `CollectionNotFoundException` here would fail even
+	 * though the embedded engine really does throw it.
+	 */
+	@Test
+	@DisplayName("refuse a statistics request that cannot be answered")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRejectMalformedStatisticsRequests(EvitaClient evitaClient) {
+		final EvitaManagementContract management = evitaClient.management();
+
+		// a component with no catalog-level form at all
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getCatalogStatistics(
+				TEST_CATALOG, EnumSet.of(CatalogStatisticsComponent.MEMORY_FOOTPRINT)
+			)
+		);
+		// the same, asked of every catalog at once. Worth its own assertion: that call isolates a failing catalog by
+		// catching every runtime exception, so without an up-front check it would report the caller's mistake as
+		// "every catalog is unusable" instead of refusing it
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getAllCatalogStatistics(EnumSet.of(CatalogStatisticsComponent.MEMORY_FOOTPRINT))
+		);
+		// a catalog-only component asked of a collection
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getEntityCollectionStatistics(
+				TEST_CATALOG, Entities.PRODUCT, EnumSet.of(CatalogStatisticsComponent.SESSIONS)
+			)
+		);
+		// no component at all - a request for nothing is malformed, not a request for the identity alone
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getCatalogStatistics(TEST_CATALOG, EnumSet.noneOf(CatalogStatisticsComponent.class))
+		);
+		// a catalog, and a collection, that do not exist
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getCatalogStatistics(
+				"nonExistingCatalog", EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS)
+			)
+		);
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> management.getEntityCollectionStatistics(
+				TEST_CATALOG, "nonExistingCollection", EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS)
+			)
 		);
 	}
 

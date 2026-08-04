@@ -35,6 +35,9 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -48,6 +51,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.CatalogStatisticsConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter;
 import io.evitadb.function.Functions;
@@ -69,6 +73,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -522,6 +527,74 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			response.getChangeDataCaptureEnabled(),
 			response.getTrafficRecordingEnabled(),
 			response.getQueryCacheEnabled()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getCatalogStatistics(
+		@Nonnull String catalogName,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcCatalogStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getCatalogStatisticsSnapshot(
+				GrpcCatalogStatisticsSnapshotRequest.newBuilder()
+					.setCatalogName(catalogName)
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		return CatalogStatisticsConverter.toCatalogStatistics(response.getCatalogStatistics());
+	}
+
+	@Nonnull
+	@Override
+	public Collection<CatalogStatistics> getAllCatalogStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcAllCatalogStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getAllCatalogStatisticsSnapshots(
+				GrpcAllCatalogStatisticsSnapshotRequest.newBuilder()
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		final List<GrpcCatalogStatisticsSnapshot> snapshots = response.getCatalogStatisticsList();
+		final List<CatalogStatistics> statistics = new ArrayList<>(snapshots.size());
+		for (final GrpcCatalogStatisticsSnapshot snapshot : snapshots) {
+			// the server already ordered them by catalog name - re-sorting here would only risk disagreeing with it
+			statistics.add(CatalogStatisticsConverter.toCatalogStatistics(snapshot));
+		}
+		return statistics;
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionStatistics getEntityCollectionStatistics(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcEntityCollectionStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getEntityCollectionStatisticsSnapshot(
+				GrpcEntityCollectionStatisticsSnapshotRequest.newBuilder()
+					.setCatalogName(catalogName)
+					.setEntityType(entityType)
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		return CatalogStatisticsConverter.toEntityCollectionStatistics(
+			response.getEntityCollectionStatistics()
 		);
 	}
 

@@ -119,6 +119,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.EnumSet;
@@ -3934,6 +3935,23 @@ class EvitaTest implements EvitaTestSupport {
 			assertTrue(
 				productSizeOnDisk > 300L && productSizeOnDisk < 700L,
 				"Expected size on disk to be between 300 and 700 bytes, but was " + productSizeOnDisk
+			);
+
+			// the instance-wide call must describe every catalog, corrupted ones included: a catalog missing from the
+			// answer would be indistinguishable from a catalog that no longer exists, and a corrupted catalog is
+			// exactly what an operator opens this call to find
+			final List<CatalogStatistics> allStatistics =
+				new ArrayList<>(this.evita.management().getAllCatalogStatistics(components));
+			assertEquals(
+				List.of(TEST_CATALOG, TEST_CATALOG + "_1", TEST_CATALOG + "_2"),
+				allStatistics.stream().map(it -> it.identity().catalogName()).toList(),
+				"Catalogs must be reported ordered by name, so a polled listing does not reshuffle between refreshes"
+			);
+			final CatalogStatistics corruptedStatistics = allStatistics.get(1);
+			assertTrue(corruptedStatistics.identity().unusable());
+			assertEquals(
+				ComponentAvailability.CATALOG_UNUSABLE,
+				corruptedStatistics.componentStatus().get(CatalogStatisticsComponent.RECORD_COUNTS).availability()
 			);
 
 		} finally {

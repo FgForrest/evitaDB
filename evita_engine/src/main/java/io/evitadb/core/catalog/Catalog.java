@@ -37,7 +37,6 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.StorageSizeStatistics;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -1420,14 +1419,9 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		CatalogStatisticsComponent.assertCatalogLevel(components);
 		final CatalogStatistics.Builder builder = CatalogStatistics.builder(getIdentity());
 		for (final CatalogStatisticsComponent component : components) {
-			if (!component.isCatalogLevel()) {
-				throw new EvitaInvalidUsageException(
-					"Statistics component `" + component + "` has no catalog-level form - ask the entity collection " +
-						"it belongs to for it."
-				);
-			}
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
 				case IDENTITY -> { }

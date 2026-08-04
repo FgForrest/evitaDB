@@ -23,16 +23,24 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TaskNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 
 import javax.annotation.Nonnull;
@@ -75,10 +83,12 @@ import java.util.concurrent.CompletableFuture;
  * SystemStatus status = management.getSystemStatus();
  * ```
  *
- * **Catalog statistics** are not part of this interface. They are obtained per catalog from
- * {@link CatalogContract#getStatistics(java.util.Set)} and per collection from
- * {@link EntityCollectionContract#getStatistics(java.util.Set)}, so that a caller names the components it needs
- * instead of paying for every statistic of every catalog on every call.
+ * **Catalog statistics** are component-selected: a caller names the components it needs instead of paying for every
+ * statistic of every catalog on every call. Three entry points, by how much is being asked about -
+ * {@link #getCatalogStatistics(String, Set)} for one catalog, {@link #getAllCatalogStatistics(Set)} for the whole
+ * instance, and {@link #getEntityCollectionStatistics(String, String, Set)} for one collection. They are the remote
+ * face of {@link CatalogContract#getStatistics(Set)} and {@link EntityCollectionContract#getStatistics(Set)}, which
+ * answer the same questions when the engine is embedded.
  *
  * **Thread-Safety**
  *
@@ -375,5 +385,83 @@ public interface EvitaManagementContract {
 	 */
 	@Nonnull
 	EngineSettings getEngineSettings();
+
+	/**
+	 * Returns a component-selected statistics snapshot of a single catalog.
+	 *
+	 * The caller names the {@link CatalogStatisticsComponent}s it wants and the engine computes only those, so a
+	 * management screen refreshing on a timer pays for what it displays and nothing else. Every requested component
+	 * gets an entry in {@link CatalogStatistics#componentStatus()} saying whether it was delivered and, if not, why -
+	 * a component that was never requested has no entry at all, which is what lets a caller tell the two apart.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is delivered whether or not it was requested.
+	 *
+	 * **Aggregates only.** No component reported here breaks down per collection, so the size of the answer does not
+	 * grow with the number of collections in the catalog. Statistics of one collection are fetched by naming it - see
+	 * {@link #getEntityCollectionStatistics(String, String, Set)} - and the two are independent snapshots that may
+	 * observe different catalog versions.
+	 *
+	 * **A corrupted catalog still answers.** It reports its identity, the components that read the file system
+	 * directly, and {@link ComponentAvailability#CATALOG_UNUSABLE} for the rest, rather than failing the call.
+	 *
+	 * @param catalogName name of the catalog to describe
+	 * @param components  the components to compute; every one of them must satisfy
+	 *                    {@link CatalogStatisticsComponent#isCatalogLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws CatalogNotFoundException   when no catalog of that name exists
+	 * @throws EvitaInvalidUsageException when a component that has no catalog-level form is requested
+	 */
+	@Nonnull
+	CatalogStatistics getCatalogStatistics(
+		@Nonnull String catalogName,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, EvitaInvalidUsageException;
+
+	/**
+	 * Returns a component-selected statistics snapshot of every catalog known to this instance, ordered by catalog
+	 * name. The instance-wide form of {@link #getCatalogStatistics(String, Set)}, and the replacement for the
+	 * statistics call that used to compute everything for every catalog on every invocation.
+	 *
+	 * Corrupted catalogs are included rather than skipped - a catalog missing from the answer would be
+	 * indistinguishable from a catalog that no longer exists, and a corrupted catalog is exactly what an operator
+	 * opens this call to find.
+	 *
+	 * The two expensive components ({@link CatalogStatisticsComponent#INDEX_CARDINALITY} and
+	 * {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT}) have no catalog-level form at all, so their cost can never
+	 * be multiplied by the number of catalogs here.
+	 *
+	 * @param components the components to compute for each catalog; every one of them must satisfy
+	 *                   {@link CatalogStatisticsComponent#isCatalogLevel()}
+	 * @return one snapshot per catalog, ordered by catalog name
+	 * @throws EvitaInvalidUsageException when a component that has no catalog-level form is requested
+	 */
+	@Nonnull
+	Collection<CatalogStatistics> getAllCatalogStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Returns a component-selected statistics snapshot of a single entity collection.
+	 *
+	 * This is the only way to obtain per-collection numbers: {@link #getCatalogStatistics(String, Set)} reports
+	 * catalog-wide aggregates and never breaks them down by collection. The presence rules are the same as there, and
+	 * the two responses are independent snapshots - compare {@link CatalogIdentity#catalogVersion()} of each when
+	 * that matters.
+	 *
+	 * @param catalogName name of the catalog holding the collection
+	 * @param entityType  name of the entity collection to describe
+	 * @param components  the components to compute; every one of them must satisfy
+	 *                    {@link CatalogStatisticsComponent#isCollectionLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when the catalog holds no collection of that entity type; an empty response
+	 *                                     would be indistinguishable from an empty collection
+	 * @throws EvitaInvalidUsageException  when a component that has no collection-level form is requested
+	 */
+	@Nonnull
+	EntityCollectionStatistics getEntityCollectionStatistics(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException;
 
 }

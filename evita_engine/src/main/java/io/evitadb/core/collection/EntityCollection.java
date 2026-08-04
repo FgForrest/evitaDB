@@ -32,7 +32,6 @@ import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -1028,17 +1027,13 @@ public final class EntityCollection implements
 	@Nonnull
 	@Override
 	public EntityCollectionStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		CatalogStatisticsComponent.assertCollectionLevel(components);
 		// this.catalog is single-assign (see attachCatalogShell), so it is the catalog generation this collection
 		// instance belongs to - the identity and the indexes walked below therefore describe the same version
 		final EntityCollectionStatistics.Builder builder = EntityCollectionStatistics.builder(
 			this.catalog.getIdentity(), getEntityType()
 		);
 		for (final CatalogStatisticsComponent component : components) {
-			if (!component.isCollectionLevel()) {
-				throw new EvitaInvalidUsageException(
-					"Statistics component `" + component + "` has no entity collection form - ask the catalog for it."
-				);
-			}
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
 				case IDENTITY -> { }

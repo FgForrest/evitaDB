@@ -58,6 +58,7 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.CatalogStatisticsConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.http.ExternalApiProvider;
@@ -82,6 +83,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -362,6 +364,106 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				responseObserver.onNext(
 					GrpcEvitaCatalogStatisticsResponse.newBuilder()
 						.addAllCatalogStatistics(catalogStatistics)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of one named catalog.
+	 *
+	 * @param request          names the catalog and the components to compute
+	 * @param responseObserver the observer for receiving the snapshot
+	 * @see EvitaManagementContract#getCatalogStatistics(String, Set)
+	 */
+	@Override
+	public void getCatalogStatisticsSnapshot(
+		GrpcCatalogStatisticsSnapshotRequest request,
+		StreamObserver<GrpcCatalogStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final CatalogStatistics statistics = this.management.getCatalogStatistics(
+					request.getCatalogName(),
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				responseObserver.onNext(
+					GrpcCatalogStatisticsSnapshotResponse.newBuilder()
+						.setCatalogStatistics(
+							CatalogStatisticsConverter.toGrpcCatalogStatisticsSnapshot(statistics)
+						)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of every catalog known to the server, ordered by catalog name.
+	 *
+	 * @param request          names the components to compute for each catalog
+	 * @param responseObserver the observer for receiving the snapshots
+	 * @see EvitaManagementContract#getAllCatalogStatistics(Set)
+	 */
+	@Override
+	public void getAllCatalogStatisticsSnapshots(
+		GrpcAllCatalogStatisticsSnapshotRequest request,
+		StreamObserver<GrpcAllCatalogStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final Collection<CatalogStatistics> statistics = this.management.getAllCatalogStatistics(
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				final GrpcAllCatalogStatisticsSnapshotResponse.Builder builder =
+					GrpcAllCatalogStatisticsSnapshotResponse.newBuilder();
+				for (final CatalogStatistics catalogStatistics : statistics) {
+					builder.addCatalogStatistics(
+						CatalogStatisticsConverter.toGrpcCatalogStatisticsSnapshot(catalogStatistics)
+					);
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of one entity collection.
+	 *
+	 * @param request          names the catalog, the entity collection and the components to compute
+	 * @param responseObserver the observer for receiving the snapshot
+	 * @see EvitaManagementContract#getEntityCollectionStatistics(String, String, Set)
+	 */
+	@Override
+	public void getEntityCollectionStatisticsSnapshot(
+		GrpcEntityCollectionStatisticsSnapshotRequest request,
+		StreamObserver<GrpcEntityCollectionStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final EntityCollectionStatistics statistics = this.management.getEntityCollectionStatistics(
+					request.getCatalogName(),
+					request.getEntityType(),
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				responseObserver.onNext(
+					GrpcEntityCollectionStatisticsSnapshotResponse.newBuilder()
+						.setEntityCollectionStatistics(
+							CatalogStatisticsConverter.toGrpcEntityCollectionStatisticsSnapshot(statistics)
+						)
 						.build()
 				);
 				responseObserver.onCompleted();

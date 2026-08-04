@@ -106,7 +106,9 @@ public class CatalogStatisticsConverter {
 	 * Converts the components named in a request into the set the engine takes.
 	 *
 	 * An empty list is rejected rather than silently answered with an identity-only snapshot: the component list is
-	 * what the caller is asking about, so an empty one is a malformed request, not a request for nothing.
+	 * what the caller is asking about, so an empty one is a malformed request, not a request for nothing. The engine
+	 * refuses it too - this is the message-level gate, so a malformed request never reaches a catalog at all, and the
+	 * two agree on the wording deliberately.
 	 *
 	 * @param grpcComponents components named in the request
 	 * @return the requested components
