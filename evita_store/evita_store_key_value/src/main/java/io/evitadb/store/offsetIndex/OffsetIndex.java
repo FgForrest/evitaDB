@@ -1365,9 +1365,13 @@ public class OffsetIndex {
 	 * Note: we could make this more precise if we'd store the size of the index in the {@link OffsetIndexDescriptor}
 	 * and estimate the uncompressed size only for the volatile values. But we don't necessarily need that precision now.
 	 *
+	 * Because the number is an estimate that can exceed the file it describes, any caller that reports it as a share
+	 * of - or a subset of - the file's bytes must clamp it to the file length. {@link #getActiveRecordShare(long)}
+	 * is the built-in way to ask the same question as a ratio.
+	 *
 	 * @return The total active size.
 	 */
-	private long getTotalActiveSize() {
+	public long getTotalActiveSize() {
 		return this.totalSizeBytes.get() +
 			countFileOffsetTableSize(this.roots.latestRoot().size(), this.outputBufferSize);
 	}

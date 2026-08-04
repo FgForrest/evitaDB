@@ -55,9 +55,9 @@ package io.evitadb.api.statistics;
  *   the value is genuinely the price of time travel, and the lever that moves it is WAL retention - not compaction,
  *   which has already run on these bytes.
  *
- * The figure is therefore reported unconditionally, in both modes; only `walBytes` at the catalog level is actually
- * gated on time travel. Deleting these files by hand is never the remedy - see {@link StorageSizeStatistics} for the
- * blocked/purgeable split that says whether anything is holding them.
+ * The figure is therefore reported unconditionally, in both modes - as is the catalog level's `walBytes`, which time
+ * travel widens rather than creates. Deleting these files by hand is never the remedy - see
+ * {@link StorageSizeStatistics} for the blocked/purgeable split that says whether anything is holding them.
  *
  * The active-record share is deliberately not repeated here - it is the headline number of
  * {@link CatalogStatisticsComponent#FRAGMENTATION} and is carried by {@link CollectionFragmentation}, which is what

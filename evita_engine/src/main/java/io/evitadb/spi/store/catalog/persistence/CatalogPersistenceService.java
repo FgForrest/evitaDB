@@ -679,11 +679,19 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	void verifyIntegrity();
 
 	/**
-	 * Returns size taken by all catalog data structures in bytes.
+	 * Measures the catalog's disk footprint and attributes it to the storage classes that have different remedies -
+	 * live data, compaction waste, retained write-ahead log, files awaiting deletion and the bootstrap file. The
+	 * measured total is {@link CatalogStorageFootprint#totalBytes()}; it is the sum of a single flat listing of the
+	 * catalog directory rather than a recursive walk.
 	 *
-	 * @return size taken by all catalog data structures in bytes
+	 * This replaced a plain size-on-disk scalar, which had no caller left once the statistics path stopped needing
+	 * it. Reintroduce one only if something genuinely wants the total without the breakdown - the breakdown costs
+	 * one listing plus a counter read per open data store, so the scalar was never the cheaper answer.
+	 *
+	 * @return the decomposed footprint of this catalog
 	 */
-	long getSizeOnDiskInBytes();
+	@Nonnull
+	CatalogStorageFootprint measureStorageFootprint();
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

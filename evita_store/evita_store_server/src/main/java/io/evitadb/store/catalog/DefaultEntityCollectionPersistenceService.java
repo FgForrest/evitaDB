@@ -70,6 +70,7 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
+import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -128,6 +129,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -945,6 +947,56 @@ public class DefaultEntityCollectionPersistenceService
 				)
 			)
 		).mapToLong(File::length).sum();
+	}
+
+	@Nonnull
+	@Override
+	public CollectionStorageFootprint measureStorageFootprint() {
+		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(
+			this.entityCollectionFileReference.entityType(),
+			this.entityCollectionFileReference.entityTypePrimaryKey()
+		);
+		final File[] files = Objects.requireNonNull(
+			this.entityCollectionFile.getParent().toFile().listFiles(
+				(dir, name) -> pattern.matcher(name).matches()
+			)
+		);
+		final int currentFileIndex = this.entityCollectionFileReference.fileIndex();
+		long totalBytes = 0L;
+		long currentFileBytes = 0L;
+		long awaitingDeletionBytes = 0L;
+		for (final File file : files) {
+			final long length = file.length();
+			totalBytes += length;
+			final Matcher matcher = pattern.matcher(file.getName());
+			// the same pattern already accepted this name in the listing filter above
+			isPremiseValid(
+				matcher.matches(),
+				"Entity collection file name `" + file.getName() + "` stopped matching its own pattern!"
+			);
+			final int fileIndex = Integer.parseInt(matcher.group(1));
+			if (fileIndex == currentFileIndex) {
+				currentFileBytes = length;
+			} else if (fileIndex < currentFileIndex) {
+				awaitingDeletionBytes += length;
+			}
+			// a *higher* index is compaction output whose header flip has not happened yet - reporting it as garbage
+			// would be the exact inverse of the truth, so it falls through to the unaccounted remainder below
+		}
+		// the clamp is load-bearing, not defensive: with compression enabled the active size is an estimate that can
+		// exceed the file it describes (see OffsetIndex#getTotalActiveSize), and an unclamped value would drive
+		// `unaccountedBytes` negative and make the record's total-equals-sum invariant false
+		final long liveBytes = Math.min(
+			getStoragePartPersistenceService().getOffsetIndex().getTotalActiveSize(),
+			currentFileBytes
+		);
+		return new CollectionStorageFootprint(
+			totalBytes,
+			liveBytes,
+			currentFileBytes - liveBytes,
+			awaitingDeletionBytes,
+			totalBytes - currentFileBytes - awaitingDeletionBytes
+		);
 	}
 
 	@Nonnull

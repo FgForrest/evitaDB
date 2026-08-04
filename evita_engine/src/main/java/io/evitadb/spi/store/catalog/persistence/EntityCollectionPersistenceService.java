@@ -270,6 +270,16 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	long getSizeOnDiskInBytes();
 
 	/**
+	 * Measures this collection's disk footprint and attributes it to live data, compaction waste and superseded data
+	 * store files that have not been deleted yet. Answers the same question as {@link #getSizeOnDiskInBytes()} but
+	 * broken down; the write-ahead log and the bootstrap file are catalog-wide and therefore absent here.
+	 *
+	 * @return the decomposed footprint of this collection's data store files
+	 */
+	@Nonnull
+	CollectionStorageFootprint measureStorageFootprint();
+
+	/**
 	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
 	 * file). This method is only temporary and will be removed in the future.
 	 *

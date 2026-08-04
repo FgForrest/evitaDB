@@ -1470,18 +1470,17 @@ public final class Catalog
 	}
 
 	/**
-	 * Measures the catalog's footprint on disk. The total is the same number the catalog has always reported, so the
-	 * gRPC field and the metric series derived from it keep their exact value; none of it is attributed to a storage
-	 * class yet, so the whole of it is reported as `unaccountedBytes` - honestly *measured, not yet attributed*.
-	 * Later stages move bytes out of that remainder into the classes they belong to, which is precisely the signal
-	 * the field exists to carry.
+	 * Measures the catalog's footprint on disk and attributes it to the storage classes that have different remedies.
+	 * The whole decomposition comes from a single flat listing of the catalog directory, so it is cheaper than the
+	 * recursive walk the scalar used to cost while carrying strictly more information; the total is the sum of that
+	 * same listing, which keeps the record's total-equals-sum invariant true by construction rather than by
+	 * agreement between two measurements.
 	 *
 	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component
 	 */
 	@Nonnull
 	private StorageSizeStatistics measureStorageSize() {
-		final long sizeOnDiskInBytes = this.persistenceService.getSizeOnDiskInBytes();
-		return new StorageSizeStatistics(sizeOnDiskInBytes, 0L, 0L, 0L, 0L, 0L, 0L, 0L, sizeOnDiskInBytes);
+		return StorageSizeProjection.toStorageSizeStatistics(this.persistenceService.measureStorageFootprint());
 	}
 
 	/**

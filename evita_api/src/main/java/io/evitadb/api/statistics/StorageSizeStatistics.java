@@ -53,7 +53,8 @@ package io.evitadb.api.statistics;
  * both modes; only the purge timing differs. With time travel on they are released when the WAL files that reference
  * them are removed, so they persist for the whole history window; with it off they are released by the async purge
  * task on catalog-version exchange, so they are a short transient. `awaitingDeletionBytes` is therefore reported
- * unconditionally - only `walBytes` is genuinely gated on time travel being enabled.
+ * unconditionally, and so is `walBytes` - the log is trimmed to the configured number of kept files in both modes, and
+ * time travel widens the retained window rather than being what creates one.
  *
  * That difference decides what to *do* about a large value, which is why the class is split further. With time travel
  * on, these bytes are the price of the history window and the lever is WAL retention - compaction has already run on
@@ -78,7 +79,8 @@ package io.evitadb.api.statistics;
  * @param liveBytes                    bytes of active records across the catalog and all collection data stores
  * @param wasteBytes                   bytes of superseded records inside the current data stores; reclaimed by
  *                                     compaction
- * @param walBytes                     bytes of retained write-ahead log files; `0` when time travel is disabled
+ * @param walBytes                     bytes of the retained write-ahead log files; not gated on time travel, which
+ *                                     widens the retained window rather than creating it
  * @param awaitingDeletionBytes        bytes of superseded data files that are no longer current but not yet deleted
  * @param blockedByActiveReaderBytes   part of `awaitingDeletionBytes` still referenced by an open reader or writer;
  *                                     a value that stays high means a long-running session is pinning disk space

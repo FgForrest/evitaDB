@@ -79,6 +79,8 @@ import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStoreGenerations;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -3014,9 +3016,68 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
+	@Nonnull
 	@Override
-	public long getSizeOnDiskInBytes() {
-		return FileUtils.getDirectorySize(this.catalogStoragePath);
+	public CatalogStorageFootprint measureStorageFootprint() {
+		// one snapshot of the mutable bootstrap reference drives the whole classification - re-reading it per file
+		// could straddle a compaction and mix two generations' notions of "current"
+		final CatalogBootstrap bootstrap = this.bootstrapUsed;
+		final long catalogVersion = bootstrap.catalogVersion();
+		final int currentCatalogFileIndex = bootstrap.catalogFileIndex();
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
+			catalogVersion
+		);
+		final Collection<CollectionFileReference> collectionReferences = catalogHeader.getEntityTypeFileIndexes();
+
+		// the data store files the header currently points at. Their bytes split into live and waste; every other
+		// data store file of the same kind is a superseded generation
+		final Set<String> currentDataStoreFiles = CollectionUtils.createHashSet(collectionReferences.size() + 1);
+		// ... and the size their offset index reports as active. Only an *open* service can answer that, so
+		// a collection whose service this catalog does not hold is simply absent here and its current file falls
+		// through to the unaccounted remainder rather than being guessed at
+		final Map<String, Long> activeSizeByCurrentFile = CollectionUtils.createHashMap(
+			collectionReferences.size() + 1
+		);
+		// the current generation index of every collection, keyed by entity type primary key - which is what
+		// a collection file name carries, so an obsolete generation can be recognised without parsing the type
+		final Map<Integer, Integer> currentIndexByEntityTypePrimaryKey = CollectionUtils.createHashMap(
+			collectionReferences.size()
+		);
+
+		final String currentCatalogFile = getCatalogDataStoreFileName(this.catalogName, currentCatalogFileIndex);
+		currentDataStoreFiles.add(currentCatalogFile);
+		activeSizeByCurrentFile.put(
+			currentCatalogFile,
+			getStoragePartPersistenceService(catalogVersion).getOffsetIndex().getTotalActiveSize()
+		);
+		for (final CollectionFileReference reference : collectionReferences) {
+			final String currentCollectionFile = getEntityCollectionDataStoreFileName(
+				reference.entityType(), reference.entityTypePrimaryKey(), reference.fileIndex()
+			);
+			currentDataStoreFiles.add(currentCollectionFile);
+			currentIndexByEntityTypePrimaryKey.put(reference.entityTypePrimaryKey(), reference.fileIndex());
+			final DefaultEntityCollectionPersistenceService collectionService =
+				this.entityCollectionPersistenceServices.get(reference);
+			if (collectionService != null) {
+				activeSizeByCurrentFile.put(
+					currentCollectionFile,
+					collectionService.getStoragePartPersistenceService().getOffsetIndex().getTotalActiveSize()
+				);
+			}
+		}
+
+		return CatalogStorageFootprint.measure(
+			this.catalogName,
+			this.catalogStoragePath,
+			new DataStoreGenerations(
+				currentCatalogFileIndex,
+				currentDataStoreFiles,
+				activeSizeByCurrentFile,
+				currentIndexByEntityTypePrimaryKey,
+				this.obsoleteFileMaintainer.getMaintainedFileVersions(),
+				this.obsoleteFileMaintainer.getActiveReaderFloor()
+			)
+		);
 	}
 
 	/**

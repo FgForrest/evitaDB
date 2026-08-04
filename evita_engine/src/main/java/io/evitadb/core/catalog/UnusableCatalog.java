@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.utils.FileUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -302,13 +303,8 @@ public final class UnusableCatalog implements CatalogContract {
 				case IDENTITY -> { }
 				// the one component that survives a catalog which would not load: file lengths are readable whether or
 				// not the contents parse, and how much disk a corrupted catalog is holding is exactly what an operator
-				// needs to know about it. Nothing can be attributed to a storage class, so it all reads as unaccounted.
-				case STORAGE_SIZE -> {
-					final long sizeOnDiskInBytes = FileUtils.getDirectorySize(this.catalogStoragePath);
-					builder.withStorageSize(
-						new StorageSizeStatistics(sizeOnDiskInBytes, 0L, 0L, 0L, 0L, 0L, 0L, 0L, sizeOnDiskInBytes)
-					);
-				}
+				// needs to know about it.
+				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
 				// everything else is derived from state that could not be loaded. Reporting that explicitly is the
 				// point - a client must be able to tell this apart from a catalog that is merely empty.
 				//
@@ -324,6 +320,25 @@ public final class UnusableCatalog implements CatalogContract {
 			}
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Measures the disk footprint of a catalog that would not load, through the same classifier a loaded catalog
+	 * uses - handing it `null` generations, which is how "the header could not be read" is expressed.
+	 *
+	 * Two classes survive that, because both are recognised from the file name alone: the bootstrap file and the
+	 * write-ahead log. Telling an operator which of the two is holding the disk of a corrupted catalog is the
+	 * difference between "restore it" and "shorten WAL retention". Everything else reads as unaccounted, including
+	 * the data store files - separating live records from compaction waste, or a current generation from a
+	 * superseded one, needs the header. {@link StorageSizeStatistics} documents that reading.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of an unusable catalog
+	 */
+	@Nonnull
+	private StorageSizeStatistics measureStorageSize() {
+		return StorageSizeProjection.toStorageSizeStatistics(
+			CatalogStorageFootprint.measure(this.catalogName, this.catalogStoragePath, null)
+		);
 	}
 
 	@Override

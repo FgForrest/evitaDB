@@ -152,6 +152,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.BinaryEntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
@@ -1112,16 +1113,23 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Measures this collection's footprint on disk - the summed lengths of the data files whose names belong to it.
-	 * Nothing is attributed to a storage class yet, so the whole total is reported as `unaccountedBytes`; see
-	 * {@link CollectionStorageSize} for why that keeps the record's invariant true by construction.
+	 * Measures this collection's footprint on disk - the summed lengths of the data files whose names belong to it -
+	 * and attributes it to live data, compaction waste and superseded generations still on disk. The total is the sum
+	 * of one listing and every class is a subset of it, which keeps the record's total-equals-sum invariant true by
+	 * construction; see {@link CollectionStorageSize} for how each class is meant to be read.
 	 *
 	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
 	 */
 	@Nonnull
 	private CollectionStorageSize measureStorageSize() {
-		final long sizeOnDiskInBytes = this.persistenceService.getSizeOnDiskInBytes();
-		return new CollectionStorageSize(sizeOnDiskInBytes, 0L, 0L, 0L, sizeOnDiskInBytes);
+		final CollectionStorageFootprint footprint = this.persistenceService.measureStorageFootprint();
+		return new CollectionStorageSize(
+			footprint.totalBytes(),
+			footprint.liveBytes(),
+			footprint.wasteBytes(),
+			footprint.awaitingDeletionBytes(),
+			footprint.unaccountedBytes()
+		);
 	}
 
 	/**
