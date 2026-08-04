@@ -26,6 +26,7 @@ module evita.test.support {
 	requires evita.server;
 	requires evita.external.api.core;
 	requires org.junit.platform.launcher;
+	requires org.junit.platform.engine;
 	requires org.hamcrest;
 	requires evita.java.driver;
 	requires evita.external.api.grpc;
