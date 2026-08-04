@@ -40,7 +40,9 @@ import io.evitadb.api.requestResponse.chunk.Slicer;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
@@ -377,6 +379,8 @@ public class QueryPlan {
 					);
 				}
 
+				recordQueryMetrics(executionContext, result, prefetchedDataSuitableForFiltering);
+
 				executionContext.finalizeTelemetry();
 
 				ofNullable(this.queryContext.getQueryFinishedEvent())
@@ -396,6 +400,77 @@ public class QueryPlan {
 			} finally {
 				executionContext.popStep();
 			}
+		}
+	}
+
+	/**
+	 * Attaches the query level numbers the engine has just finished computing to the {@link QueryPhase#OVERALL} root
+	 * of the telemetry tree.
+	 *
+	 * These are the very same values the `FinishedEvent` reports to JFR and Prometheus, and until now none of them
+	 * reached the client debugging the one slow query it actually cares about. Attaching them costs nothing extra:
+	 * every value here is either already computed or memoized by the time the query is answered.
+	 *
+	 * **This works only because the telemetry root travels into the response as a live reference.**
+	 * {@link #fabricateExtraResults(QueryExecutionContext)} appends the still-open root to the extra results well
+	 * before this point, so writing into it here is visible to the client - exactly the coupling the root's own
+	 * `spentTime` already depends on. A well-meaning refactor that hands the response a defensive copy of the tree
+	 * would silently drop both.
+	 *
+	 * The guard is telemetry's own rather than the `FinishedEvent`'s. The two are switched independently, so folding
+	 * this into the event's presence check would make the metrics vanish whenever JFR recording happens to be off,
+	 * for a client that explicitly asked for a profile.
+	 *
+	 * **`getTelemetryRoot()` really is the `OVERALL` root here, but only for a non-local reason.** It returns the
+	 * *bottom* of its context's telemetry stack, and a nested query's context is seeded with the step that spawned
+	 * it rather than with the tree root - see `EntityCollection#createQueryContext(QueryPlanningContext, ...)`. What
+	 * keeps query level metrics on the real root is that nested queries are planned through
+	 * {@link QueryPlanner#planNestedQuery} and never reach this method: the only contexts that get here come from
+	 * the root-seeding `createQueryContext(EvitaRequest, EvitaSessionContract)`. The two debug-mode
+	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} executions do reach it, but they are dry runs and the
+	 * guard above rejects them. `QueryTelemetryRootFunctionalTest` pins all of this against a query that really does
+	 * run a nested one.
+	 *
+	 * @param executionContext                  context that knows whether a telemetry tree is being built at all
+	 * @param result                            the assembled response, which is where the I/O counters come from
+	 * @param prefetchedDataSuitableForFiltering whether the planner filtered over prefetched bodies instead of indexes
+	 */
+	private void recordQueryMetrics(
+		@Nonnull QueryExecutionContext executionContext,
+		@Nonnull EvitaResponse<?> result,
+		boolean prefetchedDataSuitableForFiltering
+	) {
+		if (executionContext.isTelemetryCollected()) {
+			final QueryTelemetry telemetryRoot = this.queryContext.getTelemetryRoot();
+			telemetryRoot
+				.recordMetric(StepMetric.ESTIMATED_CARDINALITY, this.filter.getEstimatedCardinality())
+				.recordMetric(StepMetric.ACTUAL_CARDINALITY, this.totalRecordCount)
+				.recordMetric(StepMetric.RECORDS_RETURNED, this.primaryKeys == null ? 0 : this.primaryKeys.length)
+				.recordMetric(StepMetric.IO_FETCH_COUNT, result.getIoFetchCount())
+				.recordMetric(StepMetric.IO_FETCHED_SIZE_BYTES, result.getIoFetchedSizeBytes())
+				.recordMetric(StepMetric.PREFETCHED, prefetchedDataSuitableForFiltering);
+			// both costs report Long.MAX_VALUE for "not known" rather than failing - the estimate when the
+			// arithmetic overflowed, the real one when the formula was never computed - and that has to surface as
+			// an unrecorded metric, not as a nine-quintillion cost on somebody's dashboard
+			recordCostIfKnown(telemetryRoot, StepMetric.ESTIMATED_COST, this.filter.getEstimatedCost());
+			recordCostIfKnown(telemetryRoot, StepMetric.ACTUAL_COST, this.filter.getCost());
+		}
+	}
+
+	/**
+	 * Records a formula cost on the telemetry root, unless the formula reported it as unknown.
+	 *
+	 * @param telemetryRoot telemetry root to record data to
+	 * @param metric the cost metric being recorded
+	 * @param cost   the value the formula reported, possibly the `Long.MAX_VALUE` "not known" sentinel
+	 */
+	private static void recordCostIfKnown(
+		@Nonnull QueryTelemetry telemetryRoot,
+		@Nonnull StepMetric metric,
+		long cost
+	) {
+		if (cost != Long.MAX_VALUE) {
+			telemetryRoot.recordMetric(metric, cost);
 		}
 	}
 

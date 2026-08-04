@@ -589,9 +589,26 @@ public class QueryExecutionContext implements Closeable {
 		if (isDryRun()) {
 			return of(QueryTelemetry.root(QueryPhase.OVERALL));
 		} else {
-			return this.queryContext.getEvitaRequest().isQueryTelemetryRequested() ?
-				of(this.queryContext.getTelemetryRoot()) : empty();
+			return isTelemetryCollected() ? of(this.queryContext.getTelemetryRoot()) : empty();
 		}
+	}
+
+	/**
+	 * Returns true when this execution is actually building a telemetry tree that will reach the client.
+	 *
+	 * This is the guard a caller must test before doing work that exists **only** to feed telemetry - computing a
+	 * number, building a description, reading a clock - because none of it may be charged to a query that did not
+	 * ask for a profile. The `pushStep` / `popStep` family already guards itself and needs nothing from callers; a
+	 * caller that has to *produce* the values does.
+	 *
+	 * Note a dry run answers `false` even for a query that did request telemetry: its measurements describe a
+	 * throw-away plan-comparison run rather than the query, which is also why {@link #getTelemetryRoot()} hands a
+	 * dry run a fresh root instead of the real one.
+	 *
+	 * @return true when telemetry recorded through this context ends up in the response
+	 */
+	public boolean isTelemetryCollected() {
+		return !isDryRun() && this.queryContext.getEvitaRequest().isQueryTelemetryRequested();
 	}
 
 	/**
@@ -603,7 +620,7 @@ public class QueryExecutionContext implements Closeable {
 	 * dry run and when telemetry was not requested, in which case there is no stack to drain.
 	 */
 	public void finalizeTelemetry() {
-		if (!isDryRun() && this.queryContext.getEvitaRequest().isQueryTelemetryRequested()) {
+		if (isTelemetryCollected()) {
 			this.queryContext.finalizeTelemetry();
 		}
 	}

@@ -26,10 +26,14 @@ package io.evitadb.api.functional.query;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -43,10 +47,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeStartsWith;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -186,6 +193,95 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@DisplayName("the query level metrics reach the client on the root node")
+	void shouldExposeQueryMetricsOnTelemetryRoot() {
+		final QueryTelemetry telemetry = queryTelemetryOf();
+
+		// This is what pins the mutation window, and it is the reason this test lives here rather than beside the
+		// unit tests. The metrics are recorded onto the root *after* `fabricateExtraResults` has already put that
+		// root into the response - so the assertion can only pass because what travelled into the response is a
+		// reference to the very node the engine keeps writing into, exactly as the root's `spentTime` relies on.
+		// A well-meaning "return an immutable telemetry tree" refactor would empty every one of these while every
+		// other test in this class kept passing.
+		assertEquals(
+			PRODUCT_COUNT, telemetry.getMetric(StepMetric.ACTUAL_CARDINALITY).orElseThrow(
+				() -> new AssertionError("The root step must report how many records the filter matched!")
+			),
+			"All seeded products match the filter, so the actual cardinality must be the whole collection!"
+		);
+		assertEquals(
+			PRODUCT_COUNT, telemetry.getMetric(StepMetric.RECORDS_RETURNED).orElseThrow(
+				() -> new AssertionError("The root step must report how many records were handed back!")
+			),
+			"The result fits in a single page, so every matching record must have been returned!"
+		);
+
+		// the remaining values are real measurements whose exact magnitude depends on the data and the plan, so
+		// only their presence is pinned - an unrecorded metric here would mean the engine stopped publishing it
+		for (final StepMetric metric : StepMetric.values()) {
+			assertTrue(
+				telemetry.getMetric(metric).isPresent(),
+				"The root step must report `" + metric + "` - every query level metric is computed either way!"
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("metrics stay on the root and are not repeated down the tree")
+	void shouldNotRepeatQueryMetricsOnInnerSteps() {
+		assertOnlyRootCarriesMetrics(queryTelemetryOf());
+	}
+
+	@Test
+	@DisplayName("a nested query does not attach its own metrics to the step that spawned it")
+	void shouldNotRecordMetricsForNestedQueries() {
+		// This is the one place the "root only" contract could plausibly break. A nested query gets its own
+		// `QueryPlanningContext`, and `EntityCollection#createQueryContext` seeds that context with the *current
+		// step* rather than the tree root - so `getTelemetryRoot()` on a nested context returns an inner node. The
+		// contract survives only because nested queries are planned through `QueryPlanner#planNestedQuery` and
+		// never reach `QueryPlan#execute`, which is where metrics are recorded. That is a non-local fact spread
+		// over three classes, so it is pinned here rather than reasoned about: a nested query really does run.
+		final QueryTelemetry telemetry = queryTelemetryOfQueryWithNestedQuery();
+		assertTrue(
+			containsPhase(telemetry, QueryPhase.FETCHING_REFERENCES),
+			"The query must actually fetch referenced entities, or it does not exercise a nested query at all!"
+		);
+		assertOnlyRootCarriesMetrics(telemetry);
+	}
+
+	/**
+	 * Asserts that the passed tree carries query level metrics on its root and nowhere else, at any depth.
+	 *
+	 * The recursion is the point. Metrics describe the query as a whole, so a copy landing on an inner step would
+	 * attribute the whole query's cardinality to whichever phase happened to be looked at - and the steps that could
+	 * plausibly acquire one, through a nested query's own planning context, sit several levels down where a
+	 * direct-children check could never see them.
+	 *
+	 * @param telemetry root of the tree to check
+	 */
+	private static void assertOnlyRootCarriesMetrics(@Nonnull QueryTelemetry telemetry) {
+		assertTrue(telemetry.hasMetrics(), "The root step must carry the query level metrics!");
+		for (final QueryTelemetry step : telemetry.getSteps()) {
+			assertNoMetricsInSubtree(step);
+		}
+	}
+
+	/**
+	 * Asserts that neither the passed step nor anything nested below it carries metrics.
+	 *
+	 * @param step subtree to check
+	 */
+	private static void assertNoMetricsInSubtree(@Nonnull QueryTelemetry step) {
+		assertFalse(
+			step.hasMetrics(),
+			"Only the root step may carry query level metrics, but `" + step.getOperation() + "` carries some!"
+		);
+		for (final QueryTelemetry child : step.getSteps()) {
+			assertNoMetricsInSubtree(child);
+		}
+	}
+
 	/**
 	 * Builds a handful of products carrying a filterable code attribute in a warm-up catalog.
 	 */
@@ -194,15 +290,32 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(Entities.PRODUCT)
+				// the brand collection exists so that a `referenceContent` query has somewhere to fetch from, which
+				// is what makes the engine plan and run a genuinely nested query
+				session.defineEntitySchema(Entities.BRAND)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
 					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable)
+					.withReferenceToEntity(
+						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+						ReferenceSchemaEditor::indexed
+					)
+					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.BRAND, 1)
+						.setAttribute(ATTRIBUTE_CODE, "garmin")
+				);
 
 				for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
 					session.upsertEntity(
 						session.createNewEntity(Entities.PRODUCT, pk)
 							.setAttribute(ATTRIBUTE_CODE, "garmin-" + pk)
+							.setReference(Entities.BRAND, 1)
 					);
 				}
 			}
@@ -224,6 +337,32 @@ class QueryTelemetryRootFunctionalTest implements EvitaTestSupport {
 					require(queryTelemetry())
 				),
 				EntityReference.class
+			);
+			final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");
+			return telemetry;
+		}
+	}
+
+	/**
+	 * Runs a query that pulls in referenced entity bodies, which makes the engine plan and run a nested query, and
+	 * returns the telemetry it produced.
+	 *
+	 * @return the telemetry extra result of the executed query
+	 */
+	@Nonnull
+	private QueryTelemetry queryTelemetryOfQueryWithNestedQuery() {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<SealedEntity> response = session.query(
+				Query.query(
+					collection(Entities.PRODUCT),
+					filterBy(attributeStartsWith(ATTRIBUTE_CODE, "garmin")),
+					require(
+						entityFetch(referenceContent(Entities.BRAND, entityFetch(attributeContent(ATTRIBUTE_CODE)))),
+						queryTelemetry()
+					)
+				),
+				SealedEntity.class
 			);
 			final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
 			assertNotNull(telemetry, "Query telemetry must be present - it is the observable this test reads!");

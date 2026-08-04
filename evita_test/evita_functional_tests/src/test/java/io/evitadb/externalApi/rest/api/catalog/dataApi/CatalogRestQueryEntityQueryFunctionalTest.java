@@ -59,6 +59,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
@@ -70,6 +72,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MapBuilder;
 import org.junit.jupiter.api.DisplayName;
@@ -5312,6 +5315,81 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return query telemetry in the shape the OpenAPI schema declares")
+	void shouldReturnQueryTelemetry(RestTester tester) {
+		// asserted over the wire rather than on the DTO, because the schema, the serializer and the DTO are three
+		// separate things and only this exercises all three - a property the OpenAPI document declares but the
+		// serializer never emits would pass every unit test and still break every generated client
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				             {
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 5
+				             		},
+				             		"queryTelemetry": true
+				             	}
+				             }
+				             """)
+			.executeAndThen()
+			.statusCode(200)
+			.body(telemetryPath(QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
+			// the root is the zero point every other node is expressed against, so it reports exactly 0
+			.body(telemetryPath(QueryTelemetryDescriptor.START), equalTo(0))
+			.body(telemetryPath(QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.SELF_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
+			// only the root is stamped with the wall-clock instant that anchors the tree in time
+			.body(telemetryPath(QueryTelemetryDescriptor.STARTED_AT), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.STEPS), hasSize(greaterThan(0)))
+			// the page size is the one metric this query pins exactly; the rest depend on the data and the plan
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
+				equalTo(5)
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.IO_FETCH_COUNT),
+				notNullValue()
+			)
+			// the flag must arrive as a JSON boolean - the engine packs it as 1/0 internally, and shipping that
+			// packing would push the decoding onto every client and contradict the declared schema type
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
+				instanceOf(Boolean.class)
+			)
+			// metrics describe the query as a whole and belong to the root alone
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.STEPS) + "[0]." + QueryTelemetryDescriptor.METRICS.name(),
+				nullValue()
+			);
+	}
+
+	/**
+	 * Builds the response body path of a property of the query telemetry root.
+	 *
+	 * @param properties path of the property below the telemetry root
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath(@Nonnull Object... properties) {
+		final String root = resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.QUERY_TELEMETRY);
+		return properties.length == 0 ? root : root + "." + resultPath(properties);
 	}
 
 	private void compareRestResultPksToEvitaDBResultPks(

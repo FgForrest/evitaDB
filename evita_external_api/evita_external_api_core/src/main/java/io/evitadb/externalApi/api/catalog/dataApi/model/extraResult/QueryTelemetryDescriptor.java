@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -147,6 +148,23 @@ public interface QueryTelemetryDescriptor {
 		.type(nonNull(String.class))
 		.build();
 	/**
+	 * Typed numeric measurements for this step, published as a nested object rather than flattened into this one.
+	 *
+	 * Flattening would repeat eight null properties on every node of the tree to serve the one node that has
+	 * numbers - today only the root does. A single nullable object states that once, and gives the metric vocabulary
+	 * a schema of its own to grow in, which is what {@link QueryTelemetryMetricsDescriptor} is.
+	 */
+	PropertyDescriptor METRICS = PropertyDescriptor.builder()
+		.name("metrics")
+		.description("""
+			Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine
+			computed while answering the query. Unlike `arguments`, which is prose, these are values a client can
+			compare and chart without parsing English. Null when nothing was measured for this step, which is the
+			case for every step but the root.
+			""")
+		.type(nullableRef(QueryTelemetryMetricsDescriptor.THIS))
+		.build();
+	/**
 	 * The one value in the object that is an absolute point in time rather than a duration or an offset, which is
 	 * why it is a string in ISO-8601 form and not a number. Nullable because only the root step carries it - every
 	 * other node would be repeating the same instant with a known offset already published as {@link #START}.
@@ -180,7 +198,7 @@ public interface QueryTelemetryDescriptor {
 			List.of(
 				OPERATION, START, STEPS, ARGUMENTS,
 				SPENT_TIME, FORMATTED_SPENT_TIME, SELF_TIME, FORMATTED_SELF_TIME,
-				STARTED_AT
+				METRICS, STARTED_AT
 			)
 		)
 		.build();

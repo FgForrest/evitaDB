@@ -35,8 +35,10 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.OptionalLong;
 
 /**
  * This DTO contains detailed information about query processing time and its decomposition to single operations.
@@ -72,6 +74,20 @@ import java.util.List;
 @NotThreadSafe
 public class QueryTelemetry implements EvitaResponseExtraResult {
 	@Serial private static final long serialVersionUID = 4135633155110416711L;
+	/**
+	 * Value stored in {@link #metrics} for a metric that was never recorded on this step.
+	 *
+	 * `Long.MIN_VALUE` is chosen because no {@link StepMetric} can legitimately take it - they are counts, sizes,
+	 * costs and flags, none of which is ever negative - so the sentinel cannot collide with a real measurement. It
+	 * has to be a sentinel rather than `0` because "not measured for this phase" and "measured, and the answer was
+	 * zero" are different facts, and a client acting on the numbers must be able to tell them apart.
+	 */
+	private static final long UNSET = Long.MIN_VALUE;
+	/**
+	 * Number of slots a {@link #metrics} array needs. Cached because {@link StepMetric#values()} clones its backing
+	 * array on every call and this is read on the allocation path.
+	 */
+	private static final int METRIC_COUNT = StepMetric.values().length;
 
 	/**
 	 * Phase of the query processing this step measures. It is the only description a step is guaranteed to carry -
@@ -102,6 +118,17 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 * {@link #finish(String...)} (what it decided), and {@link #annotate(String)} appends to whatever is there.
 	 */
 	@Getter private String[] arguments;
+	/**
+	 * Typed numeric measurements recorded for this phase - the introspectable counterpart of {@link #arguments},
+	 * which is prose. Indexed by {@link StepMetric#ordinal()} and filled with {@link #UNSET}, so a metric that was
+	 * not measured for this phase stays distinguishable from one measured as `0`.
+	 *
+	 * The array is allocated on the **first** {@link #recordMetric(StepMetric, long)} call and stays `null` until
+	 * then. That is what keeps the feature free for queries that did not ask for telemetry: recording is reachable
+	 * only from inside the engine's telemetry guard, so on a query without telemetry nothing calls it and no array
+	 * is ever created.
+	 */
+	@Nullable private long[] metrics;
 	/**
 	 * Duration of this phase in nanoseconds, covering the phase itself and everything nested below it. It stays `0`
 	 * until the step is closed through {@link #finish()} / {@link #finish(String...)}, so an unfinished step is
@@ -249,6 +276,85 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	public QueryTelemetry annotate(@Nonnull String argument) {
 		this.arguments = ArrayUtils.insertRecordIntoArrayOnIndex(argument, this.arguments, this.arguments.length);
 		return this;
+	}
+
+	/**
+	 * Records a typed numeric measurement on this step, replacing whatever was recorded for the same metric before.
+	 *
+	 * This is the typed sibling of {@link #annotate(String)}: prose describes what a phase did, a metric is a number
+	 * a client can act on - compare, threshold, chart - without parsing English. In particular it is what lets the
+	 * engine publish an estimate next to the actual outcome, which is how a bad plan is recognised.
+	 *
+	 * The backing array is allocated here, on the first call, and never before - see {@link #metrics} for why that
+	 * matters. Recording is therefore the *only* thing telemetry metrics ever cost, and it happens only on a query
+	 * that asked for telemetry.
+	 *
+	 * Unlike {@link #finish(String...)} this has no one-shot rule and is independent of the step's lifecycle: a step
+	 * may be described at push time, annotated while running, measured, and finished, in any combination.
+	 *
+	 * @param metric the measurement being recorded
+	 * @param value  the measured value; must not be `Long.MIN_VALUE`, which is reserved to mark a metric as unset
+	 * @return this step, so that recording can be chained
+	 */
+	@Nonnull
+	public QueryTelemetry recordMetric(@Nonnull StepMetric metric, long value) {
+		if (this.metrics == null) {
+			this.metrics = new long[METRIC_COUNT];
+			Arrays.fill(this.metrics, UNSET);
+		}
+		this.metrics[metric.ordinal()] = value;
+		return this;
+	}
+
+	/**
+	 * Records a flag-shaped measurement on this step, storing it as `1` for `true` and `0` for `false`.
+	 *
+	 * Flags share the numeric container rather than getting one of their own because there are few of them and
+	 * a second lazily allocated array would cost more than the packing does. Which metrics are flags is fixed and
+	 * documented on {@link StepMetric}, so the external APIs can publish them as booleans rather than as `0`/`1`.
+	 *
+	 * @param metric the flag being recorded
+	 * @param value  the measured value
+	 * @return this step, so that recording can be chained
+	 */
+	@Nonnull
+	public QueryTelemetry recordMetric(@Nonnull StepMetric metric, boolean value) {
+		return recordMetric(metric, value ? 1L : 0L);
+	}
+
+	/**
+	 * Returns the value recorded for the passed metric, or empty when the engine did not measure it on this step.
+	 *
+	 * Empty is the normal outcome for most metric/step combinations - metrics are recorded where the engine happens
+	 * to compute them, not everywhere - and it is deliberately different from a recorded `0`. Callers rendering the
+	 * value must preserve that distinction rather than defaulting the empty case to zero.
+	 *
+	 * {@link OptionalLong} is returned rather than a boxed `Long` so that reading a metric allocates nothing on the
+	 * embedded path, where the caller usually only wants to test presence.
+	 *
+	 * @param metric the measurement to read
+	 * @return the recorded value, or empty when this step carries no measurement for that metric
+	 */
+	@Nonnull
+	public OptionalLong getMetric(@Nonnull StepMetric metric) {
+		if (this.metrics == null) {
+			return OptionalLong.empty();
+		}
+		final long value = this.metrics[metric.ordinal()];
+		return value == UNSET ? OptionalLong.empty() : OptionalLong.of(value);
+	}
+
+	/**
+	 * Returns true when at least one {@link StepMetric} was recorded on this step.
+	 *
+	 * It answers the question in one test instead of probing every metric, which is what the external APIs need in
+	 * order to decide whether to emit a metrics object for this node at all - today only the root step carries any,
+	 * so the answer is `false` for nearly every node of a tree.
+	 *
+	 * @return true when this step carries at least one recorded measurement
+	 */
+	public boolean hasMetrics() {
+		return this.metrics != null;
 	}
 
 	/**
@@ -464,6 +570,87 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		 * counterpart of {@link #FETCHING_REFERENCES} and shares the very same fetching implementation.
 		 */
 		FETCHING_PARENTS
+
+	}
+
+	/**
+	 * Enum contains the typed numeric measurements a step can carry, recorded through
+	 * {@link QueryTelemetry#recordMetric(StepMetric, long)} and read back through
+	 * {@link QueryTelemetry#getMetric(StepMetric)}.
+	 *
+	 * The vocabulary is deliberately closed. A `Map<String, Number>` would be the obvious shape and the wrong one:
+	 * it would allocate a map and box every value on a path that must stay free, and it would let each recording
+	 * site invent its own key, leaving clients to pattern-match strings. A closed enum indexes a primitive array
+	 * instead, and gives the external APIs a fixed set of named fields to publish.
+	 *
+	 * **The set only ever grows by appending.** Ordinals index the backing array of a single query's telemetry and
+	 * never outlive it, but the constants are published as named fields by every external API, so removing or
+	 * reordering one is a wire break while adding one at the end is not.
+	 *
+	 * Which metrics appear on which step is not guaranteed and never will be - a metric is recorded where the engine
+	 * happens to compute the number, so consumers must treat every one of them as optional. Today they are all
+	 * recorded on the {@link QueryPhase#OVERALL} root, describing the query as a whole.
+	 *
+	 * All metrics are non-negative counts, sizes or costs, except where noted as a flag - flags are stored as `1`
+	 * for `true` and `0` for `false` and are published as booleans by the external APIs.
+	 */
+	public enum StepMetric {
+
+		/**
+		 * How many records the planner *expected* to examine, i.e. the filtering formula's estimated cardinality.
+		 *
+		 * Its whole value is in the comparison with {@link #ACTUAL_CARDINALITY}: the two together are how a bad plan
+		 * is identified. An estimate that is orders of magnitude off is the reason the engine picked the index it
+		 * picked, and no amount of timing data reveals it.
+		 */
+		ESTIMATED_CARDINALITY,
+		/**
+		 * How many records the filtering formula *actually* matched - the total record count, before paging.
+		 *
+		 * Note this counts what the filter found, not what was returned to the client; {@link #RECORDS_RETURNED} is
+		 * the size of the requested page cut out of it.
+		 */
+		ACTUAL_CARDINALITY,
+		/**
+		 * Cost the planner *estimated* for the filtering formula it chose - the same unitless number the planner
+		 * compares candidate indexes by, so it is comparable across plans of the same query but means nothing in
+		 * absolute terms.
+		 *
+		 * Recorded as unset when the estimate overflowed, which the engine reports as `Long.MAX_VALUE`.
+		 */
+		ESTIMATED_COST,
+		/**
+		 * Cost the filtering formula *actually* incurred, computed from the real cardinalities once the formula ran.
+		 *
+		 * Together with {@link #ESTIMATED_COST} this is the second half of the estimate-versus-actual pair. Recorded
+		 * as unset when the formula was never computed - the engine reports `Long.MAX_VALUE` in that case, which a
+		 * naive client would otherwise render as a nine-quintillion cost.
+		 */
+		ACTUAL_COST,
+		/**
+		 * How many records were actually handed back, i.e. the size of the page cut out of
+		 * {@link #ACTUAL_CARDINALITY}. Legitimately `0` for a query whose page lies past the end of the result.
+		 */
+		RECORDS_RETURNED,
+		/**
+		 * How many times the storage was read while assembling the response. Legitimately `0` - a query answered
+		 * entirely from indexes, or one returning bare primary keys, touches storage not at all.
+		 */
+		IO_FETCH_COUNT,
+		/**
+		 * How many bytes were read from the storage while assembling the response. Reported alongside
+		 * {@link #IO_FETCH_COUNT} because the two answer different questions: many small reads and one large read
+		 * cost very differently.
+		 */
+		IO_FETCHED_SIZE_BYTES,
+		/**
+		 * Flag - whether the planner prefetched entity bodies and filtered over them instead of consulting indexes.
+		 *
+		 * It explains the shape of the rest of the profile rather than measuring anything: a prefetched query spends
+		 * its time in {@link QueryPhase#EXECUTION_PREFETCH} and barely touches the index phases, which looks like a
+		 * different query altogether unless this flag is read.
+		 */
+		PREFETCHED
 
 	}
 }

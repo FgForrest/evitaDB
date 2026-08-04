@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.dto;
 
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ import java.util.List;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -220,6 +222,96 @@ class QueryTelemetryDtoTest {
 		assertEquals(0L, converted.start());
 		assertEquals(42L, converted.spentTime());
 		assertEquals(List.of(), converted.steps());
+	}
+
+	/**
+	 * Pins that a step the engine measured nothing on publishes no metrics object at all, rather than one whose
+	 * every property is null. This is the shape of nearly every node in a real profile - metrics live on the root -
+	 * so getting it wrong would attach an empty object to every node of a large tree.
+	 */
+	@Test
+	@DisplayName("A step with no recorded measurement carries no metrics object")
+	void shouldOmitMetricsForStepWithoutMeasurements() {
+		final QueryTelemetryDto converted = QueryTelemetryDto.from(createDeepTelemetryTree());
+
+		assertNull(converted.metrics());
+		assertNull(childAt(converted, 0).metrics());
+		assertNull(childAt(childAt(converted, 0), 0).metrics());
+	}
+
+	/**
+	 * Pins the mapping of the whole metric vocabulary in one pass, each with a distinct value so that a conversion
+	 * which crosses two of them over cannot pass by coincidence. The flag is asserted as a real boolean rather than
+	 * the `1` the engine packs it as - unpacking is the boundary's job, and leaving it to clients is exactly the
+	 * kind of decoding this DTO exists to remove.
+	 */
+	@Test
+	@DisplayName("Recorded metrics are published as named values, with the flag unpacked to a boolean")
+	void shouldPublishRecordedMetricsAsNamedValues() {
+		final QueryTelemetry root = createDeepTelemetryTree();
+		root
+			.recordMetric(StepMetric.ESTIMATED_CARDINALITY, 1_000L)
+			.recordMetric(StepMetric.ACTUAL_CARDINALITY, 42L)
+			.recordMetric(StepMetric.ESTIMATED_COST, 585L)
+			.recordMetric(StepMetric.ACTUAL_COST, 610L)
+			.recordMetric(StepMetric.RECORDS_RETURNED, 20L)
+			.recordMetric(StepMetric.IO_FETCH_COUNT, 7L)
+			.recordMetric(StepMetric.IO_FETCHED_SIZE_BYTES, 4_096L)
+			.recordMetric(StepMetric.PREFETCHED, true);
+
+		final QueryTelemetryMetricsDto metrics = QueryTelemetryDto.from(root).metrics();
+
+		assertNotNull(metrics);
+		assertEquals(1_000L, metrics.estimatedCardinality());
+		assertEquals(42L, metrics.actualCardinality());
+		assertEquals(585L, metrics.estimatedCost());
+		assertEquals(610L, metrics.actualCost());
+		assertEquals(20L, metrics.recordsReturned());
+		assertEquals(7L, metrics.ioFetchCount());
+		assertEquals(4_096L, metrics.ioFetchedSizeBytes());
+		assertEquals(Boolean.TRUE, metrics.prefetched());
+	}
+
+	/**
+	 * The distinction the whole optional shape exists for. `ioFetchCount` of zero is a real measurement - a query
+	 * answered from indexes performs no storage reads - while an unrecorded `recordsReturned` means the engine never
+	 * counted it. A conversion that defaulted absent metrics to zero would report a query that returned nothing.
+	 */
+	@Test
+	@DisplayName("A metric measured as zero is published, one never measured stays null")
+	void shouldDistinguishMeasuredZeroFromUnmeasuredMetric() {
+		final QueryTelemetry root = createDeepTelemetryTree();
+		root
+			.recordMetric(StepMetric.IO_FETCH_COUNT, 0L)
+			.recordMetric(StepMetric.PREFETCHED, false);
+
+		final QueryTelemetryMetricsDto metrics = QueryTelemetryDto.from(root).metrics();
+
+		assertNotNull(metrics);
+		assertEquals(0L, metrics.ioFetchCount());
+		assertEquals(Boolean.FALSE, metrics.prefetched());
+		assertNull(metrics.recordsReturned());
+		assertNull(metrics.estimatedCardinality());
+	}
+
+	/**
+	 * Metrics belong to the node they were recorded on and must not be hoisted to the root or pushed down the tree.
+	 * The engine records them on the root today, but nothing in the format says it always will - item 4 of the
+	 * originating issue names per-node `FETCHING` metrics as the next step - so the conversion has to be positional
+	 * rather than assume where they live.
+	 */
+	@Test
+	@DisplayName("Metrics stay on the step they were recorded on")
+	void shouldKeepMetricsOnTheirOwnStep() {
+		final QueryTelemetry root = createDeepTelemetryTree();
+		root.getSteps().get(1).recordMetric(StepMetric.IO_FETCH_COUNT, 3L);
+
+		final QueryTelemetryDto converted = QueryTelemetryDto.from(root);
+
+		assertNull(converted.metrics());
+		assertNull(childAt(converted, 0).metrics());
+		assertNotNull(childAt(converted, 1).metrics());
+		assertEquals(3L, childAt(converted, 1).metrics().ioFetchCount());
 	}
 
 	/**

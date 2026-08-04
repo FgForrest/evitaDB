@@ -201,4 +201,40 @@ public interface GrpcQueryTelemetryOrBuilder extends
    * @return The selfTime.
    */
   long getSelfTime();
+
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return Whether the metrics field is set.
+   */
+  boolean hasMetrics();
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return The metrics.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics();
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder();
 }

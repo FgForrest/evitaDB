@@ -47,6 +47,11 @@ import java.util.List;
  * Both derivations happen here rather than in the engine on purpose: they are presentation concerns of the remote
  * APIs, and paying for them on the embedded path - which needs neither - would tax every telemetry-enabled query.
  *
+ * `metrics`, by contrast, is **not** derived - it is passed through from what the engine measured, merely reshaped
+ * from the compact primitive array the engine stores into the named fields clients generate their code from. That
+ * difference matters when reading the two: a derived value can be recomputed by anyone holding the tree, a measured
+ * one cannot.
+ *
  * @param operation          {@link QueryTelemetry.QueryPhase} this step measured, by its enum name
  * @param start              nanoseconds elapsed between the start of the root step and the start of this one, so the
  *                           root itself always reports `0`
@@ -59,6 +64,8 @@ import java.util.List;
  *                           their own nanosecond formatting
  * @param selfTime           duration in nanoseconds this step spent on its own work - see {@link #selfTimeOf}
  * @param formattedSelfTime  `selfTime` rendered for humans, in the same form as `formattedSpentTime`
+ * @param metrics            typed numeric measurements recorded for this step, or `null` when it carries none - which
+ *                           is the case for every node but the root today
  * @param startedAt          wall-clock instant the query began in ISO-8601 offset date-time form, carried by the
  *                           root step only and `null` on every other node
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -71,6 +78,7 @@ public record QueryTelemetryDto(@Nonnull String operation,
                                 @Nonnull String formattedSpentTime,
 								long selfTime,
 								@Nonnull String formattedSelfTime,
+								@Nullable QueryTelemetryMetricsDto metrics,
                                 @Nullable String startedAt) {
 
 	/**
@@ -109,6 +117,8 @@ public record QueryTelemetryDto(@Nonnull String operation,
 			StringUtils.formatNano(spentTime),
 			selfTime,
 			StringUtils.formatNano(selfTime),
+			// null for every step the engine recorded no measurement on, which today is every step but the root
+			QueryTelemetryMetricsDto.from(queryTelemetry),
 			// only the root step carries the wall-clock stamp that anchors the whole tree in time
 			queryTelemetry.getStartedAt() == null ?
 				null : DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(queryTelemetry.getStartedAt())

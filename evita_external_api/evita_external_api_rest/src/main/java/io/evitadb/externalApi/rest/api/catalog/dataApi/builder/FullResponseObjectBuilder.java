@@ -42,6 +42,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.extraResult.ReferenceHistogramObjectBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
@@ -125,6 +126,10 @@ public class FullResponseObjectBuilder {
 		// `implementedInterface` resolves correctly.
 		this.buildingContext.registerType(HistogramDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HistogramDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		// the nested metrics object has to be registered before the telemetry object that references it
+		this.buildingContext.registerType(
+			QueryTelemetryMetricsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(FacetRequestImpactDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}

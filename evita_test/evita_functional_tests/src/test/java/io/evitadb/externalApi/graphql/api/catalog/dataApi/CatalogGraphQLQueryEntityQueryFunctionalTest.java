@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -69,6 +70,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
@@ -10341,6 +10344,80 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRIMARY_KEY.name()),
 				equalTo(expectedEntities.getRecordData().stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList())
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return query telemetry with typed metrics")
+	void shouldReturnQueryTelemetry(GraphQLTester tester) {
+		// `queryTelemetry` is declared as an opaque OBJECT scalar - GraphQL has no infinite recursive structures -
+		// so the field takes no sub-selection and the whole tree arrives as a JSON blob serialized straight from
+		// `QueryTelemetryDto`. Nothing in the GraphQL schema describes its contents, which is exactly why the shape
+		// has to be pinned here: there is no type for a schema test to catch a regression with.
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct {
+						recordPage(size: 5) {
+							data {
+								primaryKey
+							}
+						}
+						extraResults {
+							queryTelemetry
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(telemetryPath(QueryTelemetryDescriptor.OPERATION), equalTo(QueryPhase.OVERALL.name()))
+			// the root is the zero point every other node is expressed against, so it reports exactly 0
+			.body(telemetryPath(QueryTelemetryDescriptor.START), equalTo(0))
+			.body(telemetryPath(QueryTelemetryDescriptor.SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.SELF_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.FORMATTED_SELF_TIME), notNullValue())
+			// only the root is stamped with the wall-clock instant that anchors the tree in time
+			.body(telemetryPath(QueryTelemetryDescriptor.STARTED_AT), notNullValue())
+			.body(telemetryPath(QueryTelemetryDescriptor.STEPS), hasSize(greaterThan(0)))
+			// the page size is the one metric this query pins exactly; the rest depend on the data and the plan
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.RECORDS_RETURNED),
+				equalTo(5)
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY),
+				notNullValue()
+			)
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY),
+				notNullValue()
+			)
+			// the flag must arrive as a JSON boolean - the engine packs it as 1/0 internally, and shipping that
+			// packing would push the decoding onto every client
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.METRICS, QueryTelemetryMetricsDescriptor.PREFETCHED),
+				instanceOf(Boolean.class)
+			)
+			// metrics describe the query as a whole and belong to the root alone
+			.body(
+				telemetryPath(QueryTelemetryDescriptor.STEPS) + "[0]." + QueryTelemetryDescriptor.METRICS.name(),
+				nullValue()
+			);
+	}
+
+	/**
+	 * Builds the response body path of a property of the query telemetry root.
+	 *
+	 * @param properties path of the property below the telemetry root
+	 * @return the full response path
+	 */
+	@Nonnull
+	private String telemetryPath(@Nonnull Object... properties) {
+		final String root = resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.QUERY_TELEMETRY
+		);
+		return properties.length == 0 ? root : root + "." + resultPath(properties);
 	}
 
 	/**

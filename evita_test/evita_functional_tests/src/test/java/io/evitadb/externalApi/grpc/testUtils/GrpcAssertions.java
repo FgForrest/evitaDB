@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -78,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MAX_INSTANT;
@@ -825,9 +827,77 @@ public class GrpcAssertions {
 			actualQueryTelemetry.getSelfTime()
 		);
 		assertArrayEquals(Arrays.stream(expectedQueryTelemetry.getArguments()).map(Object::toString).toArray(), actualQueryTelemetry.getArgumentsList().toArray());
+		assertQueryTelemetryMetrics(expectedQueryTelemetry, actualQueryTelemetry);
 		assertEquals(expectedQueryTelemetry.getSteps().size(), actualQueryTelemetry.getStepsCount());
 		for (QueryTelemetry queryTelemetry : expectedQueryTelemetry.getSteps()) {
 			assertQueryTelemetry(queryTelemetry, actualQueryTelemetry.getStepsList().get(expectedQueryTelemetry.getSteps().indexOf(queryTelemetry)), rootStart);
+		}
+	}
+
+	/**
+	 * Compares the typed metrics of a single telemetry node with the ones its gRPC counterpart carries.
+	 *
+	 * Unlike `selfTime`, which the boundary derives, these are measurements: the wire form has to reproduce them
+	 * exactly, including *which* of them were taken. A metric the engine never measured must stay unset rather than
+	 * arriving as a zero, which is why presence is asserted alongside the value - several of these are legitimately
+	 * zero, so comparing values alone would let a "defaults to 0" regression through.
+	 *
+	 * @param expectedQueryTelemetry node as the engine measured it
+	 * @param actualQueryTelemetry   the same node as it travels on the wire
+	 */
+	private static void assertQueryTelemetryMetrics(
+		@Nonnull QueryTelemetry expected,
+		@Nonnull GrpcQueryTelemetry actual
+	) {
+		assertEquals(expected.hasMetrics(), actual.hasMetrics());
+		if (!expected.hasMetrics()) {
+			return;
+		}
+		final GrpcQueryTelemetryMetrics metrics = actual.getMetrics();
+		assertMetric(
+			expected, StepMetric.ESTIMATED_CARDINALITY,
+			metrics.hasEstimatedCardinality(), metrics.getEstimatedCardinality()
+		);
+		assertMetric(
+			expected, StepMetric.ACTUAL_CARDINALITY,
+			metrics.hasActualCardinality(), metrics.getActualCardinality()
+		);
+		assertMetric(expected, StepMetric.ESTIMATED_COST, metrics.hasEstimatedCost(), metrics.getEstimatedCost());
+		assertMetric(expected, StepMetric.ACTUAL_COST, metrics.hasActualCost(), metrics.getActualCost());
+		assertMetric(
+			expected, StepMetric.RECORDS_RETURNED,
+			metrics.hasRecordsReturned(), metrics.getRecordsReturned()
+		);
+		assertMetric(expected, StepMetric.IO_FETCH_COUNT, metrics.hasIoFetchCount(), metrics.getIoFetchCount());
+		assertMetric(
+			expected, StepMetric.IO_FETCHED_SIZE_BYTES,
+			metrics.hasIoFetchedSizeBytes(), metrics.getIoFetchedSizeBytes()
+		);
+		// the engine packs flags as 1/0 into the same numeric container; the wire form publishes them as booleans
+		assertMetric(
+			expected, StepMetric.PREFETCHED,
+			metrics.hasPrefetched(), metrics.getPrefetched() ? 1L : 0L
+		);
+	}
+
+	/**
+	 * Compares one metric of a telemetry node against the wire form, asserting presence before value.
+	 *
+	 * @param expected        node as the engine measured it
+	 * @param metric          the measurement being compared
+	 * @param actuallyPresent whether the wire form carries it
+	 * @param actualValue     the value the wire form carries, meaningful only when it is present
+	 */
+	private static void assertMetric(
+		@Nonnull QueryTelemetry expected,
+		@Nonnull StepMetric metric,
+		boolean actuallyPresent,
+		long actualValue
+	) {
+		final OptionalLong expectedValue = expected.getMetric(metric);
+		assertEquals(expectedValue.isPresent(), actuallyPresent, "Presence of `" + metric + "` differs!");
+		if (expectedValue.isPresent()) {
+			assertEquals(expectedValue.getAsLong(), actualValue, "Value of `" + metric + "` differs!");
 		}
 	}
 }

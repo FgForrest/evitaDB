@@ -304,6 +304,53 @@ private static final long serialVersionUID = 0L;
     return selfTime_;
   }
 
+  public static final int METRICS_FIELD_NUMBER = 8;
+  private io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics_;
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return Whether the metrics field is set.
+   */
+  @java.lang.Override
+  public boolean hasMetrics() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   * @return The metrics.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics() {
+    return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+  }
+  /**
+   * <pre>
+   * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+   * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+   * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+   * the root.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder() {
+    return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -338,6 +385,9 @@ private static final long serialVersionUID = 0L;
     }
     if (selfTime_ != 0L) {
       output.writeInt64(7, selfTime_);
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(8, getMetrics());
     }
     getUnknownFields().writeTo(output);
   }
@@ -380,6 +430,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(7, selfTime_);
     }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getMetrics());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -411,6 +465,11 @@ private static final long serialVersionUID = 0L;
     }
     if (getSelfTime()
         != other.getSelfTime()) return false;
+    if (hasMetrics() != other.hasMetrics()) return false;
+    if (hasMetrics()) {
+      if (!getMetrics()
+          .equals(other.getMetrics())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -445,6 +504,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + SELFTIME_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getSelfTime());
+    if (hasMetrics()) {
+      hash = (37 * hash) + METRICS_FIELD_NUMBER;
+      hash = (53 * hash) + getMetrics().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -581,6 +644,7 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getStepsFieldBuilder();
         getStartedAtFieldBuilder();
+        getMetricsFieldBuilder();
       }
     }
     @java.lang.Override
@@ -605,6 +669,11 @@ private static final long serialVersionUID = 0L;
         startedAtBuilder_ = null;
       }
       selfTime_ = 0L;
+      metrics_ = null;
+      if (metricsBuilder_ != null) {
+        metricsBuilder_.dispose();
+        metricsBuilder_ = null;
+      }
       return this;
     }
 
@@ -673,6 +742,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000040) != 0)) {
         result.selfTime_ = selfTime_;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.metrics_ = metricsBuilder_ == null
+            ? metrics_
+            : metricsBuilder_.build();
+        to_bitField0_ |= 0x00000002;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -772,6 +847,9 @@ private static final long serialVersionUID = 0L;
       if (other.getSelfTime() != 0L) {
         setSelfTime(other.getSelfTime());
       }
+      if (other.hasMetrics()) {
+        mergeMetrics(other.getMetrics());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -844,6 +922,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000040;
               break;
             } // case 56
+            case 66: {
+              input.readMessage(
+                  getMetricsFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1710,6 +1795,190 @@ private static final long serialVersionUID = 0L;
       selfTime_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder> metricsBuilder_;
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     * @return Whether the metrics field is set.
+     */
+    public boolean hasMetrics() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     * @return The metrics.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics getMetrics() {
+      if (metricsBuilder_ == null) {
+        return metrics_ == null ? io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+      } else {
+        return metricsBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder setMetrics(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics value) {
+      if (metricsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        metrics_ = value;
+      } else {
+        metricsBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder setMetrics(
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder builderForValue) {
+      if (metricsBuilder_ == null) {
+        metrics_ = builderForValue.build();
+      } else {
+        metricsBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder mergeMetrics(io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics value) {
+      if (metricsBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          metrics_ != null &&
+          metrics_ != io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance()) {
+          getMetricsBuilder().mergeFrom(value);
+        } else {
+          metrics_ = value;
+        }
+      } else {
+        metricsBuilder_.mergeFrom(value);
+      }
+      if (metrics_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public Builder clearMetrics() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      metrics_ = null;
+      if (metricsBuilder_ != null) {
+        metricsBuilder_.dispose();
+        metricsBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder getMetricsBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getMetricsFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder getMetricsOrBuilder() {
+      if (metricsBuilder_ != null) {
+        return metricsBuilder_.getMessageOrBuilder();
+      } else {
+        return metrics_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.getDefaultInstance() : metrics_;
+      }
+    }
+    /**
+     * <pre>
+     * Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+     * while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+     * without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+     * the root.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics metrics = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder> 
+        getMetricsFieldBuilder() {
+      if (metricsBuilder_ == null) {
+        metricsBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetrics.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryMetricsOrBuilder>(
+                getMetrics(),
+                getParentForChildren(),
+                isClean());
+        metrics_ = null;
+      }
+      return metricsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
