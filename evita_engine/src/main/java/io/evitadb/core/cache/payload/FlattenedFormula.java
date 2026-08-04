@@ -109,6 +109,14 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 		return 0;
 	}
 
+	@Nullable
+	@Override
+	public Long getMemoizedCost() {
+		// a cached result cost nothing to obtain and computes nothing when asked, so the free-of-charge answer and
+		// the on-demand one are the same constant zero that getCost() above returns
+		return 0L;
+	}
+
 	@Override
 	public int getEstimatedCardinality() {
 		return this.memoizedResult.size();

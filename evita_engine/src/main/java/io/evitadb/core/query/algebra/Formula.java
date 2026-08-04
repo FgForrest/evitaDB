@@ -100,6 +100,30 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	}
 
 	/**
+	 * Returns the actual cost of this formula **if it is already known without performing any computation**, and
+	 * `null` otherwise. This is the read-only counterpart of {@link #getCost()}, and the cost-side twin of
+	 * {@link #getMemoizedResult()}.
+	 *
+	 * It is a separate accessor because {@link #getCost()} is *not* safe to call on a partially computed tree.
+	 * A formula whose result is memoized but whose cost has never been asked for will compute that cost on demand,
+	 * and the default {@link AbstractFormula#getCostInternal()} does so by calling {@link #compute()} on every
+	 * inner formula - including inner formulas that this formula's own computation deliberately skipped.
+	 * `DisentangleFormula`'s `X \ X` guard is exactly that shape: it returns empty without touching its children,
+	 * while its cost path falls through to the computing default. So `getCost()` on a memoized node can execute
+	 * branches the query never ran, which is precisely what anything that merely *describes* a formula tree must
+	 * not do.
+	 *
+	 * Read the return value as "a cost is available for free". `null` does not mean the formula never ran - it
+	 * means nobody has paid for its cost yet, and this caller is not willing to.
+	 *
+	 * @return the already known actual cost, or `null` when producing one would require computation
+	 */
+	@Nullable
+	default Long getMemoizedCost() {
+		return null;
+	}
+
+	/**
 	 * Returns a copy of this formula with replaced inner formulas. The return value also encodes a behaviour
 	 * contract used by both {@link FormulaOptimizer} and {@link FormulaCloner} when the wrapper has been emptied
 	 * by removal of its children:

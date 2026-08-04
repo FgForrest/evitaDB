@@ -43,12 +43,15 @@ import java.util.List;
  * It is the structured counterpart of {@link PrettyPrintingFormulaVisitor}, and differs from it in the two ways
  * that matter to a client:
  *
- * 1. **It never calls {@link Formula#compute()}.** `PrettyPrintingFormulaVisitor` does, unconditionally, for every
- *    formula with inner formulas - which is acceptable for a debugging `toString()` and unacceptable here. The
- *    planner builds one formula per candidate index and computes only the winner, so rendering a rejected
+ * 1. **It computes nothing, by construction.** `PrettyPrintingFormulaVisitor` calls {@link Formula#compute()}
+ *    unconditionally for every formula with inner formulas - acceptable for a debugging `toString()`, unacceptable
+ *    here. The planner builds one formula per candidate index and computes only the winner, so rendering a rejected
  *    alternative through a forcing renderer would execute a plan the engine had deliberately decided not to run:
- *    telemetry would stop observing the query and start changing it. This visitor reads
- *    {@link Formula#getMemoizedResult()} instead and reports "not computed" as `null` where the other prints `?`.
+ *    telemetry would stop observing the query and start changing it. This visitor therefore reads **only** the
+ *    free-of-charge accessors - {@link Formula#getMemoizedResult()} and {@link Formula#getMemoizedCost()} - and
+ *    reports "not computed" as `null` where the other prints `?`. Note that {@link Formula#getCost()} is *not*
+ *    one of them and must never be used here: on a memoized node whose cost is still unpriced it falls through to
+ *    a cost path that computes inner formulas, including ones the query itself skipped.
  * 2. **Instance identity is a field, not ASCII art.** Where the pretty printer emits `[Ref to #3]` inside a string
  *    and then re-descends into the repeated subtree, this emits a childless node carrying
  *    {@link FormulaPlan#refTo()} and stops. A consumer draws the link; nobody has to regex it back out, and the
@@ -122,15 +125,19 @@ public class FormulaPlanVisitor implements FormulaVisitor {
 		}
 		this.childrenStack.pop();
 
-		// the single read that decides whether this node carries outcome numbers at all; everything below is
-		// derived from it, and none of it may trigger a computation
+		// both outcome numbers are read through the free-of-charge accessors, and neither may trigger a computation.
+		// getCost() would: on a node that is memoized but whose cost nobody has asked for yet, it falls through to
+		// AbstractFormula#getCostInternal(), which calls compute() on every inner formula - including ones this
+		// formula's own computation skipped (DisentangleFormula's X\X guard is exactly that shape). The two reads
+		// are independent, so a node can legitimately report a result count with no cost beside it: that says the
+		// formula ran but nothing has priced it, which is a different statement from "it never ran"
 		final Bitmap memoizedResult = formula.getMemoizedResult();
 		emit(
 			new FormulaPlan(
 				id, null, formula.getHash(),
 				formula.toString(),
 				formula.getEstimatedCost(),
-				memoizedResult == null ? null : formula.getCost(),
+				formula.getMemoizedCost(),
 				memoizedResult == null ? null : memoizedResult.size(),
 				children
 			)

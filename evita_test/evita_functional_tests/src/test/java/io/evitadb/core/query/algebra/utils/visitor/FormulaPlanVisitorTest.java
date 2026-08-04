@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
@@ -118,6 +119,9 @@ class FormulaPlanVisitorTest {
 		void shouldReportOutcomeNumbersOnceTheFormulaReallyHasBeenComputed() {
 			final Formula root = uncomputedTree();
 			root.compute();
+			// the engine's own sequence: QueryPlan.recordQueryMetrics prices the tree for the ACTUAL_COST metric
+			// before it renders. The renderer reports prices, it never sets them
+			root.getCost();
 
 			final FormulaPlan plan = FormulaPlanVisitor.toPlan(root);
 
@@ -146,6 +150,8 @@ class FormulaPlanVisitorTest {
 			final Formula root = new AndFormula(shortCircuitingBranch, skippedBranch);
 
 			root.compute();
+			// as the engine does it - price the tree first, then render
+			root.getCost();
 
 			// the premise of this test: the root really did run, and really did skip the expensive branch. Were the
 			// short-circuit ever removed, this is what says the scenario no longer exists rather than silently
@@ -155,10 +161,10 @@ class FormulaPlanVisitorTest {
 
 			final FormulaPlan plan = FormulaPlanVisitor.toPlan(root);
 
-			// the case neither test above reaches - a *partially* computed tree. Reading the root's outcome numbers
-			// means calling getCost() on it, and the default cost implementation computes every inner formula;
-			// AndFormula overrides it with one that short-circuits at the same point, which is what keeps this safe.
-			// A formula type that short-circuits computation but inherits that default would break here
+			// the case neither test above reaches - a *partially* computed tree. Even the cost pass above leaves
+			// the skipped branch alone, because AndFormula overrides getCostInternal() to short-circuit at the same
+			// point its computation does; and the renderer reads only the free accessors, so it cannot revive it
+			// even for a type whose cost path does not short-circuit
 			assertNull(skippedBranch.getMemoizedResult());
 
 			assertEquals(0, plan.resultCount());
@@ -168,6 +174,69 @@ class FormulaPlanVisitorTest {
 			final FormulaPlan skippedNode = plan.children().get(1);
 			assertNull(skippedNode.actualCost());
 			assertNull(skippedNode.resultCount());
+		}
+
+		@Test
+		@DisplayName("should not force a branch whose cost path would compute what its computation skipped")
+		void shouldNotForceABranchWhoseCostPathWouldComputeIt() {
+			// the case the test above warns about, in a type that really has it: DisentangleFormula's X\X guard
+			// returns empty without touching its inner formulas, while its getCostInternal() falls through to
+			// AbstractFormula's default - which calls compute() on every one of them. Rendering reads getCost()
+			// on any memoized node, so the renderer must not be the thing that triggers that fall-through
+			final Formula sharedBranch = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+			final Formula root = new DisentangleFormula(sharedBranch, sharedBranch);
+
+			root.compute();
+
+			// the premise: the root ran, and its guard really did skip the branch
+			assertNotNull(root.getMemoizedResult());
+			assertNull(sharedBranch.getMemoizedResult());
+
+			FormulaPlanVisitor.toPlan(root);
+
+			assertNull(
+				sharedBranch.getMemoizedResult(),
+				"Rendering forced a branch the computation skipped - the plan is no longer an observation of the query!"
+			);
+		}
+
+		@Test
+		@DisplayName("should report no cost for a node nobody has priced, rather than pricing it")
+		void shouldReportNoCostForANodeNobodyHasPriced() {
+			// the corollary of the test above, and the reason actualCost and resultCount are read independently:
+			// pricing a node is itself work, so a formula that ran but was never priced reports a result count
+			// with no cost beside it. That is a third node shape, and it says something different from both
+			// "never ran" (no numbers at all) and "ran and cost this much"
+			final Formula sharedBranch = new ConstantFormula(new ArrayBitmap(1, 2, 3));
+			final Formula root = new DisentangleFormula(sharedBranch, sharedBranch);
+
+			root.compute();
+
+			final FormulaPlan plan = FormulaPlanVisitor.toPlan(root);
+
+			assertEquals(0, plan.resultCount());
+			assertNull(plan.actualCost());
+			assertNull(sharedBranch.getMemoizedResult());
+		}
+
+		@Test
+		@DisplayName("should report the costs the engine's own metric pass has already paid for")
+		void shouldReportTheCostsTheMetricPassHasAlreadyPaidFor() {
+			// QueryPlan.recordQueryMetrics reads the root's cost for the ACTUAL_COST metric before it renders.
+			// That is what puts numbers in the plan: the renderer itself never prices anything, it only reports
+			// what pricing has already happened. Render before the metric and the plan is numerically emptier
+			final Formula root = new AndFormula(
+				new ConstantFormula(new ArrayBitmap(1, 2, 3)),
+				new ConstantFormula(new ArrayBitmap(2, 3, 4))
+			);
+
+			root.compute();
+			assertNull(FormulaPlanVisitor.toPlan(root).actualCost());
+
+			// exactly what the engine does, in the order it does it
+			root.getCost();
+
+			assertNotNull(FormulaPlanVisitor.toPlan(root).actualCost());
 		}
 	}
 

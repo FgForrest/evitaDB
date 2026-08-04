@@ -153,6 +153,14 @@ class MutableFormula implements Formula {
 		return getInnerFormula().getMemoizedResult();
 	}
 
+	@Nullable
+	@Override
+	public Long getMemoizedCost() {
+		// same reasoning as getMemoizedResult() above - the cost belongs to the installed delegate, not to this
+		// wrapper, so the "is it free?" question forwards along with the value
+		return getInnerFormula().getMemoizedCost();
+	}
+
 	@Override
 	@Nonnull
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {

@@ -114,23 +114,29 @@ which point the two renderers should merge rather than coexist.
   cached `FlattenedFormula` reports one having computed nothing. That `getCost()` happens to return
   `Long.MAX_VALUE` for an uncomputed formula is a coincidence, not a contract — it is also what an
   estimate returns on arithmetic overflow.
-- **What actually makes the renderer non-forcing is call *ordering*, not the formula types.** The
-  visitor reads `getCost()` on any node that is memoized, and `AbstractFormula.getCostInternal()`
+- **`Formula#getMemoizedCost()` is what makes the renderer non-forcing, and it exists because
+  `getCost()` is not safe to call while describing a tree.** `AbstractFormula.getCostInternal()`
   computes every inner formula unconditionally. Several types skip children in `computeInternal()` —
   `AndFormula` (sorted-conjunction short-circuit) and `NotFormula` (empty superset) override the cost
   path to match, `SelectionFormula` skips its delegate on the prefetch path and overrides
   consistently, but `DisentangleFormula`'s X\X guard returns empty without computing its inner
   formulas while its cost path falls through to `super.getCostInternal()`, which computes both. So
-  "no type skips a child" is **not** the invariant, and must not be relied on.
+  "no type skips a child" is **not** an invariant and must never be relied on.
 
-  The guarantee holds because of where the calls sit. At the execution site
-  `QueryPlan.recordQueryMetrics` reads `this.filter.getCost()` for the `ACTUAL_COST` metric *before*
-  it renders the plan, so anything the cost path would force has already been forced — by the metric,
-  not by the renderer. At the planning site nothing is memoized yet, so the visitor calls `getCost()`
-  on no node at all. **Move the plan rendering above the cost metric, or render a memoized tree from
-  anywhere else, and the renderer starts executing branches the engine skipped.**
-  `FormulaPlanVisitorTest.shouldReportAShortCircuitedBranchAsNeverHavingRun` pins the `AndFormula`
-  case; the ordering itself is not pinned by any test.
+  The visitor originally read `getCost()` on any memoized node, and was safe only by *call ordering*:
+  `QueryPlan.recordQueryMetrics` prices the tree for `ACTUAL_COST` before rendering, so the forcing
+  had already happened. A reviewer questioned that on PR #1385 and was right to —
+  `FormulaPlanVisitorTest.shouldNotForceABranchWhoseCostPathWouldComputeIt` renders a
+  `DisentangleFormula(X, X)` without a prior pricing pass and **failed**, forcing the branch. The fix
+  is a free-of-charge cost accessor mirroring `getMemoizedResult()`: a bare field read on
+  `AbstractFormula`, `0L` on `FlattenedFormula`, delegating on `MutableFormula`, `null` by default.
+  The renderer now cannot force regardless of who calls it or when.
+
+  **The consequence is a third node shape**: `resultCount` present, `actualCost` absent — "it ran,
+  but nobody has priced it". Pricing is itself work, and the renderer no longer does any. In practice
+  the engine's cost pass fills these in before rendering, so plans look the same; render before that
+  pass and the plan is structurally identical but numerically emptier, which
+  `shouldReportTheCostsTheMetricPassHasAlreadyPaidFor` pins from both sides.
 - **Prefetch produces a third kind of unexecuted node, and it is the one users will misread.**
   `SelectionFormula` answers from prefetched entity bodies when the planner judges that cheaper, and
   then never computes its delegate — so the whole index sub-tree below it reports no `actualCost` and

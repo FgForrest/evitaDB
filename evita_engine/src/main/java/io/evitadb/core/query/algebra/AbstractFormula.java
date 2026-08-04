@@ -167,6 +167,14 @@ public abstract class AbstractFormula implements Formula {
 		return this.cost;
 	}
 
+	@Nullable
+	@Override
+	public final Long getMemoizedCost() {
+		// deliberately a bare field read: the whole point of this accessor is that it cannot fall through to
+		// getCostInternal(), which computes inner formulas. Null here means "nobody has paid for this cost yet"
+		return this.cost;
+	}
+
 	@Override
 	public final long getCostToPerformanceRatio() {
 		if (this.costToPerformance == null) {

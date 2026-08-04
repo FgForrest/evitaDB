@@ -40,11 +40,15 @@ import java.util.List;
  * bare node pointing back at it by {@link #id}, with no children of its own.
  *
  * **A node may legitimately be undescribed by numbers.** {@link #actualCost} and {@link #resultCount} are `null`
- * whenever the formula was not computed, which is the normal state for a rejected plan alternative (the planner
- * costs every candidate but executes only the winner) and for a short-circuited branch of the winning one. They are
- * `null` rather than zero because the plan is rendered **without ever computing anything** - see
- * `Formula#getMemoizedResult()`. A renderer that filled them in would make asking for the plan change what the
- * query does, which is the one thing telemetry must never do.
+ * whenever the value is not available for free, which is the normal state for a rejected plan alternative (the
+ * planner costs every candidate but executes only the winner) and for a short-circuited branch of the winning one.
+ * They are `null` rather than zero because the plan is rendered **without ever computing anything** - see
+ * `Formula#getMemoizedResult()` and `Formula#getMemoizedCost()`. A renderer that filled them in would make asking
+ * for the plan change what the query does, which is the one thing telemetry must never do.
+ *
+ * The two are read independently, so **a node can carry a `resultCount` with no `actualCost` beside it**: pricing a
+ * formula is itself work the renderer will not do, so that combination reads as "it ran, but nothing has priced it"
+ * rather than "it never ran". The reverse combination does not occur.
  *
  * @param id             identity of the formula *instance* this node stands for, unique within the plan and stable
  *                       across its occurrences - it is what makes "computed once, reused twice" visible
