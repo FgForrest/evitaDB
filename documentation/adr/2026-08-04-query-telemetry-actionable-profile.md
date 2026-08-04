@@ -1,11 +1,11 @@
 ---
 title: Turn query telemetry into an actionable profile, and render the formula plan without ever computing it
 date: 2026-08-04
-updated: 2026-08-04 13:42
+updated: 2026-08-04 13:48
 status: accepted
 kind: feature
 issues: [1341]
-prs: []
+prs: [1385]
 areas: [evita_query/api/query/require, evita_api/api/requestResponse/extraResult, evita_engine/core/query, evita_engine/core/query/algebra, evita_store/evita_store_server/store/query, evita_external_api]
 supersedes: []
 superseded-by: []
