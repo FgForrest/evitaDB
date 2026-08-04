@@ -1,7 +1,7 @@
 ---
 title: Turn query telemetry into an actionable profile, and render the formula plan without ever computing it
 date: 2026-08-04
-updated: 2026-08-04 12:45
+updated: 2026-08-04 13:42
 status: accepted
 kind: feature
 issues: [1341]
@@ -105,7 +105,7 @@ which point the two renderers should merge rather than coexist.
 | Metrics **round-trip** through `ResponseConverter` | So an embedded caller and a gRPC caller see the same numbers | Deriving them client-side, as `selfTime` is — it is a pure function of the tree, metrics are not |
 | `QueryTelemetryContent` is a single-valued **level** (`TIMINGS`, `PLAN`) following `ConstraintWithDefaults` | A one-constant enum cannot express its own default and publishes as a single-value enum in the generated schemas. As a set, `queryTelemetry(TIMINGS, PLAN)` would be self-contradictory | A vararg content set, which is what `StatisticsType` does — right for genuine flag sets, wrong for levels |
 | Item 2's orphaned node fixed by **appending an argument** | The issue's own recommendation — relaxing `QueryTelemetry.finish()`'s one-shot assert — throws on the `NestedContextSorter` path | Relaxing the assert |
-| The telemetry level is **not persisted** by the Kryo serializer | The old payload was zero bytes and the traffic-recording format has no version stamp, so any reader that consumes bytes corrupts every recording written before the level existed. Losing the level on replay is a debug constraint degrading to its default; the alternative loses whole recordings | Writing the level (implemented, then reverted); a `SerialVersionBasedSerializer` compat reader — impossible, constraints carry no `serialVersionUID` and Kryo binds one id per class |
+| The telemetry level **is persisted** by the Kryo serializer, breaking older traffic recordings | A recording exists to reproduce what happened; a recorded `queryTelemetry(PLAN)` replaying as `queryTelemetry()` reproduces something else, silently and forever. A stale recording failing to read is loud and bounded | Writing nothing (implemented first, then reverted) — kept old recordings readable at the cost of a permanent silent degradation; a `SerialVersionBasedSerializer` compat reader — impossible, constraints carry no `serialVersionUID` and Kryo binds one id per class |
 
 ## Key technical details
 
@@ -157,19 +157,28 @@ which point the two renderers should merge rather than coexist.
   `QueryPlan.recordQueryMetrics` (memoized — real costs and result counts). A node with no
   `actualCost` is therefore not necessarily a rejected alternative; a branch of the *winning* plan
   that the computation short-circuited past is legitimately unmemoized too.
-- **`QueryTelemetrySerializer` still writes nothing, and that is now a decision rather than an
-  oversight.** Persisting the level was implemented first, on the reasoning that a constraint gaining
-  its first argument needs its Kryo serializer revisited — then reverted, because it cannot be done
-  compatibly. `QuerySerializationKryoConfigurer` has exactly two production users, both traffic
-  recording; the remote drivers send EvitaQL as a string and never reach it. Before the level existed
-  the serializer emitted **zero bytes**, and the recording format carries no version, magic or length
-  stamp, so a reader that consumes an enum eats into the *next* element of any recording written by an
-  earlier build. Query constraints are also registered directly rather than through
+- **`QueryTelemetrySerializer` persists the level, and knowingly breaks older traffic recordings
+  doing so.** `QuerySerializationKryoConfigurer` has exactly two production users, both traffic
+  recording; the remote drivers send EvitaQL as a string and never reach it, so replay is the only
+  path affected. Before the level existed the serializer emitted **zero bytes**, and the recording
+  format carries no version, magic or length stamp, so a reader that consumes an enum eats into the
+  *next* element of a recording written by an earlier build. There is no compatible middle ground to
+  take instead: query constraints are registered directly rather than through
   `SerialVersionBasedSerializer`, so there is no `serialVersionUID` to dispatch a backward-compatible
-  reader on, and Kryo binds one registration id per class. The price of writing nothing is that
-  replaying a recorded `queryTelemetry(PLAN)` re-executes it as `queryTelemetry()`; the price of the
-  alternative was every pre-existing recording becoming unreadable, silently. Revisit if the recording
-  format ever gains a version stamp.
+  reader on, and Kryo binds one registration id per class, so the two forms cannot be told apart at
+  all. That finding is what makes the break clean rather than avoidable.
+
+  Writing nothing was implemented first and reverted: it kept old recordings readable, but at the
+  price of every recorded `queryTelemetry(PLAN)` replaying as `queryTelemetry()` — a debugging
+  constraint changing meaning, silently, on the one path whose entire purpose is faithful
+  reproduction. A stale recording failing loudly is bounded; a recording that reproduces something
+  else is not. A compatibility mechanism for query constraints comparable to the one the data
+  structures already have is planned and deliberately out of this line of work's scope; this
+  serializer is one of its first customers when it lands.
+
+  **`QueryTelemetryContent` is registered at the end of the enum block, not inside it.** Registration
+  ids are assigned positionally by `index++`, so inserting anywhere above `TraversalMode` renumbers
+  every enum below it and breaks recordings this change has no business touching.
 - **GraphQL `Long` is a custom scalar serialising to a JSON string** (`LongCoercing`), so telemetry
   durations and metrics arrive quoted. This is deliberate — the values exceed JavaScript's safe
   integer range — but it surprises every first-time consumer.
@@ -188,25 +197,37 @@ which point the two renderers should merge rather than coexist.
 - Wire-level coverage on both JSON APIs (`shouldReturnQueryTelemetry` in the REST and GraphQL
   catalog query tests), asserted over HTTP rather than on the DTO — a property the schema declares
   but the serializer never emits would pass every unit test and still break every generated client.
-- `QuerySerializationTest` gained a `queryTelemetry` block pinning the Kryo decision from both sides:
-  `shouldDegradePlanLevelToDefault` records the accepted cost, and `shouldConsumeNoBytes` writes two
-  constraints back to back and reads both, which only succeeds while the serializer consumes nothing —
-  it is the guard that keeps recordings written before the level existed readable.
-- Full reactor `mvn install` exit 0. Targeted sweep: **116 tests** across the API/parser/functional
-  suites and **45 tests** across `FormulaPlanVisitorTest` + `QueryTelemetryTest`, 0 failures,
-  0 errors. The full functional suite was not run.
+- `QuerySerializationTest` gained a `queryTelemetry` block: the round-trip variants cover the bare
+  form, the spelled-out default and `PLAN`, and `shouldPreservePlanLevel` pins the property the
+  format break was taken for — a replayed `queryTelemetry(PLAN)` still asks for a plan.
+- Full reactor `mvn install` exit 0. Full `unitAndFunctional` suite: **20869 tests, 0 failures**. The
+  single error is `ExportS3ServiceTest`, which fails in `beforeAll` with
+  `Could not find a valid Docker environment` — environmental, and identical on `dev`.
+- `QuerySerializationTest` alone: **272 tests, 0 failures**, the run that pins the serializer format
+  break. A targeted run suffices for it because the break is asymmetric — old bytes read by a new
+  reader — so no test that writes and reads within one build can exercise it. What could have failed
+  is a checked-in binary recording fixture; there is none, and no traffic-engine test constructs a
+  `queryTelemetry` constraint.
 
 ## Consequences & open follow-ups
 
-**Four breaking changes, not the two the issue's compatibility section names.** All are safe today
-on the issue's own grounds — nothing consumes these surfaces yet — and all were taken deliberately
-rather than layering a compatible workaround over a shape that had to change regardless:
+**Five breaking changes, not the two the issue's compatibility section names.** All were taken
+deliberately rather than layering a compatible workaround over a shape that had to change regardless:
 
 1. The REST telemetry response schema gained the three properties it always emitted (item 7).
 2. The REST *require* shape: `"queryTelemetry": true` → `"queryTelemetry": "TIMINGS"` or `"PLAN"`.
    A single-argument constraint publishes unwrapped, so the old form is now an HTTP 400.
 3. GraphQL: a bare `queryTelemetry` field selection is no longer valid, and the field returns a list.
 4. `QueryTelemetry`'s Java constructor signature.
+5. **The traffic-recording format.** A recording containing `queryTelemetry` written before this
+   change cannot be read after it.
+
+The first four are safe today on the issue's own grounds — nothing consumes those surfaces yet. **The
+fifth is not, and is accepted on different grounds**: recordings exist on disk and replay does read
+them. It is taken because the alternative is not compatibility but a silent lie — see the
+`QueryTelemetrySerializer` note above — and because a general compatibility mechanism for query
+constraints is planned separately. A recording that fails to read is diagnosable; one that replays a
+different query is not.
 
 Open:
 
@@ -216,6 +237,11 @@ Open:
 - **The `.json.md` documentation result samples still show the old payload.** They are generated
   against the public demo server and cannot show fields that have not been released; they must not be
   hand-edited. They will refresh once a release carrying this work reaches the demo server.
+- **Query constraints have no serialization-compatibility mechanism**, unlike the stored data
+  structures, which dispatch on a `serialVersionUID` prefix through `SerialVersionBasedSerializer`.
+  Every constraint that gains, loses or reorders an argument therefore breaks the traffic-recording
+  format the same way this one did, with no way to read the older form. Building the equivalent for
+  constraints was declared out of scope here; `QueryTelemetrySerializer` is a ready first customer.
 - **The C# driver has not been updated** for the constraint argument. It lives in a separate
   repository, so the user documentation deliberately makes no claim either way for the `c` tab.
 - **Asking for the plan changes the profile's own numbers**, because rendering happens inside the
@@ -234,4 +260,6 @@ Open:
 - **2026-08-04** — implemented in four stages on one branch: lazy arguments and the orphaned
   annotation node (`8e9f269a4`), the REST descriptor correction, derived self-time and the false
   prose (`8e9f269a4`), typed step metrics (`5aa39e9d8`), the flattened GraphQL profile and the
-  formula plan (`6b4a535cd`).
+  formula plan (`6b4a535cd`). `dd11ee505` reverted the telemetry level out of the Kryo payload to
+  keep older traffic recordings readable; that revert was itself reversed once the silent-degradation
+  cost was weighed against a clean format break, so the shipped behaviour is the one described above.

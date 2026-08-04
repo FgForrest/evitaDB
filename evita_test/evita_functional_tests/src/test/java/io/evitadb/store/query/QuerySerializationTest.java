@@ -63,7 +63,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.QUERY;
@@ -1082,43 +1082,27 @@ public class QuerySerializationTest {
 					// spelling the default out is the same constraint, so it survives like the bare form
 					arguments("queryTelemetry(TIMINGS)",
 						queryTelemetry(QueryTelemetryContent.TIMINGS)),
+					arguments("queryTelemetry(PLAN)",
+						queryTelemetry(QueryTelemetryContent.PLAN)),
 					arguments("require(queryTelemetry())",
 						require(queryTelemetry()))
 				);
 			}
 
 			@Test
-			@DisplayName("should degrade the formula plan level to the default rather than persist it")
-			void shouldDegradePlanLevelToDefault() {
-				// this serializer writes nothing on purpose. Persisting the level would break every traffic
-				// recording written before the level existed, because the old payload was zero bytes and the
-				// recording format carries no version stamp to tell the two apart - see QueryTelemetrySerializer.
-				// The price is exactly this: a replayed `queryTelemetry(PLAN)` runs as `queryTelemetry()`
+			@DisplayName("should preserve the formula plan level across a replayed recording")
+			void shouldPreservePlanLevel() {
+				// the reason the level is persisted at all, and the reason doing so was worth breaking the
+				// recording format for: a recording exists to reproduce what happened, and a `queryTelemetry(PLAN)`
+				// that silently replays as `queryTelemetry()` reproduces something else - see QueryTelemetrySerializer
 				final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
 				try (final Output output = new Output(os, 64)) {
 					kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
 				}
 				try (final Input input = new Input(os.toByteArray())) {
 					final QueryTelemetry deserialized = kryo.readObject(input, QueryTelemetry.class);
-					assertEquals(queryTelemetry(), deserialized);
-					assertFalse(deserialized.isPlanRequested());
-				}
-			}
-
-			@Test
-			@DisplayName("should consume no bytes, so recordings written before the level existed still read")
-			void shouldConsumeNoBytes() {
-				// the guarantee that keeps old recordings readable: anything this serializer consumed would be
-				// bytes belonging to the next element of a stream written by a build that wrote none
-				final ByteArrayOutputStream os = new ByteArrayOutputStream(64);
-				try (final Output output = new Output(os, 64)) {
-					kryo.writeObject(output, queryTelemetry(QueryTelemetryContent.PLAN));
-					kryo.writeObject(output, queryTelemetry());
-				}
-				try (final Input input = new Input(os.toByteArray())) {
-					kryo.readObject(input, QueryTelemetry.class);
-					// the second object still parses, which it could not if the first had eaten into it
-					assertEquals(queryTelemetry(), kryo.readObject(input, QueryTelemetry.class));
+					assertEquals(queryTelemetry(QueryTelemetryContent.PLAN), deserialized);
+					assertTrue(deserialized.isPlanRequested());
 				}
 			}
 		}

@@ -34,25 +34,21 @@ import lombok.RequiredArgsConstructor;
 /**
  * This {@link Serializer} implementation reads/writes {@link QueryTelemetry} from/to binary format.
  *
- * **It deliberately writes nothing, even though the constraint now carries a {@link QueryTelemetryContent}
- * level.** Persisting the level looks like the obvious thing to do and was tried; it cannot be done compatibly:
+ * **Writing the {@link QueryTelemetryContent} level is a knowingly breaking change: traffic recordings written
+ * before the constraint gained its argument can no longer be read.** Until then this serializer emitted zero
+ * bytes, and the recording format carries no version, magic or length stamp - so a reader that consumes an enum
+ * consumes bytes belonging to the *next* element of an older recording. There is no compatible middle ground to
+ * take instead: query constraints are registered directly rather than through `SerialVersionBasedSerializer`, so
+ * there is no `serialVersionUID` prefix to dispatch a backward-compatible reader on, and Kryo binds one
+ * registration id per class, so the two forms cannot be told apart at all.
  *
- * - This configurer has exactly two production users, both traffic recording - `OffHeapTrafficRecorder` and
- *   `InputStreamTrafficRecordReader`. The remote drivers send EvitaQL as a string and never reach this code, so
- *   replay of a recorded query is the only path the level could travel on.
- * - Before the level existed this serializer emitted **zero bytes**, and the recording format carries no version,
- *   magic or length stamp. A reader that consumes an enum would therefore consume bytes belonging to the *next*
- *   element of any recording written by an earlier build - corrupting the constraint tree, or raising a
- *   `KryoException` far from its cause, rather than failing cleanly.
- * - The usual escape hatch does not apply either: query constraints are registered directly rather than through
- *   `SerialVersionBasedSerializer`, so there is no `serialVersionUID` prefix to dispatch a backward-compatible
- *   reader on, and Kryo binds one registration id per class, so the old and new forms cannot be told apart.
+ * The break was chosen over the alternative of persisting nothing, which kept old recordings readable at the cost
+ * of replaying every recorded `queryTelemetry(PLAN)` as a plain `queryTelemetry()` - a debugging constraint
+ * silently degrading, forever, on a path where the recording exists precisely to reproduce what happened. A clean
+ * failure to read a stale recording is preferable to a quiet change of meaning in every future one.
  *
- * The cost of writing nothing is that replaying a recorded `queryTelemetry(PLAN)` re-executes it as
- * `queryTelemetry()`, losing the formula plan on that one path. That is a debugging constraint degrading to its
- * default during replay, which is a far smaller price than every pre-existing recording becoming unreadable.
- *
- * Revisit only if the recording format gains a version stamp; then the level can be written behind it.
+ * A compatibility mechanism for query constraints comparable to the one the data structures already have is
+ * planned; when it lands, this serializer is one of its first customers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -61,13 +57,12 @@ public class QueryTelemetrySerializer extends Serializer<QueryTelemetry> {
 
 	@Override
 	public void write(Kryo kryo, Output output, QueryTelemetry object) {
-		// intentionally empty - see the class JavaDoc: the recording format cannot tell an old zero-byte
-		// payload from a new one, so writing the level here would break every recording made before it existed
+		kryo.writeObject(output, object.getContent());
 	}
 
 	@Override
 	public QueryTelemetry read(Kryo kryo, Input input, Class<? extends QueryTelemetry> type) {
-		return new QueryTelemetry();
+		return new QueryTelemetry(kryo.readObject(input, QueryTelemetryContent.class));
 	}
 
 }
