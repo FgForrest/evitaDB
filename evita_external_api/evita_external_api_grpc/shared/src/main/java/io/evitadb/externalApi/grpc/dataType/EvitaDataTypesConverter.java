@@ -27,8 +27,15 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.Timestamp;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionStorageSize;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexSummaryStatistics;
+import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.task.TaskStatus;
@@ -1711,91 +1718,88 @@ public class EvitaDataTypesConverter {
 	}
 
 	/**
-	 * This method is used to convert a {@link CatalogStatistics} to {@link GrpcCatalogStatistics}.
-	 * @param catalogStatistics catalog statistics to be converted
+	 * Projects the component model onto {@link GrpcCatalogStatistics}, the flat message the deprecated instance-wide
+	 * statistics RPC carries.
+	 *
+	 * **This is the only place the legacy statistics shape exists.** Nothing in the Java API speaks it any more - the
+	 * engine answers through {@link CatalogStatistics} and {@link EntityCollectionStatistics}, and this method exists
+	 * solely so that the wire contract of `GetCatalogStatistics` does not move for clients that still call it. It goes
+	 * away with that RPC.
+	 *
+	 * A component the catalog did not deliver maps onto the legacy `-1` "unknown" marker, which is exactly what a
+	 * corrupted catalog has always reported for these numbers. `sizeOnDiskInBytes` is delivered even by an unusable
+	 * catalog, since file lengths are readable whether or not its contents parse.
+	 *
+	 * @param catalogStatistics    catalog-level statistics carrying at least `IDENTITY`
+	 * @param collectionStatistics statistics of the catalog's collections, in the order they should appear on the wire
 	 * @return {@link GrpcCatalogStatistics} instance
+	 * @deprecated exists only to feed the deprecated `GetCatalogStatistics` procedure and is removed with it
 	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	@Nonnull
-	public static GrpcCatalogStatistics toGrpcCatalogStatistics(@Nonnull CatalogStatistics catalogStatistics) {
+	public static GrpcCatalogStatistics toGrpcCatalogStatistics(
+		@Nonnull CatalogStatistics catalogStatistics,
+		@Nonnull EntityCollectionStatistics[] collectionStatistics
+	) {
+		final CatalogIdentity identity = catalogStatistics.identity();
 		final GrpcCatalogStatistics.Builder builder = GrpcCatalogStatistics.newBuilder()
-			.setCatalogName(catalogStatistics.catalogName())
-			.setCorrupted(catalogStatistics.unusable())
-			.setUnusable(catalogStatistics.unusable())
-			.setReadOnly(catalogStatistics.readOnly())
-			.setCatalogVersion(catalogStatistics.catalogVersion())
-			.setTotalRecords(catalogStatistics.totalRecords())
-			.setIndexCount(catalogStatistics.indexCount())
-			.setSizeOnDiskInBytes(catalogStatistics.sizeOnDiskInBytes())
-			.addAllEntityCollectionStatistics(
-				Arrays.stream(catalogStatistics.entityCollectionStatistics())
-					.filter(Objects::nonNull)
-					.map(EvitaDataTypesConverter::toGrpcEntityCollectionStatistics)
-					.collect(Collectors.toList())
+			.setCatalogName(identity.catalogName())
+			.setCorrupted(identity.unusable())
+			.setUnusable(identity.unusable())
+			.setReadOnly(identity.readOnly())
+			.setCatalogVersion(identity.catalogVersion())
+			.setTotalRecords(
+				catalogStatistics.recordCountsIfPresent().map(RecordCounts::totalRecords).orElse(-1L)
+			)
+			.setIndexCount(
+				catalogStatistics.indexSummaryIfPresent().map(IndexSummaryStatistics::totalIndexCount).orElse(-1L)
+			)
+			.setSizeOnDiskInBytes(
+				catalogStatistics.storageSizeIfPresent().map(StorageSizeStatistics::sizeOnDiskInBytes).orElse(-1L)
 			);
-		if (catalogStatistics.catalogState() != null) {
-			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalogStatistics.catalogState()));
+		for (final EntityCollectionStatistics collection : collectionStatistics) {
+			builder.addEntityCollectionStatistics(toGrpcEntityCollectionStatistics(collection));
+		}
+		if (identity.catalogState() != null) {
+			builder.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(identity.catalogState()));
 		} else {
 			builder.setCatalogState(GrpcCatalogState.UNKNOWN_CATALOG_STATE);
 		}
-		if (catalogStatistics.catalogId() != null) {
-			builder.setCatalogId(toGrpcUuid(catalogStatistics.catalogId()));
+		if (identity.catalogId() != null) {
+			builder.setCatalogId(toGrpcUuid(identity.catalogId()));
 		}
 		return builder
 			.build();
 	}
 
 	/**
-	 * This method is used to convert a {@link EntityCollectionStatistics} to {@link GrpcEntityCollectionStatistics}.
+	 * Projects one collection's component model onto the flat row the deprecated instance-wide statistics RPC carries
+	 * per entity collection. See {@link #toGrpcCatalogStatistics(CatalogStatistics, EntityCollectionStatistics[])} for
+	 * why this shape survives.
+	 *
 	 * @param entityCollectionStatistics entity collection statistics to be converted
 	 * @return {@link GrpcEntityCollectionStatistics} instance
+	 * @deprecated exists only to feed the deprecated `GetCatalogStatistics` procedure and is removed with it
 	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
 	@Nonnull
-	public static GrpcEntityCollectionStatistics toGrpcEntityCollectionStatistics(@Nonnull EntityCollectionStatistics entityCollectionStatistics) {
+	public static GrpcEntityCollectionStatistics toGrpcEntityCollectionStatistics(
+		@Nonnull EntityCollectionStatistics entityCollectionStatistics
+	) {
 		return GrpcEntityCollectionStatistics.newBuilder()
 			.setEntityType(entityCollectionStatistics.entityType())
-			.setTotalRecords(entityCollectionStatistics.totalRecords())
-			.setIndexCount(entityCollectionStatistics.indexCount())
-			.setSizeOnDiskInBytes(entityCollectionStatistics.sizeOnDiskInBytes())
+			.setTotalRecords(
+				entityCollectionStatistics.recordCountsIfPresent().map(CollectionRecordCounts::totalRecords).orElse(-1)
+			)
+			.setIndexCount(
+				entityCollectionStatistics.indexSummaryIfPresent()
+					.map(CollectionIndexSummary::totalIndexCount).orElse(-1)
+			)
+			.setSizeOnDiskInBytes(
+				entityCollectionStatistics.storageSizeIfPresent()
+					.map(CollectionStorageSize::sizeOnDiskInBytes).orElse(-1L)
+			)
 			.build();
-	}
-
-	/**
-	 * This method is used to convert a {@link GrpcCatalogStatistics} to {@link CatalogStatistics}.
-	 * @param grpcCatalogStatistics catalog statistics to be converted
-	 * @return {@link CatalogStatistics} instance
-	 */
-	@Nonnull
-	public static CatalogStatistics toCatalogStatistics(@Nonnull GrpcCatalogStatistics grpcCatalogStatistics) {
-		return new CatalogStatistics(
-			grpcCatalogStatistics.hasCatalogId() ? toUuid(grpcCatalogStatistics.getCatalogId()) : null,
-			grpcCatalogStatistics.getCatalogName(),
-			grpcCatalogStatistics.getUnusable(),
-			grpcCatalogStatistics.getReadOnly(),
-			EvitaEnumConverter.toCatalogState(grpcCatalogStatistics.getCatalogState()),
-			grpcCatalogStatistics.getCatalogVersion(),
-			grpcCatalogStatistics.getTotalRecords(),
-			grpcCatalogStatistics.getIndexCount(),
-			grpcCatalogStatistics.getSizeOnDiskInBytes(),
-			grpcCatalogStatistics.getEntityCollectionStatisticsList().stream()
-				.map(EvitaDataTypesConverter::toEntityCollectionStatistics)
-				.toArray(EntityCollectionStatistics[]::new)
-
-		);
-	}
-
-	/**
-	 * This method is used to convert a {@link GrpcEntityCollectionStatistics} to {@link EntityCollectionStatistics}.
-	 * @param grpcEntityCollectionStatistics entity collection statistics to be converted
-	 * @return {@link EntityCollectionStatistics} instance
-	 */
-	@Nonnull
-	public static EntityCollectionStatistics toEntityCollectionStatistics(@Nonnull GrpcEntityCollectionStatistics grpcEntityCollectionStatistics) {
-		return new EntityCollectionStatistics(
-			grpcEntityCollectionStatistics.getEntityType(),
-			grpcEntityCollectionStatistics.getTotalRecords(),
-			grpcEntityCollectionStatistics.getIndexCount(),
-			grpcEntityCollectionStatistics.getSizeOnDiskInBytes()
-		);
 	}
 
 	/**

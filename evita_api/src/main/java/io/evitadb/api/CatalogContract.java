@@ -46,6 +46,10 @@ import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+// shadows the legacy same-package `io.evitadb.api.CatalogStatistics`, which survives only to feed the deprecated
+// instance-wide RPC and is not what this contract speaks in any more
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -390,33 +394,24 @@ public interface CatalogContract {
 	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
 
 	/**
-	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
-	 *
-	 * @return catalog statistics
-	 */
-	@Nonnull
-	CatalogStatistics getStatistics();
-
-	/**
 	 * Returns a component-selected snapshot of this catalog's statistics.
 	 *
 	 * Only the named components are computed; each of them gets an entry in
-	 * {@link io.evitadb.api.statistics.CatalogStatistics#componentStatus()} saying whether it was delivered and, if
-	 * not, why. {@link io.evitadb.api.statistics.CatalogStatisticsComponent#IDENTITY} is always delivered, requested
-	 * or not.
+	 * {@link CatalogStatistics#componentStatus()} saying whether it was delivered and, if not, why.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is always delivered, requested or not.
 	 *
 	 * The result carries **catalog-wide aggregates only** - never a per-collection breakdown. Statistics of a single
 	 * entity collection are obtained from {@link EntityCollectionContract#getStatistics(Set)}, and the two are
 	 * independent snapshots that may observe different catalog versions.
 	 *
 	 * @param components the components to compute; every one of them must satisfy
-	 *                   {@link io.evitadb.api.statistics.CatalogStatisticsComponent#isCatalogLevel()}
+	 *                   {@link CatalogStatisticsComponent#isCatalogLevel()}
 	 * @return the snapshot, carrying the requested components and the status of each
 	 * @throws EvitaInvalidUsageException when a component that has no catalog-level form is requested
 	 */
 	@Nonnull
-	io.evitadb.api.statistics.CatalogStatistics getStatistics(
-		@Nonnull Set<io.evitadb.api.statistics.CatalogStatisticsComponent> components
+	CatalogStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
 	) throws EvitaInvalidUsageException;
 
 	/**

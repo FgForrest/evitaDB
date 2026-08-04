@@ -379,8 +379,14 @@ service EvitaManagementService {
   // Procedure used to obtain the curated subset of the engine configuration that is safe to expose to any client.
   // Unlike GetConfiguration this procedure is available also when the engine runs in read-only mode.
   rpc GetEngineSettings(google.protobuf.Empty) returns (GrpcEvitaEngineSettingsResponse);
-  // Procedure used to obtain catalog statistics.
-  rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse);
+  // Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+  // procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+  // shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+  // unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+  // collection. Its semantics are frozen and will not change while it remains.
+  rpc GetCatalogStatistics(google.protobuf.Empty) returns (GrpcEvitaCatalogStatisticsResponse) {
+    option deprecated = true;
+  }
   // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
   // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);

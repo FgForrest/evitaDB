@@ -25,12 +25,12 @@ package io.evitadb.core.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.StorageSizeStatistics;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -282,23 +282,20 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public io.evitadb.api.statistics.CatalogStatistics getStatistics(
-		@Nonnull Set<CatalogStatisticsComponent> components
-	) {
-		final io.evitadb.api.statistics.CatalogStatistics.Builder builder =
-			io.evitadb.api.statistics.CatalogStatistics.builder(
-				new CatalogIdentity(
-					null,
-					this.catalogName,
-					this.catalogState,
-					-1L,
-					false,
-					true,
-					false,
-					false,
-					-1
-				)
-			);
+	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		final CatalogStatistics.Builder builder = CatalogStatistics.builder(
+			new CatalogIdentity(
+				null,
+				this.catalogName,
+				this.catalogState,
+				-1L,
+				false,
+				true,
+				false,
+				false,
+				-1
+			)
+		);
 		for (final CatalogStatisticsComponent component : components) {
 			if (!component.isCatalogLevel()) {
 				throw new EvitaInvalidUsageException(
@@ -306,11 +303,26 @@ public final class UnusableCatalog implements CatalogContract {
 						"it belongs to for it."
 				);
 			}
-			// nothing but the identity survives an unusable catalog: every other component is derived from state
-			// that could not be loaded. Reporting that explicitly is the point - a client must be able to tell this
-			// apart from a catalog that is merely empty.
-			if (component != CatalogStatisticsComponent.IDENTITY) {
-				builder.withUnavailable(
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				// the one component that survives a catalog which would not load: file lengths are readable whether or
+				// not the contents parse, and how much disk a corrupted catalog is holding is exactly what an operator
+				// needs to know about it. Nothing can be attributed to a storage class, so it all reads as unaccounted.
+				case STORAGE_SIZE -> {
+					final long sizeOnDiskInBytes = FileUtils.getDirectorySize(this.catalogStoragePath);
+					builder.withStorageSize(
+						new StorageSizeStatistics(sizeOnDiskInBytes, 0L, 0L, 0L, 0L, 0L, 0L, 0L, sizeOnDiskInBytes)
+					);
+				}
+				// everything else is derived from state that could not be loaded. Reporting that explicitly is the
+				// point - a client must be able to tell this apart from a catalog that is merely empty.
+				//
+				// `default` is deliberate here rather than an exhaustive list: it is not a silent skip but the total
+				// answer, since any component this catalog cannot compute today it cannot compute for the same reason
+				// tomorrow. A component added later and forgotten here would otherwise throw on exactly the degraded
+				// catalog an operator is trying to inspect.
+				default -> builder.withUnavailable(
 					component,
 					ComponentAvailability.CATALOG_UNUSABLE,
 					"Catalog `" + this.catalogName + "` could not be loaded, so `" + component + "` cannot be computed."
@@ -318,23 +330,6 @@ public final class UnusableCatalog implements CatalogContract {
 			}
 		}
 		return builder.build();
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics getStatistics() {
-		return new CatalogStatistics(
-			null,
-			this.catalogName,
-			true,
-			false,
-			this.catalogState,
-			-1L,
-			-1,
-			-1,
-			FileUtils.getDirectorySize(this.catalogStoragePath),
-			new EntityCollectionStatistics[0]
-		);
 	}
 
 	@Override

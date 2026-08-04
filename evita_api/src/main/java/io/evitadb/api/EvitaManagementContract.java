@@ -72,8 +72,13 @@ import java.util.concurrent.CompletableFuture;
  * Obtain an instance via {@link EvitaContract#management()}:
  * ```
  * EvitaManagementContract management = evita.management();
- * CatalogStatistics[] stats = management.getCatalogStatistics();
+ * SystemStatus status = management.getSystemStatus();
  * ```
+ *
+ * **Catalog statistics** are not part of this interface. They are obtained per catalog from
+ * {@link CatalogContract#getStatistics(java.util.Set)} and per collection from
+ * {@link EntityCollectionContract#getStatistics(java.util.Set)}, so that a caller names the components it needs
+ * instead of paying for every statistic of every catalog on every call.
  *
  * **Thread-Safety**
  *
@@ -82,28 +87,6 @@ import java.util.concurrent.CompletableFuture;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface EvitaManagementContract {
-
-	/**
-	 * Retrieves comprehensive statistics for all catalogs in the evitaDB instance, regardless of their state.
-	 * This method provides a global view of the instance's data, including active, inactive, and corrupted catalogs.
-	 *
-	 * **Use Cases**
-	 *
-	 * - Monitoring dashboards displaying instance health and capacity
-	 * - Administrative tools listing all available catalogs
-	 * - Capacity planning by analyzing disk usage and entity counts
-	 * - Health checks identifying corrupted or problematic catalogs
-	 *
-	 * **Performance Characteristics**
-	 *
-	 * This method aggregates data from all catalogs, which may be expensive for instances with many catalogs.
-	 * Results are computed on-demand and not cached.
-	 *
-	 * @return array of statistics for each catalog, ordered by catalog name; never null but may be empty
-	 *         if no catalogs exist
-	 */
-	@Nonnull
-	CatalogStatistics[] getCatalogStatistics();
 
 	/**
 	 * Creates a point-in-time backup of the specified catalog as a ZIP archive. This method supports backing up

@@ -27,15 +27,17 @@ import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.StorageSizeStatistics;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -1417,11 +1419,8 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public io.evitadb.api.statistics.CatalogStatistics getStatistics(
-		@Nonnull Set<CatalogStatisticsComponent> components
-	) {
-		final io.evitadb.api.statistics.CatalogStatistics.Builder builder =
-			io.evitadb.api.statistics.CatalogStatistics.builder(getIdentity());
+	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		final CatalogStatistics.Builder builder = CatalogStatistics.builder(getIdentity());
 		for (final CatalogStatisticsComponent component : components) {
 			if (!component.isCatalogLevel()) {
 				throw new EvitaInvalidUsageException(
@@ -1434,7 +1433,9 @@ public final class Catalog
 				case IDENTITY -> { }
 				case COLLECTIONS -> builder.withCollections(collectCollectionInventory());
 				case INDEX_SUMMARY -> builder.withIndexSummary(new IndexSummaryStatistics(countIndexes()));
-				case RECORD_COUNTS, SESSIONS, COMMIT_PIPELINE, ACTIVITY, STORAGE_SIZE, STORAGE_COMPOSITION,
+				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
+				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
+				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, STORAGE_COMPOSITION,
 					FRAGMENTATION, HISTORY, DURABILITY, VOLATILE_STATE -> builder.withUnavailable(
 						component,
 						ComponentAvailability.NOT_SUPPORTED,
@@ -1447,6 +1448,46 @@ public final class Catalog
 			}
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Sums the record counts of every collection in the catalog. `totalRecords` keeps its historical meaning - the
+	 * number of entity body storage parts - while the live/archived split is read from the cardinality of the global
+	 * index of each scope. Both are counter reads rather than walks, which is what allows this component to stay
+	 * catalog-level.
+	 *
+	 * The two are *not* guaranteed to reconcile: a body part that belongs to neither global index counts towards
+	 * `totalRecords` alone, and surfacing that difference is the point of reporting all three numbers.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#RECORD_COUNTS} component
+	 */
+	@Nonnull
+	private RecordCounts countRecords() {
+		long totalRecords = 0L;
+		long liveRecords = 0L;
+		long archivedRecords = 0L;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			final CollectionRecordCounts collectionCounts = collection.countRecords();
+			totalRecords += collectionCounts.totalRecords();
+			liveRecords += collectionCounts.liveRecords();
+			archivedRecords += collectionCounts.archivedRecords();
+		}
+		return new RecordCounts(totalRecords, liveRecords, archivedRecords);
+	}
+
+	/**
+	 * Measures the catalog's footprint on disk. The total is the same number the catalog has always reported, so the
+	 * gRPC field and the metric series derived from it keep their exact value; none of it is attributed to a storage
+	 * class yet, so the whole of it is reported as `unaccountedBytes` - honestly *measured, not yet attributed*.
+	 * Later stages move bytes out of that remainder into the classes they belong to, which is precisely the signal
+	 * the field exists to carry.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component
+	 */
+	@Nonnull
+	private StorageSizeStatistics measureStorageSize() {
+		final long sizeOnDiskInBytes = this.persistenceService.getSizeOnDiskInBytes();
+		return new StorageSizeStatistics(sizeOnDiskInBytes, 0L, 0L, 0L, 0L, 0L, 0L, 0L, sizeOnDiskInBytes);
 	}
 
 	/**
@@ -1503,28 +1544,6 @@ public final class Catalog
 			totalIndexCount += collection.getIndexCount();
 		}
 		return totalIndexCount;
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics getStatistics() {
-		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
-			.stream()
-			.map(EntityCollection::getStatistics)
-			.toArray(EntityCollectionStatistics[]::new);
-		final CatalogState catalogState = getCatalogState();
-		return new CatalogStatistics(
-			getCatalogId(),
-			getName(),
-			!catalogState.isActive(),
-			this.readOnly.get(),
-			catalogState,
-			getVersion(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
-			this.persistenceService.getSizeOnDiskInBytes(),
-			collectionStatistics
-		);
 	}
 
 	@Override

@@ -24,13 +24,15 @@
 package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -1025,26 +1027,12 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public EntityCollectionStatistics getStatistics() {
-		return new EntityCollectionStatistics(
-			getEntityType(),
-			size(),
-			this.indexes.size(),
-			this.persistenceService.getSizeOnDiskInBytes()
-		);
-	}
-
-	@Nonnull
-	@Override
-	public io.evitadb.api.statistics.EntityCollectionStatistics getStatistics(
-		@Nonnull Set<CatalogStatisticsComponent> components
-	) {
+	public EntityCollectionStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
 		// this.catalog is single-assign (see attachCatalogShell), so it is the catalog generation this collection
 		// instance belongs to - the identity and the indexes walked below therefore describe the same version
-		final io.evitadb.api.statistics.EntityCollectionStatistics.Builder builder =
-			io.evitadb.api.statistics.EntityCollectionStatistics.builder(
-				this.catalog.getIdentity(), getEntityType()
-			);
+		final EntityCollectionStatistics.Builder builder = EntityCollectionStatistics.builder(
+			this.catalog.getIdentity(), getEntityType()
+		);
 		for (final CatalogStatisticsComponent component : components) {
 			if (!component.isCollectionLevel()) {
 				throw new EvitaInvalidUsageException(
@@ -1055,7 +1043,9 @@ public final class EntityCollection implements
 				// always recorded by the builder itself, since nothing else can be interpreted without it
 				case IDENTITY -> { }
 				case INDEX_SUMMARY -> builder.withIndexSummary(summarizeIndexes());
-				case COLLECTIONS, RECORD_COUNTS, STORAGE_SIZE, STORAGE_COMPOSITION, FRAGMENTATION,
+				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
+				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
+				case COLLECTIONS, STORAGE_COMPOSITION, FRAGMENTATION,
 					VOLATILE_STATE -> builder.withUnavailable(
 						component,
 						ComponentAvailability.NOT_SUPPORTED,
@@ -1087,6 +1077,56 @@ public final class EntityCollection implements
 	 */
 	public int getIndexCount() {
 		return this.indexes.size();
+	}
+
+	/**
+	 * Counts the records of this collection. `totalRecords` keeps the meaning it has always had - the number of entity
+	 * body storage parts, which is what {@link #size()} reports - while the live/archived split is the cardinality of
+	 * the global index of each scope.
+	 *
+	 * Archiving an entity moves it between global indexes but leaves its body storage part in place, so `totalRecords`
+	 * has never distinguished the two; the split is the number a client actually wants. The three are read from
+	 * separate sources and are deliberately not reconciled - a body part in neither global index counts towards
+	 * `totalRecords` alone, and that difference is worth seeing rather than hiding.
+	 *
+	 * Both reads are counters (a storage-part count and a bitmap cardinality), never a walk, which is what allows the
+	 * catalog to sum this across every collection on every statistics request.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#RECORD_COUNTS} component of this collection
+	 */
+	@Nonnull
+	public CollectionRecordCounts countRecords() {
+		int liveRecords = 0;
+		int archivedRecords = 0;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
+			if (globalIndex != null) {
+				final int scopeRecords = globalIndex.getAllPrimaryKeys().size();
+				switch (scope) {
+					case LIVE -> liveRecords = scopeRecords;
+					case ARCHIVED -> archivedRecords = scopeRecords;
+					// a scope added without a counter here would silently vanish from the split while still counting
+					// towards `totalRecords`, manufacturing the very reconciliation gap this record reports as signal
+					default -> throw new GenericEvitaInternalError(
+						"Scope `" + scope + "` has no record counter in the statistics component!"
+					);
+				}
+			}
+		}
+		return new CollectionRecordCounts(size(), liveRecords, archivedRecords);
+	}
+
+	/**
+	 * Measures this collection's footprint on disk - the summed lengths of the data files whose names belong to it.
+	 * Nothing is attributed to a storage class yet, so the whole total is reported as `unaccountedBytes`; see
+	 * {@link CollectionStorageSize} for why that keeps the record's invariant true by construction.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
+	 */
+	@Nonnull
+	private CollectionStorageSize measureStorageSize() {
+		final long sizeOnDiskInBytes = this.persistenceService.getSizeOnDiskInBytes();
+		return new CollectionStorageSize(sizeOnDiskInBytes, 0L, 0L, 0L, sizeOnDiskInBytes);
 	}
 
 	/**

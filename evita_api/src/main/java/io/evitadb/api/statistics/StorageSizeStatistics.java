@@ -55,6 +55,13 @@ package io.evitadb.api.statistics;
  * task on catalog-version exchange, so they are a short transient. `awaitingDeletionBytes` is therefore reported
  * unconditionally - only `walBytes` is genuinely gated on time travel being enabled.
  *
+ * That difference decides what to *do* about a large value, which is why the class is split further. With time travel
+ * on, these bytes are the price of the history window and the lever is WAL retention - compaction has already run on
+ * them and will not reclaim them again. With it off, a value that stays high is not retention at all but an open
+ * reader or writer pinning old catalog versions, which is what `blockedByActiveReaderBytes` isolates; if instead
+ * `purgeableBytes` dominates, nothing is blocking and the purge task is simply behind. Deleting these files by hand
+ * is never the remedy in either mode - a reader may still be holding them.
+ *
  * **Reading for a degraded catalog**
  *
  * Delivered even when the catalog is unusable: file sizes are readable regardless of whether the catalog loads. The

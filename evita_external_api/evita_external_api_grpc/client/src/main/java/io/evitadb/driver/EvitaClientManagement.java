@@ -28,7 +28,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
 import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
-import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
@@ -116,21 +115,6 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		);
 		this.evitaManagementServiceStub = grpcClientBuilder.build(EvitaManagementServiceStub.class);
 		this.evitaManagementServiceFutureStub = grpcClientBuilder.build(EvitaManagementServiceFutureStub.class);
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics[] getCatalogStatistics() {
-		this.evitaClient.assertActive();
-
-		final GrpcEvitaCatalogStatisticsResponse response = executeWithEvitaService(
-			evitaService -> evitaService.getCatalogStatistics(Empty.newBuilder().build())
-		);
-
-		return response.getCatalogStatisticsList()
-			.stream()
-			.map(EvitaDataTypesConverter::toCatalogStatistics)
-			.toArray(CatalogStatistics[]::new);
 	}
 
 	@Nonnull

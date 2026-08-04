@@ -25,8 +25,6 @@ package io.evitadb.driver;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
@@ -1789,42 +1787,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
-	 * Verifies that catalog statistics can be retrieved from the management API.
-	 *
-	 * This test checks that the client can successfully fetch catalog statistics including:
-	 * - Catalog name, state, and version
-	 * - Total records and index count
-	 * - Size on disk in bytes
-	 * - Entity collection statistics for all entity types
-	 */
-	@Test
-	@DisplayName("retrieve catalog statistics")
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
-		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
-
-		assertEquals(1, catalogStatistics.length);
-		final CatalogStatistics statistics = catalogStatistics[0];
-
-		assertEquals(TEST_CATALOG, statistics.catalogName());
-		assertFalse(statistics.unusable());
-		assertFalse(statistics.readOnly());
-		assertEquals(CatalogState.ALIVE, statistics.catalogState());
-		assertEquals(2, statistics.catalogVersion());
-		assertTrue(statistics.totalRecords() > 1);
-		assertTrue(statistics.indexCount() > 1);
-		assertTrue(statistics.sizeOnDiskInBytes() > 1);
-		assertEquals(7, statistics.entityCollectionStatistics().length);
-
-		for (EntityCollectionStatistics entityCollectionStatistics : statistics.entityCollectionStatistics()) {
-			assertNotNull(entityCollectionStatistics.entityType());
-			assertTrue(entityCollectionStatistics.totalRecords() > 0);
-			assertTrue(entityCollectionStatistics.indexCount() > 0);
-			assertTrue(entityCollectionStatistics.sizeOnDiskInBytes() > 0);
-		}
-	}
-
-	/**
 	 * Verifies that catalog version information can be retrieved at specific moments in time.
 	 *
 	 * This test checks that the client can successfully fetch catalog version information:
@@ -1836,14 +1798,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("retrieve catalog version at specific moment")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCatalogVersionAtTheMoment(EvitaClient evitaClient) {
-		final long lastCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
-			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
-			.map(CatalogStatistics::catalogVersion)
-			.findFirst()
-			.orElseThrow();
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final long lastCatalogVersion = session.getCatalogVersion();
 				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(OffsetDateTime.now());
 				assertEquals(lastCatalogVersion, catalogVersionAt.startVersion());
 				assertEquals(lastCatalogVersion, catalogVersionAt.endVersion());
@@ -1870,11 +1828,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("retrieve catalog and schema version on fresh read-only session")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCatalogVersionOnFreshReadOnlySession(EvitaClient evitaClient) {
-		final long expectedCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
-			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
-			.map(CatalogStatistics::catalogVersion)
-			.findFirst()
-			.orElseThrow();
+		final long expectedCatalogVersion = evitaClient.queryCatalog(
+			TEST_CATALOG, EvitaSessionContract::getCatalogVersion
+		);
 		assertTrue(expectedCatalogVersion > 0, "test precondition: catalog must have advanced past version zero");
 
 		try (final EvitaClient freshClient = new EvitaClient(evitaClient.getConfiguration())) {

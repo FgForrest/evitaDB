@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -40,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -109,7 +110,7 @@ import java.util.UUID;
  *
  * **Statistics and Monitoring**
  *
- * - {@link #getStatistics()}: Collection-level metrics (record count, index count, disk size)
+ * - {@link #getStatistics(Set)}: Collection-level metrics, computed only for the components asked for
  * - {@link #isEmpty()}, {@link #size()}: Quick checks for collection state
  * - {@link #getVersion()}: Mutation version for change tracking
  *
@@ -465,34 +466,24 @@ public interface EntityCollectionContract {
 	long getVersion();
 
 	/**
-	 * Returns entity collection statistics aggregating basic information about the entity collection and the data
-	 * stored in it.
-	 *
-	 * @return statistics about the entity collection
-	 */
-	@Nonnull
-	EntityCollectionStatistics getStatistics();
-
-	/**
 	 * Returns a component-selected snapshot of this entity collection's statistics.
 	 *
 	 * Only the named components are computed; each of them gets an entry in
-	 * {@link io.evitadb.api.statistics.EntityCollectionStatistics#componentStatus()} saying whether it was delivered
-	 * and, if not, why. {@link io.evitadb.api.statistics.CatalogStatisticsComponent#IDENTITY} is always delivered,
-	 * requested or not.
+	 * {@link EntityCollectionStatistics#componentStatus()} saying whether it was delivered and, if not, why.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is always delivered, requested or not.
 	 *
 	 * This is the only way to obtain per-collection numbers - {@link CatalogContract#getStatistics(Set)} reports
 	 * catalog-wide aggregates and never breaks them down by collection. The two are independent snapshots that may
 	 * observe different catalog versions.
 	 *
 	 * @param components the components to compute; every one of them must satisfy
-	 *                   {@link io.evitadb.api.statistics.CatalogStatisticsComponent#isCollectionLevel()}
+	 *                   {@link CatalogStatisticsComponent#isCollectionLevel()}
 	 * @return the snapshot, carrying the requested components and the status of each
 	 * @throws EvitaInvalidUsageException when a component that has no collection-level form is requested
 	 */
 	@Nonnull
-	io.evitadb.api.statistics.EntityCollectionStatistics getStatistics(
-		@Nonnull Set<io.evitadb.api.statistics.CatalogStatisticsComponent> components
+	EntityCollectionStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
 	) throws EvitaInvalidUsageException;
 
 	/**

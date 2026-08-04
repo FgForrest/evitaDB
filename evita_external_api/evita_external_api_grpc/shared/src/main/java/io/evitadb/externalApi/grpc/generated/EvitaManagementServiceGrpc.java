@@ -635,9 +635,14 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+     * procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+     * shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+     * unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+     * collection. Its semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     default void getCatalogStatistics(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogStatisticsMethod(), responseObserver);
@@ -838,9 +843,14 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+     * procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+     * shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+     * unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+     * collection. Its semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public void getCatalogStatistics(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
@@ -1036,9 +1046,14 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+     * procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+     * shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+     * unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+     * collection. Its semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse getCatalogStatistics(com.google.protobuf.Empty request) throws io.grpc.StatusException {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogStatisticsMethod(), getCallOptions(), request);
@@ -1225,9 +1240,14 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+     * procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+     * shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+     * unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+     * collection. Its semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse getCatalogStatistics(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetCatalogStatisticsMethod(), getCallOptions(), request);
@@ -1403,9 +1423,14 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by the component-selected catalog and entity collection statistics
+     * procedures. This one computes every statistic of every catalog on every call and returns them in a fixed flat
+     * shape whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an
+     * unknown value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one
+     * collection. Its semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> getCatalogStatistics(
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
