@@ -36,6 +36,10 @@ package io.evitadb.api.statistics;
  * Not delivered for an unusable catalog - it has no session registry. The component status carries
  * {@link ComponentAvailability#CATALOG_UNUSABLE}.
  *
+ * A *loaded* catalog nobody has opened a session against yet has no session registry either, because the registry is
+ * created on the first session. That case reports three zeroes and a `DELIVERED` status rather than an unavailable
+ * component: "no sessions are open" is a measurement, not a missing one.
+ *
  * @param activeSessions          total number of sessions currently open against the catalog
  * @param activeReadOnlySessions  sessions opened in read-only mode
  * @param activeReadWriteSessions sessions opened in read-write mode

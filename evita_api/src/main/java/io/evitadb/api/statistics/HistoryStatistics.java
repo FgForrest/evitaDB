@@ -37,26 +37,36 @@ import java.util.Optional;
  * that stops advancing is the direct explanation for disk space that will not come back. evitaLab surfaces it as
  * *deletion floor*; the two names are deliberately mapped to each other rather than left to drift apart.
  *
+ * **A floor of `0` means nothing is pinned, not that something is pinned at version zero.** The floor is only raised
+ * when consumers of a version leave, so it stays `0` on a catalog no session has finished reading yet - which blocks
+ * nothing, and is why `blockedByActiveReaderBytes` can be `0` while `awaitingDeletionBytes` is not.
+ *
  * **Cost** - bounded file IO. Determining the time-travel window is a seek-read of the bootstrap file, which is why
  * it belongs here and not in {@link CatalogIdentity}.
  *
  * **Reading for a degraded catalog**
  *
- * Not delivered for an unusable catalog. When WAL retention is switched off, `timeTravelEnabled` is false,
- * `walBytes` and `walFileCount` read `0` and the window versions read `-1`; the awaiting-deletion figures stay
- * meaningful because superseded files exist in both modes.
+ * Not delivered for an unusable catalog. Every other reading holds in both retention modes: the write-ahead log is
+ * trimmed to a fixed number of files whether or not time travel is on, so `walFileCount` and `walBytes` are non-zero
+ * either way - time travel widens the retained window rather than creating it - and superseded files exist in both
+ * modes too. What genuinely differs is the *window*: see `oldestAvailableCatalogVersion`.
  *
  * @param timeTravelEnabled            true when WAL retention keeps history available for time travel
- * @param oldestAvailableCatalogVersion oldest catalog version still readable; `-1` when no history is retained
+ * @param oldestAvailableCatalogVersion oldest catalog version whose data is still readable. With time travel disabled
+ *                                     this equals `newestCatalogVersion`: obsolete data files are purged against the
+ *                                     current header, so nothing older survives - and the bootstrap file, which is
+ *                                     never trimmed, still *lists* those older versions even though they can no
+ *                                     longer be read. `-1` only when the window could not be determined at all
  * @param oldestAvailableTimestamp     wall-clock time of `oldestAvailableCatalogVersion`; null when unknown
  * @param newestCatalogVersion         newest catalog version; `-1` when unknown
  * @param newestTimestamp              wall-clock time of `newestCatalogVersion`; null when unknown
  * @param walFileCount                 number of retained write-ahead log files
  * @param walBytes                     total bytes of the retained write-ahead log files
- * @param activeReaderFloor            oldest catalog version still referenced by an open reader or writer
+ * @param activeReaderFloor            oldest catalog version still referenced by an open reader or writer; `0` means
+ *                                     none has been observed yet and therefore that nothing is pinned
  * @param awaitingDeletionFileCount    number of superseded data files not yet purged
  * @param awaitingDeletionBytes        total bytes of those files
- * @param blockedByActiveReaderBytes   part of them pinned above `activeReaderFloor`
+ * @param blockedByActiveReaderBytes   part of them pinned at or above `activeReaderFloor`
  * @param purgeableBytes               part of them nothing blocks, waiting only on the purge mechanism
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

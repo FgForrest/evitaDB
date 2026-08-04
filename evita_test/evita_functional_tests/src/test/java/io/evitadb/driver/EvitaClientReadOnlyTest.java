@@ -35,12 +35,16 @@ import io.evitadb.api.proxy.mock.ProductInterface;
 import io.evitadb.api.proxy.mock.TestEntity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.StoragePartUsage;
+import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2230,7 +2234,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			EnumSet.of(
 				CatalogStatisticsComponent.RECORD_COUNTS,
 				CatalogStatisticsComponent.STORAGE_SIZE,
-				CatalogStatisticsComponent.SESSIONS
+				CatalogStatisticsComponent.HISTORY,
+				CatalogStatisticsComponent.VOLATILE_STATE,
+				CatalogStatisticsComponent.FRAGMENTATION
 			)
 		);
 
@@ -2246,11 +2252,40 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(recordCounts.liveRecords() + recordCounts.archivedRecords(), recordCounts.totalRecords());
 		assertTrue(statistics.storageSizeIfPresent().orElseThrow().sizeOnDiskInBytes() > 0);
 
-		// requested but this build cannot compute it - the client must be told why, not left guessing
-		assertNull(statistics.sessions());
-		final ComponentStatus sessionStatus = statistics.statusOf(CatalogStatisticsComponent.SESSIONS).orElseThrow();
-		assertEquals(ComponentAvailability.NOT_SUPPORTED, sessionStatus.availability());
-		assertNotNull(sessionStatus.reason());
+		// the nullable timestamps are the part of these two components the hand-built converter round-trip cannot
+		// exercise: nothing but a real engine produces a populated `HistoryStatistics`, and `oldestRecordKeptTimestamp`
+		// is null in the ordinary case. A `hasX() ? ... : null` omission in the decoder turns the second into an
+		// epoch-zero instant, which reads as a real answer
+		final HistoryStatistics history = statistics.historyIfPresent().orElseThrow();
+		assertTrue(history.newestCatalogVersion() > 0, history.toString());
+		assertTrue(
+			history.newestTimestampIfKnown().isPresent(),
+			"A populated catalog has a newest version, so its timestamp must survive the wire: " + history
+		);
+		assertTrue(history.walFileCount() >= 0 && history.walBytes() >= 0, history.toString());
+		assertEquals(
+			history.awaitingDeletionBytes(),
+			history.blockedByActiveReaderBytes() + history.purgeableBytes(),
+			"The blocked/purgeable split must still partition after decoding: " + history
+		);
+
+		final VolatileStateStatistics volatileState = statistics.volatileStateIfPresent().orElseThrow();
+		assertTrue(volatileState.totalSizeIncludingVolatileDataBytes() > 0, volatileState.toString());
+		assertEquals(
+			volatileState.oldestRecordKeptTimestamp() == null,
+			volatileState.oldestRecordKeptTimestampIfAny().isEmpty(),
+			"An absent retained-history timestamp must decode back to absent, never to an epoch-zero instant"
+		);
+
+		// requested but this build cannot compute it - the client must be told why, not left guessing. Whichever
+		// component stands here must still be declined: it is the only end-to-end proof that a component the engine
+		// refused arrives as a status rather than as a silently missing field. `SESSIONS` held this place until it
+		// was delivered, and `ACTIVITY`/`DURABILITY` cannot take it because neither has a record type yet
+		assertNull(statistics.fragmentation());
+		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.FRAGMENTATION)
+			.orElseThrow();
+		assertEquals(ComponentAvailability.NOT_SUPPORTED, declinedStatus.availability());
+		assertNotNull(declinedStatus.reason());
 
 		// never requested - absent, and with no status entry to be mistaken for one
 		assertNull(statistics.collections());
@@ -2271,7 +2306,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			EnumSet.of(
 				CatalogStatisticsComponent.RECORD_COUNTS,
 				CatalogStatisticsComponent.INDEX_SUMMARY,
-				CatalogStatisticsComponent.STORAGE_COMPOSITION
+				CatalogStatisticsComponent.STORAGE_COMPOSITION,
+				CatalogStatisticsComponent.COLLECTIONS,
+				CatalogStatisticsComponent.VOLATILE_STATE
 			)
 		);
 
@@ -2297,6 +2334,22 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			summedBytes += part.totalBytes();
 		}
 		assertTrue(summedBytes > 0, "The breakdown lost every byte on the way through the wire");
+
+		// COLLECTIONS carries a *different* sub-message at each level - the inventory at the catalog level, these
+		// header counters here - which a client implementer reading only the proto has no way to infer, so it is
+		// worth one assertion that the collection level really decodes into the header shape
+		final CollectionHeaderInfo header = statistics.headerIfPresent().orElseThrow();
+		assertTrue(header.entityTypePrimaryKey() > 0, header.toString());
+		assertTrue(header.version() > 0, header.toString());
+		assertTrue(header.maxRecordSizeBytes() > 0, header.toString());
+
+		final CollectionVolatileState volatileState = statistics.volatileStateIfPresent().orElseThrow();
+		assertTrue(volatileState.totalSizeIncludingVolatileDataBytes() > 0, volatileState.toString());
+		assertEquals(
+			volatileState.oldestRecordKeptTimestamp() == null,
+			volatileState.oldestRecordKeptTimestampIfAny().isEmpty(),
+			"An absent retained-history timestamp must decode back to absent, never to an epoch-zero instant"
+		);
 	}
 
 	/**

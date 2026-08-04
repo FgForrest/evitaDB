@@ -25,11 +25,13 @@ package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
+import io.evitadb.api.statistics.CollectionVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
@@ -160,6 +162,7 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -1044,12 +1047,13 @@ public final class EntityCollection implements
 				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
 				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
 				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
-				case COLLECTIONS, FRAGMENTATION,
-					VOLATILE_STATE -> builder.withUnavailable(
-						component,
-						ComponentAvailability.NOT_SUPPORTED,
-						"Statistics component `" + component + "` is not computed by this version yet."
-					);
+				case COLLECTIONS -> builder.withHeader(describeHeader());
+				case VOLATILE_STATE -> builder.withVolatileState(describeVolatileState());
+				case FRAGMENTATION -> builder.withUnavailable(
+					component,
+					ComponentAvailability.NOT_SUPPORTED,
+					"Statistics component `" + component + "` is not computed by this version yet."
+				);
 				// kept apart from the arm above because these two are the expensive pair - they arrive last and
 				// their absence is a different statement than "not implemented yet for this collection"
 				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> builder.withUnavailable(
@@ -1140,6 +1144,61 @@ public final class EntityCollection implements
 		return new CollectionStorageComposition(
 			StoragePartProjection.toStoragePartUsage(this.persistenceService.measureStoragePartComposition())
 		);
+	}
+
+	/**
+	 * Reads the counters this collection's storage header carries, plus the high-water mark of the largest record its
+	 * data store has ever held.
+	 *
+	 * **`maxRecordSizeBytes` is *largest ever seen*, not *largest currently stored*.** It is only ever widened, so
+	 * removing the biggest record never lowers it - see
+	 * {@link io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService#getMaxRecordSizeBytes()}.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COLLECTIONS} component of this collection
+	 */
+	@Nonnull
+	private CollectionHeaderInfo describeHeader() {
+		final EntityCollectionHeader header = this.persistenceService.getEntityCollectionHeader();
+		return new CollectionHeaderInfo(
+			header.entityTypePrimaryKey(),
+			header.version(),
+			header.lastPrimaryKey(),
+			header.lastEntityIndexPrimaryKey(),
+			header.lastInternalPriceId(),
+			header.lastKeyId(),
+			this.persistenceService.getMaxRecordSizeBytes()
+		);
+	}
+
+	/**
+	 * Reports what this collection's data store holds in memory rather than on disk.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component of this collection
+	 */
+	@Nonnull
+	private CollectionVolatileState describeVolatileState() {
+		final VolatileDataFootprint footprint = measureVolatileData();
+		return new CollectionVolatileState(
+			footprint.totalSizeIncludingVolatileDataBytes(),
+			footprint.nonFlushedRecordCount(),
+			footprint.nonFlushedSizeBytes(),
+			footprint.oldestRecordKeptTimestamp()
+		);
+	}
+
+	/**
+	 * Reports what this collection's data store holds in memory rather than on disk, in the storage layer's own shape.
+	 *
+	 * Public rather than private because the catalog folds every collection's footprint into its own to answer
+	 * {@link CatalogStatisticsComponent#VOLATILE_STATE} at catalog level and lives in another package. Folding the
+	 * already-projected API records instead would put the `min` rule for the retained-history timestamp in a second
+	 * place.
+	 *
+	 * @return what this collection's data store holds that is not on disk
+	 */
+	@Nonnull
+	public VolatileDataFootprint measureVolatileData() {
+		return this.persistenceService.measureVolatileData();
 	}
 
 	@Nonnull

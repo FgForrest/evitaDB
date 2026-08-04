@@ -32,12 +32,16 @@ package io.evitadb.api.statistics;
  * and only ever widened on flush; removing the biggest record never lowers it. It therefore means *largest record ever
  * seen in this collection*, and must be labelled that way wherever it is displayed.
  *
- * **On `lastPrimaryKey`** - the gap between it and the collection's record count reveals how many entities have been
- * deleted over the collection's lifetime.
+ * **On `lastPrimaryKey`** - this is the high-water mark of the collection's *auto-generated* key sequence, not the
+ * largest primary key in use. A client that supplies its own primary keys never advances the sequence, so a
+ * collection holding fifty explicitly-keyed entities reports `0` here. Where keys *are* generated, the gap between it
+ * and the collection's record count is the number of entities deleted over the collection's lifetime; where they are
+ * not, the number carries no such reading and must not be presented as one.
  *
  * @param entityTypePrimaryKey      internal primary key assigned to the entity type itself
  * @param version                   version of the collection header, incremented on every flush
- * @param lastPrimaryKey            highest entity primary key assigned so far
+ * @param lastPrimaryKey            highest entity primary key the collection has generated so far; `0` when every
+ *                                  key was supplied by the client
  * @param lastEntityIndexPrimaryKey highest entity index primary key assigned so far
  * @param lastInternalPriceId       highest internal price id assigned so far
  * @param lastKeyId                 highest storage key id assigned so far

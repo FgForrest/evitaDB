@@ -39,12 +39,19 @@ package io.evitadb.api.statistics;
  * compatibility and is documented as the sum of the two; `liveRecords` and `archivedRecords` are the numbers a caller
  * actually wants.
  *
+ * **Deletion behaves the same way, and more sharply.** A deleted entity's body storage part is not removed from the
+ * data store either - it is superseded, and only reclaimed when that data store is compacted. So `totalRecords` also
+ * counts un-compacted tombstoned bodies, and it can stay flat for a long time after a mass delete while `liveRecords`
+ * drops to zero immediately. That gap is a fragmentation signal, not a miscount: it is precisely the space compaction
+ * would reclaim.
+ *
  * **Reading for a degraded catalog**
  *
  * Not delivered at all for an unusable catalog - the counts require a loaded catalog. The component status carries
  * {@link ComponentAvailability#CATALOG_UNUSABLE}.
  *
- * @param totalRecords    live plus archived entities across all collections
+ * @param totalRecords    entity body storage parts across all collections - live plus archived, plus any deleted
+ *                        body a compaction has not reclaimed yet
  * @param liveRecords     entities in {@link io.evitadb.dataType.Scope#LIVE}
  * @param archivedRecords entities in {@link io.evitadb.dataType.Scope#ARCHIVED}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

@@ -1,0 +1,514 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.core;
+
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionHeaderInfo;
+import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.CommitPipelineStatistics;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.ComponentStatus;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.HistoryStatistics;
+import io.evitadb.api.statistics.SessionStatistics;
+import io.evitadb.api.statistics.VolatileStateStatistics;
+import io.evitadb.test.EvitaTestSupport;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.util.EnumSet;
+import java.util.Set;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Verifies the statistics components that are plain counter reads - sessions, the commit pipeline watermarks, the
+ * time-travel window and what is pinning disk, the collection header counters, and the state held in memory rather
+ * than on disk.
+ *
+ * The first two tests are the ones that earn their keep beyond the individual numbers: they request *every*
+ * level-appropriate component at once and assert the exact delivered / not-delivered partition. Implementing a
+ * component and forgetting to move it out of the catch-all `NOT_SUPPORTED` arm of the dispatch switch compiles
+ * cleanly and reports "not supported" forever, and nothing else in the suite would notice.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@Slf4j
+@DisplayName("Cheap scalar statistics components")
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+class CheapScalarStatisticsTest implements EvitaTestSupport {
+	private static final String CATALOG = "cheapScalarStatisticsTest";
+	private static final String ENTITY_PRODUCT = "product";
+	private static final String ENTITY_CATEGORY = "category";
+	private static final String ENTITY_BRAND = "brand";
+
+	/**
+	 * The catalog-level components no build of this branch computes yet. Everything else must come back
+	 * {@link ComponentAvailability#DELIVERED} from a healthy, transactional catalog.
+	 */
+	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED = EnumSet.of(
+		CatalogStatisticsComponent.ACTIVITY,
+		CatalogStatisticsComponent.FRAGMENTATION,
+		CatalogStatisticsComponent.DURABILITY
+	);
+	/**
+	 * The collection-level components no build of this branch computes yet.
+	 */
+	private static final Set<CatalogStatisticsComponent> COLLECTION_LEVEL_NOT_SUPPORTED = EnumSet.of(
+		CatalogStatisticsComponent.FRAGMENTATION,
+		CatalogStatisticsComponent.INDEX_CARDINALITY,
+		CatalogStatisticsComponent.MEMORY_FOOTPRINT
+	);
+
+	private TestPaths paths;
+	private Evita evita;
+
+	@BeforeEach
+	void setUp() {
+		this.paths = createTestPaths("CheapScalarStatisticsTest");
+		this.evita = new Evita(getEvitaConfiguration(false));
+		buildCatalog(this.evita);
+	}
+
+	@AfterEach
+	void tearDown() {
+		this.evita.close();
+		cleanupTestPaths(this.paths);
+	}
+
+	@Test
+	@DisplayName("Every catalog-level component either answers or says why it cannot")
+	void shouldPartitionCatalogLevelComponentsIntoDeliveredAndNotSupported() {
+		goLive();
+		final CatalogStatistics statistics = this.evita.management().getCatalogStatistics(
+			CATALOG, catalogLevelComponents()
+		);
+
+		for (final CatalogStatisticsComponent component : catalogLevelComponents()) {
+			final ComponentStatus status = statistics.componentStatus().get(component);
+			assertNotNull(status, "Component `" + component + "` was requested but carries no status at all");
+			if (CATALOG_LEVEL_NOT_SUPPORTED.contains(component)) {
+				assertEquals(
+					ComponentAvailability.NOT_SUPPORTED, status.availability(),
+					"Component `" + component + "` is not implemented yet and must say so"
+				);
+			} else {
+				assertEquals(
+					ComponentAvailability.DELIVERED, status.availability(),
+					"Component `" + component + "` is implemented but reported `" + status.availability() +
+						"` - most likely it was never moved out of the catch-all arm of the dispatch switch"
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Every collection-level component either answers or says why it cannot")
+	void shouldPartitionCollectionLevelComponentsIntoDeliveredAndNotSupported() {
+		final EntityCollectionStatistics statistics = this.evita.management().getEntityCollectionStatistics(
+			CATALOG, ENTITY_PRODUCT, collectionLevelComponents()
+		);
+
+		for (final CatalogStatisticsComponent component : collectionLevelComponents()) {
+			final ComponentStatus status = statistics.componentStatus().get(component);
+			assertNotNull(status, "Component `" + component + "` was requested but carries no status at all");
+			if (COLLECTION_LEVEL_NOT_SUPPORTED.contains(component)) {
+				assertEquals(
+					ComponentAvailability.NOT_SUPPORTED, status.availability(),
+					"Component `" + component + "` is not implemented yet and must say so"
+				);
+			} else {
+				assertEquals(
+					ComponentAvailability.DELIVERED, status.availability(),
+					"Component `" + component + "` is implemented but reported `" + status.availability() +
+						"` - most likely it was never moved out of the catch-all arm of the dispatch switch"
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("Open sessions are counted and split by whether they may write")
+	void shouldCountOpenSessionsSplitByMode() {
+		// two sessions of *different* modes have to be open at the same time: with one session the read-only and the
+		// read-write counter cannot be told apart, so a swapped mapping would pass
+		goLive();
+		assertEquals(new SessionStatistics(0, 0, 0), fetchSessions(), "A quiet catalog has no sessions open");
+
+		try (
+			final EvitaSessionContract readOnly = this.evita.createReadOnlySession(CATALOG);
+			final EvitaSessionContract readWrite = this.evita.createReadWriteSession(CATALOG)
+		) {
+			assertTrue(readOnly.isActive() && readWrite.isActive());
+			assertEquals(new SessionStatistics(2, 1, 1), fetchSessions());
+		}
+
+		assertEquals(
+			new SessionStatistics(0, 0, 0), fetchSessions(),
+			"Closed sessions must stop being counted - a count that never falls is the symptom this component exists " +
+				"to make visible, and it would be meaningless if it were the component's own bug"
+		);
+	}
+
+	@Test
+	@DisplayName("A warming-up catalog declines the commit pipeline rather than reporting an idle one")
+	void shouldDeclineTheCommitPipelineWhileWarmingUp() {
+		// four zeroes would render as a pipeline with nothing queued anywhere - i.e. perfectly healthy - which is the
+		// exact inverse of the truth: in WARM_UP writes bypass the pipeline and none of its watermarks ever move
+		final CatalogStatistics warmingUp = this.evita.management().getCatalogStatistics(
+			CATALOG, EnumSet.of(CatalogStatisticsComponent.COMMIT_PIPELINE)
+		);
+		assertTrue(warmingUp.commitPipelineIfPresent().isEmpty());
+		assertEquals(
+			ComponentAvailability.FEATURE_DISABLED,
+			warmingUp.componentStatus().get(CatalogStatisticsComponent.COMMIT_PIPELINE).availability()
+		);
+
+		goLive();
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 1_000));
+			}
+		);
+
+		final CatalogStatistics alive = this.evita.management().getCatalogStatistics(
+			CATALOG, EnumSet.of(CatalogStatisticsComponent.COMMIT_PIPELINE)
+		);
+		final CommitPipelineStatistics pipeline = alive.commitPipelineIfPresent().orElseThrow();
+		assertTrue(pipeline.lastAssignedCatalogVersion() > 0, pipeline.toString());
+		// the watermarks are read in pipeline order, so no lag may come out negative however the stages interleave
+		assertTrue(pipeline.writeLag() >= 0, pipeline.toString());
+		assertTrue(pipeline.durabilityLag() >= 0, pipeline.toString());
+		assertTrue(pipeline.visibilityLag() >= 0, pipeline.toString());
+	}
+
+	@Test
+	@DisplayName("Without time travel the history window is the current version alone")
+	void shouldReportADegenerateHistoryWindowWithoutTimeTravel() {
+		goLive();
+		for (int i = 0; i < 3; i++) {
+			final int pk = 1_000 + i;
+			this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, pk));
+				}
+			);
+		}
+
+		final HistoryStatistics history = fetchHistory(this.evita);
+		assertFalse(history.timeTravelEnabled());
+		// the bootstrap file is never trimmed, so it still *lists* the older versions - but obsolete data files are
+		// purged against the current header, so nothing older can actually be read. Reporting the bootstrap's oldest
+		// record as the start of the window would promise history that is not there
+		assertEquals(
+			history.newestCatalogVersion(), history.oldestAvailableCatalogVersion(),
+			"With time travel off the readable window is the current version alone: " + history
+		);
+		assertTrue(history.newestCatalogVersion() > 0, history.toString());
+		assertNotNull(history.newestTimestampIfKnown().orElse(null));
+
+		// the write-ahead log is retained in both modes - time travel widens the window rather than creating one
+		assertTrue(history.walFileCount() > 0, "The write-ahead log was not counted: " + history);
+		assertTrue(history.walBytes() > 0, "The write-ahead log was not measured: " + history);
+
+		// the floor is raised only when the consumers of a version leave, never when one arrives - so it stays `0`
+		// until a session has *closed*, and each transactional write above closed one. Asserting `> 0` rather than
+		// `>= 0` is what distinguishes a wired-up field from one that is always the "nothing observed yet" default
+		assertTrue(history.activeReaderFloor() > 0, "The active reader floor never advanced: " + history);
+		assertTrue(history.awaitingDeletionFileCount() >= 0, history.toString());
+		assertEquals(
+			history.awaitingDeletionBytes(),
+			history.blockedByActiveReaderBytes() + history.purgeableBytes(),
+			"The blocked/purgeable split must partition the files awaiting deletion: " + history
+		);
+	}
+
+	@Test
+	@DisplayName("With time travel the history window reaches back past the current version")
+	void shouldReportAWideHistoryWindowWithTimeTravel() {
+		// the only test exercising the other branch of the window - and the one that would catch the window being
+		// hard-wired to the current version rather than genuinely read from the bootstrap file
+		final TestPaths timeTravelPaths = createTestPaths("CheapScalarStatisticsTest_tt");
+		try (final Evita timeTravelling = new Evita(getEvitaConfiguration(timeTravelPaths, true))) {
+			buildCatalog(timeTravelling);
+			timeTravelling.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+			for (int i = 0; i < 3; i++) {
+				final int pk = 1_000 + i;
+				timeTravelling.updateCatalog(
+					CATALOG,
+					session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, pk));
+				}
+				);
+			}
+
+			final HistoryStatistics history = fetchHistory(timeTravelling);
+			assertTrue(history.timeTravelEnabled());
+			assertTrue(
+				history.oldestAvailableCatalogVersion() < history.newestCatalogVersion(),
+				"With time travel on, the window must reach back past the current version: " + history
+			);
+			assertNotNull(history.oldestAvailableTimestampIfKnown().orElse(null));
+			assertNotNull(history.newestTimestampIfKnown().orElse(null));
+		} finally {
+			cleanupTestPaths(timeTravelPaths);
+		}
+	}
+
+	@Test
+	@DisplayName("The collection header counters are reported as the header carries them")
+	void shouldReportCollectionHeaderCounters() {
+		final CollectionHeaderInfo header = fetchHeader(ENTITY_PRODUCT);
+
+		assertTrue(header.entityTypePrimaryKey() > 0, header.toString());
+		assertTrue(header.version() > 0, header.toString());
+		assertTrue(header.lastKeyId() > 0, header.toString());
+		assertTrue(header.lastEntityIndexPrimaryKey() > 0, header.toString());
+		// the high-water mark is *largest ever seen*, so all that can be asserted is that something was seen
+		assertTrue(header.maxRecordSizeBytes() > 0, header.toString());
+
+		// the entity type primary key is the same surrogate the catalog inventory hands out, which is what makes the
+		// two levels addressable by one another
+		final CollectionHeaderInfo categoryHeader = fetchHeader(ENTITY_CATEGORY);
+		assertNotEquals(
+			header.entityTypePrimaryKey(), categoryHeader.entityTypePrimaryKey(),
+			"Two collections cannot share one entity type primary key"
+		);
+	}
+
+	@Test
+	@DisplayName("The last primary key tracks the generated-key sequence, not the largest key in use")
+	void shouldReportTheGeneratedKeySequenceAsLastPrimaryKey() {
+		// this is the trap in `lastPrimaryKey`, and it is worth a test of its own because both the issue and the
+		// record's first javadoc read it as "the largest primary key in use", from which "the gap against the record
+		// count is the delete volume" follows. It is not: the value is the collection's auto-generated key sequence
+		// (`HeaderInfoSupplier#getLastAssignedPrimaryKey` returns `pkSequence.get()`), which a client supplying its
+		// own keys never advances at all
+		assertEquals(
+			0, fetchHeader(ENTITY_PRODUCT).lastPrimaryKey(),
+			"50 products exist, but every one of their keys was supplied by the caller, so nothing was generated"
+		);
+		assertEquals(
+			7, fetchHeader(ENTITY_BRAND).lastPrimaryKey(),
+			"7 brands were inserted without keys, so the sequence handed out exactly 7"
+		);
+	}
+
+	@Test
+	@DisplayName("The catalog's volatile state is the sum over every one of its data stores")
+	void shouldSumVolatileStateAcrossEveryDataStore() {
+		final VolatileStateStatistics catalogWide = this.evita.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.VOLATILE_STATE))
+			.volatileStateIfPresent()
+			.orElseThrow();
+
+		long summedCollectionBytes = 0L;
+		for (final String entityType : new String[]{ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_BRAND}) {
+			final CollectionVolatileState collectionState = this.evita.management()
+				.getEntityCollectionStatistics(
+					CATALOG, entityType, EnumSet.of(CatalogStatisticsComponent.VOLATILE_STATE)
+				)
+				.volatileStateIfPresent()
+				.orElseThrow();
+			assertTrue(
+				collectionState.totalSizeIncludingVolatileDataBytes() > 0,
+				"Collection `" + entityType + "` holds entities, so its data store cannot be empty: " + collectionState
+			);
+			summedCollectionBytes += collectionState.totalSizeIncludingVolatileDataBytes();
+		}
+
+		// strictly greater, in both directions on purpose: an aggregate that forgot the collections would come out
+		// smaller than their sum, and one that forgot the catalog's own data store would come out exactly equal to it
+		assertTrue(
+			catalogWide.totalSizeIncludingVolatileDataBytes() > summedCollectionBytes,
+			"The catalog-wide total (" + catalogWide.totalSizeIncludingVolatileDataBytes() + ") must exceed the sum " +
+				"of its collections (" + summedCollectionBytes + "), which does not include the catalog data store"
+		);
+		assertTrue(catalogWide.nonFlushedRecordCount() >= 0, catalogWide.toString());
+		assertTrue(catalogWide.nonFlushedSizeBytes() >= 0, catalogWide.toString());
+	}
+
+	/**
+	 * Defines the test catalog and fills it with entities carrying explicit primary keys, so that the header counters
+	 * the tests assert on are predictable.
+	 *
+	 * @param instance the engine instance to build the catalog in
+	 */
+	private static void buildCatalog(@Nonnull Evita instance) {
+		instance.defineCatalog(CATALOG).updateViaNewSession(instance);
+		instance.updateCatalog(
+			CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT);
+				session.defineEntitySchema(ENTITY_CATEGORY);
+				session.defineEntitySchema(ENTITY_BRAND);
+				for (int i = 1; i <= 50; i++) {
+					// the attribute is what puts a key into the collection's `KeyCompressor`; without one the header's
+					// `lastKeyId` stays 0 and the test could not tell a wired-up field from a hard-coded zero
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, i).setAttribute("code", "product-" + i)
+					);
+				}
+				for (int i = 1; i <= 10; i++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i));
+				}
+				// brands deliberately let the engine assign their keys - the header's `lastPrimaryKey` tracks the
+				// generated-key sequence, and nothing else in this fixture ever advances it
+				for (int i = 1; i <= 7; i++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_BRAND));
+				}
+			}
+		);
+	}
+
+	/**
+	 * Transitions the test catalog out of `WARMING_UP` into `ALIVE`, which is what gives it a transactional commit
+	 * pipeline and a write-ahead log.
+	 */
+	private void goLive() {
+		this.evita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+	}
+
+	/**
+	 * Returns every component that may be asked of a catalog, which is what the partition test requests at once.
+	 *
+	 * @return all catalog-level components
+	 */
+	@Nonnull
+	private static Set<CatalogStatisticsComponent> catalogLevelComponents() {
+		final Set<CatalogStatisticsComponent> components = EnumSet.noneOf(CatalogStatisticsComponent.class);
+		for (final CatalogStatisticsComponent component : CatalogStatisticsComponent.values()) {
+			if (component.isCatalogLevel()) {
+				components.add(component);
+			}
+		}
+		return components;
+	}
+
+	/**
+	 * Returns every component that may be asked of one entity collection.
+	 *
+	 * @return all collection-level components
+	 */
+	@Nonnull
+	private static Set<CatalogStatisticsComponent> collectionLevelComponents() {
+		final Set<CatalogStatisticsComponent> components = EnumSet.noneOf(CatalogStatisticsComponent.class);
+		for (final CatalogStatisticsComponent component : CatalogStatisticsComponent.values()) {
+			if (component.isCollectionLevel()) {
+				components.add(component);
+			}
+		}
+		return components;
+	}
+
+	/**
+	 * Reads the header counters of one collection of the test catalog.
+	 *
+	 * @param entityType name of the collection to read
+	 * @return the delivered {@link CollectionHeaderInfo}
+	 */
+	@Nonnull
+	private CollectionHeaderInfo fetchHeader(@Nonnull String entityType) {
+		return this.evita.management()
+			.getEntityCollectionStatistics(CATALOG, entityType, EnumSet.of(CatalogStatisticsComponent.COLLECTIONS))
+			.headerIfPresent()
+			.orElseThrow();
+	}
+
+	/**
+	 * Reads the session component of the test catalog.
+	 *
+	 * @return the delivered {@link SessionStatistics}
+	 */
+	@Nonnull
+	private SessionStatistics fetchSessions() {
+		return this.evita.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.SESSIONS))
+			.sessionsIfPresent()
+			.orElseThrow();
+	}
+
+	/**
+	 * Reads the history component of the test catalog from the given engine instance.
+	 *
+	 * @param instance the engine instance holding the catalog
+	 * @return the delivered {@link HistoryStatistics}
+	 */
+	@Nonnull
+	private static HistoryStatistics fetchHistory(@Nonnull Evita instance) {
+		return instance.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.HISTORY))
+			.historyIfPresent()
+			.orElseThrow();
+	}
+
+	/**
+	 * Builds the configuration of the embedded instance used by this test.
+	 *
+	 * @param timeTravelEnabled whether the instance retains superseded data files for point-in-time reads
+	 * @return configuration pointing at this test's isolated directories
+	 */
+	@Nonnull
+	private EvitaConfiguration getEvitaConfiguration(boolean timeTravelEnabled) {
+		return getEvitaConfiguration(this.paths, timeTravelEnabled);
+	}
+
+	/**
+	 * Builds the configuration of an embedded instance rooted at the given directories.
+	 *
+	 * @param testPaths         directories the instance stores its data in
+	 * @param timeTravelEnabled whether the instance retains superseded data files for point-in-time reads
+	 * @return configuration pointing at those directories
+	 */
+	@Nonnull
+	private EvitaConfiguration getEvitaConfiguration(@Nonnull TestPaths testPaths, boolean timeTravelEnabled) {
+		return newTestEvitaConfigurationBuilder(testPaths)
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(testPaths.storage())
+					.workDirectory(testPaths.work())
+					.timeTravelEnabled(timeTravelEnabled)
+					.build()
+			)
+			.build();
+	}
+}

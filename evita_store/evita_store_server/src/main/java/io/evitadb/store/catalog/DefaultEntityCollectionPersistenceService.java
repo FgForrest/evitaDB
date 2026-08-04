@@ -73,6 +73,7 @@ import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -954,6 +955,17 @@ public class DefaultEntityCollectionPersistenceService
 	@Override
 	public StoragePartFootprint[] measureStoragePartComposition() {
 		return getStoragePartPersistenceService().measureStoragePartComposition();
+	}
+
+	@Nonnull
+	@Override
+	public VolatileDataFootprint measureVolatileData() {
+		return getStoragePartPersistenceService().measureVolatileData();
+	}
+
+	@Override
+	public long getMaxRecordSizeBytes() {
+		return getStoragePartPersistenceService().getMaxRecordSizeBytes();
 	}
 
 	@Nonnull

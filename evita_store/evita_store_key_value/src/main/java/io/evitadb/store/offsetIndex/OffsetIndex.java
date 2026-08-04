@@ -1240,6 +1240,22 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * Returns how many records have been written to this index but not yet flushed to its file, and how many bytes
+	 * they occupy. This is the same pair that is pushed to the non-flushed block observer on every write; reading it
+	 * here is what lets a statistics call ask for it instead of having to have been subscribed all along.
+	 *
+	 * The pair is a snapshot of a value that a concurrent write may already have moved on from - which is inherent to
+	 * asking "what is in flight right now" - but it is never internally inconsistent: the count and the size are
+	 * published together through a single volatile write.
+	 *
+	 * @return the records written but not yet flushed
+	 */
+	@Nonnull
+	public NonFlushedBlock getNonFlushedBlock() {
+		return this.volatileValues.getNonFlushedBlock();
+	}
+
+	/**
 	 * Calculates the living object share.
 	 * The living object share is calculated as the ratio of the total size of the object and the size of the file
 	 * that is being written to.
@@ -2251,6 +2267,13 @@ public class OffsetIndex {
 		 * Contains the last size of non-flushed records in Bytes.
 		 */
 		private long nonFlushedRecordSizeInBytes;
+		/**
+		 * The two counters above published as one immutable pair, so that a reader outside the write path never sees
+		 * a count from one moment paired with a byte size from another. The instance stored here is always the very
+		 * one handed to {@link #nonFlushedBlockObserver}, so publishing it costs a volatile write and no allocation.
+		 */
+		@Nonnull
+		private volatile NonFlushedBlock nonFlushedBlock = new NonFlushedBlock(0, 0L);
 
 		/**
 		 * Net cardinality delta of the not-yet-flushed (in-flight) versions visible at `catalogVersion`. Flushed
@@ -2409,7 +2432,8 @@ public class OffsetIndex {
 				this.nonFlushedRecordCount = 0;
 				this.nonFlushedRecordSizeInBytes = 0L;
 				// notify the observer
-				this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
+				this.nonFlushedBlock = new NonFlushedBlock(0, 0L);
+				this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
 				return result;
 			} else {
 				return Collections.emptyList();
@@ -2459,7 +2483,18 @@ public class OffsetIndex {
 			this.nonFlushedRecordCount = 0;
 			this.nonFlushedRecordSizeInBytes = 0L;
 			// notify the observer
-			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
+			this.nonFlushedBlock = new NonFlushedBlock(0, 0L);
+			this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
+		}
+
+		/**
+		 * Returns the count and the byte size of the records written but not yet flushed, as one coherent pair.
+		 *
+		 * @return the current non-flushed block
+		 */
+		@Nonnull
+		public NonFlushedBlock getNonFlushedBlock() {
+			return this.nonFlushedBlock;
 		}
 
 		/**
@@ -2551,8 +2586,9 @@ public class OffsetIndex {
 		private void notifySizeIncrease(long sizeInBytes) {
 			this.nonFlushedRecordCount++;
 			this.nonFlushedRecordSizeInBytes += sizeInBytes;
-			this.nonFlushedBlockObserver.accept(
-				new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
+			this.nonFlushedBlock = new NonFlushedBlock(
+				this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes);
+			this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
 		}
 
 	}

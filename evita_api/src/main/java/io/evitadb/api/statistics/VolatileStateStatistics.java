@@ -36,6 +36,13 @@ import java.util.Optional;
  * part of the heap that grows silently. A timestamp that keeps receding means a session is holding a view of the data
  * that the engine cannot let go of.
  *
+ * **This component *is* summed across data stores** - the catalog's own plus every collection's - which is the
+ * opposite convention to {@link CatalogStatisticsComponent#STORAGE_COMPOSITION}, where a catalog-wide sum has no
+ * meaning. The difference is deliberate: bytes held in heap add up no matter which store holds them, whereas adding
+ * record counts of different storage-part types out of different stores does not describe anything. The timestamp is
+ * the one field that is *not* summed - it is the earliest across the stores, since the catalog is holding history
+ * back as far as its oldest retaining store.
+ *
  * **Reading for a degraded catalog**
  *
  * Not delivered for an unusable catalog - there is no in-memory state to report.
@@ -44,8 +51,9 @@ import java.util.Optional;
  *
  * The same state for one collection's data store is fetched separately - see {@link CollectionVolatileState}.
  *
- * @param totalSizeIncludingVolatileDataBytes bytes the data stores occupy including data not yet flushed
- * @param nonFlushedRecordCount               records written but not yet flushed to disk
+ * @param totalSizeIncludingVolatileDataBytes bytes every data store of the catalog occupies including data not yet
+ *                                            flushed
+ * @param nonFlushedRecordCount               records written but not yet flushed to disk, across all of them
  * @param nonFlushedSizeBytes                 bytes those records occupy
  * @param oldestRecordKeptTimestamp           creation time of the oldest record kept alive for an open session; null
  *                                            when nothing is being retained

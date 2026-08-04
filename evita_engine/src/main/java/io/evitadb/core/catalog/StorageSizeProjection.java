@@ -30,8 +30,9 @@ import javax.annotation.Nonnull;
 
 /**
  * Translates the storage layer's {@link CatalogStorageFootprint} into the API-facing
- * {@link StorageSizeStatistics}. The two carry the same nine numbers in the same order, and this is the seam that
- * keeps them apart: the persistence SPI knows file names and offset-index bookkeeping and nothing about statistics
+ * {@link StorageSizeStatistics}. The footprint is the wider record - it also carries the file counts and the
+ * active-reader floor that {@link io.evitadb.api.statistics.HistoryStatistics} reports - and this is the seam that
+ * keeps the two apart: the persistence SPI knows file names and offset-index bookkeeping and nothing about statistics
  * components, so the mapping lives here rather than on either record.
  *
  * It exists as a method rather than as two inline constructor calls because both {@link Catalog} and

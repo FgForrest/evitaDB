@@ -58,29 +58,42 @@ import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FI
  * `blockedByActiveReaderBytes` and `purgeableBytes` are a partition of `awaitingDeletionBytes`, not additional
  * classes: they sum to it and must not be added to the total again.
  *
+ * **The file counts and the reader floor ride along with the byte classes rather than being measured separately.**
+ * Both counts are byproducts of the same listing the bytes come from, and the floor is read at the same moment the
+ * superseded files are classified by it - so a caller that needs the history view and the size view together pays for
+ * one directory snapshot instead of two, and the two views cannot disagree about what was on disk.
+ *
  * @param totalBytes                 measured total - the sum of the lengths of every file in the catalog directory
  * @param liveBytes                  bytes of active records in the current data store files, clamped to those files'
  *                                   actual lengths
  * @param wasteBytes                 the rest of the current data store files - superseded records that compaction
  *                                   reclaims
+ * @param walFileCount               number of write-ahead log files present in the directory
  * @param walBytes                   bytes of the write-ahead log files present in the directory
- * @param awaitingDeletionBytes      bytes of superseded data store files that are no longer current but still on disk
+ * @param awaitingDeletionFileCount  number of superseded data store files that are no longer current but still on disk
+ * @param awaitingDeletionBytes      bytes of those files
  * @param blockedByActiveReaderBytes part of `awaitingDeletionBytes` that an active reader or writer still pins
  * @param purgeableBytes             part of `awaitingDeletionBytes` that nothing blocks
  * @param bootstrapBytes             bytes of the catalog bootstrap file
  * @param unaccountedBytes           everything else in the directory - the derived remainder
+ * @param activeReaderFloor          minimal catalog version still referenced by an active reader or writer; `0` means
+ *                                   none has been observed yet and therefore that nothing is pinned - it does *not*
+ *                                   mean a reader is sitting on version zero
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record CatalogStorageFootprint(
 	long totalBytes,
 	long liveBytes,
 	long wasteBytes,
+	int walFileCount,
 	long walBytes,
+	int awaitingDeletionFileCount,
 	long awaitingDeletionBytes,
 	long blockedByActiveReaderBytes,
 	long purgeableBytes,
 	long bootstrapBytes,
-	long unaccountedBytes
+	long unaccountedBytes,
+	long activeReaderFloor
 ) {
 
 	/**
@@ -108,7 +121,7 @@ public record CatalogStorageFootprint(
 		final File[] files = catalogStoragePath.toFile().listFiles();
 		if (files == null) {
 			// the directory is gone or unreadable - which is itself an honest answer of "nothing measurable here"
-			return new CatalogStorageFootprint(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+			return new CatalogStorageFootprint(0L, 0L, 0L, 0, 0L, 0, 0L, 0L, 0L, 0L, 0L, 0L);
 		}
 
 		final String bootstrapFile = getCatalogBootstrapFileName(catalogName);
@@ -117,7 +130,9 @@ public record CatalogStorageFootprint(
 		long totalBytes = 0L;
 		long liveBytes = 0L;
 		long wasteBytes = 0L;
+		int walFileCount = 0;
 		long walBytes = 0L;
+		int awaitingDeletionFileCount = 0;
 		long awaitingDeletionBytes = 0L;
 		long blockedByActiveReaderBytes = 0L;
 		long bootstrapBytes = 0L;
@@ -134,6 +149,7 @@ public record CatalogStorageFootprint(
 			if (fileName.equals(bootstrapFile)) {
 				bootstrapBytes += length;
 			} else if (fileName.endsWith(WAL_FILE_SUFFIX)) {
+				walFileCount++;
 				walBytes += length;
 			} else if (generations == null) {
 				// nothing else is attributable without the header: separating live records from compaction waste, or
@@ -153,6 +169,7 @@ public record CatalogStorageFootprint(
 				}
 				// a current data store file whose service is not open stays in the unaccounted remainder
 			} else if (generations.isSuperseded(fileName, catalogFilePattern)) {
+				awaitingDeletionFileCount++;
 				awaitingDeletionBytes += length;
 				// a file the engine is holding for deferred removal carries the last catalog version that may use
 				// it; at or above the floor an active reader or writer still pins it. A floor of zero means no
@@ -173,12 +190,15 @@ public record CatalogStorageFootprint(
 			totalBytes,
 			liveBytes,
 			wasteBytes,
+			walFileCount,
 			walBytes,
+			awaitingDeletionFileCount,
 			awaitingDeletionBytes,
 			blockedByActiveReaderBytes,
 			awaitingDeletionBytes - blockedByActiveReaderBytes,
 			bootstrapBytes,
-			totalBytes - liveBytes - wasteBytes - walBytes - awaitingDeletionBytes - bootstrapBytes
+			totalBytes - liveBytes - wasteBytes - walBytes - awaitingDeletionBytes - bootstrapBytes,
+			generations == null ? 0L : generations.activeReaderFloor()
 		);
 	}
 

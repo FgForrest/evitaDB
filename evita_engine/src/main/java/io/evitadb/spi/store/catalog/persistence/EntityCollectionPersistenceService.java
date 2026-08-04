@@ -293,6 +293,28 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	StoragePartFootprint[] measureStoragePartComposition();
 
 	/**
+	 * Reports what this collection's data store is holding in memory rather than on disk - the records written but not
+	 * yet flushed, and the multi-version history it cannot release while an old session is still reading it.
+	 *
+	 * Every value is a counter read; nothing is walked and no file is touched.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	VolatileDataFootprint measureVolatileData();
+
+	/**
+	 * Returns the size of the largest single record this collection's data store has **ever** held.
+	 *
+	 * It is a high-water mark, not a current maximum: the value is seeded from its predecessor on every reopen and only
+	 * ever widened during a flush, so removing the biggest record never lowers it. Anything that displays it must say
+	 * *largest ever seen*, because "largest currently stored" is a different number that nothing computes.
+	 *
+	 * @return the largest record size ever observed in this data store, in bytes
+	 */
+	long getMaxRecordSizeBytes();
+
+	/**
 	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
 	 * file). This method is only temporary and will be removed in the future.
 	 *

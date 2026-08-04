@@ -30,6 +30,7 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumerControl;
@@ -286,6 +287,33 @@ public final class SessionRegistry {
 		return ofNullable(this.lastSuspensionInfo.get())
 			.map(it -> it.contains(sessionId))
 			.orElse(false);
+	}
+
+	/**
+	 * Counts the sessions currently open against this catalog, split by whether they may write.
+	 *
+	 * The read-write count is the operationally interesting half: an open read-write session pins a catalog version,
+	 * which keeps superseded data files from being purged. A count that will not fall to zero is therefore a direct
+	 * explanation for disk space that will not come back.
+	 *
+	 * The map is walked rather than counted from two maintained counters, because a session's mode is a property of
+	 * the session and duplicating it into a counter pair is one more thing that can drift out of step with the map
+	 * itself. The walk is over open sessions only, so it is bounded by concurrency rather than by data size.
+	 *
+	 * @return the number of open sessions, and how they split between read-only and read-write
+	 */
+	@Nonnull
+	public SessionStatistics countActiveSessions() {
+		int readOnly = 0;
+		int readWrite = 0;
+		for (final EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+			if (sessionTuple.plainSession().isReadOnly()) {
+				readOnly++;
+			} else {
+				readWrite++;
+			}
+		}
+		return new SessionStatistics(readOnly + readWrite, readOnly, readWrite);
 	}
 
 	/**

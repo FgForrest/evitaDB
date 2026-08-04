@@ -27,9 +27,11 @@ package io.evitadb.api.statistics;
  * The {@link CatalogStatisticsComponent#RECORD_COUNTS} component of one entity collection - how many entities it
  * holds, split by scope. The catalog-level {@link RecordCounts} is the sum of these across all collections.
  *
- * See {@link RecordCounts} for why `totalRecords` means live **plus** archived rather than live alone.
+ * See {@link RecordCounts} for why `totalRecords` means live **plus** archived rather than live alone, and why it
+ * also counts deleted bodies that compaction has not reclaimed yet.
  *
- * @param totalRecords    live plus archived entities in this collection
+ * @param totalRecords    entity body storage parts in this collection - live plus archived, plus any deleted body
+ *                        a compaction has not reclaimed yet
  * @param liveRecords     entities in {@link io.evitadb.dataType.Scope#LIVE}
  * @param archivedRecords entities in {@link io.evitadb.dataType.Scope#ARCHIVED}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

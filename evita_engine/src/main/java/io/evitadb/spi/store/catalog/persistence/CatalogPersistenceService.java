@@ -710,6 +710,22 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	StoragePartFootprint[] measureStoragePartComposition();
 
 	/**
+	 * Reports what the catalog's **own** data store is holding in memory rather than on disk - the records written but
+	 * not yet flushed, and the multi-version history it cannot release while an old session is still reading it.
+	 *
+	 * Scoped to this one data store, like {@link #measureStoragePartComposition()} and unlike
+	 * {@link #measureStorageFootprint()}. A catalog-wide figure is the sum of this and every collection's
+	 * {@link EntityCollectionPersistenceService#measureVolatileData()}; unlike the storage-part breakdown that sum is
+	 * meaningful, because bytes held in memory add up across stores no matter what they hold.
+	 *
+	 * Every value is a counter read; nothing is walked and no file is touched.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	VolatileDataFootprint measureVolatileData();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *

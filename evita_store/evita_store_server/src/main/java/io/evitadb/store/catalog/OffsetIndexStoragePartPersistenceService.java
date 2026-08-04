@@ -29,8 +29,10 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
+import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
@@ -39,6 +41,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
@@ -427,6 +430,38 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		// would report two identical compositions as different
 		Arrays.sort(composition, StoragePartFootprint.LARGEST_FIRST);
 		return composition;
+	}
+
+	/**
+	 * Reports what this data store holds in memory rather than on disk - see {@link VolatileDataFootprint}.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	public VolatileDataFootprint measureVolatileData() {
+		if (!this.offsetIndex.isOperative()) {
+			throw new PersistenceServiceClosed();
+		}
+		final NonFlushedBlock nonFlushedBlock = this.offsetIndex.getNonFlushedBlock();
+		return new VolatileDataFootprint(
+			this.offsetIndex.getTotalSizeIncludingVolatileData(),
+			nonFlushedBlock.recordCount(),
+			nonFlushedBlock.estimatedMemorySizeInBytes(),
+			this.offsetIndex.getOldestRecordKeptTimestamp().orElse(null)
+		);
+	}
+
+	/**
+	 * Returns the largest single record this data store has ever held - a high-water mark that is never lowered, see
+	 * {@link EntityCollectionPersistenceService#getMaxRecordSizeBytes()}.
+	 *
+	 * @return the largest record size ever observed, in bytes
+	 */
+	public long getMaxRecordSizeBytes() {
+		if (!this.offsetIndex.isOperative()) {
+			throw new PersistenceServiceClosed();
+		}
+		return this.offsetIndex.getMaxRecordSizeBytes();
 	}
 
 }
