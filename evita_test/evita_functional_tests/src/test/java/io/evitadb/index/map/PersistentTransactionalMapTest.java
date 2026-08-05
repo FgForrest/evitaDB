@@ -80,6 +80,78 @@ class PersistentTransactionalMapTest {
 	}
 
 	/**
+	 * The difference between the two ways of taking an immutable view, which exists because one of them is a write.
+	 */
+	@Nested
+	@DisplayName("Sealing versus snapshotting")
+	class SealingVersusSnapshottingTest {
+
+		@Test
+		@DisplayName("sealing publishes the frozen map, so it is handed back again next time")
+		void shouldPublishAndMemoizeTheSealedMap() {
+			// the state starts thawed, so the first call has real work to do - and is expected to keep the result
+			PersistentTransactionalMapTest.this.tested.put("c", 3);
+
+			final ChampMap<String, Integer> first = PersistentTransactionalMapTest.this.tested.sealed();
+			final ChampMap<String, Integer> second = PersistentTransactionalMapTest.this.tested.sealed();
+
+			assertSame(
+				first, second,
+				"Sealing writes the frozen map into the state, so the second call must find it already there - this " +
+					"memoization is the whole point of sealing on the commit path"
+			);
+		}
+
+		@Test
+		@DisplayName("snapshotting does not publish, so it leaves the state thawed for the next write")
+		void shouldNotPublishTheSnapshot() {
+			PersistentTransactionalMapTest.this.tested.put("c", 3);
+
+			final ChampMap<String, Integer> first = PersistentTransactionalMapTest.this.tested.snapshot();
+			final ChampMap<String, Integer> second = PersistentTransactionalMapTest.this.tested.snapshot();
+
+			// distinct instances are the observable proof that nothing was written back: had the first call published,
+			// the second would have found a `ChampMap` in the state and returned that same one. Publishing from a
+			// reader is what forces the next non-transactional write into a full thaw, and what lets a snapshot built
+			// by iterating a map another thread is writing overwrite the state and discard that thread's entries
+			assertNotSame(
+				first, second,
+				"Snapshotting must leave the state alone, but the second call returned the first call's map - which " +
+					"can only happen if the first one published it"
+			);
+			assertEquals(first, second, "Two snapshots of an unchanged map still describe the same contents");
+		}
+
+		@Test
+		@DisplayName("a snapshot is an immutable view that later writes do not disturb")
+		void shouldNotLetLaterWritesChangeAnAlreadyTakenSnapshot() {
+			final ChampMap<String, Integer> snapshot = PersistentTransactionalMapTest.this.tested.snapshot();
+
+			PersistentTransactionalMapTest.this.tested.put("c", 3);
+			PersistentTransactionalMapTest.this.tested.remove("a");
+
+			assertEquals(2, snapshot.size(), "The snapshot describes the moment it was taken");
+			assertTrue(snapshot.containsKey("a"), "A key removed afterwards is still in the snapshot");
+			assertFalse(snapshot.containsKey("c"), "A key added afterwards is not in the snapshot");
+			// and the map itself moved on regardless of the snapshot having been taken
+			assertEquals(2, PersistentTransactionalMapTest.this.tested.size());
+			assertTrue(PersistentTransactionalMapTest.this.tested.containsKey("c"));
+		}
+
+		@Test
+		@DisplayName("snapshotting an already sealed map hands the sealed one straight back")
+		void shouldReturnTheSealedMapUnchangedWhenAlreadySealed() {
+			// the live-catalog case: the state is already immutable, and then the two methods must not differ at all
+			final ChampMap<String, Integer> sealed = PersistentTransactionalMapTest.this.tested.sealed();
+
+			assertSame(
+				sealed, PersistentTransactionalMapTest.this.tested.snapshot(),
+				"Once the state is immutable there is nothing to build, so snapshotting must cost nothing"
+			);
+		}
+	}
+
+	/**
 	 * Construction-time behaviour and identity guarantees.
 	 */
 	@Nested
