@@ -176,8 +176,15 @@ public enum GrpcCatalogStatisticsComponent
   COMPONENT_INDEX_CARDINALITY(13),
   /**
    * <pre>
-   * Best-effort heap estimates per collection and index. Expensive - never part of a polled refresh. Collection level
-   * only, for the same reason as `COMPONENT_INDEX_CARDINALITY`.
+   * Best-effort heap estimates per collection and index. Collection level only, for the same reason as
+   * `COMPONENT_INDEX_CARDINALITY`.
+   *
+   * NOT DELIVERED by any build, and the obstacle is structural rather than unfinished work - requesting it returns
+   * `AVAILABILITY_NOT_SUPPORTED` with that reason. An index's storage is not one record: the entity-id bitmaps live
+   * in its own storage part, while its attribute, price, facet and histogram sub-indexes are separate parts under
+   * independent keys, and nothing maps an index back to the parts it owns outside the flush path. A figure covering
+   * only the part that is cheap to measure would omit exactly what this component is opened to find, so none is
+   * reported rather than one that is wrong in an unknown direction.
    * </pre>
    *
    * <code>COMPONENT_MEMORY_FOOTPRINT = 14;</code>
@@ -328,8 +335,15 @@ public enum GrpcCatalogStatisticsComponent
   public static final int COMPONENT_INDEX_CARDINALITY_VALUE = 13;
   /**
    * <pre>
-   * Best-effort heap estimates per collection and index. Expensive - never part of a polled refresh. Collection level
-   * only, for the same reason as `COMPONENT_INDEX_CARDINALITY`.
+   * Best-effort heap estimates per collection and index. Collection level only, for the same reason as
+   * `COMPONENT_INDEX_CARDINALITY`.
+   *
+   * NOT DELIVERED by any build, and the obstacle is structural rather than unfinished work - requesting it returns
+   * `AVAILABILITY_NOT_SUPPORTED` with that reason. An index's storage is not one record: the entity-id bitmaps live
+   * in its own storage part, while its attribute, price, facet and histogram sub-indexes are separate parts under
+   * independent keys, and nothing maps an index back to the parts it owns outside the flush path. A figure covering
+   * only the part that is cheap to measure would omit exactly what this component is opened to find, so none is
+   * reported rather than one that is wrong in an unknown direction.
    * </pre>
    *
    * <code>COMPONENT_MEMORY_FOOTPRINT = 14;</code>

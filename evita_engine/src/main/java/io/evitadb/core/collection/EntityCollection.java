@@ -1117,11 +1117,17 @@ public final class EntityCollection implements
 				"Entity collection `" + getEntityType() + "` declares no reference named `" + referenceName + "`!"
 			);
 		}
-		// sealed, so that the match count and the page contents cannot be taken from two different states - in
-		// WARMING_UP the map is forwarded mutably by reference, where a concurrent bulk load would otherwise be able
-		// to move the paging offset out from under the walk
+		// an immutable snapshot, so the match count and the page contents cannot be taken from two different states -
+		// in WARMING_UP the map is otherwise held mutably, where a concurrent bulk load could move the paging offset
+		// out from under the walk.
+		//
+		// `snapshot()` rather than `sealed()`: the latter publishes the frozen map back into the collection's index
+		// map, which is correct on the commit path but not from a read. It would make the next warm-up write thaw the
+		// map again - an `O(N)` copy per browse - and, worse, publishing a view built by iterating a map another
+		// thread is still writing would drop whatever landed during the iteration. A statistics call must not be able
+		// to lose an index
 		return IndexBrowseProjection.browse(
-			this.indexes.sealed(), criteria, this.catalog.getIdentity().catalogVersion()
+			this.indexes.snapshot(), criteria, this.catalog.getIdentity().catalogVersion()
 		);
 	}
 

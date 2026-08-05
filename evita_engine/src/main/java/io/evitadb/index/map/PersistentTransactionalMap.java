@@ -163,6 +163,35 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * Returns an immutable {@link ChampMap} view of the current state **without publishing it**, for a reader that
+	 * wants a stable snapshot and must not disturb the map it is reading.
+	 *
+	 * This is the read-path counterpart of {@link #sealed()}, and the difference matters only while the state is
+	 * still thawed. `sealed()` writes the frozen map back into `state`, which is right on the commit path - the next
+	 * transactional touch then finds it already sealed - but wrong for a reader:
+	 *
+	 * - it would make the **next** non-transactional write thaw the map again, an `O(N)` copy, so a reader alternating
+	 *   with warm-up writes turns each of them into a full rebuild;
+	 * - and publishing a snapshot built by iterating a `HashMap` that another thread is still writing to would
+	 *   overwrite `state` with a map missing whatever landed during the iteration, losing committed entries.
+	 *
+	 * Callers on the commit path must keep using {@link #sealed()} - a reader's snapshot is deliberately not
+	 * memoized, so relying on this to make later seals cheap would silently rebuild every time.
+	 *
+	 * A snapshot taken while another thread performs a non-transactional write may still fail loudly with
+	 * {@link java.util.ConcurrentModificationException} rather than silently, which is the intended trade: the
+	 * failure is confined to the reader instead of corrupting the map every other caller shares.
+	 *
+	 * @return an immutable view of the current state
+	 */
+	@Nonnull
+	public ChampMap<K, V> snapshot() {
+		final Map<K, V> current = this.state;
+		return current instanceof ChampMap ?
+			(ChampMap<K, V>) current : ChampMap.from(current);
+	}
+
+	/**
 	 * Returns the state as a mutable {@link HashMap}, thawing a sealed {@link ChampMap} once (`O(N)` copy)
 	 * if necessary. Used by the non-transactional write path so warm-up keeps `HashMap` throughput.
 	 *

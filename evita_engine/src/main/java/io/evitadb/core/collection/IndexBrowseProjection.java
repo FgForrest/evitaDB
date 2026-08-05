@@ -23,6 +23,7 @@
 
 package io.evitadb.core.collection;
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.EntityIndexKind;
@@ -65,7 +66,8 @@ import java.util.Set;
 final class IndexBrowseProjection {
 
 	/**
-	 * The order the caller asked for, as a comparator: entity count descending, ties broken by the index key.
+	 * {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} as a comparator: entity count descending, ties broken by the
+	 * index key.
 	 *
 	 * The tiebreaker exists because the data is tie-dominated - most per-referenced-entity indexes cover a handful of
 	 * entities each - and an unstable order silently corrupts pagination, repeating some indexes across pages while
@@ -96,8 +98,9 @@ final class IndexBrowseProjection {
 		@Nonnull IndexBrowseCriteria criteria,
 		long catalogVersion
 	) {
-		// both factors are client-supplied and `pageNumber` is unbounded, so the window is computed in long
-		// arithmetic - an int multiplication would overflow into a negative offset and quietly return page one
+		// both factors are client-supplied and `pageNumber` is unbounded in `MAP_ORDER` - the only ordering that can
+		// reach this, since a size-ordered window is capped in the criteria - so an int multiplication could wrap and
+		// silently serve some unrelated window as the one asked for; the offset is therefore computed in long
 		final long offset = (long) (criteria.pageNumber() - 1) * criteria.pageSize();
 		return switch (criteria.ordering()) {
 			case MAP_ORDER -> {
@@ -108,7 +111,7 @@ final class IndexBrowseProjection {
 			case BY_ENTITY_COUNT_DESC -> {
 				final PriorityQueue<BrowseCandidate> heap = new PriorityQueue<>(ENTITY_COUNT_ORDER.reversed());
 				final int matchCount = collectByEntityCount(indexes, criteria, offset, heap);
-				yield toResult(criteria, catalogVersion, matchCount, cutPage(heap, criteria, offset, indexes));
+				yield toResult(criteria, catalogVersion, matchCount, cutPage(heap, criteria, offset));
 			}
 		};
 	}
@@ -135,7 +138,7 @@ final class IndexBrowseProjection {
 				continue;
 			}
 			if (matched >= offset && matched < end) {
-				page.add(describe(key, indexOf(indexes, key)));
+				page.add(describe(key, indexOf(indexes, key).getAllPrimaryKeys().size()));
 			}
 			matched++;
 		}
@@ -191,15 +194,13 @@ final class IndexBrowseProjection {
 	 * @param heap     the retained candidates, in no useful order of their own
 	 * @param criteria the page to cut
 	 * @param offset   how many matches precede the requested page
-	 * @param indexes  the sealed index map, for resolving the descriptors of the page's keys
 	 * @return the page's descriptors, in the requested order
 	 */
 	@Nonnull
 	private static List<BrowsedIndex> cutPage(
 		@Nonnull PriorityQueue<BrowseCandidate> heap,
 		@Nonnull IndexBrowseCriteria criteria,
-		long offset,
-		@Nonnull Map<EntityIndexKey, EntityIndex> indexes
+		long offset
 	) {
 		final List<BrowseCandidate> ordered = new ArrayList<>(heap);
 		ordered.sort(ENTITY_COUNT_ORDER);
@@ -210,8 +211,11 @@ final class IndexBrowseProjection {
 		final int to = Math.min(from + criteria.pageSize(), ordered.size());
 		final List<BrowsedIndex> page = new ArrayList<>(to - from);
 		for (int i = from; i < to; i++) {
-			final EntityIndexKey key = ordered.get(i).key();
-			page.add(describe(key, indexOf(indexes, key)));
+			// the count carried from the walk, not a fresh reading: it is the one this row was *ordered* by, and an
+			// index mutated between the walk and here would otherwise be reported with a count that contradicts its
+			// own position in the page
+			final BrowseCandidate candidate = ordered.get(i);
+			page.add(describe(candidate.key(), candidate.entityCount()));
 		}
 		return page;
 	}
@@ -280,25 +284,79 @@ final class IndexBrowseProjection {
 	 * @return the descriptor
 	 */
 	@Nonnull
-	private static BrowsedIndex describe(@Nonnull EntityIndexKey key, @Nonnull EntityIndex index) {
-		final Serializable discriminator = key.discriminator();
+	private static BrowsedIndex describe(@Nonnull EntityIndexKey key, int entityCount) {
 		return new BrowsedIndex(
 			EntityCollection.toIndexKind(key.type()),
 			key.scope(),
-			// the whole discriminator, not the readable parts below: a `RepresentativeReferenceKey` also carries the
-			// representative attribute values that tell two indexes of the same reference and target apart, and those
-			// participate in its equality and ordering. Rendering only the name and the primary key would make such a
-			// pair indistinguishable on the wire, so a client could not tell one index from another across pages.
-			//
-			// This leans on the discriminator's `toString` being value-based, which both permitted implementations
-			// are - a `String` is itself, and `RepresentativeReferenceKey` renders its reference key and its
-			// representative values explicitly. Giving either an identity-based `toString` would silently turn this
-			// field into a per-call nonce and break paging identity, so keep them value-based
-			discriminator == null ? null : discriminator.toString(),
+			renderDiscriminator(key),
 			key.referenceName(),
 			discriminatorPrimaryKeyOf(key),
-			index.getAllPrimaryKeys().size()
+			entityCount
 		);
+	}
+
+	/**
+	 * Renders the whole discriminator, rather than the two readable parts {@link #describe} projects out of it.
+	 *
+	 * A {@link RepresentativeReferenceKey} also carries the representative attribute values that tell two indexes of
+	 * one reference and one target apart, and those participate in its equality and ordering. Rendering only the
+	 * reference name and the primary key would make such a pair indistinguishable, so a client could not tell one
+	 * index from another across pages.
+	 *
+	 * **Why this does not delegate to `toString`.** Being value-based is necessary for an identity but not
+	 * sufficient - it also has to be injective, and `RepresentativeReferenceKey`'s rendering is not: it joins the
+	 * representative values with an unescaped `", "` and prints a null one as the literal `NULL`, so
+	 * `["a", "b, c"]` and `["a, b", "c"]` collapse to the same text, as do `[null]` and `["NULL"]`. Two genuinely
+	 * distinct indexes would then report one identity and a client deduplicating per the documented contract would
+	 * silently drop one. Each part is therefore length-prefixed here, which no value can forge, and `toString` keeps
+	 * its readable shape for logging.
+	 *
+	 * @param key key of the index
+	 * @return the rendered discriminator, or null for an index that carries none
+	 */
+	@Nullable
+	private static String renderDiscriminator(@Nonnull EntityIndexKey key) {
+		final Serializable discriminator = key.discriminator();
+		if (discriminator == null) {
+			return null;
+		}
+		// the schema-bounded kinds are discriminated by the reference name alone, and distinct names already render
+		// distinctly - there is nothing to disambiguate
+		if (discriminator instanceof String referenceName) {
+			return referenceName;
+		}
+		if (discriminator instanceof RepresentativeReferenceKey representativeKey) {
+			final ReferenceKey referenceKey = representativeKey.referenceKey();
+			final Serializable[] values = representativeKey.representativeAttributeValues();
+			final StringBuilder result = new StringBuilder(32 + values.length * 16);
+			appendLengthPrefixed(result, referenceKey.referenceName());
+			result.append('/').append(referenceKey.primaryKey());
+			for (final Serializable value : values) {
+				result.append('/');
+				appendLengthPrefixed(result, value == null ? null : value.toString());
+			}
+			return result.toString();
+		}
+		throw new GenericEvitaInternalError(
+			"Index key `" + key + "` carries a discriminator of unexpected type `" +
+				discriminator.getClass().getName() + "`!"
+		);
+	}
+
+	/**
+	 * Appends one part as its character count, a colon, and the part itself - an encoding no value can forge, since
+	 * the reader knows exactly how many characters to consume before the next separator.
+	 *
+	 * @param result accumulator to append to
+	 * @param part   the part to encode, or null for an absent one
+	 */
+	private static void appendLengthPrefixed(@Nonnull StringBuilder result, @Nullable String part) {
+		// a real string can never present a negative length, so this cannot collide with the literal text "NULL" or
+		// with any other value
+		result.append(part == null ? -1 : part.length()).append(':');
+		if (part != null) {
+			result.append(part);
+		}
 	}
 
 	/**

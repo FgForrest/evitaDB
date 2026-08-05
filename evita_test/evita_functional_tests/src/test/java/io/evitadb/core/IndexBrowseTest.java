@@ -60,6 +60,8 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -328,15 +330,35 @@ class IndexBrowseTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("The scopes partition the whole index set between them")
 		void shouldPartitionTheIndexSetByScope() {
+			// archiving first is what makes this test discriminating. With nothing archived the partition property
+			// below reduces to `unfiltered == unfiltered + 0`, which holds however broken the scope filter is
+			IndexBrowseTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.archiveEntity(ENTITY_PRODUCT, 1);
+				}
+			);
+
 			final int live = browse(criteriaWithScopes(EnumSet.of(Scope.LIVE))).totalRecordCount();
 			final int archived = browse(criteriaWithScopes(EnumSet.of(Scope.ARCHIVED))).totalRecordCount();
 			final int unfiltered = browse(criteria(1, 1, IndexBrowseOrdering.MAP_ORDER)).totalRecordCount();
-			// a partition property rather than a fixed number, so it holds whether or not the fixture archives
-			// anything - and it fails the moment a scope filter starts dropping or double-counting
+
+			assertTrue(archived > 0, "Archiving an entity must create at least one archived-scope index to find");
+			assertTrue(live > 0, "The live indexes do not go away because one entity was archived");
 			assertEquals(
 				unfiltered, live + archived,
 				"Every index belongs to exactly one scope, so the two filtered counts must add up to the total"
 			);
+			// and the filter really selects rather than merely counting
+			final IndexBrowseResult archivedPage = browse(
+				new IndexBrowseCriteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					EnumSet.noneOf(EntityIndexKind.class), EnumSet.of(Scope.ARCHIVED), Set.of()
+				)
+			);
+			for (final BrowsedIndex index : archivedPage.indexes()) {
+				assertEquals(Scope.ARCHIVED, index.scope(), "An archived-only browse must return no live index");
+			}
 		}
 
 		@Test
@@ -365,6 +387,54 @@ class IndexBrowseTest implements EvitaTestSupport {
 		private IndexBrowseCriteria criteriaWithScopes(@Nonnull Set<Scope> scopes) {
 			return new IndexBrowseCriteria(
 				1, 1, IndexBrowseOrdering.MAP_ORDER, EnumSet.noneOf(EntityIndexKind.class), scopes, Set.of()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Descriptor contents")
+	class DescriptorContents {
+
+		@Test
+		@DisplayName("The discriminator parts are populated according to the index kind")
+		void shouldPopulateTheDiscriminatorPartsAccordingToTheIndexKind() {
+			final IndexBrowseResult result = browse(
+				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
+			);
+
+			final Set<EntityIndexKind> kindsSeen = EnumSet.noneOf(EntityIndexKind.class);
+			for (final BrowsedIndex index : result.indexes()) {
+				kindsSeen.add(index.indexKind());
+				switch (index.indexKind()) {
+					case GLOBAL -> {
+						assertNull(index.discriminator(), "A global index has no discriminator: " + index);
+						assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
+						assertNull(index.discriminatorPrimaryKey(), "A global index has no target: " + index);
+					}
+					// one index covers the whole reference, so it names the reference but no single target
+					case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> {
+						assertNotNull(index.discriminator(), "A reference-type index is discriminated: " + index);
+						assertNotNull(index.referenceName(), "A reference-type index names its reference: " + index);
+						assertNull(
+							index.discriminatorPrimaryKey(),
+							"A reference-type index covers every target, so it names none: " + index
+						);
+					}
+					// the index covers exactly one target entity of that reference, so it names both
+					case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY -> {
+						assertNotNull(index.discriminator(), "A per-target index is discriminated: " + index);
+						assertNotNull(index.referenceName(), "A per-target index names its reference: " + index);
+						assertNotNull(index.discriminatorPrimaryKey(), "A per-target index names its target: " + index);
+					}
+				}
+			}
+
+			// without this the loop above would pass vacuously on a fixture that happened to hold only one kind
+			assertTrue(
+				kindsSeen.contains(EntityIndexKind.GLOBAL) &&
+					kindsSeen.contains(EntityIndexKind.REFERENCED_ENTITY_TYPE) &&
+					kindsSeen.contains(EntityIndexKind.REFERENCED_ENTITY),
+				"The fixture must produce all three kinds for this to assert anything, but saw only " + kindsSeen
 			);
 		}
 	}

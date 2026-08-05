@@ -63,8 +63,10 @@ public enum IndexBrowseOrdering {
 	 *
 	 * There is deliberately no ordering by estimated memory. Entity count is a single `O(1)` bitmap cardinality, while
 	 * a memory estimate has to traverse an index's contents - ordering by it would mean estimating *every* index in
-	 * the collection on every call, which is exactly the cost this surface is shaped to avoid. The estimate is
-	 * therefore reported for the page that was selected, never used to select it.
+	 * the collection on every call, which is exactly the cost this surface is shaped to avoid. Should a per-index
+	 * memory reading ever be added to {@link BrowsedIndex}, it would belong to the page that was already selected and
+	 * still could not be used to select it; none is reported today - see
+	 * {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT} for why.
 	 */
 	BY_ENTITY_COUNT_DESC
 
