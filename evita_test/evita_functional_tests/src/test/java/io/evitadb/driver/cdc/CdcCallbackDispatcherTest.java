@@ -48,7 +48,10 @@ import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.STREAM;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -91,7 +94,7 @@ class CdcCallbackDispatcherTest {
 				final CountDownLatch ran = new CountDownLatch(1);
 				final AtomicReference<Thread> callbackThread = new AtomicReference<>();
 
-				final boolean dispatched = CdcCallbackDispatcher.dispatch(
+				final Throwable refusal = CdcCallbackDispatcher.dispatch(
 					executor,
 					() -> {
 						callbackThread.set(Thread.currentThread());
@@ -100,7 +103,7 @@ class CdcCallbackDispatcherTest {
 					"test callback"
 				);
 
-				assertTrue(dispatched, "an accepting pool must report a successful hand-off");
+				assertNull(refusal, "an accepting pool must report a successful hand-off");
 				assertTrue(ran.await(5, TimeUnit.SECONDS), "the callback did not run in time");
 				assertNotSame(
 					Thread.currentThread(),
@@ -121,15 +124,24 @@ class CdcCallbackDispatcherTest {
 		@DisplayName("Reports the refusal and never runs the callback on the caller")
 		void shouldReportRefusalAndNotRunTheCallbackOnTheCaller() throws InterruptedException {
 			final CountDownLatch ran = new CountDownLatch(1);
+			final EvitaClientPoolSaturatedException thrownByThePool = new EvitaClientPoolSaturatedException(4, 100);
 
-			final boolean dispatched = CdcCallbackDispatcher.dispatch(
-				new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
+			final Throwable refusal = CdcCallbackDispatcher.dispatch(
+				new RejectingExecutorService(() -> thrownByThePool),
 				ran::countDown,
 				"test callback"
 			);
 
-			assertFalse(dispatched, "a refused callback must be reported as refused so the caller can fail the " +
+			assertNotNull(refusal, "a refused callback must be reported as refused so the caller can fail the " +
 				"subscription rather than assume the consumer was notified");
+			// The caller terminates the subscription with whatever comes back here, so this must be the pool's
+			// own exception. A synthesized stand-in would tell a *saturated* operator the client is shutting
+			// down, hiding the `maxThreadCount`/`queueSize` knobs that are the only actionable part of the report.
+			assertSame(
+				thrownByThePool,
+				refusal,
+				"the refusal must be surfaced as thrown, not reduced to a flag and re-created by the caller"
+			);
 			// The point of the whole class: refusal must NOT degrade into running the callback here. "Here" is
 			// frequently the Armeria event loop, and running consumer code on it is precisely the
 			// CallerRunsPolicy behaviour that captured the event loop in issue #1387.

@@ -26,6 +26,7 @@ package io.evitadb.driver.cdc;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
@@ -96,14 +97,24 @@ final class CdcCallbackDispatcher {
 	 * @param executorService the capture callback executor the callback is dispatched on
 	 * @param callback        the consumer-facing callback to run
 	 * @param description     short description of the callback, used in the diagnostic log messages
-	 * @return true if the callback was accepted for execution, false if the executor refused it — in which case
-	 *         the callback will never run and **the caller must terminate the affected subscription**, because
-	 *         a consumer that is not notified is left believing a dead subscription is alive. Note that `true`
-	 *         means *accepted*, not *guaranteed to run*: a task sitting in the executor's queue is still
-	 *         discarded by `ExecutorService#shutdownNow`. `EvitaClient#close()` therefore drains this executor
-	 *         before tearing it down, so that close-time notifications are delivered rather than thrown away.
+	 * @return NULL if the callback was accepted for execution, otherwise **the refusal the executor threw** — in
+	 *         which case the callback will never run and **the caller must terminate the affected subscription**
+	 *         with the returned cause, because a consumer that is not notified is left believing a dead
+	 *         subscription is alive. The cause is returned rather than reduced to a flag because the two
+	 *         refusals a driver executor produces are operationally opposite: an
+	 *         {@link io.evitadb.driver.exception.EvitaClientPoolSaturatedException} raised by
+	 *         `EvitaClientRejectingExecutorHandler` under saturation names the
+	 *         `maxThreadCount`/`queueSize` knobs that widen the pool, while the shutdown variant carries no
+	 *         knobs and must not send anyone looking for them. Synthesizing an exception here would pick one of
+	 *         those messages for the consumer at random.
+	 *
+	 *         Note that NULL means *accepted*, not *guaranteed to run*: a task sitting in the executor's queue is
+	 *         still discarded by `ExecutorService#shutdownNow`. `EvitaClient#close()` therefore drains this
+	 *         executor before tearing it down, so that close-time notifications are delivered rather than thrown
+	 *         away.
 	 */
-	static boolean dispatch(
+	@Nullable
+	static Throwable dispatch(
 		@Nonnull Executor executorService,
 		@Nonnull Runnable callback,
 		@Nonnull String description
@@ -118,7 +129,7 @@ final class CdcCallbackDispatcher {
 		};
 		try {
 			executorService.execute(guardedCallback);
-			return true;
+			return null;
 		} catch (Throwable ex) {
 			// the callback still must not run *here*, because "here" may be the event loop that has to stay
 			// free to read the connection — so it does not run at all, and the caller fails the subscription
@@ -139,7 +150,7 @@ final class CdcCallbackDispatcher {
 					description
 				);
 			}
-			return false;
+			return ex;
 		}
 	}
 

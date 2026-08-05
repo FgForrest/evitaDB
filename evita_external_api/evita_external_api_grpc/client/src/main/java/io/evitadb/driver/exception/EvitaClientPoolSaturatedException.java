@@ -29,8 +29,12 @@ import java.io.Serial;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
- * Exception is thrown when a task cannot be handed over to the shared evitaDB client thread pool — either because
- * the pool is saturated (all threads busy **and** the bounded backlog full) or because the client is shutting down.
+ * Exception is thrown when a task cannot be handed over to one of the evitaDB client's thread pools — either
+ * because the pool is saturated (all threads busy **and** the bounded backlog full) or because the client is
+ * shutting down. Two pools raise it: the shared pool serving ordinary calls, and the separate executor carrying
+ * change data capture callbacks. Both are sized from the same `ThreadPoolOptions`, so the remedy below applies
+ * to either — but only the saturation message names it, which is why the two constructors must not be used
+ * interchangeably (see each one's contract).
  *
  * The client pool deliberately fails fast instead of applying `ThreadPoolExecutor.CallerRunsPolicy`. A client
  * library does not control who submits: when the submitting thread is an Armeria event loop, "run it on the caller"
@@ -71,6 +75,13 @@ public class EvitaClientPoolSaturatedException extends EvitaInvalidUsageExceptio
 	 * Creates an exception describing a submission that arrived after the client pool was shut down. Kept on the
 	 * same type as the saturation case because callers react to both identically - the task will not run
 	 * asynchronously and any cleanup it carried has to be completed by the caller.
+	 *
+	 * **Use this only when the pool really is shutting down.** It is deliberately the *only* variant that names
+	 * no remedy, because a closing pool has none. Reaching for it as a generic "submission refused" stand-in -
+	 * for instance when re-raising a refusal whose original cause was discarded - tells an operator whose pool
+	 * is merely overloaded to go looking for a shutdown that never happened, and hides the
+	 * `maxThreadCount`/`queueSize` knobs that would have fixed it. Propagate the refusal the pool threw instead
+	 * of re-creating one; `CdcCallbackDispatcher#dispatch` returns it for exactly this reason.
 	 */
 	public EvitaClientPoolSaturatedException() {
 		super(

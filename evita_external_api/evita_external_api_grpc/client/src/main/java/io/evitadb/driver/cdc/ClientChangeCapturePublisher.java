@@ -25,7 +25,6 @@ package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
-import io.evitadb.driver.exception.EvitaClientPoolSaturatedException;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
@@ -543,7 +542,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			// even if the queue is currently empty; otherwise we'd silently stall a
 			// subscription whose overflow happened before any consume() was triggered
 			if (this.currentlyConsuming.compareAndSet(false, true)) {
-				final boolean dispatched = CdcCallbackDispatcher.dispatch(
+				final Throwable refusal = CdcCallbackDispatcher.dispatch(
 					this.executorService,
 					() -> {
 						try {
@@ -591,7 +590,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 					},
 					"drain buffered captures to the delegate subscriber"
 				);
-				if (!dispatched) {
+				if (refusal != null) {
 					// The capture callback executor refused the drain, and nothing may run it on this thread -
 					// this is reached from `produce()`, i.e. from the gRPC inbound thread. Release the flag for
 					// tidiness, but do not treat a later retry as the recovery: `produce()` early-returns once
@@ -603,12 +602,12 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 					// `cancel()` de-registers the subscription so the publisher can auto-close, and the
 					// consumer-facing `onError` inside `notifyClientFailureAndClose` is itself dispatched
 					// off-thread. Without this the subscription stalls forever with no terminal signal: the
-					// silent, permanent outage this whole teardown path exists to prevent.
+					// silent, permanent outage this whole teardown path exists to prevent. The consumer is
+					// handed the refusal exactly as the executor threw it - under saturation that is an
+					// `EvitaClientPoolSaturatedException` naming the `maxThreadCount`/`queueSize` knobs, which is
+					// the actionable half of the report and must not be replaced by a synthesized stand-in.
 					if (!this.cancelled.get()) {
-						this.walkingDead.compareAndSet(
-							null,
-							new EvitaClientPoolSaturatedException()
-						);
+						this.walkingDead.compareAndSet(null, refusal);
 						this.internalSubscriber.notifyClientFailureAndClose(this.walkingDead.get());
 						this.cancel();
 					}

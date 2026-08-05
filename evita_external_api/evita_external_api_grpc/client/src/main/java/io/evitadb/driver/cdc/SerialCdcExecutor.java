@@ -138,19 +138,27 @@ final class SerialCdcExecutor implements Executor {
 			// somebody else owns the drain and will pick our task up
 			return;
 		}
-		if (CdcCallbackDispatcher.dispatch(this.delegate, this::drain, this.description)) {
+		final Throwable refusal = CdcCallbackDispatcher.dispatch(this.delegate, this::drain, this.description);
+		if (refusal == null) {
 			return;
 		}
 		// Nothing will run the drain and nothing may run it here. Keep `draining` set: this instance is
 		// finished, and leaving the flag raised makes every concurrent submitter take the same "somebody else
 		// owns it" path rather than each re-attempting a dispatch that is going to fail identically.
-		terminate();
+		terminate(refusal);
 	}
 
 	/**
 	 * Marks this executor finished, drops the undeliverable backlog and notifies the owner exactly once.
+	 *
+	 * @param cause the refusal the delegate threw, reported to the owner **as thrown**. It is not re-created
+	 *              here: a saturated pool raises an
+	 *              {@link EvitaClientPoolSaturatedException} naming the `maxThreadCount`/`queueSize` knobs that
+	 *              would widen it, and that message is the whole reason the consumer is being told at all —
+	 *              swapping it for a synthesized one would hand an overloaded operator the shutdown wording
+	 *              instead of the two settings they need to change.
 	 */
-	private void terminate() {
+	private void terminate(@Nonnull Throwable cause) {
 		if (!this.terminated.compareAndSet(false, true)) {
 			return;
 		}
@@ -162,9 +170,7 @@ final class SerialCdcExecutor implements Executor {
 			this.description, discarded
 		);
 		try {
-			this.onDispatchFailure.accept(
-				new EvitaClientPoolSaturatedException()
-			);
+			this.onDispatchFailure.accept(cause);
 		} catch (Throwable ex) {
 			log.error("Failed to terminate the subscription owning the callback `{}`.", this.description, ex);
 		}
@@ -186,7 +192,17 @@ final class SerialCdcExecutor implements Executor {
 			}
 		} finally {
 			this.draining.set(false);
-			// a task enqueued while we were releasing the flag would otherwise wait for the next submission
+			// A task enqueued while we were releasing the flag would otherwise wait for the next submission -
+			// its own `scheduleDrain` lost the CAS to the drain that was already finishing, so nobody owns it.
+			// For the last callback of a subscription there is no next submission, so it is lost outright.
+			//
+			// Deleting this breaks NOTHING in the fast test suite - measured, not assumed - because the window
+			// is two adjacent statements wide and no functional test can place a submission inside it.
+			// `SerialCdcExecutorTest` pins the neighbouring, reachable case (enqueue while the drain is still
+			// *running*). The real guard is `LongRunningSerialCdcExecutorStressTest`, which sweeps the arrival
+			// time over 200 000 rounds and strands its first callback around round 20 000 once this is gone -
+			// it is @Disabled and lives in the long-running module because a probabilistic test in the fast
+			// loop only teaches people to press re-run.
 			if (!this.tasks.isEmpty()) {
 				scheduleDrain();
 			}
