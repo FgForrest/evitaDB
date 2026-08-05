@@ -84,7 +84,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	private final int sizeInBytes;
 	/**
 	 * Contains last used primary key among all references in this container. This is needed for assigning new unique
-	 * reference internal primary keys when new references are added (we cannot allow to reuse keys of removed references).
+	 * reference internal primary keys when new references are added (we cannot allow to reuse keys of removed
+	 * references).
 	 */
 	@Getter private int lastUsedPrimaryKey;
 	/**
@@ -201,7 +202,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * the `lastUsedPrimaryKey` field and assigns it to the reference.
 	 *
 	 * After the assignment procedure, the storage part marks itself as modified by setting the `dirty` field to true.
-	 * Finally, the `unassignedPrimaryKeys` field is set to false to indicate all missing primary keys have been assigned.
+	 * Finally, the `unassignedPrimaryKeys` field is set to false to indicate all missing primary keys have been
+	 * assigned.
 	 *
 	 * @return map of all reference keys that were assigned new primary keys during this operation
 	 */
@@ -216,9 +218,12 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			ReferenceKey previousReferenceKey = null;
 			for (int i = 0; i < theReferences.length; i++) {
 				Reference reference = theReferences[i];
+				// resolved once - `reference` is replaced below when a key gets assigned, and everything before
+				// that point must keep looking at the ORIGINAL key
+				final ReferenceKey referenceKey = reference.getReferenceKey();
 				if (previousReferenceKey != null) {
 					Assert.isPremiseValid(
-						ReferenceKey.FULL_COMPARATOR.compare(previousReferenceKey, reference.getReferenceKey()) < 0,
+						ReferenceKey.FULL_COMPARATOR.compare(previousReferenceKey, referenceKey) < 0,
 						() -> "References must be sorted in ascending order according to their business key: "
 							+ Arrays.stream(theReferences)
 							.map(Reference::getReferenceKey)
@@ -227,11 +232,17 @@ public class ReferencesStoragePart implements EntityStoragePart {
 					);
 				}
 				// remember the previous key for the next iteration
-				previousReferenceKey = reference.getReferenceKey();
+				previousReferenceKey = referenceKey;
 				// assign primary keys to references that don't have it yet (update the key)
+				//
+				// the membership test is deliberately NOT `refKeysForReassignment.contains(...)`: that can only be
+				// handed an object, so it allocated one wrapper per reference per call - and this loop revisits
+				// every reference on each call, including those keyed earlier, which made it 19.2% of all
+				// write-path allocation in the senesi WARM_UP profile. `containsEquivalent` also sidesteps a
+				// hash-bucket blind spot in the set itself; see its JavaDoc.
 				if (
-					!reference.getReferenceKey().isKnownInternalPrimaryKey()
-						|| refKeysForReassignment.contains(new ComparableReferenceKey(reference.getReferenceKey()))
+					!referenceKey.isKnownInternalPrimaryKey()
+						|| ComparableReferenceKey.containsEquivalent(refKeysForReassignment, referenceKey)
 				) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					theReferences[i] = reference;
@@ -240,7 +251,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 						assignedKeys = new HashMap<>(16);
 					}
 					assignedKeys.put(
-						new ComparableReferenceKey(previousReferenceKey),
+						// the ORIGINAL key of this reference - `previousReferenceKey` was assigned from it above
+						new ComparableReferenceKey(referenceKey),
 						reference.getReferenceKey()
 					);
 				}
@@ -645,7 +657,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			Assert.isPremiseValid(
 				index + 1 == theReferences.length ||
 					!theReferences[index + 1].getReferenceKey().equals(referenceKey),
-				() -> "There is more than one reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "`!"
+				() -> "There is more than one reference " + referenceKey +
+					" for entity `" + this.entityPrimaryKey + "`!"
 			);
 			return Optional.of(theReferences[index]);
 		} else {
