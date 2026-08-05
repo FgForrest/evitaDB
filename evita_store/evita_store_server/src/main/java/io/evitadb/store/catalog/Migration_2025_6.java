@@ -159,7 +159,10 @@ public interface Migration_2025_6 {
 						entityCollectionHeader.globalEntityIndexPrimaryKey(),
 						entityCollectionHeader.usedEntityIndexPrimaryKeys(),
 						entityCollectionHeader.lastKeyId(),
-						entityCollectionHeader.activeRecordShare()
+						entityCollectionHeader.activeRecordShare(),
+						// the migration only rewrites the compressed-key strings; it is not itself a write of the
+						// collection's data, so it carries the stamp across rather than re-stamping it as "now"
+						entityCollectionHeader.lastModifiedMillis()
 					)
 				)
 			);

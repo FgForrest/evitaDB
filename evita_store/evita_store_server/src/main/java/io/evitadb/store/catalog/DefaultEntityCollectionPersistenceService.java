@@ -1230,6 +1230,10 @@ public class DefaultEntityCollectionPersistenceService
 	 * Method creates a function that allows to create new {@link EntityCollectionFileHeader} instance from
 	 * {@link PersistentStorageDescriptor} DTO. The catalog entity header contains additional information from this
 	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
+	 *
+	 * This is the one place a header is built, and therefore the one place `lastModifiedMillis` is stamped. Both
+	 * callers - the flush that produced a new descriptor, and compaction - reach the collection through here, so the
+	 * stamp cannot drift out of step with the contents it describes.
 	 */
 	@Nonnull
 	private EntityCollectionFileHeader createEntityCollectionHeader(
@@ -1251,7 +1255,8 @@ public class DefaultEntityCollectionPersistenceService
 			newDescriptor,
 			headerInfoSupplier.getGlobalIndexPrimaryKey().isPresent() ?
 				headerInfoSupplier.getGlobalIndexPrimaryKey().getAsInt() : null,
-			headerInfoSupplier.getIndexPrimaryKeys()
+			headerInfoSupplier.getIndexPrimaryKeys(),
+			DefaultCatalogPersistenceService.getNowEpochMillis()
 		);
 	}
 

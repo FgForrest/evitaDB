@@ -67,6 +67,7 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcCollectionHeaderInfo.class, io.evitadb.externalApi.grpc.generated.GrpcCollectionHeaderInfo.Builder.class);
   }
 
+  private int bitField0_;
   public static final int ENTITYTYPEPRIMARYKEY_FIELD_NUMBER = 1;
   private int entityTypePrimaryKey_ = 0;
   /**
@@ -175,6 +176,65 @@ private static final long serialVersionUID = 0L;
     return maxRecordSizeBytes_;
   }
 
+  public static final int LASTMODIFIED_FIELD_NUMBER = 8;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified_;
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   * @return Whether the lastModified field is set.
+   */
+  @java.lang.Override
+  public boolean hasLastModified() {
+    return ((bitField0_ & 0x00000001) != 0);
+  }
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   * @return The lastModified.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastModified() {
+    return lastModified_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastModified_;
+  }
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastModifiedOrBuilder() {
+    return lastModified_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastModified_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -209,6 +269,9 @@ private static final long serialVersionUID = 0L;
     }
     if (maxRecordSizeBytes_ != 0L) {
       output.writeInt64(7, maxRecordSizeBytes_);
+    }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(8, getLastModified());
     }
     getUnknownFields().writeTo(output);
   }
@@ -247,6 +310,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(7, maxRecordSizeBytes_);
     }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getLastModified());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -276,6 +343,11 @@ private static final long serialVersionUID = 0L;
         != other.getLastKeyId()) return false;
     if (getMaxRecordSizeBytes()
         != other.getMaxRecordSizeBytes()) return false;
+    if (hasLastModified() != other.hasLastModified()) return false;
+    if (hasLastModified()) {
+      if (!getLastModified()
+          .equals(other.getLastModified())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -304,6 +376,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + MAXRECORDSIZEBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getMaxRecordSizeBytes());
+    if (hasLastModified()) {
+      hash = (37 * hash) + LASTMODIFIED_FIELD_NUMBER;
+      hash = (53 * hash) + getLastModified().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -428,13 +504,19 @@ private static final long serialVersionUID = 0L;
 
     // Construct using io.evitadb.externalApi.grpc.generated.GrpcCollectionHeaderInfo.newBuilder()
     private Builder() {
-
+      maybeForceBuilderInitialization();
     }
 
     private Builder(
         com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-
+      maybeForceBuilderInitialization();
+    }
+    private void maybeForceBuilderInitialization() {
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+        getLastModifiedFieldBuilder();
+      }
     }
     @java.lang.Override
     public Builder clear() {
@@ -447,6 +529,11 @@ private static final long serialVersionUID = 0L;
       lastInternalPriceId_ = 0;
       lastKeyId_ = 0L;
       maxRecordSizeBytes_ = 0L;
+      lastModified_ = null;
+      if (lastModifiedBuilder_ != null) {
+        lastModifiedBuilder_.dispose();
+        lastModifiedBuilder_ = null;
+      }
       return this;
     }
 
@@ -501,6 +588,14 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000040) != 0)) {
         result.maxRecordSizeBytes_ = maxRecordSizeBytes_;
       }
+      int to_bitField0_ = 0;
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.lastModified_ = lastModifiedBuilder_ == null
+            ? lastModified_
+            : lastModifiedBuilder_.build();
+        to_bitField0_ |= 0x00000001;
+      }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -568,6 +663,9 @@ private static final long serialVersionUID = 0L;
       if (other.getMaxRecordSizeBytes() != 0L) {
         setMaxRecordSizeBytes(other.getMaxRecordSizeBytes());
       }
+      if (other.hasLastModified()) {
+        mergeLastModified(other.getLastModified());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -629,6 +727,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000040;
               break;
             } // case 56
+            case 66: {
+              input.readMessage(
+                  getLastModifiedFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -961,6 +1066,226 @@ private static final long serialVersionUID = 0L;
       maxRecordSizeBytes_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> lastModifiedBuilder_;
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     * @return Whether the lastModified field is set.
+     */
+    public boolean hasLastModified() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     * @return The lastModified.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastModified() {
+      if (lastModifiedBuilder_ == null) {
+        return lastModified_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastModified_;
+      } else {
+        return lastModifiedBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public Builder setLastModified(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastModifiedBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        lastModified_ = value;
+      } else {
+        lastModifiedBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public Builder setLastModified(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (lastModifiedBuilder_ == null) {
+        lastModified_ = builderForValue.build();
+      } else {
+        lastModifiedBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public Builder mergeLastModified(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastModifiedBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          lastModified_ != null &&
+          lastModified_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getLastModifiedBuilder().mergeFrom(value);
+        } else {
+          lastModified_ = value;
+        }
+      } else {
+        lastModifiedBuilder_.mergeFrom(value);
+      }
+      if (lastModified_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public Builder clearLastModified() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      lastModified_ = null;
+      if (lastModifiedBuilder_ != null) {
+        lastModifiedBuilder_.dispose();
+        lastModifiedBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getLastModifiedBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getLastModifiedFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastModifiedOrBuilder() {
+      if (lastModifiedBuilder_ != null) {
+        return lastModifiedBuilder_.getMessageOrBuilder();
+      } else {
+        return lastModified_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastModified_;
+      }
+    }
+    /**
+     * <pre>
+     * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+     * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+     * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+     * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+     *
+     * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+     * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+     * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getLastModifiedFieldBuilder() {
+      if (lastModifiedBuilder_ == null) {
+        lastModifiedBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getLastModified(),
+                getParentForChildren(),
+                isClean());
+        lastModified_ = null;
+      }
+      return lastModifiedBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

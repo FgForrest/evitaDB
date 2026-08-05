@@ -444,6 +444,15 @@ message GrpcCollectionHeaderInfo {
   // it is seeded from its previous value and only ever widened on flush, so removing the biggest record never lowers
   // it. Label it "largest ever seen" wherever it is displayed.
   int64 maxRecordSizeBytes = 7;
+  // Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+  // changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+  // question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+  // forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+  //
+  // If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+  // headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+  // unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+  GrpcOffsetDateTime lastModified = 8;
 
 }
 

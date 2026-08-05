@@ -896,15 +896,20 @@ public class CatalogStatisticsConverter {
 	 */
 	@Nonnull
 	private static GrpcCollectionHeaderInfo toGrpcCollectionHeaderInfo(@Nonnull CollectionHeaderInfo header) {
-		return GrpcCollectionHeaderInfo.newBuilder()
+		final GrpcCollectionHeaderInfo.Builder builder = GrpcCollectionHeaderInfo.newBuilder()
 			.setEntityTypePrimaryKey(header.entityTypePrimaryKey())
 			.setVersion(header.version())
 			.setLastPrimaryKey(header.lastPrimaryKey())
 			.setLastEntityIndexPrimaryKey(header.lastEntityIndexPrimaryKey())
 			.setLastInternalPriceId(header.lastInternalPriceId())
 			.setLastKeyId(header.lastKeyId())
-			.setMaxRecordSizeBytes(header.maxRecordSizeBytes())
-			.build();
+			.setMaxRecordSizeBytes(header.maxRecordSizeBytes());
+		// left unset for a header written before 2026.3 - setting it unconditionally would send an epoch-zero instant
+		// that a client cannot tell apart from a real timestamp
+		if (header.lastModified() != null) {
+			builder.setLastModified(EvitaDataTypesConverter.toGrpcOffsetDateTime(header.lastModified()));
+		}
+		return builder.build();
 	}
 
 	/**
@@ -922,7 +927,9 @@ public class CatalogStatisticsConverter {
 			grpcHeader.getLastEntityIndexPrimaryKey(),
 			grpcHeader.getLastInternalPriceId(),
 			grpcHeader.getLastKeyId(),
-			grpcHeader.getMaxRecordSizeBytes()
+			grpcHeader.getMaxRecordSizeBytes(),
+			grpcHeader.hasLastModified() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcHeader.getLastModified()) : null
 		);
 	}
 

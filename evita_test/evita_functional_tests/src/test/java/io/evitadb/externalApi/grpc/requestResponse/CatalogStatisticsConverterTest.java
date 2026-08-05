@@ -234,6 +234,39 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@Test
+	@DisplayName("decode a collection with no recorded last-modified time back to absent")
+	void shouldDecodeAnAbsentCollectionLastModifiedAsAbsent() throws InvalidProtocolBufferException {
+		final Map<CatalogStatisticsComponent, ComponentStatus> statuses =
+			new EnumMap<>(CatalogStatisticsComponent.class);
+		statuses.put(
+			CatalogStatisticsComponent.IDENTITY,
+			ComponentStatus.delivered(CatalogStatisticsComponent.IDENTITY)
+		);
+		statuses.put(
+			CatalogStatisticsComponent.COLLECTIONS,
+			ComponentStatus.delivered(CatalogStatisticsComponent.COLLECTIONS)
+		);
+		// a catalog carried over from a release before the header timestamp existed reports this for every one of its
+		// collections until each is next flushed, so it is the ordinary case rather than an edge one
+		final EntityCollectionStatistics original = new EntityCollectionStatistics(
+			identity(),
+			"product",
+			new CollectionHeaderInfo(11, 12L, 13, 14, 15, 16L, 17L, null),
+			null, null, null, null, null, null,
+			Map.copyOf(statuses)
+		);
+
+		final EntityCollectionStatistics roundTripped = roundTrip(original);
+
+		// the component itself is delivered - it is one field inside it that is absent, and an unconditional read of
+		// the sub-message would decode that absence into an epoch-zero instant a client would render as 1970
+		assertTrue(roundTripped.isDelivered(CatalogStatisticsComponent.COLLECTIONS));
+		assertEquals(17L, roundTripped.header().maxRecordSizeBytes());
+		assertNull(roundTripped.header().lastModified());
+		assertTrue(roundTripped.header().lastModifiedIfKnown().isEmpty());
+	}
+
+	@Test
 	@DisplayName("keep the unknown id and unknown state of a corrupted catalog unknown")
 	void shouldRoundTripUnusableCatalogIdentity() throws InvalidProtocolBufferException {
 		// this is what UnusableCatalog reports: the name and the read-only flag are known without loading anything,
@@ -452,7 +485,10 @@ class CatalogStatisticsConverterTest {
 		return new EntityCollectionStatistics(
 			identity(),
 			"product",
-			new CollectionHeaderInfo(11, 12L, 13, 14, 15, 16L, 17L),
+			// a populated `lastModified` here; the absent case is covered by
+			// shouldDecodeAnAbsentCollectionLastModifiedAsAbsent below, which is the one a naive
+			// `hasLastModified()`-less converter arm would fail
+			new CollectionHeaderInfo(11, 12L, 13, 14, 15, 16L, 17L, COUNTING_SINCE),
 			new CollectionRecordCounts(21, 22, 23),
 			new CollectionStorageSize(31L, 32L, 33L, 34L, 35L),
 			new CollectionStorageComposition(

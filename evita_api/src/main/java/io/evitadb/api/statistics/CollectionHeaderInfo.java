@@ -23,6 +23,11 @@
 
 package io.evitadb.api.statistics;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
+import java.util.Optional;
+
 /**
  * The {@link CatalogStatisticsComponent#COLLECTIONS} component of one entity collection - the counters carried by its
  * storage header. The catalog-level counterpart {@link CollectionsInfo} lists only *which* collections exist; these
@@ -46,6 +51,9 @@ package io.evitadb.api.statistics;
  * @param lastInternalPriceId       highest internal price id assigned so far
  * @param lastKeyId                 highest storage key id assigned so far
  * @param maxRecordSizeBytes        largest single stored record ever observed in this collection, in bytes
+ * @param lastModified              wall-clock time this collection's storage header was last written, or `null` when
+ *                                  the collection has not been written since the catalog was upgraded to 2026.3 - see
+ *                                  the note below
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record CollectionHeaderInfo(
@@ -55,6 +63,27 @@ public record CollectionHeaderInfo(
 	int lastEntityIndexPrimaryKey,
 	int lastInternalPriceId,
 	long lastKeyId,
-	long maxRecordSizeBytes
+	long maxRecordSizeBytes,
+	@Nullable OffsetDateTime lastModified
 ) {
+
+	/**
+	 * Wall-clock time of the last write to this collection, when it is known.
+	 *
+	 * **`null` is a real and expected answer, not an error.** The timestamp is persisted in the collection's storage
+	 * header, and headers written before 2026.3 do not carry one; a catalog upgraded from an earlier release therefore
+	 * reports `null` for every collection until each is next flushed. A client must render that as *unknown* rather
+	 * than as a date - which is precisely why this is `null` and not an epoch-zero instant.
+	 *
+	 * The header is rewritten by every flush that changed the collection and by every compaction of it, so a
+	 * compaction moves this forward without the data having changed. It answers *when was this collection's storage
+	 * last written*, which is the question a management screen asks, but it is not a data-modification audit trail.
+	 *
+	 * @return the last write, or empty when the header predates the timestamp
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> lastModifiedIfKnown() {
+		return Optional.ofNullable(this.lastModified);
+	}
+
 }

@@ -184,7 +184,9 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1176,7 +1178,12 @@ public final class EntityCollection implements
 			header.lastEntityIndexPrimaryKey(),
 			header.lastInternalPriceId(),
 			header.lastKeyId(),
-			this.persistenceService.getMaxRecordSizeBytes()
+			this.persistenceService.getMaxRecordSizeBytes(),
+			// `0` is the storage layer's "this header carries no timestamp" - a header written before 2026.3 - and it
+			// becomes an explicit absence here rather than an epoch-zero instant a client would render as a date
+			header.lastModifiedMillis() == 0L ?
+				null :
+				OffsetDateTime.ofInstant(Instant.ofEpochMilli(header.lastModifiedMillis()), ZoneId.systemDefault())
 		);
 	}
 

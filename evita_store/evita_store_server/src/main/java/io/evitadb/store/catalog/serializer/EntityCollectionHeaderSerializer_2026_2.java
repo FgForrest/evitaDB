@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 package io.evitadb.store.catalog.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
@@ -37,32 +36,27 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link EntityCollectionFileHeader} from/to binary format.
+ * Reads {@link EntityCollectionFileHeader} in the layout that shipped up to and including 2026.2 - everything the
+ * current {@link EntityCollectionHeaderSerializer} writes *except* the trailing `lastModifiedMillis`, which 2026.3
+ * appended. Headers in that layout carry no timestamp at all, so they are reconstructed with
+ * {@link EntityCollectionFileHeader#NOT_STAMPED} and the statistics layer reports the collection's last-modified time
+ * as unknown until its next flush stamps it.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * Registered against the pre-bump `serialVersionUID` `-2149051526452828365L`, which was the value at `release_2026-1`
+ * and `release_2026-2` alike - the class had not been bumped since 2024.12, so that single value covers every catalog
+ * written in between.
+ *
+ * Read-only, like every snapshot serializer: {@link #write} throws.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionFileHeader> {
+@Deprecated(since = "2026.3", forRemoval = true)
+public class EntityCollectionHeaderSerializer_2026_2
+	extends AbstractPersistentStorageHeaderSerializer<EntityCollectionFileHeader> {
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityCollectionFileHeader object) {
-		output.writeString(object.entityType());
-		output.writeVarInt(object.entityTypePrimaryKey(), true);
-		output.writeVarInt(object.entityTypeFileIndex(), true);
-		output.writeVarLong(object.version(), true);
-		output.writeVarInt(object.lastPrimaryKey(), true);
-		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
-		output.writeVarInt(object.lastInternalPriceId(), true);
-		output.writeVarInt(object.recordCount(), true);
-		output.writeDouble(object.activeRecordShare());
-
-		final FileLocation fileOffsetIndexLocation = object.fileLocation();
-		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
-		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
-
-		serializeKeys(object.compressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.globalEntityIndexPrimaryKey(), Integer.class);
-		serializeEntityIndexIds(output, object);
-		output.writeVarLong(object.lastModifiedMillis(), true);
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -77,14 +71,14 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final int entityCount = input.readVarInt(true);
 		final double activeRecordShare = input.readDouble();
 		final FileLocation fileOffsetIndexLocation = new FileLocation(
-				input.readVarLong(true),
-				input.readVarInt(true)
-			);
+			input.readVarLong(true),
+			input.readVarInt(true)
+		);
 		final DeserializedKeys deserializedKeys = deserializeKeysAndPeak(input, kryo);
 
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
-		final long lastModifiedMillis = input.readVarLong(true);
+		// the stream ends here in this layout - the current serializer appends `lastModifiedMillis` past this point
 
 		return new EntityCollectionFileHeader(
 			entityType,
@@ -95,24 +89,12 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 			lastEntityIndexPrimaryKey,
 			lastInternalPriceId,
 			activeRecordShare,
-			new PersistentStorageHeader(version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()),
+			new PersistentStorageHeader(
+				version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()
+			),
 			globalIndexKey,
 			entityIndexIds,
-			lastModifiedMillis
-		);
-	}
-
-	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionFileHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.usedEntityIndexPrimaryKeys().size();
-		output.writeVarInt(entityIndexCount, true);
-		output.writeInts(
-			catalogEntityHeader.usedEntityIndexPrimaryKeys()
-				.stream()
-				.mapToInt(it -> it)
-				.toArray(),
-			0,
-			entityIndexCount,
-			true
+			EntityCollectionFileHeader.NOT_STAMPED
 		);
 	}
 

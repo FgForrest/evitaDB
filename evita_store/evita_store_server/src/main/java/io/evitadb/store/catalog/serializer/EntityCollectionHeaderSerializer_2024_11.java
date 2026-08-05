@@ -79,7 +79,9 @@ public class EntityCollectionHeaderSerializer_2024_11 extends AbstractPersistent
 			activeRecordShare,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()),
 			globalIndexKey,
-			entityIndexIds
+			entityIndexIds,
+			// this layout long predates the 2026.3 timestamp
+			EntityCollectionFileHeader.NOT_STAMPED
 		);
 	}
 

@@ -289,65 +289,67 @@ public final class GrpcStatistics {
       "tus\030\014 \003(\0132:.io.evitadb.externalApi.grpc." +
       "generated.GrpcComponentStatus\022O\n\010activit" +
       "y\030\r \001(\0132=.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcActivityStatistics\"\320\001\n\030GrpcC" +
+      "nerated.GrpcActivityStatistics\"\241\002\n\030GrpcC" +
       "ollectionHeaderInfo\022\034\n\024entityTypePrimary" +
       "Key\030\001 \001(\005\022\017\n\007version\030\002 \001(\003\022\026\n\016lastPrimar" +
       "yKey\030\003 \001(\005\022!\n\031lastEntityIndexPrimaryKey\030" +
       "\004 \001(\005\022\033\n\023lastInternalPriceId\030\005 \001(\005\022\021\n\tla" +
       "stKeyId\030\006 \001(\003\022\032\n\022maxRecordSizeBytes\030\007 \001(" +
-      "\003\"`\n\032GrpcCollectionRecordCounts\022\024\n\014total" +
-      "Records\030\001 \001(\005\022\023\n\013liveRecords\030\002 \001(\005\022\027\n\017ar" +
-      "chivedRecords\030\003 \001(\005\"\226\001\n\031GrpcCollectionSt" +
-      "orageSize\022\031\n\021sizeOnDiskInBytes\030\001 \001(\003\022\021\n\t" +
-      "liveBytes\030\002 \001(\003\022\022\n\nwasteBytes\030\003 \001(\003\022\035\n\025a" +
-      "waitingDeletionBytes\030\004 \001(\003\022\030\n\020unaccounte" +
-      "dBytes\030\005 \001(\003\"n\n GrpcCollectionStorageCom" +
-      "position\022J\n\005parts\030\001 \003(\0132;.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcStoragePartU" +
-      "sage\"\241\002\n\032GrpcDataStoreFragmentation\022\031\n\021a" +
-      "ctiveRecordShare\030\001 \001(\001\022\021\n\tliveBytes\030\002 \001(" +
-      "\003\022\022\n\nwasteBytes\030\003 \001(\003\022\035\n\025compactionEligi" +
-      "bleNow\030\004 \001(\010\022\033\n\023wasteBytesGenerated\030\005 \001(" +
-      "\003\022+\n#wasteAccumulationRateBytesPerSecond" +
-      "\030\006 \001(\001\022X\n\025estimatedCompactionAt\030\007 \001(\01329." +
-      "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcOffsetDateTime\"\271\001\n\022GrpcIndexKindCount\022" +
-      "M\n\tindexKind\030\001 \001(\0162:.io.evitadb.external" +
-      "Api.grpc.generated.GrpcEntityIndexKind\022E" +
-      "\n\005scope\030\002 \001(\01626.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcEntityScope\022\r\n\005count\030\003" +
-      " \001(\005\"\210\001\n\032GrpcCollectionIndexSummary\022\027\n\017t" +
-      "otalIndexCount\030\001 \001(\005\022Q\n\016byKindAndScope\030\002" +
-      " \003(\01329.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcIndexKindCount\"\343\001\n\032GrpcDataStor" +
-      "eVolatileState\022+\n#totalSizeIncludingVola" +
-      "tileDataBytes\030\001 \001(\003\022\035\n\025nonFlushedRecordC" +
-      "ount\030\002 \001(\005\022\033\n\023nonFlushedSizeBytes\030\003 \001(\003\022" +
-      "\\\n\031oldestRecordKeptTimestamp\030\004 \001(\01329.io." +
-      "evitadb.externalApi.grpc.generated.GrpcO" +
-      "ffsetDateTime\"\322\006\n&GrpcEntityCollectionSt" +
-      "atisticsSnapshot\022L\n\010identity\030\001 \001(\0132:.io." +
-      "evitadb.externalApi.grpc.generated.GrpcC" +
-      "atalogIdentity\022\022\n\nentityType\030\002 \001(\t\022O\n\006he" +
-      "ader\030\003 \001(\0132?.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcCollectionHeaderInfo\022W\n\014r" +
-      "ecordCounts\030\004 \001(\0132A.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcCollectionRecordCo" +
-      "unts\022U\n\013storageSize\030\005 \001(\0132@.io.evitadb.e" +
+      "\003\022O\n\014lastModified\030\010 \001(\01329.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcOffsetDateTi" +
+      "me\"`\n\032GrpcCollectionRecordCounts\022\024\n\014tota" +
+      "lRecords\030\001 \001(\005\022\023\n\013liveRecords\030\002 \001(\005\022\027\n\017a" +
+      "rchivedRecords\030\003 \001(\005\"\226\001\n\031GrpcCollectionS" +
+      "torageSize\022\031\n\021sizeOnDiskInBytes\030\001 \001(\003\022\021\n" +
+      "\tliveBytes\030\002 \001(\003\022\022\n\nwasteBytes\030\003 \001(\003\022\035\n\025" +
+      "awaitingDeletionBytes\030\004 \001(\003\022\030\n\020unaccount" +
+      "edBytes\030\005 \001(\003\"n\n GrpcCollectionStorageCo" +
+      "mposition\022J\n\005parts\030\001 \003(\0132;.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcStoragePart" +
+      "Usage\"\241\002\n\032GrpcDataStoreFragmentation\022\031\n\021" +
+      "activeRecordShare\030\001 \001(\001\022\021\n\tliveBytes\030\002 \001" +
+      "(\003\022\022\n\nwasteBytes\030\003 \001(\003\022\035\n\025compactionElig" +
+      "ibleNow\030\004 \001(\010\022\033\n\023wasteBytesGenerated\030\005 \001" +
+      "(\003\022+\n#wasteAccumulationRateBytesPerSecon" +
+      "d\030\006 \001(\001\022X\n\025estimatedCompactionAt\030\007 \001(\01329" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcOffsetDateTime\"\271\001\n\022GrpcIndexKindCount" +
+      "\022M\n\tindexKind\030\001 \001(\0162:.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcEntityIndexKind\022" +
+      "E\n\005scope\030\002 \001(\01626.io.evitadb.externalApi." +
+      "grpc.generated.GrpcEntityScope\022\r\n\005count\030" +
+      "\003 \001(\005\"\210\001\n\032GrpcCollectionIndexSummary\022\027\n\017" +
+      "totalIndexCount\030\001 \001(\005\022Q\n\016byKindAndScope\030" +
+      "\002 \003(\01329.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcIndexKindCount\"\343\001\n\032GrpcDataSto" +
+      "reVolatileState\022+\n#totalSizeIncludingVol" +
+      "atileDataBytes\030\001 \001(\003\022\035\n\025nonFlushedRecord" +
+      "Count\030\002 \001(\005\022\033\n\023nonFlushedSizeBytes\030\003 \001(\003" +
+      "\022\\\n\031oldestRecordKeptTimestamp\030\004 \001(\01329.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "OffsetDateTime\"\322\006\n&GrpcEntityCollectionS" +
+      "tatisticsSnapshot\022L\n\010identity\030\001 \001(\0132:.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "CatalogIdentity\022\022\n\nentityType\030\002 \001(\t\022O\n\006h" +
+      "eader\030\003 \001(\0132?.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcCollectionHeaderInfo\022W\n\014" +
+      "recordCounts\030\004 \001(\0132A.io.evitadb.external" +
+      "Api.grpc.generated.GrpcCollectionRecordC" +
+      "ounts\022U\n\013storageSize\030\005 \001(\0132@.io.evitadb." +
+      "externalApi.grpc.generated.GrpcCollectio" +
+      "nStorageSize\022c\n\022storageComposition\030\006 \001(\013" +
+      "2G.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcCollectionStorageComposition\022X\n\rfra" +
+      "gmentation\030\007 \001(\0132A.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcDataStoreFragmentat" +
+      "ion\022W\n\014indexSummary\030\010 \001(\0132A.io.evitadb.e" +
       "xternalApi.grpc.generated.GrpcCollection" +
-      "StorageSize\022c\n\022storageComposition\030\006 \001(\0132" +
-      "G.io.evitadb.externalApi.grpc.generated." +
-      "GrpcCollectionStorageComposition\022X\n\rfrag" +
-      "mentation\030\007 \001(\0132A.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcDataStoreFragmentati" +
-      "on\022W\n\014indexSummary\030\010 \001(\0132A.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcCollectionI" +
-      "ndexSummary\022X\n\rvolatileState\030\t \001(\0132A.io." +
-      "evitadb.externalApi.grpc.generated.GrpcD" +
-      "ataStoreVolatileState\022S\n\017componentStatus" +
-      "\030\n \003(\0132:.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcComponentStatusB\014P\001\252\002\007EvitaDB" +
-      "b\006proto3"
+      "IndexSummary\022X\n\rvolatileState\030\t \001(\0132A.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "DataStoreVolatileState\022S\n\017componentStatu" +
+      "s\030\n \003(\0132:.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcComponentStatusB\014P\001\252\002\007EvitaD" +
+      "Bb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -457,7 +459,7 @@ public final class GrpcStatistics {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionHeaderInfo_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionHeaderInfo_descriptor,
-        new java.lang.String[] { "EntityTypePrimaryKey", "Version", "LastPrimaryKey", "LastEntityIndexPrimaryKey", "LastInternalPriceId", "LastKeyId", "MaxRecordSizeBytes", });
+        new java.lang.String[] { "EntityTypePrimaryKey", "Version", "LastPrimaryKey", "LastEntityIndexPrimaryKey", "LastInternalPriceId", "LastKeyId", "MaxRecordSizeBytes", "LastModified", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionRecordCounts_descriptor =
       getDescriptor().getMessageTypes().get(17);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionRecordCounts_fieldAccessorTable = new

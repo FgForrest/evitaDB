@@ -103,4 +103,52 @@ public interface GrpcCollectionHeaderInfoOrBuilder extends
    * @return The maxRecordSizeBytes.
    */
   long getMaxRecordSizeBytes();
+
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   * @return Whether the lastModified field is set.
+   */
+  boolean hasLastModified();
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   * @return The lastModified.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastModified();
+  /**
+   * <pre>
+   * Wall-clock time this collection's storage header was last written. The header is rewritten by every flush that
+   * changed the collection and by every compaction of it, so this answers "when did anything last change here" - the
+   * question the monotonic `version` cannot, since a version says how many times, never when. A compaction moves it
+   * forward without the data itself having changed, so it describes the storage, not a data-modification audit trail.
+   *
+   * If unset, the timestamp is unknown rather than zero: it is persisted in the collection's storage header and
+   * headers written before evitaDB 2026.3 do not carry one, so a catalog upgraded from an earlier release reports it
+   * unset for every collection until each is next flushed. Render an unset value as "unknown", never as a date.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastModified = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastModifiedOrBuilder();
 }
