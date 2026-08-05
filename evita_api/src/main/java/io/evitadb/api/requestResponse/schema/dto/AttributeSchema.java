@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -49,11 +50,11 @@ import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
-import static java.util.Optional.ofNullable;
 
 
 /**
@@ -151,6 +152,18 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 * {@link AttributeSchemaContract#isUniqueWithinLocaleInScope(Scope)}.
 	 */
 	@Getter protected final Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
+	/**
+	 * Canonical locale-agnostic {@link AttributeKey} of this attribute. The write path derives such a key from the
+	 * schema per attribute per entity only to compare it or to look a value up by it, and then discards it - since
+	 * the schema is immutable and outlives all of those uses, the key is created once here instead.
+	 */
+	@EqualsAndHashCode.Exclude @Nonnull private final AttributeKey attributeKey;
+	/**
+	 * Canonical localized {@link AttributeKey} instances of this attribute, keyed by locale and filled in on demand.
+	 * The locale domain is bounded by the locales of the entities using this schema, so the map stays small. It is
+	 * `null` for non-localized attributes, which never look a localized key up repeatedly.
+	 */
+	@EqualsAndHashCode.Exclude @Nullable private final Map<Locale, AttributeKey> localizedAttributeKeys;
 
 	/**
 	 * Converts an array of ScopedAttributeUniquenessType objects into an EnumMap linking Scope to AttributeUniquenessType.
@@ -436,6 +449,36 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		this.defaultValue = EvitaDataTypes.toTargetType(defaultValue, this.plainType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+		this.attributeKey = new AttributeKey(this.name);
+		this.localizedAttributeKeys = localized ? new ConcurrentHashMap<>(8) : null;
+	}
+
+	@Nonnull
+	@Override
+	public AttributeKey getAttributeKey() {
+		return this.attributeKey;
+	}
+
+	@Nonnull
+	@Override
+	public AttributeKey getAttributeKey(@Nullable Locale locale) {
+		if (locale == null) {
+			return this.attributeKey;
+		}
+		final Map<Locale, AttributeKey> theLocalizedKeys = this.localizedAttributeKeys;
+		if (theLocalizedKeys == null) {
+			// non-localized attribute - a localized key of it is never requested repeatedly, caching would not pay off
+			return new AttributeKey(this.name, locale);
+		}
+		final AttributeKey cachedKey = theLocalizedKeys.get(locale);
+		if (cachedKey != null) {
+			return cachedKey;
+		}
+		// deliberately not computeIfAbsent - it would allocate a capturing lambda on every call, which is exactly
+		// the allocation this cache exists to remove
+		final AttributeKey newKey = new AttributeKey(this.name, locale);
+		final AttributeKey concurrentlyStoredKey = theLocalizedKeys.putIfAbsent(locale, newKey);
+		return concurrentlyStoredKey == null ? newKey : concurrentlyStoredKey;
 	}
 
 	@Override
@@ -471,7 +514,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	@Nonnull
 	@Override
 	public AttributeUniquenessType getUniquenessType(@Nonnull Scope scope) {
-		return ofNullable(this.uniquenessTypeInScopes.get(scope)).orElse(AttributeUniquenessType.NOT_UNIQUE);
+		// plain null-check instead of Optional wrapping - this accessor is called per attribute on the write path
+		final AttributeUniquenessType uniquenessType = this.uniquenessTypeInScopes.get(scope);
+		return uniquenessType == null ? AttributeUniquenessType.NOT_UNIQUE : uniquenessType;
 	}
 
 	@Override

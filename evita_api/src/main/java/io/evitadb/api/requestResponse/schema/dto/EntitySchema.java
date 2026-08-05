@@ -822,6 +822,20 @@ public final class EntitySchema implements EntitySchemaContract {
 		return ofNullable(this.attributes.get(attributeName));
 	}
 
+	/**
+	 * Variant of {@link #getAttribute(String)} that returns the schema directly instead of wrapping it into
+	 * an {@link Optional}. It exists for the write path, which resolves an attribute schema for every attribute
+	 * mutation it applies and would otherwise allocate an `Optional` per resolution. The `Optional` returning variant
+	 * remains the contract for everyone else, per the project rule that `Optional` belongs at the read boundary.
+	 *
+	 * @param attributeName name of the attribute to look up
+	 * @return the attribute schema, or `null` when the entity schema does not know an attribute of such name
+	 */
+	@Nullable
+	public EntityAttributeSchemaContract getAttributeOrNull(@Nonnull String attributeName) {
+		return this.attributes.get(attributeName);
+	}
+
 	@Nonnull
 	@Override
 	public Optional<EntityAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
@@ -882,8 +896,14 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public AssociatedDataSchemaContract getAssociatedDataOrThrowException(@Nonnull String dataName) {
-		return ofNullable(this.associatedData.get(dataName))
-			.orElseThrow(() -> new EvitaInvalidUsageException("Associated data `" + dataName + "` is not known in entity `" + getName() + "` schema!"));
+		// this method is on the hot write path - avoid the Optional wrapper and the capturing lambda of orElseThrow
+		final AssociatedDataSchema associatedDataSchema = this.associatedData.get(dataName);
+		if (associatedDataSchema == null) {
+			throw new EvitaInvalidUsageException(
+				"Associated data `" + dataName + "` is not known in entity `" + getName() + "` schema!"
+			);
+		}
+		return associatedDataSchema;
 	}
 
 	@Nonnull
@@ -931,9 +951,12 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
-		return getReference(referenceName)
-			.map(ReferenceSchema.class::cast)
-			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
+		// this method is one of the hottest on the write path - avoid both Optional wrappers and the capturing lambda
+		final ReferenceSchema referenceSchema = this.references.get(referenceName);
+		if (referenceSchema == null) {
+			throw new ReferenceNotFoundException(referenceName, this);
+		}
+		return referenceSchema;
 	}
 
 	@Override

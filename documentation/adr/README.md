@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390 |
 | 2026-08-04 | [Report HTTP/2 RST_STREAM floods instead of enforcing against them, and turn the Rapid-Reset defence off by default](2026-08-04-http2-connection-teardown-observability.md) | fix | accepted | #1369, PR #1383 |
 | 2026-08-03 | [Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR](2026-08-03-readiness-discovery-log-level.md) | fix | proposed | #1364, PR #1366 |
 | 2026-08-03 | [Enforce the test-tag policy from a JUnit PostDiscoveryFilter, because listener exceptions are swallowed](2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md) | fix | accepted | #1374, PR #1382 |
