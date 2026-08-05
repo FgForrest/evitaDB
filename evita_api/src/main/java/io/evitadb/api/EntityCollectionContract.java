@@ -41,6 +41,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -484,6 +486,25 @@ public interface EntityCollectionContract {
 	@Nonnull
 	EntityCollectionStatistics getStatistics(
 		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Returns one page of this collection's entity indexes, filtered and ordered as asked.
+	 *
+	 * Where {@link #getStatistics(Set)} reports how many indexes exist per kind and scope, this enumerates them
+	 * individually - the drill-down that follows an alarming count.
+	 *
+	 * Every call walks the whole index map, so this is an explicitly-requested diagnostic and never something to
+	 * poll; see {@link EvitaManagementContract#browseEntityCollectionIndexes(String, String, IndexBrowseCriteria)}
+	 * for why the walk cannot be avoided.
+	 *
+	 * @param criteria which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
+	 * @throws EvitaInvalidUsageException when the criteria name a reference this collection's schema does not declare
+	 */
+	@Nonnull
+	IndexBrowseResult browseIndexes(
+		@Nonnull IndexBrowseCriteria criteria
 	) throws EvitaInvalidUsageException;
 
 	/**

@@ -42,7 +42,12 @@ import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.DurabilityStatistics;
+import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseOrdering;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
@@ -2425,6 +2430,67 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 		// never requested - absent, and with no status entry to be mistaken for one
 		assertTrue(statistics.statusOf(CatalogStatisticsComponent.STORAGE_SIZE).isEmpty());
+	}
+
+	/**
+	 * Verifies that a collection's indexes can be listed over the driver, a page at a time.
+	 *
+	 * The engine-side behaviour is covered by `IndexBrowseTest`; what only this test can prove is that the paging,
+	 * the ordering and the two nullable halves of an index's discriminator survive the wire - a global index has to
+	 * arrive with both unset rather than with an empty string and a zero, which is what an unset protobuf wrapper
+	 * would decode to if the converter read it without checking presence.
+	 */
+	@Test
+	@DisplayName("browse the indexes of an entity collection")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldBrowseEntityCollectionIndexes(EvitaClient evitaClient) {
+		final IndexBrowseResult firstPage = evitaClient.management().browseEntityCollectionIndexes(
+			TEST_CATALOG,
+			Entities.PRODUCT,
+			new IndexBrowseCriteria(
+				1, 5, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+				EnumSet.noneOf(EntityIndexKind.class), Set.of(), Set.of()
+			)
+		);
+
+		assertEquals(1, firstPage.pageNumber());
+		assertEquals(5, firstPage.pageSize());
+		assertTrue(firstPage.totalRecordCount() > 0, "The product collection holds indexes");
+		assertTrue(firstPage.catalogVersion() > 0, "Every page names the catalog version it was read at");
+		assertTrue(firstPage.indexes().length > 0, "A populated collection cannot come back with an empty first page");
+
+		int previous = Integer.MAX_VALUE;
+		for (final BrowsedIndex index : firstPage.indexes()) {
+			assertNotNull(index.indexKind());
+			assertNotNull(index.scope());
+			assertTrue(index.entityCount() >= 0, index.toString());
+			assertTrue(index.entityCount() <= previous, "The requested order did not survive the wire: " + index);
+			previous = index.entityCount();
+			// the presence check the wire format makes easy to get wrong: an index bound to no reference must decode
+			// back to null, never to the empty string an unset `StringValue` yields when read without `hasX()`
+			if (index.indexKind() == EntityIndexKind.GLOBAL) {
+				assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
+				assertNull(index.discriminatorPrimaryKey(), "A global index has no discriminator: " + index);
+			}
+		}
+
+		// a filter that reaches the server and comes back narrowed, rather than being applied client-side
+		final IndexBrowseResult globalOnly = evitaClient.management().browseEntityCollectionIndexes(
+			TEST_CATALOG,
+			Entities.PRODUCT,
+			new IndexBrowseCriteria(
+				1, 5, IndexBrowseOrdering.MAP_ORDER,
+				EnumSet.of(EntityIndexKind.GLOBAL), Set.of(), Set.of()
+			)
+		);
+		assertTrue(globalOnly.totalRecordCount() > 0, "The collection holds at least one global index");
+		assertTrue(
+			globalOnly.totalRecordCount() < firstPage.totalRecordCount(),
+			"The kind filter must narrow the result; it came back matching everything, so it was dropped on the way"
+		);
+		for (final BrowsedIndex index : globalOnly.indexes()) {
+			assertEquals(EntityIndexKind.GLOBAL, index.indexKind());
+		}
 	}
 
 	/**

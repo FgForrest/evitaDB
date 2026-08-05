@@ -27,6 +27,10 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.ActivityStatistics;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogIndexCardinality;
@@ -58,6 +62,7 @@ import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -67,6 +72,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,6 +86,8 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
 
 /**
@@ -1388,6 +1396,132 @@ public class CatalogStatisticsConverter {
 			grpcVolatileState.getNonFlushedSizeBytes(),
 			grpcVolatileState.hasOldestRecordKeptTimestamp() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcVolatileState.getOldestRecordKeptTimestamp()) : null
+		);
+	}
+
+	/**
+	 * Converts one browsed index descriptor to its gRPC form.
+	 *
+	 * @param index the descriptor to convert
+	 * @return its gRPC form, with the reference name left unset for a global index and the discriminator primary key
+	 * left unset for an index covering a whole reference type
+	 */
+	@Nonnull
+	public static GrpcBrowsedIndex toGrpcBrowsedIndex(@Nonnull BrowsedIndex index) {
+		final GrpcBrowsedIndex.Builder builder = GrpcBrowsedIndex.newBuilder()
+			.setIndexKind(toGrpcEntityIndexKind(index.indexKind()))
+			.setScope(toGrpcScope(index.scope()))
+			.setEntityCount(index.entityCount());
+		if (index.referenceName() != null) {
+			builder.setReferenceName(StringValue.of(index.referenceName()));
+		}
+		if (index.discriminatorPrimaryKey() != null) {
+			builder.setDiscriminatorPrimaryKey(Int32Value.of(index.discriminatorPrimaryKey()));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads one browsed index descriptor back from the wire.
+	 *
+	 * @param grpcIndex the received descriptor
+	 * @return its Java form, with every unset optional field left null
+	 */
+	@Nonnull
+	public static BrowsedIndex toBrowsedIndex(@Nonnull GrpcBrowsedIndex grpcIndex) {
+		return new BrowsedIndex(
+			toEntityIndexKind(grpcIndex.getIndexKind()),
+			toScope(grpcIndex.getScope()),
+			grpcIndex.hasReferenceName() ? grpcIndex.getReferenceName().getValue() : null,
+			grpcIndex.hasDiscriminatorPrimaryKey() ? grpcIndex.getDiscriminatorPrimaryKey().getValue() : null,
+			grpcIndex.getEntityCount()
+		);
+	}
+
+	/**
+	 * Reads a whole page of browsed indexes back from the wire.
+	 *
+	 * @param grpcResponse the received page
+	 * @return its Java form
+	 */
+	@Nonnull
+	public static IndexBrowseResult toIndexBrowseResult(
+		@Nonnull GrpcEntityCollectionIndexBrowseResponse grpcResponse
+	) {
+		final List<GrpcBrowsedIndex> grpcIndexes = grpcResponse.getIndexesList();
+		final BrowsedIndex[] indexes = new BrowsedIndex[grpcIndexes.size()];
+		for (int i = 0; i < indexes.length; i++) {
+			indexes[i] = toBrowsedIndex(grpcIndexes.get(i));
+		}
+		return new IndexBrowseResult(
+			grpcResponse.getCatalogVersion(),
+			grpcResponse.getPageNumber(),
+			grpcResponse.getPageSize(),
+			grpcResponse.getTotalRecordCount(),
+			indexes
+		);
+	}
+
+	/**
+	 * Converts an index browse request to its gRPC form.
+	 *
+	 * @param catalogName name of the catalog holding the collection
+	 * @param entityType  name of the entity collection whose indexes to browse
+	 * @param criteria    the selection, ordering and paging to send
+	 * @return the request as it goes on the wire
+	 */
+	@Nonnull
+	public static GrpcEntityCollectionIndexBrowseRequest toGrpcIndexBrowseRequest(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) {
+		final GrpcEntityCollectionIndexBrowseRequest.Builder builder =
+			GrpcEntityCollectionIndexBrowseRequest.newBuilder()
+				.setCatalogName(catalogName)
+				.setEntityType(entityType)
+				.setPageNumber(criteria.pageNumber())
+				.setPageSize(criteria.pageSize())
+				.setOrdering(toGrpcIndexBrowseOrdering(criteria.ordering()))
+				.addAllReferenceNames(criteria.referenceNames());
+		for (final EntityIndexKind indexKind : criteria.indexKinds()) {
+			builder.addIndexKinds(toGrpcEntityIndexKind(indexKind));
+		}
+		for (final Scope scope : criteria.scopes()) {
+			builder.addScopes(toGrpcScope(scope));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads the selection, ordering and paging of an index browse request off the wire.
+	 *
+	 * An empty repeated filter means that category does not filter, so it maps to an empty set rather than to "every
+	 * value" - the two are equivalent in effect, and the empty set is what the criteria document.
+	 *
+	 * @param grpcRequest the received request
+	 * @return its Java form
+	 * @throws EvitaInvalidUsageException when the ordering is unspecified, or the paging is out of range
+	 */
+	@Nonnull
+	public static IndexBrowseCriteria toIndexBrowseCriteria(
+		@Nonnull GrpcEntityCollectionIndexBrowseRequest grpcRequest
+	) {
+		final Set<EntityIndexKind> indexKinds = EnumSet.noneOf(EntityIndexKind.class);
+		for (final GrpcEntityIndexKind grpcIndexKind : grpcRequest.getIndexKindsList()) {
+			indexKinds.add(toEntityIndexKind(grpcIndexKind));
+		}
+		final Set<Scope> scopes = EnumSet.noneOf(Scope.class);
+		for (final GrpcEntityScope grpcScope : grpcRequest.getScopesList()) {
+			scopes.add(toScope(grpcScope));
+		}
+		return new IndexBrowseCriteria(
+			grpcRequest.getPageNumber(),
+			grpcRequest.getPageSize(),
+			toIndexBrowseOrdering(grpcRequest.getOrdering()),
+			indexKinds,
+			scopes,
+			new HashSet<>(grpcRequest.getReferenceNamesList())
 		);
 	}
 

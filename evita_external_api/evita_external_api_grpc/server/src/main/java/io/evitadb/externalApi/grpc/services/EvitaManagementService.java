@@ -40,7 +40,10 @@ import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -466,6 +469,43 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						)
 						.build()
 				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns one page of the entity indexes held by one collection.
+	 *
+	 * @param request          names the catalog and collection, and carries the selection, ordering and paging
+	 * @param responseObserver the observer for receiving the page
+	 * @see EvitaManagementContract#browseEntityCollectionIndexes(String, String, IndexBrowseCriteria)
+	 */
+	@Override
+	public void browseEntityCollectionIndexes(
+		GrpcEntityCollectionIndexBrowseRequest request,
+		StreamObserver<GrpcEntityCollectionIndexBrowseResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final IndexBrowseResult result = this.management.browseEntityCollectionIndexes(
+					request.getCatalogName(),
+					request.getEntityType(),
+					CatalogStatisticsConverter.toIndexBrowseCriteria(request)
+				);
+				final GrpcEntityCollectionIndexBrowseResponse.Builder builder =
+					GrpcEntityCollectionIndexBrowseResponse.newBuilder()
+						.setCatalogVersion(result.catalogVersion())
+						.setPageNumber(result.pageNumber())
+						.setPageSize(result.pageSize())
+						.setTotalRecordCount(result.totalRecordCount());
+				for (final BrowsedIndex index : result.indexes()) {
+					builder.addIndexes(CatalogStatisticsConverter.toGrpcBrowsedIndex(index));
+				}
+				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),

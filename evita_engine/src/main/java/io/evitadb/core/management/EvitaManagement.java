@@ -41,6 +41,8 @@ import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -479,6 +481,18 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		return this.evita.getCatalogInstanceOrThrowException(catalogName)
 			.getCollectionForEntityOrThrowException(entityType)
 			.getStatistics(components);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseEntityCollectionIndexes(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException {
+		return this.evita.getCatalogInstanceOrThrowException(catalogName)
+			.getCollectionForEntityOrThrowException(entityType)
+			.browseIndexes(criteria);
 	}
 
 	@Override

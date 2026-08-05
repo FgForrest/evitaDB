@@ -36,6 +36,8 @@ import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -465,6 +467,35 @@ public interface EvitaManagementContract {
 		@Nonnull String catalogName,
 		@Nonnull String entityType,
 		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException;
+
+	/**
+	 * Returns one page of the entity indexes held by a single collection, filtered and ordered as asked.
+	 *
+	 * Where {@link CatalogStatisticsComponent#INDEX_SUMMARY} counts a collection's indexes by kind and scope, this
+	 * enumerates them individually. It is the drill-down that follows an alarming count: forty thousand
+	 * `REFERENCED_ENTITY` indexes say something is wrong, and only a listing says which reference caused it.
+	 *
+	 * **Never poll this.** Every call walks the collection's whole index map - `O(indexes)`, unavoidably, because
+	 * there is no per-kind index of the indexes to consult and building one would duplicate every key while still
+	 * costing a full pass to order. Filters and ordering change the constant, not the growth. Paging keeps the
+	 * *answer* small, not the work behind it, so this belongs in the same explicitly-requested category as
+	 * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} rather than on a refresh timer.
+	 *
+	 * @param catalogName name of the catalog holding the collection
+	 * @param entityType  name of the entity collection whose indexes to browse
+	 * @param criteria    which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when the catalog holds no collection of that entity type; an empty page
+	 *                                     would be indistinguishable from a collection holding no indexes
+	 * @throws EvitaInvalidUsageException  when the criteria name a reference the entity schema does not declare
+	 */
+	@Nonnull
+	IndexBrowseResult browseEntityCollectionIndexes(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull IndexBrowseCriteria criteria
 	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException;
 
 }

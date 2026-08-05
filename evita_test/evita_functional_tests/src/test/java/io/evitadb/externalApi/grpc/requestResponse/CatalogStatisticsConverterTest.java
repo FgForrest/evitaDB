@@ -30,6 +30,10 @@ import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.AttributeIndexType;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseOrdering;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
@@ -63,6 +67,8 @@ import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardin
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
+import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshot;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot;
 import org.junit.jupiter.api.DisplayName;
@@ -83,6 +89,7 @@ import java.util.UUID;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -334,6 +341,79 @@ class CatalogStatisticsConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> CatalogStatisticsConverter.toComponents(
 				List.of(GrpcCatalogStatisticsComponent.COMPONENT_UNSPECIFIED)
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("carry a page of browsed indexes back unchanged, absent discriminator parts included")
+	void shouldRoundTripBrowsedIndexes() throws InvalidProtocolBufferException {
+		// the three shapes an index discriminator takes: none at all, a reference name alone, and a reference name
+		// paired with the primary key of one target entity. Unset protobuf wrappers decode to an empty string and a
+		// zero when read without a presence check, so all three have to be asserted rather than just the populated one
+		final BrowsedIndex[] indexes = {
+			new BrowsedIndex(EntityIndexKind.GLOBAL, Scope.LIVE, null, null, 1_000),
+			new BrowsedIndex(EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", null, 400),
+			new BrowsedIndex(EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories", 42, 7)
+		};
+		final GrpcEntityCollectionIndexBrowseResponse.Builder builder =
+			GrpcEntityCollectionIndexBrowseResponse.newBuilder()
+				.setCatalogVersion(17L)
+				.setPageNumber(2)
+				.setPageSize(3)
+				.setTotalRecordCount(9);
+		for (final BrowsedIndex index : indexes) {
+			builder.addIndexes(CatalogStatisticsConverter.toGrpcBrowsedIndex(index));
+		}
+
+		final IndexBrowseResult roundTripped = CatalogStatisticsConverter.toIndexBrowseResult(
+			GrpcEntityCollectionIndexBrowseResponse.parseFrom(builder.build().toByteArray())
+		);
+
+		assertEquals(17L, roundTripped.catalogVersion());
+		assertEquals(2, roundTripped.pageNumber());
+		assertEquals(3, roundTripped.pageSize());
+		assertEquals(9, roundTripped.totalRecordCount());
+		assertArrayEquals(indexes, roundTripped.indexes());
+		assertNull(roundTripped.indexes()[0].referenceName());
+		assertNull(roundTripped.indexes()[0].discriminatorPrimaryKey());
+		assertNull(roundTripped.indexes()[1].discriminatorPrimaryKey());
+	}
+
+	@Test
+	@DisplayName("carry index browse criteria in both directions")
+	void shouldRoundTripIndexBrowseCriteria() throws InvalidProtocolBufferException {
+		final IndexBrowseCriteria criteria = new IndexBrowseCriteria(
+			3, 25, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+			EnumSet.of(EntityIndexKind.REFERENCED_ENTITY, EntityIndexKind.GLOBAL),
+			EnumSet.of(Scope.ARCHIVED),
+			Set.of("categories", "brands")
+		);
+
+		final IndexBrowseCriteria roundTripped = CatalogStatisticsConverter.toIndexBrowseCriteria(
+			GrpcEntityCollectionIndexBrowseRequest.parseFrom(
+				CatalogStatisticsConverter
+					.toGrpcIndexBrowseRequest("catalog", "product", criteria)
+					.toByteArray()
+			)
+		);
+
+		assertEquals(criteria, roundTripped);
+	}
+
+	@Test
+	@DisplayName("reject an unspecified browse ordering instead of choosing one")
+	void shouldRejectUnspecifiedBrowseOrdering() {
+		// defaulting would silently decide whether the client asked for "everything, cheaply" or "the largest ones"
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> CatalogStatisticsConverter.toIndexBrowseCriteria(
+				GrpcEntityCollectionIndexBrowseRequest.newBuilder()
+					.setCatalogName("catalog")
+					.setEntityType("product")
+					.setPageNumber(1)
+					.setPageSize(10)
+					.build()
 			)
 		);
 	}

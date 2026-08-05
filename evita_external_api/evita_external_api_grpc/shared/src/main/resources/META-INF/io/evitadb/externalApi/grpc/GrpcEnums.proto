@@ -1012,6 +1012,29 @@ enum GrpcEntityIndexKind {
 
 }
 
+// The order in which an index browse returns its results. Both orders walk every index of the collection; what they
+// differ in is how much of that walk has to be kept in memory to produce a page.
+enum GrpcIndexBrowseOrdering {
+
+  // Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
+  // answer is "everything, cheaply" or "the largest ones", which are different questions.
+  INDEX_BROWSE_ORDERING_UNSPECIFIED = 0;
+  // The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
+  // a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
+  // a client should read into.
+  INDEX_BROWSE_ORDERING_MAP_ORDER = 1;
+  // Largest first by `entityCount`, ties broken deterministically by index kind, then scope, then discriminator.
+  // The tiebreaker matters: index counts are heavily tied in practice, and without it successive pages would
+  // re-order the tied block and show duplicates while hiding other indexes.
+  //
+  // This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
+  // narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
+  // is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
+  // mean estimating every index in the collection on every call.
+  INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;
+
+}
+
 // Which of an attribute's index structures a cardinality reading describes. One attribute can be indexed several ways
 // at once - a filterable AND sortable attribute has both a filter and a sort index - and their distinct-value counts
 // are not interchangeable, so a reading always names the structure it came from.

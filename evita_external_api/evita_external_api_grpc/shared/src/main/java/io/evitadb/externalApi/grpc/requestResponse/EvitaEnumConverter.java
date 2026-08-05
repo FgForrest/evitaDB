@@ -60,6 +60,7 @@ import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -1766,6 +1767,40 @@ public class EvitaEnumConverter {
 			case REFERENCED_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_ENTITY;
 			case REFERENCED_GROUP_ENTITY_TYPE -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE;
 			case REFERENCED_GROUP_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcIndexBrowseOrdering} to {@link IndexBrowseOrdering}.
+	 *
+	 * The unspecified value is rejected rather than defaulted to one of the real orders: choosing on the client's
+	 * behalf would silently decide whether it asked for "everything, cheaply" or "the largest ones".
+	 *
+	 * @param grpcOrdering the ordering to convert
+	 * @return the corresponding index browse ordering
+	 * @throws EvitaInvalidUsageException when the ordering is unspecified or unknown to this client
+	 */
+	@Nonnull
+	public static IndexBrowseOrdering toIndexBrowseOrdering(@Nonnull GrpcIndexBrowseOrdering grpcOrdering) {
+		return switch (grpcOrdering) {
+			case INDEX_BROWSE_ORDERING_MAP_ORDER -> IndexBrowseOrdering.MAP_ORDER;
+			case INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC -> IndexBrowseOrdering.BY_ENTITY_COUNT_DESC;
+			case INDEX_BROWSE_ORDERING_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized index browse ordering: " + grpcOrdering);
+		};
+	}
+
+	/**
+	 * Converts {@link IndexBrowseOrdering} to {@link GrpcIndexBrowseOrdering}.
+	 *
+	 * @param ordering the ordering to convert
+	 * @return the corresponding gRPC index browse ordering
+	 */
+	@Nonnull
+	public static GrpcIndexBrowseOrdering toGrpcIndexBrowseOrdering(@Nonnull IndexBrowseOrdering ordering) {
+		return switch (ordering) {
+			case MAP_ORDER -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER;
+			case BY_ENTITY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC;
 		};
 	}
 

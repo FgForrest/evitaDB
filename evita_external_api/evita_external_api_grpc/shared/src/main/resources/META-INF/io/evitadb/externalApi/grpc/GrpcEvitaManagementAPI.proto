@@ -175,6 +175,68 @@ message GrpcEntityCollectionStatisticsSnapshotRequest {
   repeated GrpcCatalogStatisticsComponent components = 3;
 }
 
+// Request for one page of the entity indexes held by one collection.
+//
+// Filters are conjunctive across categories and disjunctive within one: an index must match every non-empty category,
+// and matches a category by being any one of its values. An empty repeated field means that category does not filter -
+// never that nothing matches.
+message GrpcEntityCollectionIndexBrowseRequest {
+
+  // Name of the catalog holding the collection. A catalog the server does not know is an error.
+  string catalogName = 1;
+  // Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+  // hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+  // indexes.
+  string entityType = 2;
+  // Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
+  // `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
+  int32 pageNumber = 3;
+  // Number of indexes per page. Must be between 1 and 1000; a larger value is rejected rather than clamped, because
+  // a clamped page is indistinguishable from a complete one and a client paging until it sees a short page would
+  // stop early believing it had seen everything. This surface enforces a maximum where `GrpcTaskStatusesRequest`
+  // does not: task counts are small, index counts are not, and the cost of the size-ordered walk is bounded by
+  // `pageNumber * pageSize`, both of which the client chooses.
+  int32 pageSize = 4;
+  // The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+  GrpcIndexBrowseOrdering ordering = 5;
+  // Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
+  // kind.
+  repeated GrpcEntityIndexKind indexKinds = 6;
+  // Scopes to keep; an index matches if its scope is any of the listed values. Empty (the default) keeps both scopes.
+  repeated GrpcEntityScope scopes = 7;
+  // Names of the references whose indexes to keep. Empty (the default) keeps indexes regardless of reference.
+  // Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
+  // cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
+  // never satisfy this filter.
+  repeated string referenceNames = 8;
+
+}
+
+// Response carrying one page of an index browse.
+message GrpcEntityCollectionIndexBrowseResponse {
+
+  // Version of the catalog this page was read at. Compare it across the pages of one browse: the index set moves as
+  // data is written, and two pages read at different versions do not describe one set. Unlike two disagreeing
+  // statistics snapshots, which are merely stale, two disagreeing pages corrupt the client's picture of what exists.
+  //
+  // That comparison only discriminates once the catalog is alive. The version advances per committed transaction, and
+  // a warming-up catalog runs no transactions - so during a bulk load it stays put while the index set churns faster
+  // than at any other time, and pages that differ can report the same version. Each page is still internally
+  // consistent regardless: warm-up costs cross-page comparison, never within-page coherence.
+  int64 catalogVersion = 1;
+  // The page that was returned, 1-indexed, echoing the request.
+  int32 pageNumber = 2;
+  // The page size that was applied, echoing the request.
+  int32 pageSize = 3;
+  // How many indexes matched the filters in total, across every page (indexes). Not the number returned in this
+  // page, and not the collection's total index count unless the browse was unfiltered.
+  int32 totalRecordCount = 4;
+  // The indexes on this page, in the requested order. Shorter than `pageSize` on the last page, and empty when
+  // `pageNumber` addresses a page past the end.
+  repeated GrpcBrowsedIndex indexes = 5;
+
+}
+
 // Response carrying the component-selected statistics snapshot of one entity collection.
 message GrpcEntityCollectionStatisticsSnapshotResponse {
   // Statistics of the requested entity collection.
@@ -458,6 +520,16 @@ service EvitaManagementService {
   // collection.
   rpc GetEntityCollectionStatisticsSnapshot(GrpcEntityCollectionStatisticsSnapshotRequest)
     returns (GrpcEntityCollectionStatisticsSnapshotResponse);
+  // Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
+  // by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
+  // the drill-down that follows an alarming count.
+  //
+  // Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
+  // the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
+  // Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
+  // behind it.
+  rpc BrowseEntityCollectionIndexes(GrpcEntityCollectionIndexBrowseRequest)
+    returns (GrpcEntityCollectionIndexBrowseResponse);
   // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
   // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);

@@ -36,6 +36,8 @@ import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -1098,6 +1100,26 @@ public final class EntityCollection implements
 			}
 		}
 		return builder.build();
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		final Set<String> declaredReferences = getInternalSchema().getReferences().keySet();
+		for (final String referenceName : criteria.referenceNames()) {
+			// rejected rather than answered with an empty page: a typo would otherwise read as "this reference has no
+			// indexes", which is the one answer an operator investigating index growth must not be given wrongly
+			Assert.isTrue(
+				declaredReferences.contains(referenceName),
+				"Entity collection `" + getEntityType() + "` declares no reference named `" + referenceName + "`!"
+			);
+		}
+		// sealed, so that the match count and the page contents cannot be taken from two different states - in
+		// WARMING_UP the map is forwarded mutably by reference, where a concurrent bulk load would otherwise be able
+		// to move the paging offset out from under the walk
+		return IndexBrowseProjection.browse(
+			this.indexes.sealed(), criteria, this.catalog.getIdentity().catalogVersion()
+		);
 	}
 
 	/**

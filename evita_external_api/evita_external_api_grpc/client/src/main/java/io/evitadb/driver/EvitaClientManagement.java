@@ -38,6 +38,8 @@ import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -596,6 +598,25 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		return CatalogStatisticsConverter.toEntityCollectionStatistics(
 			response.getEntityCollectionStatistics()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseEntityCollectionIndexes(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcEntityCollectionIndexBrowseRequest request = CatalogStatisticsConverter.toGrpcIndexBrowseRequest(
+			catalogName, entityType, criteria
+		);
+		final GrpcEntityCollectionIndexBrowseResponse response = executeWithEvitaService(
+			evitaService -> evitaService.browseEntityCollectionIndexes(request)
+		);
+
+		return CatalogStatisticsConverter.toIndexBrowseResult(response);
 	}
 
 	@Override
