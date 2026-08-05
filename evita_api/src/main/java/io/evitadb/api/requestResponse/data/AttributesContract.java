@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ComparatorUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
@@ -348,8 +347,28 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		}
 
 		@Override
-		public int compareTo(AttributeKey o) {
-			return ComparatorUtils.compareLocale(this.locale, o.locale, () -> this.attributeName.compareTo(o.attributeName));
+		public int compareTo(@Nonnull AttributeKey o) {
+			// this comparison drives every sorted structure keyed by an attribute key, so the semantics of
+			// ComparatorUtils.compareLocale are inlined here - the shared method would allocate a capturing
+			// IntSupplier for the tie-breaking branch on every single comparison
+			final Locale otherLocale = o.locale;
+			if (this.locale == null) {
+				if (otherLocale != null) {
+					// a locale-agnostic key sorts after a localized one
+					return 1;
+				}
+			} else if (otherLocale == null) {
+				return -1;
+			} else if (!this.locale.equals(otherLocale)) {
+				// equal locales necessarily render the same string, so the comparison is only reached for
+				// genuinely different locales
+				final int localeResult = this.locale.toString().compareTo(otherLocale.toString());
+				if (localeResult != 0) {
+					return localeResult;
+				}
+			}
+			// locales tie - break on the attribute name
+			return this.attributeName.compareTo(o.attributeName);
 		}
 
 		/**
