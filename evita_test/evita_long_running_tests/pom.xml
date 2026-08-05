@@ -171,6 +171,19 @@
 				`io.evitadb.api.GenerationalTestSupport`, `io.evitadb.api.proxy.mock`,
 				`io.evitadb.api.functional.indexing.*`). The test-jar packaging is
 				produced by maven-jar-plugin's `test-jar` goal in functional_tests.
+
+				BUILD THIS MODULE TOGETHER WITH evita_functional_tests, never alone:
+
+				    mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test
+
+				functional_tests sets `maven.install.skip=true` (see its pom), so its
+				test-jar is NEVER refreshed in the local repository. Building this module
+				on its own therefore resolves whatever `-tests` jar happens to be sitting
+				in ~/.m2 - possibly months old - and the failure surfaces as dozens of
+				compile errors against helper signatures in `AssertionUtils`, pointing at
+				test code here that is perfectly correct. `mvn install` on functional_tests
+				does NOT fix it; only a shared reactor does, because that resolves the
+				sibling's `target/` output instead.
 			-->
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_functional_tests</artifactId>
@@ -198,6 +211,22 @@
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit-assertj</artifactId>
 			<version>6.0.1</version>
+		</dependency>
+		<!--
+			Required to boot EvitaServer, which registers ParameterNamesModule on its YAML mapper. Declared in
+			evita_functional_tests at test scope, and test-scope dependencies are not transitive, so depending on
+			that module does not bring it along - without this every test here that starts a server dies in setUp
+			with NoClassDefFoundError. Went unnoticed because the tests that need it are @Disabled by default.
+		-->
+		<dependency>
+			<groupId>com.fasterxml.jackson.module</groupId>
+			<artifactId>jackson-module-parameter-names</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-text</artifactId>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 
