@@ -25,7 +25,9 @@ package io.evitadb.core;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
@@ -58,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -87,7 +90,6 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 * {@link ComponentAvailability#DELIVERED} from a healthy, transactional catalog.
 	 */
 	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED = EnumSet.of(
-		CatalogStatisticsComponent.ACTIVITY,
 		CatalogStatisticsComponent.DURABILITY
 	);
 	/**
@@ -216,10 +218,136 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		);
 		final CommitPipelineStatistics pipeline = alive.commitPipelineIfPresent().orElseThrow();
 		assertTrue(pipeline.lastAssignedCatalogVersion() > 0, pipeline.toString());
-		// the watermarks are read in pipeline order, so no lag may come out negative however the stages interleave
+		// the watermarks are read in REVERSE pipeline order - trailing one first - so no lag may come out negative
+		// however the stages interleave between the four reads
 		assertTrue(pipeline.writeLag() >= 0, pipeline.toString());
 		assertTrue(pipeline.durabilityLag() >= 0, pipeline.toString());
 		assertTrue(pipeline.visibilityLag() >= 0, pipeline.toString());
+	}
+
+	@Test
+	@DisplayName("A warming-up catalog declines the activity counters rather than reporting an idle one")
+	void shouldDeclineActivityWhileWarmingUp() {
+		// bulk ingestion never enters the pipeline that counts transactions, so every counter would read zero however
+		// much data is being written - "idle and healthy" is the exact inverse of the truth here
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 900));
+			}
+		);
+
+		final CatalogStatistics warmingUp = this.evita.management().getCatalogStatistics(
+			CATALOG, EnumSet.of(CatalogStatisticsComponent.ACTIVITY)
+		);
+		assertTrue(warmingUp.activityIfPresent().isEmpty());
+		assertEquals(
+			ComponentAvailability.FEATURE_DISABLED,
+			warmingUp.componentStatus().get(CatalogStatisticsComponent.ACTIVITY).availability()
+		);
+	}
+
+	@Test
+	@DisplayName("Committing a transaction moves the activity counters that describe it")
+	void shouldCountCommittedTransactionsMutationsAndWalBytes() {
+		goLive();
+		final ActivityStatistics before = fetchActivity();
+
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 1_000));
+				session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 1_001));
+			}
+		);
+
+		final ActivityStatistics after = fetchActivity();
+		assertTrue(
+			after.transactionsCommitted() > before.transactionsCommitted(),
+			"A committed transaction has to be counted: " + before + " -> " + after
+		);
+		assertTrue(
+			after.mutationsApplied() >= before.mutationsApplied() + 2,
+			"Both upserts have to be counted as mutations: " + before + " -> " + after
+		);
+		assertTrue(
+			after.walBytesAppended() > before.walBytesAppended(),
+			"The transaction's bytes reached the WAL, so they have to be counted: " + before + " -> " + after
+		);
+		// nothing was rolled back or conflicted, and those counters must not move in sympathy with the committed one -
+		// which is exactly what a single shared counter wired three ways would do
+		assertEquals(before.transactionsRolledBack(), after.transactionsRolledBack());
+		assertEquals(before.transactionsConflicted(), after.transactionsConflicted());
+		// the counters are process-scoped, so the epoch they are read against must not move underneath them
+		assertEquals(before.countingSince(), after.countingSince());
+	}
+
+	@Test
+	@DisplayName("A rolled-back transaction is counted as rolled back, never as committed")
+	void shouldCountARolledBackTransactionApartFromCommittedOnes() {
+		goLive();
+		final ActivityStatistics before = fetchActivity();
+
+		// a rollback-only session surfaces the discarded work to its caller rather than returning quietly, so the
+		// exception is part of the scenario being exercised, not an accident of it
+		assertThrows(
+			RollbackException.class,
+			() -> this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 2_000));
+					session.setRollbackOnly();
+				}
+			)
+		);
+
+		final ActivityStatistics after = fetchActivity();
+		assertEquals(
+			before.transactionsRolledBack() + 1, after.transactionsRolledBack(),
+			"The rollback has to be counted: " + before + " -> " + after
+		);
+		// a rolled-back transaction never reaches the WAL, so counting it as committed would report write throughput
+		// the catalog never performed - and would make the two counters sum to more than the transactions that ran
+		assertEquals(
+			before.transactionsCommitted(), after.transactionsCommitted(),
+			"A rolled-back transaction must not be counted as committed: " + before + " -> " + after
+		);
+		assertEquals(before.walBytesAppended(), after.walBytesAppended());
+	}
+
+	@Test
+	@DisplayName("The reported pipeline depth agrees with the watermarks the commit pipeline component reports")
+	void shouldReportAPipelineDepthConsistentWithTheCommitPipelineWatermarks() {
+		goLive();
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, 3_000));
+			}
+		);
+
+		// both components come from ONE snapshot, so the depth must be exactly the span the watermarks describe.
+		// What this pins is the *consistency* of the two: on a catalog that has gone quiet the pipeline has caught
+		// up and the span is normally zero, so this cannot by itself distinguish a correctly-derived depth from a
+		// hardcoded one. Forcing a non-zero backlog deterministically would mean racing the trunk incorporator, and
+		// a flaky test is worth less here than an honest one - the value is that a depth wired to the wrong pair of
+		// watermarks, or read at a different moment from the pipeline component, stops agreeing
+		final CatalogStatistics statistics = this.evita.management().getCatalogStatistics(
+			CATALOG,
+			EnumSet.of(CatalogStatisticsComponent.ACTIVITY, CatalogStatisticsComponent.COMMIT_PIPELINE)
+		);
+		final ActivityStatistics activity = statistics.activityIfPresent().orElseThrow();
+		final CommitPipelineStatistics pipeline = statistics.commitPipelineIfPresent().orElseThrow();
+
+		// the watermarks have to have moved at all, or the identity below holds trivially for a pipeline that never ran
+		assertTrue(pipeline.lastAssignedCatalogVersion() > 0, pipeline.toString());
+		assertTrue(activity.pipelineDepth() >= 0, activity.toString());
+		assertEquals(
+			pipeline.lastAssignedCatalogVersion() - pipeline.lastFinalizedCatalogVersion(),
+			activity.pipelineDepth(),
+			"The depth is the same quantity as `writeLag + visibilityLag` and has to agree with it: " +
+				activity + " vs " + pipeline
+		);
 	}
 
 	@Test
@@ -609,6 +737,19 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		return this.evita.management()
 			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.SESSIONS))
 			.sessionsIfPresent()
+			.orElseThrow();
+	}
+
+	/**
+	 * Reads the write activity component of the test catalog.
+	 *
+	 * @return the delivered {@link ActivityStatistics}
+	 */
+	@Nonnull
+	private ActivityStatistics fetchActivity() {
+		return this.evita.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.ACTIVITY))
+			.activityIfPresent()
 			.orElseThrow();
 	}
 

@@ -1465,6 +1465,16 @@ public final class Catalog
 		} else {
 			storageFootprint = null;
 		}
+		// COMMIT_PIPELINE and ACTIVITY both read the version watermarks, and ACTIVITY's `pipelineDepth` is by
+		// definition the span between two of them. Reading them twice in one request would let the two components
+		// contradict each other whenever a stage advanced in between - a client comparing them would see a depth that
+		// does not match the watermarks it is derived from and would be right to call it a bug.
+		// Null here means either "neither was asked for" or "this catalog has no pipeline"; inside the two arms below
+		// the first is impossible, so there it reads purely as the second
+		final CommitPipelineStatistics commitPipeline =
+			supportsTransaction() && (components.contains(CatalogStatisticsComponent.COMMIT_PIPELINE) ||
+				components.contains(CatalogStatisticsComponent.ACTIVITY)) ?
+				describeCommitPipeline() : null;
 		for (final CatalogStatisticsComponent component : components) {
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
@@ -1478,8 +1488,8 @@ public final class Catalog
 				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
 				case SESSIONS -> builder.withSessions(countSessions());
 				case COMMIT_PIPELINE -> {
-					if (supportsTransaction()) {
-						builder.withCommitPipeline(describeCommitPipeline());
+					if (commitPipeline != null) {
+						builder.withCommitPipeline(commitPipeline);
 					} else {
 						// four zeroes would render as a pipeline with nothing queued anywhere, which is the opposite of
 						// the truth: in WARM_UP writes bypass the pipeline entirely and none of its watermarks move
@@ -1499,7 +1509,27 @@ public final class Catalog
 						this.evitaConfiguration.storage()
 					)
 				);
-				case ACTIVITY, DURABILITY -> builder.withUnavailable(
+				case ACTIVITY -> {
+					if (commitPipeline != null) {
+						builder.withActivity(
+							this.transactionManager.describeActivity(
+								commitPipeline.lastAssignedCatalogVersion() -
+									commitPipeline.lastFinalizedCatalogVersion()
+							)
+						);
+					} else {
+						// every counter would read zero however hard the catalog is being written, because bulk
+						// ingestion never enters the pipeline that counts them - "idle and healthy" is the exact
+						// inverse of the truth here, same as for COMMIT_PIPELINE above
+						builder.withUnavailable(
+							component,
+							ComponentAvailability.FEATURE_DISABLED,
+							"Catalog is in `" + getCatalogState() + "` state, where writes are applied in bulk and " +
+								"the transactional commit pipeline is not used."
+						);
+					}
+				}
+				case DURABILITY -> builder.withUnavailable(
 					component,
 					ComponentAvailability.NOT_SUPPORTED,
 					"Statistics component `" + component + "` is not computed by this version yet."
@@ -1557,8 +1587,15 @@ public final class Catalog
 
 	/**
 	 * Reads the four watermarks the commit pipeline maintains. All four are counter reads, and they are read in
-	 * pipeline order - assigned, written, durable, finalized - so that the deltas the record derives from them cannot
-	 * come out negative through a stage advancing between two reads.
+	 * *reverse* pipeline order - finalized, durable, written, assigned - so that the deltas the record derives from
+	 * them cannot come out negative through a stage advancing between two reads.
+	 *
+	 * The direction matters and is the opposite of the intuitive one. Every watermark only grows, and
+	 * `assigned >= written >= durable >= finalized` holds at every instant. Reading the *trailing* watermark first
+	 * therefore bounds it below by a value the next read cannot have overtaken: whatever `written` turns out to be, it
+	 * was `>= durable` at the moment it was read, and `durable` has not gone down since it was read a moment earlier.
+	 * Reading forwards gives no such bound - `assigned` is captured, both stages then advance, and the `written` read
+	 * a moment later can legitimately exceed it, reporting a negative write lag on a perfectly healthy pipeline.
 	 *
 	 * Only meaningful for a transactional catalog; the caller reports {@link ComponentAvailability#FEATURE_DISABLED}
 	 * otherwise.
@@ -1567,11 +1604,12 @@ public final class Catalog
 	 */
 	@Nonnull
 	private CommitPipelineStatistics describeCommitPipeline() {
+		final long finalizedVersion = this.transactionManager.getLastFinalizedCatalogVersion();
+		final long durableVersion = this.transactionManager.getLastDurableCatalogVersion();
+		final long writtenVersion = this.transactionManager.getLastWrittenCatalogVersion();
+		final long assignedVersion = this.transactionManager.getLastAssignedCatalogVersion();
 		return new CommitPipelineStatistics(
-			this.transactionManager.getLastAssignedCatalogVersion(),
-			this.transactionManager.getLastWrittenCatalogVersion(),
-			this.transactionManager.getLastDurableCatalogVersion(),
-			this.transactionManager.getLastFinalizedCatalogVersion()
+			assignedVersion, writtenVersion, durableVersion, finalizedVersion
 		);
 	}
 

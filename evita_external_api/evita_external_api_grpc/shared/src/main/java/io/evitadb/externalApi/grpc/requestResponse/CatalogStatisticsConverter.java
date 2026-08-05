@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.requestResponse;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
@@ -174,6 +175,9 @@ public class CatalogStatisticsConverter {
 		if (statistics.commitPipeline() != null) {
 			builder.setCommitPipeline(toGrpcCommitPipelineStatistics(statistics.commitPipeline()));
 		}
+		if (statistics.activity() != null) {
+			builder.setActivity(toGrpcActivityStatistics(statistics.activity()));
+		}
 		if (statistics.storageSize() != null) {
 			builder.setStorageSize(toGrpcStorageSizeStatistics(statistics.storageSize()));
 		}
@@ -212,6 +216,7 @@ public class CatalogStatisticsConverter {
 			snapshot.hasCollections() ? toCollectionsInfo(snapshot.getCollections()) : null,
 			snapshot.hasSessions() ? toSessionStatistics(snapshot.getSessions()) : null,
 			snapshot.hasCommitPipeline() ? toCommitPipelineStatistics(snapshot.getCommitPipeline()) : null,
+			snapshot.hasActivity() ? toActivityStatistics(snapshot.getActivity()) : null,
 			snapshot.hasStorageSize() ? toStorageSizeStatistics(snapshot.getStorageSize()) : null,
 			snapshot.hasStorageComposition() ?
 				toStorageCompositionStatistics(snapshot.getStorageComposition()) : null,
@@ -570,6 +575,50 @@ public class CatalogStatisticsConverter {
 			grpcCommitPipeline.getLastWrittenCatalogVersion(),
 			grpcCommitPipeline.getLastDurableCatalogVersion(),
 			grpcCommitPipeline.getLastFinalizedCatalogVersion()
+		);
+	}
+
+	/**
+	 * Converts the write activity counters to their gRPC form.
+	 *
+	 * @param activity the component to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	private static GrpcActivityStatistics toGrpcActivityStatistics(@Nonnull ActivityStatistics activity) {
+		return GrpcActivityStatistics.newBuilder()
+			.setTransactionsCommitted(activity.transactionsCommitted())
+			.setTransactionsRolledBack(activity.transactionsRolledBack())
+			.setTransactionsConflicted(activity.transactionsConflicted())
+			.setMutationsApplied(activity.mutationsApplied())
+			.setWalBytesAppended(activity.walBytesAppended())
+			.setPipelineDepth(activity.pipelineDepth())
+			.setTransactionsPerSecond(activity.transactionsPerSecond())
+			.setMutationsPerSecond(activity.mutationsPerSecond())
+			.setWalBytesPerSecond(activity.walBytesPerSecond())
+			.setCountingSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(activity.countingSince()))
+			.build();
+	}
+
+	/**
+	 * Reads the write activity counters back from the wire.
+	 *
+	 * @param grpcActivity the received component
+	 * @return its Java form
+	 */
+	@Nonnull
+	private static ActivityStatistics toActivityStatistics(@Nonnull GrpcActivityStatistics grpcActivity) {
+		return new ActivityStatistics(
+			grpcActivity.getTransactionsCommitted(),
+			grpcActivity.getTransactionsRolledBack(),
+			grpcActivity.getTransactionsConflicted(),
+			grpcActivity.getMutationsApplied(),
+			grpcActivity.getWalBytesAppended(),
+			grpcActivity.getPipelineDepth(),
+			grpcActivity.getTransactionsPerSecond(),
+			grpcActivity.getMutationsPerSecond(),
+			grpcActivity.getWalBytesPerSecond(),
+			EvitaDataTypesConverter.toOffsetDateTime(grpcActivity.getCountingSince())
 		);
 	}
 

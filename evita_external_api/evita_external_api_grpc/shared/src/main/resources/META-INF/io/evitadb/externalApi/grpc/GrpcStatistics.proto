@@ -145,6 +145,53 @@ message GrpcCommitPipelineStatistics {
 
 }
 
+// The catalog-level `COMPONENT_ACTIVITY` component - how much write work this catalog has done, and how fast it is
+// doing it right now. Every figure is a counter read or an already-sampled rate; nothing here touches the file
+// system.
+//
+// The counters are PROCESS-SCOPED, and `countingSince` is what makes them readable. They start at zero when the
+// catalog is loaded and are not persisted, so a client that reads `transactionsCommitted` as "transactions this
+// catalog has ever seen" is wrong by everything that happened before that load. Difference two polls to get an exact
+// rate over the interval between them; use `countingSince` for a lifetime average that is actually true. They do
+// survive a catalog generation switch - a commit replaces the catalog instance but not the pipeline behind it.
+//
+// The rates are short-window and DECAY while nothing is written, so a catalog written hard for a minute and then
+// left alone converges on zero instead of reporting that minute's load forever.
+//
+// Not delivered for an unusable catalog, and reported as `AVAILABILITY_FEATURE_DISABLED` for a catalog in
+// `WARMING_UP`: writes in that state bypass the transactional pipeline entirely, so every counter here would read
+// zero however hard the catalog is being ingested into.
+message GrpcActivityStatistics {
+
+  // Transactions appended to the write-ahead log since `countingSince` - the point of no return, after which the
+  // transaction is committed whatever happens downstream.
+  int64 transactionsCommitted = 1;
+  // Transactions discarded at session close because the session was marked rollback-only; these never reach the
+  // pipeline at all.
+  int64 transactionsRolledBack = 2;
+  // Transactions rejected by conflict resolution because another transaction had already claimed one of their
+  // conflict keys.
+  int64 transactionsConflicted = 3;
+  // Mutations carried by the committed transactions - the count the transaction declares, not the local mutations
+  // they expand into.
+  int64 mutationsApplied = 4;
+  // Bytes those transactions appended to the write-ahead log.
+  int64 walBytesAppended = 5;
+  // Versions accepted but not yet visible to readers, i.e. `lastAssignedCatalogVersion - lastFinalizedCatalogVersion`
+  // of `GrpcCommitPipelineStatistics`. Repeated here on purpose, so a client polling only this component can tell a
+  // busy catalog from a backed-up one without requesting a second one.
+  int64 pipelineDepth = 6;
+  // Recent commit rate, decayed towards zero while the catalog is idle (transactions/s).
+  double transactionsPerSecond = 7;
+  // Recent mutation rate, on the same window (mutations/s).
+  double mutationsPerSecond = 8;
+  // Recent write-ahead log growth rate, on the same window (bytes/s).
+  double walBytesPerSecond = 9;
+  // The instant the counters above were zeroed - never before this catalog was opened.
+  GrpcOffsetDateTime countingSince = 10;
+
+}
+
 // The catalog-level `COMPONENT_STORAGE_SIZE` component - the catalog's disk footprint broken into the classes that
 // have different remedies, because a single total tells a developer nothing: data they inserted, garbage awaiting
 // compaction and time-travel history they could shorten by changing retention are three different problems.
@@ -371,6 +418,8 @@ message GrpcCatalogStatisticsSnapshot {
   // Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
   // entry here at all.
   repeated GrpcComponentStatus componentStatus = 12;
+  // The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+  GrpcActivityStatistics activity = 13;
 
 }
 

@@ -376,4 +376,31 @@ public interface GrpcCatalogStatisticsSnapshotOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcComponentStatusOrBuilder getComponentStatusOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   * @return Whether the activity field is set.
+   */
+  boolean hasActivity();
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   * @return The activity.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics getActivity();
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder getActivityOrBuilder();
 }

@@ -389,6 +389,12 @@ public final class SessionRegistry {
 								transaction.isRollbackOnly() ?
 									TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
 							).commit();
+						if (transaction.isRollbackOnly()) {
+							// this is the only place a rolled-back transaction is observable at all: it is discarded
+							// here and never offered to the pipeline, so the commit stages that count everything else
+							// for the ACTIVITY component never see it
+							this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
+						}
 					});
 
 					this.catalogConsumedVersions.get(session.getCatalogName())

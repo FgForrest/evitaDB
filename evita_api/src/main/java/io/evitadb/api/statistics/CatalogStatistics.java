@@ -74,6 +74,7 @@ import java.util.Optional;
  * @param collections        {@link CatalogStatisticsComponent#COLLECTIONS}, null unless requested and delivered
  * @param sessions           {@link CatalogStatisticsComponent#SESSIONS}, null unless requested and delivered
  * @param commitPipeline     {@link CatalogStatisticsComponent#COMMIT_PIPELINE}, null unless requested and delivered
+ * @param activity           {@link CatalogStatisticsComponent#ACTIVITY}, null unless requested and delivered
  * @param storageSize        {@link CatalogStatisticsComponent#STORAGE_SIZE}, null unless requested and delivered
  * @param storageComposition {@link CatalogStatisticsComponent#STORAGE_COMPOSITION}, null unless requested and
  *                           delivered
@@ -91,6 +92,7 @@ public record CatalogStatistics(
 	@Nullable CollectionsInfo collections,
 	@Nullable SessionStatistics sessions,
 	@Nullable CommitPipelineStatistics commitPipeline,
+	@Nullable ActivityStatistics activity,
 	@Nullable StorageSizeStatistics storageSize,
 	@Nullable StorageCompositionStatistics storageComposition,
 	@Nullable FragmentationStatistics fragmentation,
@@ -149,6 +151,16 @@ public record CatalogStatistics(
 	@Nonnull
 	public Optional<CommitPipelineStatistics> commitPipelineIfPresent() {
 		return Optional.ofNullable(this.commitPipeline);
+	}
+
+	/**
+	 * Returns the write activity counters when they were requested and could be computed.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#ACTIVITY} component, empty otherwise
+	 */
+	@Nonnull
+	public Optional<ActivityStatistics> activityIfPresent() {
+		return Optional.ofNullable(this.activity);
 	}
 
 	/**
@@ -254,6 +266,7 @@ public record CatalogStatistics(
 		private CollectionsInfo collections;
 		private SessionStatistics sessions;
 		private CommitPipelineStatistics commitPipeline;
+		private ActivityStatistics activity;
 		private StorageSizeStatistics storageSize;
 		private StorageCompositionStatistics storageComposition;
 		private FragmentationStatistics fragmentation;
@@ -313,6 +326,18 @@ public record CatalogStatistics(
 		public Builder withCommitPipeline(@Nonnull CommitPipelineStatistics value) {
 			this.commitPipeline = value;
 			return delivered(CatalogStatisticsComponent.COMMIT_PIPELINE);
+		}
+
+		/**
+		 * Records the {@link CatalogStatisticsComponent#ACTIVITY} component as delivered.
+		 *
+		 * @param value the computed component
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder withActivity(@Nonnull ActivityStatistics value) {
+			this.activity = value;
+			return delivered(CatalogStatisticsComponent.ACTIVITY);
 		}
 
 		/**
@@ -418,6 +443,7 @@ public record CatalogStatistics(
 				this.collections,
 				this.sessions,
 				this.commitPipeline,
+				this.activity,
 				this.storageSize,
 				this.storageComposition,
 				this.fragmentation,

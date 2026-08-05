@@ -53,6 +53,8 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
+import io.evitadb.api.statistics.ActivityStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
@@ -292,6 +294,32 @@ public class TransactionManager implements Closeable {
 	 * Effective conflict resolution that is used in this transaction manager.
 	 */
 	private final ConflictResolution conflictResolution;
+	/**
+	 * Counters and short-window rates behind {@link CatalogStatisticsComponent#ACTIVITY}, sampled at the moment a
+	 * transaction's bytes reach the write-ahead log.
+	 *
+	 * This is the right home for them precisely because this instance is *not* recreated per catalog version - see
+	 * {@link #lastFinalizedCatalog} - so the counters survive every generation switch a write load produces. They are
+	 * process-scoped all the same: a catalog reopened after a restart starts from zero, which is what
+	 * {@link #countingSince} records.
+	 */
+	private final AtomicReference<ActivityAccumulation> activity = new AtomicReference<>(ActivityAccumulation.NONE);
+	/**
+	 * Transactions discarded at session close because the session was marked rollback-only. Counted separately from
+	 * {@link #activity} because they never reach the pipeline at all - the count arrives from
+	 * {@link io.evitadb.core.session.SessionRegistry}, not from any commit stage.
+	 */
+	private final AtomicLong transactionsRolledBack = new AtomicLong();
+	/**
+	 * Transactions rejected by conflict resolution. Counted separately from {@link #activity} for the same reason:
+	 * a conflicted transaction never gets as far as the write-ahead log, so it has no sample to contribute.
+	 */
+	private final AtomicLong transactionsConflicted = new AtomicLong();
+	/**
+	 * The instant the counters above were zeroed, which is when this manager - and with it the catalog it serves - was
+	 * created. Reported alongside the counters so a client can tell "since the catalog was opened" from "ever".
+	 */
+	private final OffsetDateTime countingSince = OffsetDateTime.now();
 	/**
 	 * Name of the catalog.
 	 */
@@ -1744,6 +1772,73 @@ public class TransactionManager implements Closeable {
 	public void emitObservabilityEvents() {
 		this.conflictRingBuffer.emitObservabilityEvents();
 		this.changeObserver.emitObservabilityEvents();
+	}
+
+	/**
+	 * Records a transaction whose bytes have reached the write-ahead log.
+	 *
+	 * Called from the appending stage at its point of no return - after the append succeeded and before any of the
+	 * bookkeeping that must not be able to roll the version back. That is deliberately *not* the moment the
+	 * transaction becomes visible to readers: once the bytes are in the log the transaction is committed whatever
+	 * happens downstream, and counting it at trunk incorporation instead would also count every transaction replayed
+	 * from the log at startup as if it had just been written.
+	 *
+	 * @param mutationCount mutations the transaction carried
+	 * @param walBytes      bytes it appended to the write-ahead log
+	 */
+	public void recordCommittedTransaction(int mutationCount, long walBytes) {
+		final long now = System.currentTimeMillis();
+		this.activity.updateAndGet(current -> current.sampled(mutationCount, walBytes, now));
+	}
+
+	/**
+	 * Records a transaction discarded at session close because the session was marked rollback-only.
+	 */
+	public void recordRolledBackTransaction() {
+		this.transactionsRolledBack.incrementAndGet();
+	}
+
+	/**
+	 * Records a transaction rejected by conflict resolution.
+	 */
+	public void recordConflictedTransaction() {
+		this.transactionsConflicted.incrementAndGet();
+	}
+
+	/**
+	 * Describes how much write work this catalog has done and how fast it is doing it.
+	 *
+	 * The rates are read through the accumulation's `effective...` methods rather than off its fields, so an idle
+	 * catalog reports a rate falling towards zero instead of the load it last saw - see {@link ActivityAccumulation}
+	 * for why that correction cannot be applied when the sample is taken.
+	 *
+	 * The pipeline depth is passed in rather than read here, because the caller has already read the very watermarks
+	 * it is the span of. Reading them a second time would let this component and
+	 * {@link io.evitadb.api.statistics.CommitPipelineStatistics} describe two different moments of the same pipeline
+	 * within one response.
+	 *
+	 * Only meaningful for a transactional catalog; the caller reports
+	 * {@link io.evitadb.api.statistics.ComponentAvailability#FEATURE_DISABLED} otherwise.
+	 *
+	 * @param pipelineDepth versions accepted but not yet visible to readers, as the caller measured them
+	 * @return the {@link CatalogStatisticsComponent#ACTIVITY} component
+	 */
+	@Nonnull
+	public ActivityStatistics describeActivity(long pipelineDepth) {
+		final ActivityAccumulation current = this.activity.get();
+		final long now = System.currentTimeMillis();
+		return new ActivityStatistics(
+			current.transactionsCommitted(),
+			this.transactionsRolledBack.get(),
+			this.transactionsConflicted.get(),
+			current.mutationsApplied(),
+			current.walBytesAppended(),
+			pipelineDepth,
+			current.effectiveTransactionsPerSecond(now),
+			current.effectiveMutationsPerSecond(now),
+			current.effectiveWalBytesPerSecond(now),
+			this.countingSince
+		);
 	}
 
 	/**

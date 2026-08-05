@@ -38,6 +38,7 @@ import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
@@ -116,6 +117,9 @@ class CatalogStatisticsConverterTest {
 	// likewise distinct from the catalog-wide retained-history timestamp
 	private static final OffsetDateTime CATALOG_STORE_OLDEST_RECORD_KEPT =
 		OffsetDateTime.of(2026, 5, 6, 7, 8, 9, 100_000_000, ZoneOffset.UTC);
+	// the epoch the activity counters are read against; distinct from every timestamp above for the same reason
+	private static final OffsetDateTime COUNTING_SINCE =
+		OffsetDateTime.of(2026, 2, 3, 4, 5, 6, 700_000_000, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -157,7 +161,7 @@ class CatalogStatisticsConverterTest {
 			// deliberately all zeroes - an empty catalog reports a real measurement of zero, and that must not be
 			// mistaken for "no value was produced"
 			new RecordCounts(0L, 0L, 0L),
-			null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null,
 			Map.copyOf(statuses)
 		);
 
@@ -239,7 +243,7 @@ class CatalogStatisticsConverterTest {
 		);
 		final CatalogStatistics roundTripped = roundTrip(
 			new CatalogStatistics(
-				original, null, null, null, null, null, null, null, null, null, null,
+				original, null, null, null, null, null, null, null, null, null, null, null,
 				Map.of(
 					CatalogStatisticsComponent.IDENTITY,
 					ComponentStatus.delivered(CatalogStatisticsComponent.IDENTITY)
@@ -345,7 +349,7 @@ class CatalogStatisticsConverterTest {
 	 * A catalog snapshot with every component that has a Java type populated, each field carrying a distinct value so
 	 * that a field written into the wrong slot changes the result.
 	 *
-	 * `ACTIVITY` is present as a status without a value on purpose - it is a component with no sub-message yet, and
+	 * `DURABILITY` is present as a status without a value on purpose - it is a component with no sub-message yet, and
 	 * its status must still survive the trip.
 	 *
 	 * @return the fixture
@@ -360,6 +364,7 @@ class CatalogStatisticsConverterTest {
 			CatalogStatisticsComponent.COLLECTIONS,
 			CatalogStatisticsComponent.SESSIONS,
 			CatalogStatisticsComponent.COMMIT_PIPELINE,
+			CatalogStatisticsComponent.ACTIVITY,
 			CatalogStatisticsComponent.STORAGE_SIZE,
 			CatalogStatisticsComponent.STORAGE_COMPOSITION,
 			CatalogStatisticsComponent.FRAGMENTATION,
@@ -370,11 +375,11 @@ class CatalogStatisticsConverterTest {
 			statuses.put(component, ComponentStatus.delivered(component));
 		}
 		statuses.put(
-			CatalogStatisticsComponent.ACTIVITY,
+			CatalogStatisticsComponent.DURABILITY,
 			ComponentStatus.unavailable(
-				CatalogStatisticsComponent.ACTIVITY,
+				CatalogStatisticsComponent.DURABILITY,
 				ComponentAvailability.NOT_SUPPORTED,
-				"Statistics component `ACTIVITY` is not computed by this version yet."
+				"Statistics component `DURABILITY` is not computed by this version yet."
 			)
 		);
 		return new CatalogStatistics(
@@ -385,6 +390,12 @@ class CatalogStatisticsConverterTest {
 			),
 			new SessionStatistics(11, 12, 13),
 			new CommitPipelineStatistics(201L, 202L, 203L, 204L),
+			// `pipelineDepth` deliberately does NOT equal `201 - 204` of the watermarks above: on the wire the two
+			// components are independent fields, and an arm that recomputed the depth from the pipeline message
+			// instead of carrying the one it was sent would still pass a fixture where the two agreed
+			new ActivityStatistics(
+				211L, 212L, 213L, 214L, 215L, 216L, 217.5d, 218.5d, 219.5d, COUNTING_SINCE
+			),
 			new StorageSizeStatistics(301L, 302L, 303L, 310L, 311L, 304L, 305L, 306L, 307L, 308L, 309L),
 			new StorageCompositionStatistics(
 				new StoragePartUsage[]{

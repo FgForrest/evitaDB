@@ -566,6 +566,44 @@ private static final long serialVersionUID = 0L;
     return componentStatus_.get(index);
   }
 
+  public static final int ACTIVITY_FIELD_NUMBER = 13;
+  private io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity_;
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   * @return Whether the activity field is set.
+   */
+  @java.lang.Override
+  public boolean hasActivity() {
+    return ((bitField0_ & 0x00000800) != 0);
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   * @return The activity.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics getActivity() {
+    return activity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance() : activity_;
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder getActivityOrBuilder() {
+    return activity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance() : activity_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -615,6 +653,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < componentStatus_.size(); i++) {
       output.writeMessage(12, componentStatus_.get(i));
+    }
+    if (((bitField0_ & 0x00000800) != 0)) {
+      output.writeMessage(13, getActivity());
     }
     getUnknownFields().writeTo(output);
   }
@@ -672,6 +713,10 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < componentStatus_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(12, componentStatus_.get(i));
+    }
+    if (((bitField0_ & 0x00000800) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(13, getActivity());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -745,6 +790,11 @@ private static final long serialVersionUID = 0L;
     }
     if (!getComponentStatusList()
         .equals(other.getComponentStatusList())) return false;
+    if (hasActivity() != other.hasActivity()) return false;
+    if (hasActivity()) {
+      if (!getActivity()
+          .equals(other.getActivity())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -803,6 +853,10 @@ private static final long serialVersionUID = 0L;
     if (getComponentStatusCount() > 0) {
       hash = (37 * hash) + COMPONENTSTATUS_FIELD_NUMBER;
       hash = (53 * hash) + getComponentStatusList().hashCode();
+    }
+    if (hasActivity()) {
+      hash = (37 * hash) + ACTIVITY_FIELD_NUMBER;
+      hash = (53 * hash) + getActivity().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -964,6 +1018,7 @@ private static final long serialVersionUID = 0L;
         getIndexSummaryFieldBuilder();
         getVolatileStateFieldBuilder();
         getComponentStatusFieldBuilder();
+        getActivityFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1032,6 +1087,11 @@ private static final long serialVersionUID = 0L;
         componentStatusBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000800);
+      activity_ = null;
+      if (activityBuilder_ != null) {
+        activityBuilder_.dispose();
+        activityBuilder_ = null;
+      }
       return this;
     }
 
@@ -1145,6 +1205,12 @@ private static final long serialVersionUID = 0L;
             : volatileStateBuilder_.build();
         to_bitField0_ |= 0x00000400;
       }
+      if (((from_bitField0_ & 0x00001000) != 0)) {
+        result.activity_ = activityBuilder_ == null
+            ? activity_
+            : activityBuilder_.build();
+        to_bitField0_ |= 0x00000800;
+      }
       result.bitField0_ |= to_bitField0_;
     }
 
@@ -1250,6 +1316,9 @@ private static final long serialVersionUID = 0L;
             componentStatusBuilder_.addAllMessages(other.componentStatus_);
           }
         }
+      }
+      if (other.hasActivity()) {
+        mergeActivity(other.getActivity());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1367,6 +1436,13 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 98
+            case 106: {
+              input.readMessage(
+                  getActivityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00001000;
+              break;
+            } // case 106
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -3439,6 +3515,163 @@ private static final long serialVersionUID = 0L;
         componentStatus_ = null;
       }
       return componentStatusBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics, io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder> activityBuilder_;
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     * @return Whether the activity field is set.
+     */
+    public boolean hasActivity() {
+      return ((bitField0_ & 0x00001000) != 0);
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     * @return The activity.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics getActivity() {
+      if (activityBuilder_ == null) {
+        return activity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance() : activity_;
+      } else {
+        return activityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public Builder setActivity(io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics value) {
+      if (activityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        activity_ = value;
+      } else {
+        activityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public Builder setActivity(
+        io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.Builder builderForValue) {
+      if (activityBuilder_ == null) {
+        activity_ = builderForValue.build();
+      } else {
+        activityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public Builder mergeActivity(io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics value) {
+      if (activityBuilder_ == null) {
+        if (((bitField0_ & 0x00001000) != 0) &&
+          activity_ != null &&
+          activity_ != io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance()) {
+          getActivityBuilder().mergeFrom(value);
+        } else {
+          activity_ = value;
+        }
+      } else {
+        activityBuilder_.mergeFrom(value);
+      }
+      if (activity_ != null) {
+        bitField0_ |= 0x00001000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public Builder clearActivity() {
+      bitField0_ = (bitField0_ & ~0x00001000);
+      activity_ = null;
+      if (activityBuilder_ != null) {
+        activityBuilder_.dispose();
+        activityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.Builder getActivityBuilder() {
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return getActivityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder getActivityOrBuilder() {
+      if (activityBuilder_ != null) {
+        return activityBuilder_.getMessageOrBuilder();
+      } else {
+        return activity_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance() : activity_;
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_ACTIVITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics, io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder> 
+        getActivityFieldBuilder() {
+      if (activityBuilder_ == null) {
+        activityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics, io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder>(
+                getActivity(),
+                getParentForChildren(),
+                isClean());
+        activity_ = null;
+      }
+      return activityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
