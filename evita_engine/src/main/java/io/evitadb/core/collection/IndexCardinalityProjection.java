@@ -162,6 +162,11 @@ final class IndexCardinalityProjection {
 		for (final AttributeIndexKey key : entityIndex.getUniqueIndexes()) {
 			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(key);
 			if (uniqueIndex != null) {
+				// `size()` is the membership bitmap, which under-counts a record owning several values in one index -
+				// a localized attribute that is also unique globally has one locale-less key, and the bitmap drops the
+				// record on the first of its values removed. Reported anyway, and documented on `AttributeCardinality`:
+				// this bitmap is what the engine queries the index through, so substituting a separately-computed
+				// count here would describe an index the engine does not have
 				attributes.add(
 					toAttributeCardinality(
 						key, AttributeIndexType.UNIQUE, uniqueIndex.getDistinctValueCount(), uniqueIndex.size()

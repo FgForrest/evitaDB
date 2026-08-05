@@ -91,6 +91,7 @@ import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -352,9 +353,18 @@ class CatalogStatisticsConverterTest {
 		// paired with the primary key of one target entity. Unset protobuf wrappers decode to an empty string and a
 		// zero when read without a presence check, so all three have to be asserted rather than just the populated one
 		final BrowsedIndex[] indexes = {
-			new BrowsedIndex(EntityIndexKind.GLOBAL, Scope.LIVE, null, null, 1_000),
-			new BrowsedIndex(EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", null, 400),
-			new BrowsedIndex(EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories", 42, 7)
+			new BrowsedIndex(EntityIndexKind.GLOBAL, Scope.LIVE, null, null, null, 1_000),
+			new BrowsedIndex(
+				EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", "categories", null, 400
+			),
+			// the case the two projections cannot express: same reference, same target, told apart only by the
+			// representative values the discriminator carries
+			new BrowsedIndex(
+				EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories/42/[red]", "categories", 42, 7
+			),
+			new BrowsedIndex(
+				EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories/42/[blue]", "categories", 42, 7
+			)
 		};
 		final GrpcEntityCollectionIndexBrowseResponse.Builder builder =
 			GrpcEntityCollectionIndexBrowseResponse.newBuilder()
@@ -377,7 +387,17 @@ class CatalogStatisticsConverterTest {
 		assertArrayEquals(indexes, roundTripped.indexes());
 		assertNull(roundTripped.indexes()[0].referenceName());
 		assertNull(roundTripped.indexes()[0].discriminatorPrimaryKey());
+		assertNull(roundTripped.indexes()[0].discriminator(), "A global index has no siblings to be told apart from");
 		assertNull(roundTripped.indexes()[1].discriminatorPrimaryKey());
+		// the identity guarantee: the last two agree on kind, scope, reference name and target primary key, so only
+		// the discriminator keeps them apart. If it were dropped on the wire they would arrive indistinguishable and
+		// a client deduplicating across pages would silently lose one
+		assertEquals(roundTripped.indexes()[2].referenceName(), roundTripped.indexes()[3].referenceName());
+		assertEquals(
+			roundTripped.indexes()[2].discriminatorPrimaryKey(), roundTripped.indexes()[3].discriminatorPrimaryKey()
+		);
+		assertNotEquals(roundTripped.indexes()[2].discriminator(), roundTripped.indexes()[3].discriminator());
+		assertNotEquals(roundTripped.indexes()[2], roundTripped.indexes()[3]);
 	}
 
 	@Test

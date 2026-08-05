@@ -35,12 +35,15 @@ package io.evitadb.externalApi.grpc.generated;
  * ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
  * but not which reference caused it; this is the drill-down that does.
  *
- * An index is identified by the triplet (kind, scope, discriminator), and the discriminator is rendered here as its
- * two readable parts rather than as an opaque value:
+ * An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
+ * `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
+ * they do not identify an index between them: a reference whose targets are told apart by representative attribute
+ * values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
+ * `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
  *
- * - global indexes carry neither `referenceName` nor `discriminatorPrimaryKey`,
+ * - global indexes carry no discriminator at all, and neither projection,
  * - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
- * - the per-referenced-entity kinds carry both - the index covers exactly one target entity of that reference.
+ * - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}
@@ -137,7 +140,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -150,7 +153,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -163,7 +166,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -178,7 +181,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -191,7 +195,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -204,7 +209,8 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -228,6 +234,50 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public int getEntityCount() {
     return entityCount_;
+  }
+
+  public static final int DISCRIMINATOR_FIELD_NUMBER = 6;
+  private com.google.protobuf.StringValue discriminator_;
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   * @return Whether the discriminator field is set.
+   */
+  @java.lang.Override
+  public boolean hasDiscriminator() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   * @return The discriminator.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getDiscriminator() {
+    return discriminator_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : discriminator_;
+  }
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getDiscriminatorOrBuilder() {
+    return discriminator_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : discriminator_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -259,6 +309,9 @@ private static final long serialVersionUID = 0L;
     if (entityCount_ != 0) {
       output.writeInt32(5, entityCount_);
     }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(6, getDiscriminator());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -287,6 +340,10 @@ private static final long serialVersionUID = 0L;
     if (entityCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(5, entityCount_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, getDiscriminator());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -317,6 +374,11 @@ private static final long serialVersionUID = 0L;
     }
     if (getEntityCount()
         != other.getEntityCount()) return false;
+    if (hasDiscriminator() != other.hasDiscriminator()) return false;
+    if (hasDiscriminator()) {
+      if (!getDiscriminator()
+          .equals(other.getDiscriminator())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -342,6 +404,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + ENTITYCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getEntityCount();
+    if (hasDiscriminator()) {
+      hash = (37 * hash) + DISCRIMINATOR_FIELD_NUMBER;
+      hash = (53 * hash) + getDiscriminator().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -447,12 +513,15 @@ private static final long serialVersionUID = 0L;
    * ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
    * but not which reference caused it; this is the drill-down that does.
    *
-   * An index is identified by the triplet (kind, scope, discriminator), and the discriminator is rendered here as its
-   * two readable parts rather than as an opaque value:
+   * An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
+   * `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
+   * they do not identify an index between them: a reference whose targets are told apart by representative attribute
+   * values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
+   * `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
    *
-   * - global indexes carry neither `referenceName` nor `discriminatorPrimaryKey`,
+   * - global indexes carry no discriminator at all, and neither projection,
    * - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
-   * - the per-referenced-entity kinds carry both - the index covers exactly one target entity of that reference.
+   * - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}
@@ -489,6 +558,7 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getReferenceNameFieldBuilder();
         getDiscriminatorPrimaryKeyFieldBuilder();
+        getDiscriminatorFieldBuilder();
       }
     }
     @java.lang.Override
@@ -508,6 +578,11 @@ private static final long serialVersionUID = 0L;
         discriminatorPrimaryKeyBuilder_ = null;
       }
       entityCount_ = 0;
+      discriminator_ = null;
+      if (discriminatorBuilder_ != null) {
+        discriminatorBuilder_.dispose();
+        discriminatorBuilder_ = null;
+      }
       return this;
     }
 
@@ -562,6 +637,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.entityCount_ = entityCount_;
+      }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.discriminator_ = discriminatorBuilder_ == null
+            ? discriminator_
+            : discriminatorBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -625,6 +706,9 @@ private static final long serialVersionUID = 0L;
       if (other.getEntityCount() != 0) {
         setEntityCount(other.getEntityCount());
       }
+      if (other.hasDiscriminator()) {
+        mergeDiscriminator(other.getDiscriminator());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -680,6 +764,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000010;
               break;
             } // case 40
+            case 50: {
+              input.readMessage(
+                  getDiscriminatorFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -849,7 +940,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -861,7 +952,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -877,7 +968,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -898,7 +989,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -917,7 +1008,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -943,7 +1034,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -961,7 +1052,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -974,7 +1065,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -990,7 +1081,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-     * rather than to an unnamed one.
+     * rather than to an unnamed one. Not unique on its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -1015,7 +1106,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1027,7 +1119,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1043,7 +1136,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1064,7 +1158,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1083,7 +1178,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1109,7 +1205,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1127,7 +1224,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1140,7 +1238,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1156,7 +1255,8 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * its own - see the message comment.
      * </pre>
      *
      * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -1220,6 +1320,181 @@ private static final long serialVersionUID = 0L;
       entityCount_ = 0;
       onChanged();
       return this;
+    }
+
+    private com.google.protobuf.StringValue discriminator_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> discriminatorBuilder_;
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     * @return Whether the discriminator field is set.
+     */
+    public boolean hasDiscriminator() {
+      return ((bitField0_ & 0x00000020) != 0);
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     * @return The discriminator.
+     */
+    public com.google.protobuf.StringValue getDiscriminator() {
+      if (discriminatorBuilder_ == null) {
+        return discriminator_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : discriminator_;
+      } else {
+        return discriminatorBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public Builder setDiscriminator(com.google.protobuf.StringValue value) {
+      if (discriminatorBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        discriminator_ = value;
+      } else {
+        discriminatorBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public Builder setDiscriminator(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (discriminatorBuilder_ == null) {
+        discriminator_ = builderForValue.build();
+      } else {
+        discriminatorBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public Builder mergeDiscriminator(com.google.protobuf.StringValue value) {
+      if (discriminatorBuilder_ == null) {
+        if (((bitField0_ & 0x00000020) != 0) &&
+          discriminator_ != null &&
+          discriminator_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getDiscriminatorBuilder().mergeFrom(value);
+        } else {
+          discriminator_ = value;
+        }
+      } else {
+        discriminatorBuilder_.mergeFrom(value);
+      }
+      if (discriminator_ != null) {
+        bitField0_ |= 0x00000020;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public Builder clearDiscriminator() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      discriminator_ = null;
+      if (discriminatorBuilder_ != null) {
+        discriminatorBuilder_.dispose();
+        discriminatorBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getDiscriminatorBuilder() {
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return getDiscriminatorFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getDiscriminatorOrBuilder() {
+      if (discriminatorBuilder_ != null) {
+        return discriminatorBuilder_.getMessageOrBuilder();
+      } else {
+        return discriminator_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : discriminator_;
+      }
+    }
+    /**
+     * <pre>
+     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue discriminator = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getDiscriminatorFieldBuilder() {
+      if (discriminatorBuilder_ == null) {
+        discriminatorBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getDiscriminator(),
+                getParentForChildren(),
+                isClean());
+        discriminator_ = null;
+      }
+      return discriminatorBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

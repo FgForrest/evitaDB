@@ -1412,6 +1412,9 @@ public class CatalogStatisticsConverter {
 			.setIndexKind(toGrpcEntityIndexKind(index.indexKind()))
 			.setScope(toGrpcScope(index.scope()))
 			.setEntityCount(index.entityCount());
+		if (index.discriminator() != null) {
+			builder.setDiscriminator(StringValue.of(index.discriminator()));
+		}
 		if (index.referenceName() != null) {
 			builder.setReferenceName(StringValue.of(index.referenceName()));
 		}
@@ -1432,6 +1435,7 @@ public class CatalogStatisticsConverter {
 		return new BrowsedIndex(
 			toEntityIndexKind(grpcIndex.getIndexKind()),
 			toScope(grpcIndex.getScope()),
+			grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
 			grpcIndex.hasReferenceName() ? grpcIndex.getReferenceName().getValue() : null,
 			grpcIndex.hasDiscriminatorPrimaryKey() ? grpcIndex.getDiscriminatorPrimaryKey().getValue() : null,
 			grpcIndex.getEntityCount()

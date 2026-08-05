@@ -185,9 +185,23 @@ public record CollectionIndexCardinality(
 	 *                          selectivities genuinely differ
 	 * @param indexType         which of the attribute's index structures this reading describes
 	 * @param distinctValueCount how many distinct values the structure holds
-	 * @param recordsCovered    how many records those values cover between them; `recordsCovered` divided by
-	 *                          `distinctValueCount` is the average number of records sharing one value, and a large
-	 *                          quotient is what "this index is not earning its keep" looks like
+	 * @param recordsCovered    how many records those values cover between them, as the index's own membership set
+	 *                          reports it; `recordsCovered` divided by `distinctValueCount` is the average number of
+	 *                          records sharing one value, and a large quotient is what "this index is not earning its
+	 *                          keep" looks like.
+	 *
+	 *                          **For {@link AttributeIndexType#UNIQUE} this is the engine's membership bitmap, and it
+	 *                          can read lower than the number of records that still hold a value.** One record owns
+	 *                          several values in a single unique index when the attribute is localized *and* unique
+	 *                          globally, because that combination has one locale-less key covering every locale. The
+	 *                          bitmap is an eager cache that drops a record on the **first** of its values removed and
+	 *                          nothing re-adds it while siblings remain, so removing one locale leaves the record
+	 *                          uncounted here even though the index still holds its other locales.
+	 *
+	 *                          Reported as-is deliberately: this bitmap is what the engine itself queries the index
+	 *                          through, so a separately-computed "truer" figure would describe an index the engine
+	 *                          does not have. Read it as *the index's membership as the engine sees it*, and use
+	 *                          `distinctValueCount` when the question is how much the index actually holds.
 	 */
 	public record AttributeCardinality(
 		@Nonnull String attributeName,

@@ -281,9 +281,20 @@ final class IndexBrowseProjection {
 	 */
 	@Nonnull
 	private static BrowsedIndex describe(@Nonnull EntityIndexKey key, @Nonnull EntityIndex index) {
+		final Serializable discriminator = key.discriminator();
 		return new BrowsedIndex(
 			EntityCollection.toIndexKind(key.type()),
 			key.scope(),
+			// the whole discriminator, not the readable parts below: a `RepresentativeReferenceKey` also carries the
+			// representative attribute values that tell two indexes of the same reference and target apart, and those
+			// participate in its equality and ordering. Rendering only the name and the primary key would make such a
+			// pair indistinguishable on the wire, so a client could not tell one index from another across pages.
+			//
+			// This leans on the discriminator's `toString` being value-based, which both permitted implementations
+			// are - a `String` is itself, and `RepresentativeReferenceKey` renders its reference key and its
+			// representative values explicitly. Giving either an identity-based `toString` would silently turn this
+			// field into a per-call nonce and break paging identity, so keep them value-based
+			discriminator == null ? null : discriminator.toString(),
 			key.referenceName(),
 			discriminatorPrimaryKeyOf(key),
 			index.getAllPrimaryKeys().size()

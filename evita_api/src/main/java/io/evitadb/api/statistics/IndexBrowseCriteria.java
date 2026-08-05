@@ -76,6 +76,24 @@ public record IndexBrowseCriteria(
 	 */
 	public static final int MAX_PAGE_SIZE = 1000;
 
+	/**
+	 * How deep {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} may be paged, counted in indexes rather than pages.
+	 *
+	 * Capping the page size alone does not bound that ordering. Its heap retains everything up to the *end* of the
+	 * requested page, so the window is `pageNumber * pageSize` - and with the page number unbounded, a request for a
+	 * far-out page retains every matching index and then sorts all of them, only to return an empty page. On a
+	 * collection with hundreds of thousands of indexes that turns one cheap-looking request into a full sort and a
+	 * proportional allocation, which is the opposite of what the bounded heap exists to guarantee.
+	 *
+	 * {@link IndexBrowseOrdering#MAP_ORDER} needs no such limit: it counts matches as it walks and materialises only
+	 * the window, so its allocation is `O(pageSize)` however deep the page is. The limit is therefore attached to the
+	 * ordering that needs it rather than to paging in general.
+	 *
+	 * Deep paging into a size ordering is in any case the wrong question - it is a top-N access pattern, and a client
+	 * that wants everything should page in {@link IndexBrowseOrdering#MAP_ORDER}, which is cheaper at every depth.
+	 */
+	public static final int MAX_SIZE_ORDERED_WINDOW = 10_000;
+
 	public IndexBrowseCriteria {
 		Objects.requireNonNull(ordering, "Ordering must not be null!");
 		Objects.requireNonNull(indexKinds, "Index kinds must not be null!");
@@ -93,6 +111,18 @@ public record IndexBrowseCriteria(
 			pageSize <= MAX_PAGE_SIZE,
 			"Page size must not exceed " + MAX_PAGE_SIZE + ", but was " + pageSize + "!"
 		);
+		if (ordering == IndexBrowseOrdering.BY_ENTITY_COUNT_DESC) {
+			// computed in long arithmetic because both factors are client-supplied and their product overflows int
+			// long before it reaches the limit - an overflowed window would wrap negative and pass the check
+			final long window = (long) pageNumber * pageSize;
+			Assert.isTrue(
+				window <= MAX_SIZE_ORDERED_WINDOW,
+				"Ordering by entity count retains every index up to the end of the requested page, so page " +
+					pageNumber + " of size " + pageSize + " would retain " + window + " indexes - more than the " +
+					MAX_SIZE_ORDERED_WINDOW + " this ordering allows. Page in `" + IndexBrowseOrdering.MAP_ORDER +
+					"` to walk the whole set instead; it costs the same at any depth!"
+			);
+		}
 	}
 
 }

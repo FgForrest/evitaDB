@@ -2471,6 +2471,11 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			if (index.indexKind() == EntityIndexKind.GLOBAL) {
 				assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
 				assertNull(index.discriminatorPrimaryKey(), "A global index has no discriminator: " + index);
+				assertNull(index.discriminator(), "A global index has no siblings to be told apart from: " + index);
+			} else {
+				// the identity a client must compare across pages - the reference name and target primary key are
+				// projections and are not unique between them, so this must survive the wire for every non-global row
+				assertNotNull(index.discriminator(), "A non-global index must carry its discriminator: " + index);
 			}
 		}
 

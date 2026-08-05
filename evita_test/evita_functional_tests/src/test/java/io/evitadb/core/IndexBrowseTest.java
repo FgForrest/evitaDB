@@ -57,6 +57,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -420,6 +421,32 @@ class IndexBrowseTest implements EvitaTestSupport {
 				"A page size above the maximum must be refused, never silently reduced"
 			);
 		}
+
+		@Test
+		@DisplayName("Paging deep into a size ordering is refused, but the same depth in map order is not")
+		void shouldRefuseOnlyTheSizeOrderedDeepPage() {
+			// capping the page size alone does not bound the size ordering: its heap retains everything up to the end
+			// of the requested page, so an unbounded page number retains and sorts every matching index only to
+			// return an empty page - a full sort and a proportional allocation from one cheap-looking request
+			final int tooDeep = (IndexBrowseCriteria.MAX_SIZE_ORDERED_WINDOW / 10) + 1;
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> criteria(tooDeep, 10, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC),
+				"A size-ordered page beyond the retention window must be refused"
+			);
+			// the same depth in map order costs O(pageSize) whatever the page number, so it is deliberately allowed -
+			// the limit belongs to the ordering that needs it, not to paging in general
+			assertDoesNotThrow(
+				() -> criteria(tooDeep, 10, IndexBrowseOrdering.MAP_ORDER),
+				"Map order materialises only the window, so depth costs it nothing and must not be limited"
+			);
+			// and the boundary itself is allowed, so the limit is off-by-one safe in the permissive direction
+			assertDoesNotThrow(
+				() -> criteria(IndexBrowseCriteria.MAX_SIZE_ORDERED_WINDOW / 10, 10,
+					IndexBrowseOrdering.BY_ENTITY_COUNT_DESC),
+				"A window exactly at the maximum is within the limit"
+			);
+		}
 	}
 
 	/**
@@ -471,8 +498,10 @@ class IndexBrowseTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String identityOf(@Nonnull BrowsedIndex index) {
-		return index.indexKind() + "/" + index.scope() + "/" + index.referenceName() + "/" +
-			index.discriminatorPrimaryKey();
+		// deliberately the discriminator rather than the reference name and target primary key: those two are
+		// projections and are not unique between them, so keying on them would let this helper report two genuinely
+		// distinct indexes as one duplicate - and the paging tests below exist precisely to detect duplicates
+		return index.indexKind() + "/" + index.scope() + "/" + index.discriminator();
 	}
 
 	/**

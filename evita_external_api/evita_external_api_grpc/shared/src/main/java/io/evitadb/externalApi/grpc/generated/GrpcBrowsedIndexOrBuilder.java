@@ -72,7 +72,7 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -82,7 +82,7 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -92,7 +92,7 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-   * rather than to an unnamed one.
+   * rather than to an unnamed one. Not unique on its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.StringValue referenceName = 3;</code>
@@ -102,7 +102,8 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -112,7 +113,8 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -122,7 +124,8 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * its own - see the message comment.
    * </pre>
    *
    * <code>.google.protobuf.Int32Value discriminatorPrimaryKey = 4;</code>
@@ -139,4 +142,37 @@ public interface GrpcBrowsedIndexOrBuilder extends
    * @return The entityCount.
    */
   int getEntityCount();
+
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   * @return Whether the discriminator field is set.
+   */
+  boolean hasDiscriminator();
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   * @return The discriminator.
+   */
+  com.google.protobuf.StringValue getDiscriminator();
+  /**
+   * <pre>
+   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * including the representative attribute values the two fields above omit. Unset for a global index, which has no
+   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue discriminator = 6;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getDiscriminatorOrBuilder();
 }

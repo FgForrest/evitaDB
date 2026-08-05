@@ -777,12 +777,15 @@ message GrpcEntityCollectionStatisticsSnapshot {
 // ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
 // but not which reference caused it; this is the drill-down that does.
 //
-// An index is identified by the triplet (kind, scope, discriminator), and the discriminator is rendered here as its
-// two readable parts rather than as an opaque value:
+// An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
+// `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
+// they do not identify an index between them: a reference whose targets are told apart by representative attribute
+// values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
+// `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
 //
-// - global indexes carry neither `referenceName` nor `discriminatorPrimaryKey`,
+// - global indexes carry no discriminator at all, and neither projection,
 // - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
-// - the per-referenced-entity kinds carry both - the index covers exactly one target entity of that reference.
+// - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
 message GrpcBrowsedIndex {
 
   // Kind of this index.
@@ -790,13 +793,18 @@ message GrpcBrowsedIndex {
   // Scope this index belongs to.
   GrpcEntityScope scope = 2;
   // Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
-  // rather than to an unnamed one.
+  // rather than to an unnamed one. Not unique on its own - see the message comment.
   google.protobuf.StringValue referenceName = 3;
   // Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-  // rather than one target entity - the two cases are distinguished by which of them `indexKind` names.
+  // rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+  // its own - see the message comment.
   google.protobuf.Int32Value discriminatorPrimaryKey = 4;
   // How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
   // walk of its contents.
   int32 entityCount = 5;
+  // Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+  // including the representative attribute values the two fields above omit. Unset for a global index, which has no
+  // siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+  google.protobuf.StringValue discriminator = 6;
 
 }
