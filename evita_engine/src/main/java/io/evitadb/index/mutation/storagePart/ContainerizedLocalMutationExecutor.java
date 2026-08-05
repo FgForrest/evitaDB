@@ -24,9 +24,6 @@
 package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
@@ -3036,6 +3033,28 @@ public final class ContainerizedLocalMutationExecutor
 	 * Ensures that each reference complies with its respective cardinality requirements. If any violations are found,
 	 * a {@link ReferenceCardinalityViolatedException} is thrown with details of the violations.
 	 *
+	 * The verification is a single run-length scan of the reference array that allocates nothing unless a violation
+	 * is actually found. A plain scan is sufficient because {@link ReferencesStoragePart#getReferences()} is always
+	 * sorted by {@link ReferenceContract#FULL_COMPARATOR} - i.e. by reference name, then referenced primary key and
+	 * finally by internal primary key. The invariant is asserted in
+	 * {@link ReferencesStoragePart#assignMissingIdsAndSort()} and re-established by re-sorting the array after each
+	 * modification of the container. It implies that:
+	 *
+	 * - references sharing the same name form a single contiguous run, so the number of references of a particular
+	 *   name is a mere length of that run and needs no auxiliary map,
+	 * - references sharing the same key are adjacent within such run, so duplicates are recognized by comparing the
+	 *   examined key with the head of the currently examined cluster of equal keys.
+	 *
+	 * **Reference key equality invariant:** {@link ReferenceKey#equals(Object)} takes the internal primary key into
+	 * account only when it is known (positive) on both compared sides, and is therefore not transitive for a mixture
+	 * of keys with known and unknown internal primary keys. This method never observes such a mixture - it is called
+	 * from {@link #verifyConsistency()}, which runs only after {@link #finishLocalMutationExecutionPhase()} assigned
+	 * terminal (positive) internal primary keys to all the references of the container, so all the keys examined here
+	 * are in uniform - known - form and the equality degenerates to a plain comparison of all three key components.
+	 * The examined key is nevertheless compared against the cluster head and not against its immediate predecessor,
+	 * since that is what reproduces the "first key wins as the canonical one" grouping of the hash map this scan
+	 * replaced, should the uniformity invariant ever weaken.
+	 *
 	 * @param referencesStorageContainer An optional container holding the current state of references associated
 	 *                                   with an entity. Can be null if there are no references to validate.
 	 * @throws ReferenceCardinalityViolatedException If any reference violates its defined cardinality
@@ -3049,77 +3068,240 @@ public final class ContainerizedLocalMutationExecutor
 		if (references.isEmpty()) {
 			return;
 		}
-		ObjectIntMap<String> referencesFound = new ObjectIntHashMap<>(references.size());
-		ObjectIntMap<ReferenceKey> duplicatedReferenceFound = null;
-		if (referencesStorageContainer != null) {
-			ReferenceSchemaContract referenceSchema = null;
-			final Reference[] cntReferences = referencesStorageContainer.getReferences();
-			for (int i = 0; i < cntReferences.length; i++) {
-				final Reference reference = cntReferences[i];
-				if (reference.exists()) {
-					if (referenceSchema == null || !referenceSchema.getName().equals(reference.getReferenceName())) {
-						referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
+
+		// both lists are lazy to minimize allocations - a valid entity allocates nothing here
+		List<CardinalityViolation> violations = null;
+		List<CardinalityViolation> duplicateViolations = null;
+		final Reference[] cntReferences = referencesStorageContainer == null ?
+			null : referencesStorageContainer.getReferences();
+
+		if (cntReferences != null) {
+			int index = 0;
+			// name of the previously examined run - the runs must be encountered in ascending order
+			String previousRunName = null;
+			while (index < cntReferences.length) {
+				// dropped references are not taken into account at all
+				if (!cntReferences[index].exists()) {
+					index++;
+					continue;
+				}
+
+				final String referenceName = cntReferences[index].getReferenceKey().referenceName();
+				// verify the premise this scan stands on - the container is expected to be sorted, but the only
+				// other place that asserts it (ReferencesStoragePart#assignMissingIdsAndSort) is reached solely when
+				// a new reference was inserted; the checks are inlined instead of delegated to Assert, because
+				// the message supplier would allocate a capturing lambda on this hot path
+				if (previousRunName != null && previousRunName.compareTo(referenceName) >= 0) {
+					throw new GenericEvitaInternalError(
+						"References of entity `" + this.entityType + "` are not sorted by their name: `" +
+							previousRunName + "` is followed by `" + referenceName + "`!"
+					);
+				}
+				previousRunName = referenceName;
+
+				final ReferenceSchemaContract referenceSchema = entitySchema
+					.getReferenceOrThrowException(referenceName);
+				// skip the entire run of reflected references that are not available
+				if (referenceSchema instanceof final ReflectedReferenceSchemaContract rrsc &&
+					!rrsc.isReflectedReferenceAvailable()) {
+					index = skipReferenceRun(cntReferences, index, referenceName);
+					continue;
+				}
+
+				final Cardinality cardinality = referenceSchema.getCardinality();
+				final boolean duplicatesAllowed = cardinality.allowsDuplicates();
+				// number of existing references within the examined run
+				int referenceCount = 0;
+				// key of the previously examined reference of the run - the keys must not descend within it
+				ReferenceKey previousKey = null;
+				// head of the currently examined cluster of equal keys within the run and the size of that cluster
+				ReferenceKey clusterKey = null;
+				int clusterCount = 0;
+				while (index < cntReferences.length) {
+					final Reference examinedReference = cntReferences[index];
+					final ReferenceKey examinedKey = examinedReference.getReferenceKey();
+					// the run ends with the first reference of a different name
+					if (!referenceName.equals(examinedKey.referenceName())) {
+						break;
 					}
-					// skip reflected references that are not available
-					if (referenceSchema instanceof final ReflectedReferenceSchemaContract rrsc) {
-						if (!rrsc.isReflectedReferenceAvailable()) {
-							while (cntReferences.length > i + 1 && cntReferences[i + 1].getReferenceName().equals(
-								rrsc.getName())) {
-								i++;
+					// the ordering tripwire replays only the numeric tail of ReferenceKey.FULL_COMPARATOR - both keys
+					// belong to the same run, so their names are known to be equal and comparing them again would
+					// double the string comparisons of this loop; equal keys are tolerated, since they are exactly
+					// what the duplicate detection below reports
+					if (previousKey != null) {
+						final int pkComparison = Integer.compare(previousKey.primaryKey(), examinedKey.primaryKey());
+						if (pkComparison > 0 ||
+							(pkComparison == 0 && !previousKey.isUnknownReference() &&
+								!examinedKey.isUnknownReference() &&
+								previousKey.internalPrimaryKey() > examinedKey.internalPrimaryKey())) {
+							throw new GenericEvitaInternalError(
+								"References of entity `" + this.entityType + "` are not sorted by their key: `" +
+									previousKey + "` is followed by `" + examinedKey + "`!"
+							);
+						}
+					}
+					previousKey = examinedKey;
+					if (examinedReference.exists()) {
+						referenceCount++;
+						if (!duplicatesAllowed) {
+							if (clusterKey != null && clusterKey.equals(examinedKey)) {
+								clusterCount++;
+							} else {
+								// a new cluster starts here - report the closed one when it contained duplicates
+								if (clusterCount > 1) {
+									duplicateViolations = addViolation(
+										duplicateViolations,
+										new CardinalityViolation(referenceName, cardinality, clusterCount, true)
+									);
+								}
+								clusterKey = examinedKey;
+								clusterCount = 1;
 							}
-							continue;
 						}
 					}
-					referencesFound.putOrAdd(reference.getReferenceName(), 1, 1);
-					if (!referenceSchema.getCardinality().allowsDuplicates()) {
-						if (duplicatedReferenceFound == null) {
-							duplicatedReferenceFound = new ObjectIntHashMap<>();
-						}
-						duplicatedReferenceFound.putOrAdd(reference.getReferenceKey(), 1, 1);
-					}
+					index++;
 				}
-			}
-		}
-		List<CardinalityViolation> violations = null; // lazy to minimize allocations
-		for (ReferenceSchemaContract examinedSchema : entitySchema.getReferences().values()) {
-			final Cardinality cardinality = examinedSchema.getCardinality();
-			final String referenceName = examinedSchema.getName();
-			if (cardinality.getMin() > 0 && !referencesFound.containsKey(referenceName)) {
-				if (violations == null) {
-					violations = new LinkedList<>();
+				// close the last cluster of the run
+				if (clusterCount > 1) {
+					duplicateViolations = addViolation(
+						duplicateViolations,
+						new CardinalityViolation(referenceName, cardinality, clusterCount, true)
+					);
 				}
-				violations.add(
-					new CardinalityViolation(referenceName, cardinality, 0, false)
-				);
-			} else if (cardinality.getMax() <= 0 && referencesFound.get(referenceName) > 1) {
-				if (violations == null) {
-					violations = new LinkedList<>();
-				}
-				violations.add(
-					new CardinalityViolation(referenceName, cardinality, referencesFound.get(referenceName), false)
-				);
-			}
-		}
-		if (duplicatedReferenceFound != null) {
-			for (ObjectIntCursor<ReferenceKey> cursor : duplicatedReferenceFound) {
-				if (cursor.value > 1) {
-					if (violations == null) {
-						violations = new LinkedList<>();
-					}
-					violations.add(
-						new CardinalityViolation(
-							cursor.key.referenceName(),
-							entitySchema.getReferenceOrThrowException(cursor.key.referenceName()).getCardinality(),
-							cursor.value,
-							true
-						)
+				// the upper limit is verified at the run boundary, where the entire run length is already known;
+				// mind that no Cardinality constant declares maximum lower than one, so this branch never fires at
+				// present - the effective upper limit check is performed by InitialReferencesBuilder and
+				// ExistingReferencesBuilder, which refuse the surplus reference at the moment it is being set
+				if (cardinality.getMax() <= 0 && referenceCount > 1) {
+					violations = addViolation(
+						violations,
+						new CardinalityViolation(referenceName, cardinality, referenceCount, false)
 					);
 				}
 			}
 		}
-		if (violations != null && !violations.isEmpty()) {
+
+		// references that are mandatory, but are not present on the entity at all
+		for (final ReferenceSchemaContract examinedSchema : references.values()) {
+			final Cardinality cardinality = examinedSchema.getCardinality();
+			if (cardinality.getMin() > 0 && !isAnyReferencePresent(cntReferences, examinedSchema)) {
+				violations = addViolation(
+					violations,
+					new CardinalityViolation(examinedSchema.getName(), cardinality, 0, false)
+				);
+			}
+		}
+
+		// duplicates are reported last to keep the original order of the violations in the error message
+		if (duplicateViolations != null) {
+			if (violations == null) {
+				violations = duplicateViolations;
+			} else {
+				violations.addAll(duplicateViolations);
+			}
+		}
+		if (violations != null) {
 			throw new ReferenceCardinalityViolatedException(entitySchema.getName(), violations);
 		}
+	}
+
+	/**
+	 * Returns index of the first reference in the sorted array that follows the contiguous run of references sharing
+	 * the passed reference name. When there is no such reference, the length of the array is returned.
+	 *
+	 * @param sortedReferences references sorted by {@link ReferenceContract#FULL_COMPARATOR}
+	 * @param index            index of a reference that belongs to the skipped run
+	 * @param referenceName    name of the reference the skipped run consists of
+	 * @return index of the first reference behind the run
+	 */
+	private static int skipReferenceRun(
+		@Nonnull Reference[] sortedReferences,
+		int index,
+		@Nonnull String referenceName
+	) {
+		int result = index + 1;
+		while (result < sortedReferences.length &&
+			referenceName.equals(sortedReferences[result].getReferenceKey().referenceName())) {
+			result++;
+		}
+		return result;
+	}
+
+	/**
+	 * Returns true when the passed sorted array of references contains at least a single existing reference of
+	 * the passed schema. The method mirrors the accounting of
+	 * {@link #verifyReferenceCardinalities(ReferencesStoragePart)} - dropped references and references of reflected
+	 * schemas that are not available are not taken into account.
+	 *
+	 * The method is called only for references with mandatory cardinality (which are rare) and relies on the fact
+	 * that the array is sorted by the reference name in the first place.
+	 *
+	 * @param sortedReferences references sorted by {@link ReferenceContract#FULL_COMPARATOR}, may be null when
+	 *                         the entity has no references container at all
+	 * @param referenceSchema  schema of the examined reference
+	 * @return true when at least one existing reference of the examined schema is present
+	 */
+	private static boolean isAnyReferencePresent(
+		@Nullable Reference[] sortedReferences,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		if (sortedReferences == null) {
+			return false;
+		}
+		if (referenceSchema instanceof final ReflectedReferenceSchemaContract rrsc &&
+			!rrsc.isReflectedReferenceAvailable()) {
+			return false;
+		}
+		final String referenceName = referenceSchema.getName();
+		// binary search for the very first reference of the examined name
+		int left = 0;
+		int right = sortedReferences.length - 1;
+		int runStart = -1;
+		while (left <= right) {
+			final int middle = (left + right) >>> 1;
+			final int comparisonResult = sortedReferences[middle].getReferenceKey()
+				.referenceName().compareTo(referenceName);
+			if (comparisonResult < 0) {
+				left = middle + 1;
+			} else if (comparisonResult > 0) {
+				right = middle - 1;
+			} else {
+				runStart = middle;
+				right = middle - 1;
+			}
+		}
+		if (runStart < 0) {
+			return false;
+		}
+		// the run may consist of dropped references only - scan it for the first existing one
+		for (int i = runStart; i < sortedReferences.length; i++) {
+			final Reference reference = sortedReferences[i];
+			if (!referenceName.equals(reference.getReferenceKey().referenceName())) {
+				break;
+			}
+			if (reference.exists()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Adds the passed violation to the lazily initialized list of violations. The list is created only when the first
+	 * violation is found, so that the (overwhelmingly more frequent) valid entity allocates nothing.
+	 *
+	 * @param violations list of violations collected so far, may be null when no violation was found yet
+	 * @param violation  violation to be added to the list
+	 * @return the list of violations containing the passed violation
+	 */
+	@Nonnull
+	private static List<CardinalityViolation> addViolation(
+		@Nullable List<CardinalityViolation> violations,
+		@Nonnull CardinalityViolation violation
+	) {
+		final List<CardinalityViolation> result = violations == null ? new LinkedList<>() : violations;
+		result.add(violation);
+		return result;
 	}
 
 	/**

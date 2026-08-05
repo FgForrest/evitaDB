@@ -90,6 +90,12 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	/**
 	 * See {@link Entity#getReferences()}. References are sorted in ascending order according to
 	 * {@link EntityReference} comparator.
+	 *
+	 * The ordering is not merely an optimization - consumers depend on it for correctness. Namely
+	 * `ContainerizedLocalMutationExecutor#verifyReferenceCardinalities` validates the reference cardinalities by
+	 * a run-length scan that assumes references of the same name form a single contiguous run and that equal keys
+	 * are adjacent within it. Any change to the maintenance of this array must keep it sorted by
+	 * {@link ReferenceContract#FULL_COMPARATOR}.
 	 */
 	private Reference[] references = EMPTY_REFERENCES;
 	/**
