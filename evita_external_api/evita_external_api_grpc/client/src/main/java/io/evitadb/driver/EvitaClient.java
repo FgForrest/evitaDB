@@ -1531,7 +1531,9 @@ public class EvitaClient implements EvitaContract {
 
 	/**
 	 * Stops the capture callback executor, giving the notifications already queued on it a bounded window to
-	 * run first. No-op when no capture stream was ever opened on this client.
+	 * run first. Queued notifications are never discarded here — only the *waiting* for them is bounded, and
+	 * `shutdownNow` is reached solely when that bound expires. No-op when no capture stream was ever opened on
+	 * this client.
 	 */
 	private void drainAndShutdownCdcCallbackExecutor() {
 		final ExecutorService captureExecutor = this.cdcCallbackExecutor.get();
@@ -1543,8 +1545,10 @@ public class EvitaClient implements EvitaContract {
 		if (Thread.currentThread() instanceof CdcCallbackThread) {
 			// `close()` was called *from* a capture callback - a consumer closing the client from its own
 			// `onError` handler is an ordinary pattern - so awaiting termination here would wait for the very
-			// task that is doing the waiting. The remaining notifications are abandoned, which is the correct
-			// trade: the consumer that would receive them is the one that asked for the close.
+			// task that is doing the waiting. Only the *wait* is skipped, not the drain: `shutdown()` above
+			// stops new submissions but lets the already-queued notifications run, so they are still delivered
+			// once this callback returns. They are simply no longer delivered *before* `close()` returns, which
+			// is the correct trade - the consumer that would receive them is the one that asked for the close.
 			log.debug("The evitaDB client is being closed from a capture callback; skipping the drain window.");
 			return;
 		}

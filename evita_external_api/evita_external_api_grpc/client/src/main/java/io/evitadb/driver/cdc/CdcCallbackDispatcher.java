@@ -52,9 +52,11 @@ import java.util.concurrent.ExecutorService;
  * the task in place would reproduce it verbatim.
  *
  * **What happens when the executor refuses.** The callback is *not* run, anywhere, and `dispatch` returns
- * false; the caller then terminates the affected subscription with
- * {@link io.evitadb.driver.exception.EvitaClientPoolSaturatedException}. A capture stream that cannot deliver
- * to its consumer is not a capture stream, so failing it loudly is the honest outcome — and the driver-internal
+ * the refusal the executor threw (NULL means accepted); the caller then terminates the affected subscription
+ * with **that** exception rather than one of its own making, because the saturation and shutdown variants of
+ * {@link io.evitadb.driver.exception.EvitaClientPoolSaturatedException} carry opposite remedies. A capture
+ * stream that cannot deliver to its consumer is not a capture stream, so failing it loudly is the honest
+ * outcome — and the driver-internal
  * half of that teardown (cancelling the gRPC stream, de-registering from the publisher) is safe to run in place
  * precisely because it is local, non-blocking and non-re-entrant.
  *
