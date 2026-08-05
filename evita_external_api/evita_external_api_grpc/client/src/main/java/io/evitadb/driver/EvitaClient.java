@@ -1449,10 +1449,14 @@ public class EvitaClient implements EvitaContract {
 	 * every one of them for a feature they do not use. `allowCoreThreadTimeOut` is enabled so that even a client
 	 * that *did* subscribe drops back to zero threads once captures go quiet.
 	 *
+	 * Deliberately **not** public: the return value is a live handle on which `shutdown`/`shutdownNow` would
+	 * silently break every future capture subscription on this client and race {@link #close()}'s own
+	 * drain-then-shutdown sequence. Only {@link EvitaClientSession} needs it, and it lives in this package.
+	 *
 	 * @return the capture callback executor, never NULL
 	 */
 	@Nonnull
-	public ExecutorService cdcCallbackExecutor() {
+	ExecutorService cdcCallbackExecutor() {
 		final ExecutorService existing = this.cdcCallbackExecutor.get();
 		if (existing != null) {
 			return existing;
@@ -1750,11 +1754,6 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	/**
-	 * Key for system-level CDC publishers in the {@link #activePublishers} map.
-	 *
-	 * @param request the original system capture request
-	 */
-	/**
 	 * Thread type of the {@link #cdcCallbackExecutor() capture callback executor}.
 	 *
 	 * It exists purely so the driver can recognise "I am running on a capture callback thread" without parsing
@@ -1776,6 +1775,11 @@ public class EvitaClient implements EvitaContract {
 
 	}
 
+	/**
+	 * Key for system-level CDC publishers in the {@link #activePublishers} map.
+	 *
+	 * @param request the original system capture request
+	 */
 	record SystemCaptureKey(
 		@Nonnull ChangeSystemCaptureRequest request
 	) implements CapturePublisherKey {
