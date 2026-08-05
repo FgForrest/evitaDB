@@ -604,6 +604,44 @@ private static final long serialVersionUID = 0L;
     return activity_ == null ? io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics.getDefaultInstance() : activity_;
   }
 
+  public static final int DURABILITY_FIELD_NUMBER = 14;
+  private io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability_;
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   * @return Whether the durability field is set.
+   */
+  @java.lang.Override
+  public boolean hasDurability() {
+    return ((bitField0_ & 0x00001000) != 0);
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   * @return The durability.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics getDurability() {
+    return durability_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance() : durability_;
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder getDurabilityOrBuilder() {
+    return durability_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance() : durability_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -656,6 +694,9 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00000800) != 0)) {
       output.writeMessage(13, getActivity());
+    }
+    if (((bitField0_ & 0x00001000) != 0)) {
+      output.writeMessage(14, getDurability());
     }
     getUnknownFields().writeTo(output);
   }
@@ -717,6 +758,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000800) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(13, getActivity());
+    }
+    if (((bitField0_ & 0x00001000) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(14, getDurability());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -795,6 +840,11 @@ private static final long serialVersionUID = 0L;
       if (!getActivity()
           .equals(other.getActivity())) return false;
     }
+    if (hasDurability() != other.hasDurability()) return false;
+    if (hasDurability()) {
+      if (!getDurability()
+          .equals(other.getDurability())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -857,6 +907,10 @@ private static final long serialVersionUID = 0L;
     if (hasActivity()) {
       hash = (37 * hash) + ACTIVITY_FIELD_NUMBER;
       hash = (53 * hash) + getActivity().hashCode();
+    }
+    if (hasDurability()) {
+      hash = (37 * hash) + DURABILITY_FIELD_NUMBER;
+      hash = (53 * hash) + getDurability().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1019,6 +1073,7 @@ private static final long serialVersionUID = 0L;
         getVolatileStateFieldBuilder();
         getComponentStatusFieldBuilder();
         getActivityFieldBuilder();
+        getDurabilityFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1091,6 +1146,11 @@ private static final long serialVersionUID = 0L;
       if (activityBuilder_ != null) {
         activityBuilder_.dispose();
         activityBuilder_ = null;
+      }
+      durability_ = null;
+      if (durabilityBuilder_ != null) {
+        durabilityBuilder_.dispose();
+        durabilityBuilder_ = null;
       }
       return this;
     }
@@ -1211,6 +1271,12 @@ private static final long serialVersionUID = 0L;
             : activityBuilder_.build();
         to_bitField0_ |= 0x00000800;
       }
+      if (((from_bitField0_ & 0x00002000) != 0)) {
+        result.durability_ = durabilityBuilder_ == null
+            ? durability_
+            : durabilityBuilder_.build();
+        to_bitField0_ |= 0x00001000;
+      }
       result.bitField0_ |= to_bitField0_;
     }
 
@@ -1319,6 +1385,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasActivity()) {
         mergeActivity(other.getActivity());
+      }
+      if (other.hasDurability()) {
+        mergeDurability(other.getDurability());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1443,6 +1512,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00001000;
               break;
             } // case 106
+            case 114: {
+              input.readMessage(
+                  getDurabilityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00002000;
+              break;
+            } // case 114
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -3672,6 +3748,163 @@ private static final long serialVersionUID = 0L;
         activity_ = null;
       }
       return activityBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder> durabilityBuilder_;
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     * @return Whether the durability field is set.
+     */
+    public boolean hasDurability() {
+      return ((bitField0_ & 0x00002000) != 0);
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     * @return The durability.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics getDurability() {
+      if (durabilityBuilder_ == null) {
+        return durability_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance() : durability_;
+      } else {
+        return durabilityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public Builder setDurability(io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics value) {
+      if (durabilityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        durability_ = value;
+      } else {
+        durabilityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00002000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public Builder setDurability(
+        io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.Builder builderForValue) {
+      if (durabilityBuilder_ == null) {
+        durability_ = builderForValue.build();
+      } else {
+        durabilityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00002000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public Builder mergeDurability(io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics value) {
+      if (durabilityBuilder_ == null) {
+        if (((bitField0_ & 0x00002000) != 0) &&
+          durability_ != null &&
+          durability_ != io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance()) {
+          getDurabilityBuilder().mergeFrom(value);
+        } else {
+          durability_ = value;
+        }
+      } else {
+        durabilityBuilder_.mergeFrom(value);
+      }
+      if (durability_ != null) {
+        bitField0_ |= 0x00002000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public Builder clearDurability() {
+      bitField0_ = (bitField0_ & ~0x00002000);
+      durability_ = null;
+      if (durabilityBuilder_ != null) {
+        durabilityBuilder_.dispose();
+        durabilityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.Builder getDurabilityBuilder() {
+      bitField0_ |= 0x00002000;
+      onChanged();
+      return getDurabilityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder getDurabilityOrBuilder() {
+      if (durabilityBuilder_ != null) {
+        return durabilityBuilder_.getMessageOrBuilder();
+      } else {
+        return durability_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance() : durability_;
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder> 
+        getDurabilityFieldBuilder() {
+      if (durabilityBuilder_ == null) {
+        durabilityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder>(
+                getDurability(),
+                getParentForChildren(),
+                isClean());
+        durability_ = null;
+      }
+      return durabilityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

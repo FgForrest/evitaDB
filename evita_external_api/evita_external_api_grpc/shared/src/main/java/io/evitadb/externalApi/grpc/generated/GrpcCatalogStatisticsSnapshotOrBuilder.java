@@ -403,4 +403,31 @@ public interface GrpcCatalogStatisticsSnapshotOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcActivityStatistics activity = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcActivityStatisticsOrBuilder getActivityOrBuilder();
+
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   * @return Whether the durability field is set.
+   */
+  boolean hasDurability();
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   * @return The durability.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics getDurability();
+  /**
+   * <pre>
+   * The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder getDurabilityOrBuilder();
 }

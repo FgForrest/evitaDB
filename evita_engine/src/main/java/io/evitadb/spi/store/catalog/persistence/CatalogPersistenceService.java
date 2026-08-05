@@ -750,6 +750,19 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	CatalogFragmentationSnapshot measureFragmentation();
 
 	/**
+	 * Describes how this catalog's deferred-checkpoint fence is behaving - what the last completed checkpoint cost and
+	 * how far behind the physical device the catalog is allowed to run.
+	 *
+	 * Free of file-system access: every figure is an in-memory read of state the checkpoint path already maintains.
+	 *
+	 * @return the durability snapshot, or `null` when this catalog checkpoints at the end of every round and there is
+	 * therefore no fence to describe - either because no checkpoint interval is configured or because writes are not
+	 * synced to the device at all
+	 */
+	@Nullable
+	DurabilitySnapshot measureDurability();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *

@@ -75,6 +75,7 @@ import java.util.Optional;
  * @param sessions           {@link CatalogStatisticsComponent#SESSIONS}, null unless requested and delivered
  * @param commitPipeline     {@link CatalogStatisticsComponent#COMMIT_PIPELINE}, null unless requested and delivered
  * @param activity           {@link CatalogStatisticsComponent#ACTIVITY}, null unless requested and delivered
+ * @param durability         {@link CatalogStatisticsComponent#DURABILITY}, null unless requested and delivered
  * @param storageSize        {@link CatalogStatisticsComponent#STORAGE_SIZE}, null unless requested and delivered
  * @param storageComposition {@link CatalogStatisticsComponent#STORAGE_COMPOSITION}, null unless requested and
  *                           delivered
@@ -93,6 +94,7 @@ public record CatalogStatistics(
 	@Nullable SessionStatistics sessions,
 	@Nullable CommitPipelineStatistics commitPipeline,
 	@Nullable ActivityStatistics activity,
+	@Nullable DurabilityStatistics durability,
 	@Nullable StorageSizeStatistics storageSize,
 	@Nullable StorageCompositionStatistics storageComposition,
 	@Nullable FragmentationStatistics fragmentation,
@@ -161,6 +163,16 @@ public record CatalogStatistics(
 	@Nonnull
 	public Optional<ActivityStatistics> activityIfPresent() {
 		return Optional.ofNullable(this.activity);
+	}
+
+	/**
+	 * Returns the deferred-durability fence readings when they were requested and could be computed.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#DURABILITY} component, or empty
+	 */
+	@Nonnull
+	public Optional<DurabilityStatistics> durabilityIfPresent() {
+		return Optional.ofNullable(this.durability);
 	}
 
 	/**
@@ -267,6 +279,7 @@ public record CatalogStatistics(
 		private SessionStatistics sessions;
 		private CommitPipelineStatistics commitPipeline;
 		private ActivityStatistics activity;
+		private DurabilityStatistics durability;
 		private StorageSizeStatistics storageSize;
 		private StorageCompositionStatistics storageComposition;
 		private FragmentationStatistics fragmentation;
@@ -338,6 +351,18 @@ public record CatalogStatistics(
 		public Builder withActivity(@Nonnull ActivityStatistics value) {
 			this.activity = value;
 			return delivered(CatalogStatisticsComponent.ACTIVITY);
+		}
+
+		/**
+		 * Records the {@link CatalogStatisticsComponent#DURABILITY} component as delivered.
+		 *
+		 * @param value the computed component
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder withDurability(@Nonnull DurabilityStatistics value) {
+			this.durability = value;
+			return delivered(CatalogStatisticsComponent.DURABILITY);
 		}
 
 		/**
@@ -444,6 +469,7 @@ public record CatalogStatistics(
 				this.sessions,
 				this.commitPipeline,
 				this.activity,
+				this.durability,
 				this.storageSize,
 				this.storageComposition,
 				this.fragmentation,

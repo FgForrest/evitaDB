@@ -27,7 +27,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.statistics.ActivityStatistics;
+import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
@@ -51,15 +53,19 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.EnumSet;
+import java.util.concurrent.TimeUnit;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,12 +92,16 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	private static final String ENTITY_BRAND = "brand";
 
 	/**
-	 * The catalog-level components no build of this branch computes yet. Everything else must come back
-	 * {@link ComponentAvailability#DELIVERED} from a healthy, transactional catalog.
+	 * The catalog-level components no build of this branch computes yet.
+	 *
+	 * **Empty since `DURABILITY` landed, and the assertion below is written so that this is a stronger statement
+	 * rather than a vacuous one.** With an empty set every catalog-level component must report `DELIVERED`, so a
+	 * component left behind in the catch-all arm of the dispatch switch fails here - which is the whole point of the
+	 * partition. Had the assertion been phrased as "every member of this set reports NOT_SUPPORTED" it would now
+	 * iterate nothing and pass whatever the engine did.
 	 */
-	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED = EnumSet.of(
-		CatalogStatisticsComponent.DURABILITY
-	);
+	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED =
+		EnumSet.noneOf(CatalogStatisticsComponent.class);
 	/**
 	 * The collection-level components no build of this branch computes yet - the expensive pair, which will keep this
 	 * partition discriminating at the collection level until the last stage delivers them.
@@ -103,10 +113,13 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 
 	private TestPaths paths;
 	private Evita evita;
+	/** When this test's engine was created - the lower bound every process-scoped `countingSince` must respect. */
+	private OffsetDateTime startedAt;
 
 	@BeforeEach
 	void setUp() {
 		this.paths = createTestPaths("CheapScalarStatisticsTest");
+		this.startedAt = OffsetDateTime.now();
 		this.evita = new Evita(getEvitaConfiguration(false));
 		buildCatalog(this.evita);
 	}
@@ -746,6 +759,91 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 * @return the delivered {@link ActivityStatistics}
 	 */
 	@Nonnull
+	@Test
+	@DisplayName("Report the checkpoint fence of a catalog that defers its checkpoints")
+	void shouldReportTheDeferredCheckpointFence() {
+		goLive();
+		// the shipped defaults already defer: TransactionOptions.DEFAULT_CHECKPOINT_INTERVAL is 1000 ms and
+		// StorageOptions.DEFAULT_SYNC_WRITES is true, so the fence exists without the fixture configuring anything
+		this.evita.updateCatalog(CATALOG, session -> {
+			// `brand` has its keys assigned by the engine, so this must not supply one
+			session.upsertEntity(session.createNewEntity(ENTITY_BRAND));
+		});
+
+		final DurabilityStatistics durability = fetchDurability();
+		assertTrue(
+			durability.checkpointIntervalMillis() > 0L,
+			"The configured interval is what fence depth is judged against, so a delivered component must carry it"
+		);
+		assertNotNull(durability.countingSince());
+		// the counters are process-scoped, so `countingSince` cannot predate the engine that owns them
+		assertFalse(durability.countingSince().isBefore(this.startedAt));
+		// whether a checkpoint has completed by now depends on the ticker, so pinning a count would be flaky. What
+		// must hold is that the two agree: `noteCheckpointCompleted` writes the count and the timestamp together, so
+		// a reader that took them from different places - or a projection that dropped one - breaks this
+		assertEquals(
+			durability.checkpointsCompleted() == 0L,
+			durability.lastCheckpointAtIfKnown().isEmpty(),
+			"A completed checkpoint must carry its timestamp, and an absent timestamp must mean none completed: " +
+				durability
+		);
+	}
+
+	@Test
+	@DisplayName("Decline the durability fence when the catalog checkpoints inline")
+	void shouldDeclineDurabilityWhenCheckpointingInline() {
+		// a second instance is required: the fence exists on the defaults, so the disabled case has to be configured
+		// deliberately. Four zeroes here would render as "durability is instant and free" - and when it is sync
+		// writes that are off, that reads as the exact inverse of the truth - so the component declines instead
+		this.evita.close();
+		this.evita = new Evita(getInlineCheckpointEvitaConfiguration(this.paths));
+		// a freshly constructed Evita installs UnusableCatalog placeholders and loads catalogs on a background pool,
+		// so anything touching the catalog before that finishes legitimately sees BEING_ACTIVATED
+		awaitCatalogLoaded();
+
+		final CatalogStatistics statistics = this.evita.management().getCatalogStatistics(
+			CATALOG, EnumSet.of(CatalogStatisticsComponent.DURABILITY)
+		);
+
+		final ComponentStatus status = statistics.componentStatus()
+			.get(CatalogStatisticsComponent.DURABILITY);
+		assertNotNull(status);
+		assertEquals(ComponentAvailability.FEATURE_DISABLED, status.availability());
+		assertNotNull(status.reason());
+		assertNull(statistics.durability(), "A declined component must carry no value at all");
+	}
+
+	/**
+	 * Blocks until the catalog has finished loading.
+	 *
+	 * Catalogs are loaded on a background pool, and until one finishes it is represented by an `UnusableCatalog`
+	 * placeholder - the honest answer while activation is in flight, and not what these tests are measuring.
+	 */
+	private void awaitCatalogLoaded() {
+		await()
+			.atMost(30, TimeUnit.SECONDS)
+			.pollInterval(50, TimeUnit.MILLISECONDS)
+			.until(
+				() -> !this.evita.management()
+					.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.IDENTITY))
+					.identity()
+					.unusable()
+			);
+	}
+
+	/**
+	 * Reads the durability component of the test catalog.
+	 *
+	 * @return the delivered {@link DurabilityStatistics}
+	 */
+	@Nonnull
+	private DurabilityStatistics fetchDurability() {
+		return this.evita.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.DURABILITY))
+			.durabilityIfPresent()
+			.orElseThrow();
+	}
+
 	private ActivityStatistics fetchActivity() {
 		return this.evita.management()
 			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.ACTIVITY))
@@ -785,6 +883,33 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 * @param timeTravelEnabled whether the instance retains superseded data files for point-in-time reads
 	 * @return configuration pointing at those directories
 	 */
+	/**
+	 * Builds a configuration that checkpoints at the end of every round, which is what removes the durability fence.
+	 *
+	 * Either switch suffices and the two are deliberately orthogonal in the engine: an interval with `syncWrites` off
+	 * would defer nothing, because the writes never reach the device on that setting anyway. A zero interval is used
+	 * here because it leaves durability itself intact and isolates the absence of *deferral*.
+	 *
+	 * @param testPaths directories the instance stores its data in
+	 * @return configuration with no deferred-checkpoint fence
+	 */
+	@Nonnull
+	private EvitaConfiguration getInlineCheckpointEvitaConfiguration(@Nonnull TestPaths testPaths) {
+		return newTestEvitaConfigurationBuilder(testPaths)
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(testPaths.storage())
+					.workDirectory(testPaths.work())
+					.build()
+			)
+			.transaction(
+				TransactionOptions.builder()
+					.checkpointIntervalInMillis(0L)
+					.build()
+			)
+			.build();
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(@Nonnull TestPaths testPaths, boolean timeTravelEnabled) {
 		return newTestEvitaConfigurationBuilder(testPaths)

@@ -33,12 +33,18 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
+
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -159,6 +165,29 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 	 * acknowledging commits it can never checkpoint.
 	 */
 	private final AtomicReference<Throwable> failure = new AtomicReference<>();
+	/**
+	 * What the last completed checkpoint cost, retained for the `DURABILITY` statistics component.
+	 *
+	 * **A single reference rather than four fields, deliberately.** The four figures describe *one* checkpoint, and
+	 * a statistics read that took them field by field could pair a cadence from one checkpoint with a fence depth
+	 * from the next - a combination that never happened, which is exactly what an operator would then try to explain.
+	 * One volatile write publishes them together. Same reasoning as the non-flushed block in `VolatileValues`.
+	 *
+	 * The figures are otherwise unobtainable after the fact: {@link #forceStats} is drained by the checkpoint that
+	 * reports it, so without this they exist only inside the observability event.
+	 */
+	private volatile CheckpointStats lastCheckpoint = CheckpointStats.NONE;
+	/**
+	 * How many checkpoints have completed since this coordinator was constructed. Process-scoped, like the figures
+	 * above - see {@link #countingSince}.
+	 */
+	private final AtomicLong checkpointsCompleted = new AtomicLong();
+	/**
+	 * The instant {@link #checkpointsCompleted} started from zero, which is what makes it readable: the counter is
+	 * not persisted, so a client that reads it as "checkpoints this catalog has ever taken" is wrong by everything
+	 * that happened before this coordinator was built.
+	 */
+	private final OffsetDateTime countingSince = OffsetDateTime.now();
 
 	/**
 	 * Creates a coordinator that checkpoints no more often than the given interval.
@@ -287,6 +316,12 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 			// is that those two moments are no longer the same, so reporting at the round would report nothing about
 			// durability
 			final ForceStats forced = this.forceStats.getAndSet(ForceStats.EMPTY);
+			// retained before the event is emitted and from the same locals, so the DURABILITY component and the
+			// observability event can never describe different checkpoints
+			this.lastCheckpoint = new CheckpointStats(
+				cadenceMillis, fenceDepthMillis, forced.files(), forced.durationMillis(), now
+			);
+			this.checkpointsCompleted.incrementAndGet();
 			new CatalogCheckpointEvent(this.catalogName)
 				.finish(cadenceMillis, fenceDepthMillis, forced.files(), forced.durationMillis())
 				.commit();
@@ -375,6 +410,51 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 			this.checkpointLock.unlock();
 		}
 		return -1L;
+	}
+
+	/**
+	 * Describes how this catalog's checkpoint fence is behaving, for the `DURABILITY` statistics component.
+	 *
+	 * All figures come from the last completed checkpoint, read off a single reference so they cannot straddle two of
+	 * them. Free of file-system access - everything here is an in-memory read.
+	 *
+	 * @return the snapshot
+	 */
+	@Nonnull
+	public DurabilitySnapshot describeDurability() {
+		final CheckpointStats last = this.lastCheckpoint;
+		return new DurabilitySnapshot(
+			this.checkpointIntervalMillis,
+			last.cadenceMillis(),
+			last.fenceDepthMillis(),
+			last.filesForced(),
+			last.forceDurationMillis(),
+			this.checkpointsCompleted.get(),
+			last.completedAtMillis() == 0L ?
+				null :
+				OffsetDateTime.ofInstant(Instant.ofEpochMilli(last.completedAtMillis()), ZoneId.systemDefault()),
+			this.countingSince
+		);
+	}
+
+	/**
+	 * What one completed checkpoint cost. Retained as a whole so a statistics read cannot mix figures from two
+	 * different checkpoints - see {@link #lastCheckpoint}.
+	 *
+	 * @param cadenceMillis       time since the previous completed checkpoint
+	 * @param fenceDepthMillis    how long the oldest change it covered waited for the device
+	 * @param filesForced         number of files it forced
+	 * @param forceDurationMillis wall-clock time those forces took
+	 * @param completedAtMillis   when it completed, or `0` when none has completed yet
+	 */
+	private record CheckpointStats(
+		long cadenceMillis,
+		long fenceDepthMillis,
+		int filesForced,
+		long forceDurationMillis,
+		long completedAtMillis
+	) {
+		private static final CheckpointStats NONE = new CheckpointStats(0L, 0L, 0, 0L, 0L);
 	}
 
 	/**

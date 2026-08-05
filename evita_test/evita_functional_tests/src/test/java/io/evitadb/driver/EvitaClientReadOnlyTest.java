@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
+import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
@@ -2224,8 +2225,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 *
 	 * This is the end-to-end counterpart of `CatalogStatisticsConverterTest`: that one proves the translation is
 	 * lossless in isolation, this one proves the same distinctions survive a real server, a real gRPC call and a real
-	 * driver. `DURABILITY` is requested precisely because this build does not compute it yet - a component the server
-	 * declined must arrive as a status, never as a silently absent field.
+	 * driver. The end-to-end proof that a *declined* component arrives as a status rather than as a silently absent
+	 * field now lives in `shouldRetrieveComponentSelectedEntityCollectionStatistics`: delivering `DURABILITY` emptied
+	 * the set of catalog-level components that can still be declined, because `INDEX_CARDINALITY` and
+	 * `MEMORY_FOOTPRINT` are *rejected* at this level rather than declined - the request throws instead of answering.
 	 */
 	@Test
 	@DisplayName("retrieve component-selected catalog statistics")
@@ -2310,16 +2313,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			"An absent projection on the nested slice must decode back to absent as well"
 		);
 
-		// requested but this build cannot compute it - the client must be told why, not left guessing. Whichever
-		// component stands here must still be declined: it is the only end-to-end proof that a component the engine
-		// refused arrives as a status rather than as a silently missing field. `SESSIONS` held this place until it was
-		// delivered and `FRAGMENTATION` after it; the assertion is deliberately made on the *status map* alone, so the
-		// next stage that delivers this one can repoint it at any declined component rather than only at one that
-		// happens to have a record accessor
-		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.DURABILITY)
+		// the deferred-durability fence, over a real server. The test configuration checkpoints inline, so this
+		// arrives as FEATURE_DISABLED rather than as a value - which is itself the assertion worth making: four
+		// zeroes would have read as "durability is instant and free", and the component exists to not say that
+		final ComponentStatus durabilityStatus = statistics.statusOf(CatalogStatisticsComponent.DURABILITY)
 			.orElseThrow();
-		assertEquals(ComponentAvailability.NOT_SUPPORTED, declinedStatus.availability());
-		assertNotNull(declinedStatus.reason());
+		assertNotNull(durabilityStatus.reason());
+		if (durabilityStatus.availability() == ComponentAvailability.DELIVERED) {
+			final DurabilityStatistics durability = statistics.durabilityIfPresent().orElseThrow();
+			assertTrue(durability.checkpointIntervalMillis() > 0L, durability.toString());
+			assertNotNull(durability.countingSince());
+		} else {
+			assertEquals(ComponentAvailability.FEATURE_DISABLED, durabilityStatus.availability());
+			assertNull(statistics.durability());
+		}
 
 		// never requested - absent, and with no status entry to be mistaken for one
 		assertNull(statistics.collections());
@@ -2343,7 +2350,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				CatalogStatisticsComponent.STORAGE_COMPOSITION,
 				CatalogStatisticsComponent.COLLECTIONS,
 				CatalogStatisticsComponent.VOLATILE_STATE,
-				CatalogStatisticsComponent.FRAGMENTATION
+				CatalogStatisticsComponent.FRAGMENTATION,
+				// requested precisely because no build computes it yet - see the assertion at the end of this method
+				CatalogStatisticsComponent.MEMORY_FOOTPRINT
 			)
 		);
 
@@ -2400,6 +2409,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			fragmentation.estimatedCompactionAtIfKnown().isEmpty(),
 			"An absent compaction projection must decode back to absent, never to an epoch-zero instant"
 		);
+
+		// requested but this build cannot compute it - the client must be told why, not left guessing. This is the
+		// only end-to-end proof that a component the engine declined arrives as a *status* rather than as a silently
+		// missing field, and it lives at the collection level because no catalog-level component can be declined any
+		// more: `SESSIONS` held the place until it was delivered, then `FRAGMENTATION`, then `DURABILITY`. Whichever
+		// component stands here must still be declined *and* must be legal to request at this level - the expensive
+		// pair is rejected outright at the catalog level, which is a thrown exception rather than a status
+		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.MEMORY_FOOTPRINT)
+			.orElseThrow();
+		assertEquals(ComponentAvailability.NOT_SUPPORTED, declinedStatus.availability());
+		assertNotNull(declinedStatus.reason());
+
+		// never requested - absent, and with no status entry to be mistaken for one
+		assertTrue(statistics.statusOf(CatalogStatisticsComponent.STORAGE_SIZE).isEmpty());
 	}
 
 	/**

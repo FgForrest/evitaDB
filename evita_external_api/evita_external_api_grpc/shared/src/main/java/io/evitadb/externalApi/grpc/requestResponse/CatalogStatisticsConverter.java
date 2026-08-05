@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentStatus;
+import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
@@ -178,6 +179,9 @@ public class CatalogStatisticsConverter {
 		if (statistics.activity() != null) {
 			builder.setActivity(toGrpcActivityStatistics(statistics.activity()));
 		}
+		if (statistics.durability() != null) {
+			builder.setDurability(toGrpcDurabilityStatistics(statistics.durability()));
+		}
 		if (statistics.storageSize() != null) {
 			builder.setStorageSize(toGrpcStorageSizeStatistics(statistics.storageSize()));
 		}
@@ -217,6 +221,7 @@ public class CatalogStatisticsConverter {
 			snapshot.hasSessions() ? toSessionStatistics(snapshot.getSessions()) : null,
 			snapshot.hasCommitPipeline() ? toCommitPipelineStatistics(snapshot.getCommitPipeline()) : null,
 			snapshot.hasActivity() ? toActivityStatistics(snapshot.getActivity()) : null,
+			snapshot.hasDurability() ? toDurabilityStatistics(snapshot.getDurability()) : null,
 			snapshot.hasStorageSize() ? toStorageSizeStatistics(snapshot.getStorageSize()) : null,
 			snapshot.hasStorageComposition() ?
 				toStorageCompositionStatistics(snapshot.getStorageComposition()) : null,
@@ -619,6 +624,53 @@ public class CatalogStatisticsConverter {
 			grpcActivity.getMutationsPerSecond(),
 			grpcActivity.getWalBytesPerSecond(),
 			EvitaDataTypesConverter.toOffsetDateTime(grpcActivity.getCountingSince())
+		);
+	}
+
+	/**
+	 * Converts the deferred-durability fence readings to their gRPC form.
+	 *
+	 * @param durability the component to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	private static GrpcDurabilityStatistics toGrpcDurabilityStatistics(@Nonnull DurabilityStatistics durability) {
+		final GrpcDurabilityStatistics.Builder builder = GrpcDurabilityStatistics.newBuilder()
+			.setCheckpointIntervalMillis(durability.checkpointIntervalMillis())
+			.setLastCadenceMillis(durability.lastCadenceMillis())
+			.setLastFenceDepthMillis(durability.lastFenceDepthMillis())
+			.setLastFilesForced(durability.lastFilesForced())
+			.setLastForceDurationMillis(durability.lastForceDurationMillis())
+			.setCheckpointsCompleted(durability.checkpointsCompleted())
+			.setCountingSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(durability.countingSince()));
+		// left unset when no checkpoint has completed yet - an epoch-zero instant would read as a checkpoint taken in
+		// 1970 rather than as one that has not happened
+		if (durability.lastCheckpointAt() != null) {
+			builder.setLastCheckpointAt(
+				EvitaDataTypesConverter.toGrpcOffsetDateTime(durability.lastCheckpointAt())
+			);
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads the deferred-durability fence readings back from the wire.
+	 *
+	 * @param grpcDurability the received component
+	 * @return its Java form
+	 */
+	@Nonnull
+	private static DurabilityStatistics toDurabilityStatistics(@Nonnull GrpcDurabilityStatistics grpcDurability) {
+		return new DurabilityStatistics(
+			grpcDurability.getCheckpointIntervalMillis(),
+			grpcDurability.getLastCadenceMillis(),
+			grpcDurability.getLastFenceDepthMillis(),
+			grpcDurability.getLastFilesForced(),
+			grpcDurability.getLastForceDurationMillis(),
+			grpcDurability.getCheckpointsCompleted(),
+			grpcDurability.hasLastCheckpointAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDurability.getLastCheckpointAt()) : null,
+			EvitaDataTypesConverter.toOffsetDateTime(grpcDurability.getCountingSince())
 		);
 	}
 

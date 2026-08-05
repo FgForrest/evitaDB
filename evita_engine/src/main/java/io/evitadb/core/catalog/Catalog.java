@@ -148,6 +148,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
@@ -1524,11 +1525,22 @@ public final class Catalog
 						);
 					}
 				}
-				case DURABILITY -> builder.withUnavailable(
-					component,
-					ComponentAvailability.NOT_SUPPORTED,
-					"Statistics component `" + component + "` is not computed by this version yet."
-				);
+				case DURABILITY -> {
+					final DurabilitySnapshot durability = this.persistenceService.measureDurability();
+					if (durability != null) {
+						builder.withDurability(DurabilityProjection.toDurabilityStatistics(durability));
+					} else {
+						// zeroes here would read as "durability is instant and free"; with sync writes off it in fact
+						// means durability is not happening at all, which is the inverse of that
+						builder.withUnavailable(
+							component,
+							ComponentAvailability.FEATURE_DISABLED,
+							"Catalog checkpoints at the end of every round, so there is no deferred-durability fence " +
+								"to describe - either no checkpoint interval is configured, or writes are not synced " +
+								"to the physical device."
+						);
+					}
+				}
 				// unreachable - both are collection-level only and the assertion above already rejected them
 				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> throw new GenericEvitaInternalError(
 					"Collection-level component `" + component + "` passed the catalog-level check!"

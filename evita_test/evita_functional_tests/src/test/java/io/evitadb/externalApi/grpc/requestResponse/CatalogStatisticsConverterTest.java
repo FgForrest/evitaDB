@@ -42,6 +42,7 @@ import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
+import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
 import io.evitadb.api.statistics.FragmentationStatistics;
@@ -120,6 +121,11 @@ class CatalogStatisticsConverterTest {
 	// the epoch the activity counters are read against; distinct from every timestamp above for the same reason
 	private static final OffsetDateTime COUNTING_SINCE =
 		OffsetDateTime.of(2026, 2, 3, 4, 5, 6, 700_000_000, ZoneOffset.UTC);
+	// when the last checkpoint completed; distinct from every timestamp above - including COUNTING_SINCE, its own
+	// neighbour in the durability message - so an arm that carried one field into the other's slot would fail rather
+	// than round-trip a matching pair
+	private static final OffsetDateTime LAST_CHECKPOINT_AT =
+		OffsetDateTime.of(2026, 12, 1, 2, 3, 4, 500_000_000, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -161,7 +167,7 @@ class CatalogStatisticsConverterTest {
 			// deliberately all zeroes - an empty catalog reports a real measurement of zero, and that must not be
 			// mistaken for "no value was produced"
 			new RecordCounts(0L, 0L, 0L),
-			null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null,
 			Map.copyOf(statuses)
 		);
 
@@ -276,7 +282,7 @@ class CatalogStatisticsConverterTest {
 		);
 		final CatalogStatistics roundTripped = roundTrip(
 			new CatalogStatistics(
-				original, null, null, null, null, null, null, null, null, null, null, null,
+				original, null, null, null, null, null, null, null, null, null, null, null, null,
 				Map.of(
 					CatalogStatisticsComponent.IDENTITY,
 					ComponentStatus.delivered(CatalogStatisticsComponent.IDENTITY)
@@ -382,7 +388,7 @@ class CatalogStatisticsConverterTest {
 	 * A catalog snapshot with every component that has a Java type populated, each field carrying a distinct value so
 	 * that a field written into the wrong slot changes the result.
 	 *
-	 * `DURABILITY` is present as a status without a value on purpose - it is a component with no sub-message yet, and
+	 * `MEMORY_FOOTPRINT` is present as a status without a value on purpose - it is a component with no sub-message, and
 	 * its status must still survive the trip.
 	 *
 	 * @return the fixture
@@ -403,16 +409,20 @@ class CatalogStatisticsConverterTest {
 			CatalogStatisticsComponent.FRAGMENTATION,
 			CatalogStatisticsComponent.HISTORY,
 			CatalogStatisticsComponent.INDEX_SUMMARY,
-			CatalogStatisticsComponent.VOLATILE_STATE
+			CatalogStatisticsComponent.VOLATILE_STATE,
+			CatalogStatisticsComponent.DURABILITY
 		)) {
 			statuses.put(component, ComponentStatus.delivered(component));
 		}
+		// the status-without-a-value case, which is what stops the converter fabricating an all-zero component for
+		// one that was never delivered. It has to be a component with no catalog-level sub-message on the wire, and
+		// after DURABILITY started being delivered the expensive pair is what is left
 		statuses.put(
-			CatalogStatisticsComponent.DURABILITY,
+			CatalogStatisticsComponent.MEMORY_FOOTPRINT,
 			ComponentStatus.unavailable(
-				CatalogStatisticsComponent.DURABILITY,
+				CatalogStatisticsComponent.MEMORY_FOOTPRINT,
 				ComponentAvailability.NOT_SUPPORTED,
-				"Statistics component `DURABILITY` is not computed by this version yet."
+				"Statistics component `MEMORY_FOOTPRINT` is not computed by this version yet."
 			)
 		);
 		return new CatalogStatistics(
@@ -429,6 +439,7 @@ class CatalogStatisticsConverterTest {
 			new ActivityStatistics(
 				211L, 212L, 213L, 214L, 215L, 216L, 217.5d, 218.5d, 219.5d, COUNTING_SINCE
 			),
+			new DurabilityStatistics(221L, 222L, 223L, 224, 225L, 226L, LAST_CHECKPOINT_AT, COUNTING_SINCE),
 			new StorageSizeStatistics(301L, 302L, 303L, 310L, 311L, 304L, 305L, 306L, 307L, 308L, 309L),
 			new StorageCompositionStatistics(
 				new StoragePartUsage[]{

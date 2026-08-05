@@ -81,6 +81,7 @@ import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStoreGenerations;
 import io.evitadb.spi.store.catalog.persistence.CompactionForecast;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
@@ -3192,6 +3193,14 @@ public class DefaultCatalogPersistenceService
 	public VolatileDataFootprint measureVolatileData() {
 		// the catalog's own data store only - the catalog-wide figure adds every collection's, which the engine sums
 		return getStoragePartPersistenceService(this.bootstrapUsed.catalogVersion()).measureVolatileData();
+	}
+
+	@Nullable
+	@Override
+	public DurabilitySnapshot measureDurability() {
+		// null coordinator means every round checkpoints inline - there is no fence, so there is nothing to describe
+		// rather than a fence of depth zero; the caller turns that into an explicit "feature disabled"
+		return this.checkpointCoordinator == null ? null : this.checkpointCoordinator.describeDurability();
 	}
 
 	@Nonnull
