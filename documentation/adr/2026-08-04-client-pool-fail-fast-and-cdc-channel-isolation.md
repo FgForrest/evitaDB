@@ -1,11 +1,11 @@
 ---
 title: Fail fast on client pool saturation and never run consumer callbacks on the submitting thread
 date: 2026-08-04
-updated: 2026-08-05 01:25
+updated: 2026-08-05 09:45
 status: accepted
 kind: fix
 issues: [1387]
-prs: []
+prs: [1389]
 areas: [evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver, evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/cdc, evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/exception, evita_api/src/main/java/io/evitadb/api/configuration]
 supersedes: []
 superseded-by: []
@@ -53,15 +53,30 @@ one event loop.
 
 ## Options considered
 
-### Option A — Fail fast, and move consumer callbacks off-thread (chosen)
+### Option A — Fail fast, and give capture callbacks their own executor (chosen)
 
 Replace the policy with a handler that throws `EvitaClientPoolSaturatedException`. Split every
 rejected task into two classes and treat them differently: **driver-internal cleanup** completes
-inline, **consumer callbacks** move to a one-shot rescue thread.
+inline; **consumer callbacks** never run on the submitting thread, and are carried by a
+**dedicated capture callback executor** rather than the shared client pool. When even that executor
+refuses, the affected subscription is terminated rather than the callback being relocated anywhere.
 
 - **Pros:** the bounded queue remains the backpressure mechanism, and its far end is now a named,
-  actionable exception. No path can hand consumer code to the event loop.
-- **Cons:** introduces an ad-hoc thread on a saturated pool, and one more exception type.
+  actionable exception. No path can hand consumer code to the event loop. Because captures no longer
+  share the pool with ordinary query work, general query load can no longer refuse a capture callback
+  at all — which removes the *trigger* of #1387 rather than only its consequence. Refusal costs
+  nothing: no threads are created on an already-struggling JVM.
+- **Cons:** a second pool, and one more exception type. The pool is created lazily on the first
+  capture subscription, so a client that never subscribes pays nothing, and `allowCoreThreadTimeOut`
+  returns its threads once captures go quiet.
+
+**An earlier revision of this record chose a one-shot rescue thread per refused callback instead.**
+That was wrong and is superseded by the executor split above: nothing bounded those threads, and
+because the capture drain re-submits itself, sustained saturation meant *unbounded thread creation*.
+It traded a capture outage for a process-wide one — a worse failure than the one being fixed. The
+reasoning that motivated it stands (a terminal `onError`/`onComplete` that never arrives leaves the
+consumer believing a dead subscription is alive), but the remedy for that is to **fail the
+subscription loudly**, not to manufacture threads.
 
 ### Option B — Fail fast, and run *all* rejected cleanup inline (declined)
 
@@ -141,25 +156,28 @@ landed before the split.
   would manufacture phantom gaps — `LongRunningCdcHeartbeatTest` asserts exactly zero missed
   heartbeats and would have started failing. `SerialCdcExecutor` (queue + single active drain, the
   drain itself submitted through `CdcCallbackDispatcher`) gives both guarantees: never on the
-  submitter, at most one at a time, in submission order — and ordering survives pool saturation,
-  because the rescue thread is still the *single* active drain. Guava's `MoreExecutors.newSequentialExecutor`
-  is the same primitive and was the first choice, but **rejected because Guava is only a transitive
-  dependency of the driver (via gRPC), not a declared one** — building on it would harden an
-  accidental dependency into a real one.
+  submitter, at most one at a time, in submission order. When the executor refuses the drain it does
+  **not** retry or fall back: it terminates, discards its backlog and fails the owning subscription,
+  because resuming later would leave a gap indistinguishable from missed server heartbeats. Guava's
+  `MoreExecutors.newSequentialExecutor` is the same primitive and was the first choice, but **rejected
+  because Guava is only a transitive dependency of the driver (via gRPC), not a declared one** —
+  building on it would harden an accidental dependency into a real one.
 - One consequence is recorded on `HeartBeatSensor.onHeartBeat` itself, which is where a consumer
   looks: the callback is now asynchronous, so the acknowledgement heartbeat may still be in flight
   when `subscribe()` returns, and state written by the sensor must not be read immediately after
   subscribing.
 - The dispatcher wraps every callback so consumer code that throws is logged rather than escaping to
-  stderr via a rescue thread's default handler, and it distinguishes a saturated pool from a closing
-  one — `EvitaClient.close()` shuts the pool down before tearing down the transport, so every live
-  capture stream reports its terminal notification through the rejection path. Logging "widen your
-  pool" on an ordinary shutdown would be actively misleading.
-- **Rescue-thread bound.** At most one rescue thread per subscription is in flight for the drain (the
-  `currentlyConsuming` CAS), plus one terminal notification and one delegate close. It is *not*
-  bounded over time: the drain tail-calls `consume()`, so sustained saturation creates a fresh
-  short-lived thread per drain cycle. That churn is deliberate — it is why the rejection is logged at
-  `warn`, since a saturated client pool is a condition to fix, not to ride out.
+  a thread's default handler, and it distinguishes a saturated executor from a closing one — logging
+  "widen your executor" on an ordinary shutdown would be actively misleading.
+- **`EvitaClient.cdcCallbackExecutor()` — the capture callback executor.** Separate from the shared
+  client pool, created **lazily** on the first capture subscription (most clients never open one) with
+  `allowCoreThreadTimeOut` so an idle subscription holds no threads. Its threads are
+  `EvitaClient.CdcCallbackThread`, a named type rather than a name prefix, so the driver can recognise
+  "I am on a capture callback" without parsing thread names — `close()` uses it to avoid awaiting the
+  executor from inside one of its own tasks.
+- **Saturation logging is rate-limited** to one report per 10 s, with the suppressed count carried in
+  the message. Saturation arrives in storms, so an unthrottled `log.error` per rejection would add log
+  and disk-IO pressure to a client that is already struggling — one flood becoming two.
 - `ClientSubscription.cancel` keeps its inline fallback — the runnable is driver-local, and the
   consumer-facing work reachable from it (`internalSubscriber.close()` → delegate `close`) is
   dispatched off-thread at its own submission site. `IOUtils.closeSafely(Runnable...)` swallows
@@ -193,25 +211,28 @@ landed before the split.
 
 ## Verification
 
-`ClientChangeCapturePublisherTest`, `CdcCallbackDispatcherTest` and
-`EvitaClientRejectingExecutorHandlerTest`, 25 tests, all passing. The full `driver | cdc` tag
-selection is **693 tests, 0 failures, 1 skipped** — which exercises the split CDC channel against
-real embedded servers, including the session-bound `registerChangeCatalogCapture` that would break
-outright if the second connection mis-wired session-id propagation.
+`ClientChangeCapturePublisherTest`, `CdcCallbackDispatcherTest`, `SerialCdcExecutorTest`,
+`EvitaClientCdcChannelIsolationTest` and `EvitaClientRejectingExecutorHandlerTest` — **35 tests, all
+passing**. The full `driver` tag selection is **275 tests, 0 failures, 1 skipped**, and exercises the
+split CDC channel against real embedded servers, including the session-bound
+`registerChangeCatalogCapture` that would break outright if the second connection mis-wired session-id
+propagation.
 
 Every consumer-callback dispatch site is pinned by a test asserting the callback did *not* run on the
-delivering thread. Two of them were confirmed to be real guards rather than tautologies, by reverting
-the fix and observing the failure:
+delivering thread. The guards were confirmed to be real rather than tautologies by reverting the fix
+and observing failures — reverting `SerialCdcExecutor`'s terminate-on-refusal to a silent flag release
+fails three tests:
 
-- reverting `CdcCallbackDispatcher.dispatch` at `ClientChangeCaptureSubscriber.close` to a bare
-  `executorService.execute(...)` makes `shouldCloseDelegateOffCallingThreadWhenPoolRefusesTheTask`
-  fail — the delegate is never closed (5 s latch timeout);
-- reverting the `onHeartBeat` dispatch to a direct call makes
-  `shouldDeliverHeartBeatOffCallingThreadWhenPoolRefusesTheTask` fail with
-  `expected: not same but was: Thread[...]`, i.e. the sensor ran on the delivering thread.
+- `SerialCdcExecutorTest.shouldTerminateTheSubscriptionWhenTheDrainIsRefused` — `expected: not <null>`,
+  i.e. the owner was never told the callback could not be delivered;
+- `SerialCdcExecutorTest.shouldReportTheFailureOnlyOnce` — `expected: <1> but was: <0>`;
+- `ClientChangeCapturePublisherTest.shouldFailSubscriptionWhenExecutorRefusesAHeartBeat` — the
+  subscription silently stayed open with its heartbeats dropped.
 
-Both pass once restored. The `cancel()` teardown assertion would have passed before this change
-(`cancel()` already carried an inline fallback) and is kept as a regression guard.
+All three pass once restored. `EvitaClientCdcChannelIsolationTest` pins the Armeria builder-snapshot
+semantics the channel split rests on (see *Key technical details*) — a claim previously asserted in
+prose and flagged in review as unverified, now both source-checked and executable, so an Armeria
+upgrade that changed it would fail the build rather than silently re-merge the two event loops.
 
 `shouldBlockSubscribeUntilAcknowledgementArrives` pins the acknowledgement gate directly: it asserts
 the `subscribe()` thread is still alive 500 ms after the stream initializer has run and only
@@ -234,13 +255,18 @@ draining the deframed response stream, and that thread is the event loop.
   distinguish it. Modular consumers must catch `EvitaInvalidUsageException` instead. Deliberately
   left alone: exporting the package widens the module's public API for six other types too, which is
   a maintainer call rather than a side effect of a fix.
-- **Rescue threads are unbounded over time** (see the bound above). Under sustained saturation the
-  drain creates one short-lived thread per cycle. A shared single-thread rescue executor would cap
-  that, and was considered — rejected because one blocking consumer callback would then head-of-line
-  block every other subscription's rescue work, which is the failure this change exists to prevent.
-  **Revisit if** the churn shows up in production profiles; the fix would be a small bounded pool
-  rather than a single thread. Note that *dropping* a terminal callback re-creates the silent outage
-  of Option C, so any cap must be loud.
+- **A refused capture callback terminates its subscription, and the consumer is told.** There is no
+  rescue thread and no retry: `CdcCallbackDispatcher.dispatch` reports the refusal, the driver-internal
+  half of the teardown runs inline (safe — local, non-blocking, non-re-entrant), and the consumer
+  receives `EvitaClientPoolSaturatedException` through the ordinary terminal path. This is deliberately
+  loud, because the alternative — dropping the callback — re-creates Option C's silent outage. For
+  heartbeats specifically, silently resuming after a dropped notification would be *worse* than
+  failing: consumers derive missed-heartbeat counts from `HeartBeat#index()` continuity, so a hidden
+  gap reads as missed **server** heartbeats when in fact the driver dropped them.
+- **Capture callbacks are on their own executor, so query load can no longer refuse them.** Refusal
+  therefore means what it says — the consumer's own callbacks are not keeping up — rather than
+  "something unrelated is busy". This is what makes terminating the subscription the proportionate
+  response rather than a harsh one.
 - **`queryCatalogAsync` now throws synchronously on saturation** instead of running the query on the
   caller. This is the only path on which the new exception reaches a consumer, and it brings the
   driver into line with embedded evitaDB, whose own rejecting handler throws the same way — the type
@@ -256,10 +282,13 @@ draining the deframed response stream, and that thread is the event loop.
   The tolerance requirement is documented on `HeartBeatSensor#onHeartBeat`. **Revisit if** a consumer
   is found resurrecting a terminated subscription from a late heartbeat; the fix would be a
   terminated-flag check inside the heartbeat task, not a merged queue.
-- **CDC still shares the `executor` with query traffic.** The channel is isolated; the dispatch pool
-  is not. Query load can therefore still saturate the pool that CDC dispatch uses, which is what the
-  rescue thread now absorbs. A dedicated CDC dispatch executor would remove the rescue path
-  entirely — deferred as scope beyond the issue.
+- **`EvitaClient#close()` orders the teardown deliberately: publishers first, then the capture
+  executor drained, then `shutdownNow()`.** Closing the publishers is what *dispatches* every live
+  subscription's terminal notification, so tearing the executor down first — or going straight to
+  `shutdownNow()`, which discards queued tasks — would silently swallow exactly the notifications the
+  dispatcher exists to guarantee. The drain window is bounded (5 s) and is skipped entirely when
+  `close()` is itself called from a capture callback, since awaiting termination there would wait on
+  the calling task. Do not reorder without re-reading `EvitaClient#close()`'s contract.
 
 ## Related work
 

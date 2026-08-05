@@ -1,7 +1,7 @@
 ---
 title: Never decorate a streaming gRPC channel with RetryingClient
 date: 2026-08-05
-updated: 2026-08-05 06:05
+updated: 2026-08-05 09:45
 status: accepted
 kind: fix
 issues: [1388]
@@ -36,16 +36,24 @@ the cap became "whatever fits in fifteen seconds."
 
 The failure also surfaced misleadingly, as gRPC `DEADLINE_EXCEEDED: deadline exceeded after
 3600000000000ns` — naming the one-hour *gRPC* deadline, which had not expired, rather than the Armeria
-*response* timeout, which had. Two independent clocks on one call, and the error names the wrong one.
+*response* timeout, which had. Two clocks on one call, and the error names the wrong one. (They are not
+independent — see *Previous state* — which is precisely what makes reasoning about them error-prone: the
+first revision of this record got the relationship backwards in the other direction.)
 
 ### Previous state
 
 `EvitaClient` built one `GrpcClientBuilder` per `ClientFactory` (ordinary + CDC) and installed
 `RetryingClient` on both. Every stub — unary `*FutureStub` and async/streaming `*Stub` alike — came off
-those decorated builders. The driver set **no** Armeria response timeout anywhere: `ClientTimeoutOptions`
-is applied as a gRPC deadline through `withDeadlineAfter`, a different mechanism. So the budget
-`AbstractRetryingClient` captured was Armeria's own `DefaultFlagsProvider.DEFAULT_RESPONSE_TIMEOUT_MILLIS`
-(15 s).
+those decorated builders. The driver configured **no** Armeria response timeout on the builder, so the
+budget `AbstractRetryingClient` captured was Armeria's own
+`DefaultFlagsProvider.DEFAULT_RESPONSE_TIMEOUT_MILLIS` (15 s).
+
+Note what this does **not** say: that the gRPC deadline and the Armeria response timeout are unrelated
+mechanisms. They are bridged — `ArmeriaClientCall.start()` maps the deadline onto the response timeout —
+but that mapping happens on the **root** request context, and `AbstractRetryingClient` runs each attempt
+in a *derived* context whose timeout it overwrites from its own frozen `State`. That is why the
+per-message re-arm, which also targets the root context via `ClientRequestContext.current()`, could not
+move the deadline that was actually cancelling the stream. See *Key technical details*.
 
 Streaming call sites re-arm per message with
 `ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, streamingTimeout)`. That
@@ -69,8 +77,7 @@ seed `responseTimeout` from the client's own `streamingTimeout`.
   `onUnprocessed()` only, and a server-streaming call already emitting messages is by construction not
   unprocessed.
 - **Cons:** streaming channels lose `onUnprocessed()` retry for calls that never reached the server at all
-  (see *Consequences*). Makes `EvitaClientSession`'s and `EvitaClientManagement`'s constructors take two
-  same-typed builders, which a future author can transpose without a compile error.
+  (see *Consequences*).
 
 ### Option B — keep the decorator, set an explicit large response timeout (declined)
 
@@ -105,16 +112,44 @@ called without deciding, since the retry rule is a required parameter.
 - `AbstractRetryingClient.execute:85` — `new State(config, ctx.responseTimeoutMillis())`;
   `AbstractRetryingClient$State:283` — `deadlineNanos` is `final`, `System.nanoTime() + responseTimeoutMillis`,
   computed once. Nothing recomputes it. (Armeria 1.40.0.)
+- **Why the per-message re-arm cannot reach it.** Each retry attempt runs in a derived context —
+  `DefaultClientRequestContext:638-639` builds it as `CancellationScheduler.ofClient(ctx.remainingTimeoutNanos())`,
+  and `AbstractRetryingClient:179-188` then overwrites that from the frozen `State`. The driver's re-arm
+  (`ClientChangeCaptureSubscriber:378-381`) calls `ClientRequestContext.current()`, which is the **root**
+  context `ArmeriaClientCall` holds. Re-arming the root does nothing to the derived scheduler that
+  actually cancels the stream. Removing the decorator removes the derived context, which is why the split
+  works and why merely enlarging the frozen budget (Option B) would not.
 - `EvitaClient.createGrpcClientBuilder(uri, factory, retryRule, responseTimeout, …)` — the decorator is
   installed only when `retryRule != null`. **`retryRule` must be NULL for any builder whose stubs issue
   streaming calls.**
-- **The invariant, stated once:** every unary `*FutureStub` (3) comes off `grpcClientBuilder`; every
-  async/streaming `*Stub` (5) comes off `streamingGrpcClientBuilder` or `cdcGrpcClientBuilder`. A
-  crossover reintroduces the cap silently — it compiles, runs, and passes every existing test.
-- The streaming builders seed `responseTimeout` from `streamingTimeout` (default 300 s). This is not
-  belt-and-braces: without it the window *before the first* streamed message stays at Armeria's 15 s
-  default, which is shorter than the 25 s CDC heartbeat interval, so a capture stream still dies before
-  the first heartbeat can re-arm it. Removing the decorator and seeding the timeout are both required.
+- **The invariant, enforced by the type system:** every unary `*FutureStub` (3) comes off the
+  `EvitaClientChannel.Unary` channel; every async/streaming `*Stub` comes off `Streaming` or `Cdc`.
+  These are three distinct types (`EvitaClientChannel`, a sealed interface over the same
+  `GrpcClientBuilder`), precisely so a crossover **fails to compile**. It previously did not: the three
+  builders were the same type, so transposing them compiled, ran, and passed every existing test while
+  silently reintroducing the cap.
+- **The builder-level `responseTimeout` seeding is defence in depth, not the fix — measured, see
+  *Verification*.** An earlier revision of this record claimed it was "the load-bearing half for CDC"
+  and that without it a capture stream dies at 15 s before the first heartbeat. That is wrong, and the
+  reason is worth knowing, because it is the same two-clocks confusion that produced #1388 in the first
+  place — only inverted. `ArmeriaClientCall.start()` (Armeria 1.40.0, lines 233-245) **maps the gRPC
+  deadline onto the Armeria response timeout**:
+
+  ```java
+  if (callOptions.getDeadline() != null) {
+      remainingNanos = callOptions.getDeadline().timeRemaining(NANOSECONDS);
+      ctx.setResponseTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofNanos(remainingNanos));
+  }
+  // Must come after handling deadline.
+  final HttpResponse res = ClientUtil.executePreClientWithFallback(preClient, ctx, ...);
+  ```
+
+  Every streaming call site in the driver applies `withDeadlineAfter(streamingTimeout)` — via
+  `EvitaClient#executeWithStreamingEvitaService`, `EvitaClientSession#executeWithStreamingEvitaSessionService`
+  and `EvitaClientManagement` — so on those paths the deadline mapping overwrites whatever the builder
+  configured, before the decorator chain runs. The two clocks are **bridged at call start**, not
+  independent. The seeding is kept because it costs nothing and covers any future call site that forgets
+  the deadline, but it is not what keeps a stream alive today.
 - `EvitaClientManagement`'s async stub moved too. It looks like a unary stub but
   `executeWithEvitaBlockingService` has exactly two callers — `restoreCatalog` and `fetchFile` — both
   whole-file streaming transfers.
@@ -135,11 +170,24 @@ split so the JVM-wide default still reaches the channel and the comparison stays
 The pre-fix cap tracked the flag one-for-one (15000 → 15.007 / 15.008 / 15.034 s across three full
 386k-entity loads; 2000 → 2.005 s), and the fixed build outlives the budget by 2×.
 
-**CDC, which needed both halves.** `LongRunningCdcHeartbeatTest` against HEAD: **17 heartbeats, indices
-0–16 with no gaps, over 6 min 40 s** — 26× the old cap — with zero `ResponseTimeoutException`. The run
-ended on a deliberate `timeout 420` bound, not a failure. Earlier readings of this test showing death at
-14.997 s were taken with only the decorator split applied; they are explained by the missing
-`responseTimeout` seed, not by a second cause.
+**CDC — and which half actually carries it.** `LongRunningCdcHeartbeatTest` against HEAD: **17
+heartbeats, indices 0–16 with no gaps, over 6 min 40 s** — 26× the old cap — with zero
+`ResponseTimeoutException`. The run ended on a deliberate `timeout 420` bound, not a failure.
+
+The first revision of this record attributed that to *both* halves — the decorator split and the
+`responseTimeout` seed — on the strength of an earlier reading that showed death at 14.997 s with only
+the split applied. That attribution was **retracted after an A/B measurement**, run on
+`shouldKeepSystemCdcSubscriberAliveViaHeartbeats` with a 2-minute bound (heartbeat interval 25 s,
+`streamingTimeout` 30 s, so the run crosses Armeria's 15 s default four times):
+
+| build | heartbeats | missed | elapsed |
+|---|---|---|---|
+| HEAD | 5, indices 0–4 | 0 | 124.6 s |
+| HEAD with the `responseTimeout` seeding disabled | 5, indices 0–4 | 0 | 124.1 s |
+
+Identical. If the seed were load-bearing the second run would have died before heartbeat #2 at +25 s; it
+did not. **The decorator split alone carries CDC.** The superseded 14.997 s reading came from the module
+that could not boot a server under Maven at all (see below), so it was never reproducible.
 
 **Regression suite.** 266 driver tests, 0 failures, 1 skipped (`-Dgroups=driver`), including
 `ClientSessionCancellationCascadeTest` and the CDC publisher/backpressure tests, which drive a real server
@@ -155,15 +203,22 @@ through the rewired stubs.
   `fetchFile` and `goLive` have no equivalent layer, so a transient connect failure now surfaces to the
   caller. **If this matters, the fix is a bounded connect-level retry *outside* the retry decorator**, not
   re-decorating the channel, which would restore the freeze.
-- **Still open — the invariant is guarded by JavaDoc and a parameter, not by the type system.**
-  `EvitaClientSession` and `EvitaClientManagement` each take two `GrpcClientBuilder` parameters that differ
-  only in meaning. Wrapping them in distinct types would make a crossover a compile error and is the
-  recommended hardening.
-- **Still open — no regression test.** A test that discriminates needs a stream emitting messages over a
-  span exceeding the initial budget, which needs a controllable slow server the driver harness does not
-  have. Every cheaper shape either depends on server timing — passing on a fast machine whether or not the
-  bug is present — or asserts wiring a future author could revert at the `EvitaClient` call site without
-  tripping it. A test that passes for the wrong reason would be worse than this note.
+- **Closed — the invariant is now enforced by the type system.** `EvitaClientChannel.Unary` /
+  `.Streaming` / `.Cdc` are distinct types over the same `GrpcClientBuilder`, so building a streaming
+  stub from the retry-decorated channel no longer compiles. This was the recommended hardening in the
+  first revision of this record and is the reason the "no regression test" item below is acceptable:
+  the compiler is a stronger guard than the test would have been.
+- **Still open — no runtime regression test for the timeout itself.** A test that discriminates needs a
+  stream emitting messages over a span exceeding the initial budget, which needs a controllable slow
+  server the driver harness does not have. Every cheaper shape either depends on server timing — passing
+  on a fast machine whether or not the bug is present — or asserts wiring that the type system now
+  guards anyway. A test that passes for the wrong reason would be worse than this note.
+- **`grpcConfigurator` runs once per channel — three times, not once.** The caller-supplied
+  `Consumer<GrpcClientBuilder>` is applied **last** to each of the three builders, so it can override
+  everything the driver configured. Two consequences worth knowing: a side-effecting configurator runs
+  three times, and a configurator that installs its own `RetryingClient` or `responseTimeout` applies it
+  to the streaming and CDC channels too, reintroducing this defect from outside the driver. The type
+  split cannot guard that, because the configurator receives the raw builder.
 - **Fixed in passing — `evita_long_running_tests` could not boot a server at all under Maven**, because
   `jackson-module-parameter-names` and `commons-text` are declared at test scope in
   `evita_functional_tests` and test-scope dependencies are not transitive. Every server-starting test there

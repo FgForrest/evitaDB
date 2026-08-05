@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -45,6 +47,7 @@ import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.STREAM;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -60,8 +63,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * which kills the whole HTTP/2 connection. See issue #1387.
  *
  * These tests cover both halves of the contract — the accepted path and the refused path — because the
- * publisher-level tests all use a synchronous executor and therefore cannot state "handed to the pool rather
- * than run here" at all.
+ * publisher-level tests all use a synchronous executor and therefore cannot state "handed to the executor
+ * rather than run here" at all.
+ *
+ * Note what the refused path asserts: the callback does **not** run, anywhere, and the refusal is reported so
+ * the caller can terminate the subscription. An earlier revision moved refused callbacks onto a one-shot
+ * rescue thread; that is deliberately gone, because nothing bounded those threads under sustained saturation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -107,34 +114,29 @@ class CdcCallbackDispatcherTest {
 	}
 
 	@Nested
-	@DisplayName("when the pool refuses the task")
-	class RefusingPool {
+	@DisplayName("when the executor refuses the task")
+	class RefusingExecutor {
 
 		@Test
-		@DisplayName("Still runs the callback, on a daemon thread that is not the caller")
-		void shouldRunCallbackOffTheCallingThreadWhenTheTaskIsRefused() throws InterruptedException {
+		@DisplayName("Reports the refusal and never runs the callback on the caller")
+		void shouldReportRefusalAndNotRunTheCallbackOnTheCaller() throws InterruptedException {
 			final CountDownLatch ran = new CountDownLatch(1);
-			final AtomicReference<Thread> callbackThread = new AtomicReference<>();
 
 			final boolean dispatched = CdcCallbackDispatcher.dispatch(
 				new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
-				() -> {
-					callbackThread.set(Thread.currentThread());
-					ran.countDown();
-				},
+				ran::countDown,
 				"test callback"
 			);
 
-			assertTrue(dispatched, "a refused callback must still be handed to a rescue thread");
-			assertTrue(ran.await(5, TimeUnit.SECONDS), "the rescued callback did not run in time");
-			assertNotSame(
-				Thread.currentThread(),
-				callbackThread.get(),
-				"the rescue path must never degrade into running the callback on the caller - that is " +
-					"precisely the CallerRunsPolicy behaviour that captured the event loop"
+			assertFalse(dispatched, "a refused callback must be reported as refused so the caller can fail the " +
+				"subscription rather than assume the consumer was notified");
+			// The point of the whole class: refusal must NOT degrade into running the callback here. "Here" is
+			// frequently the Armeria event loop, and running consumer code on it is precisely the
+			// CallerRunsPolicy behaviour that captured the event loop in issue #1387.
+			assertFalse(
+				ran.await(250, TimeUnit.MILLISECONDS),
+				"a refused callback must not run at all - least of all on the submitting thread"
 			);
-			// a non-daemon rescue thread would keep the JVM alive after the client is done with it
-			assertTrue(callbackThread.get().isDaemon(), "the rescue thread must be a daemon thread");
 		}
 
 		@Test
@@ -152,22 +154,33 @@ class CdcCallbackDispatcherTest {
 		}
 
 		@Test
-		@DisplayName("Contains a throwing callback instead of letting it escape the rescue thread")
-		void shouldContainThrowingCallbackOnTheRescueThread() throws InterruptedException {
-			// consumer code that throws must not kill a driver thread nor bypass logging onto stderr
-			final CountDownLatch ran = new CountDownLatch(1);
+		@DisplayName("Creates no threads of its own, however many callbacks are refused")
+		void shouldNotCreateThreadsWhenCallbacksAreRefused() {
+			// An earlier revision rescued each refused callback onto a fresh thread. Saturation arrives in
+			// storms and the capture drain re-submits itself, so that traded a capture outage for unbounded
+			// thread creation on an already struggling JVM. Refusal must now be free.
+			//
+			// `getTotalStartedThreadCount` is JVM-wide and monotonic, so unrelated activity in this JVM can
+			// only inflate the delta - never mask a regression. The old behaviour would add one thread per
+			// refusal (1 000 of them), so the threshold discriminates cleanly without being brittle.
+			final ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+			final long startedBefore = threads.getTotalStartedThreadCount();
 
-			final boolean dispatched = CdcCallbackDispatcher.dispatch(
-				new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
-				() -> {
-					ran.countDown();
-					throw new IllegalStateException("consumer callback blew up");
-				},
-				"test callback"
+			final int refusals = 1_000;
+			for (int i = 0; i < refusals; i++) {
+				CdcCallbackDispatcher.dispatch(
+					new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
+					() -> {},
+					"test callback"
+				);
+			}
+
+			final long started = threads.getTotalStartedThreadCount() - startedBefore;
+			assertTrue(
+				started < refusals / 10,
+				"refusing callbacks must not spawn threads - " + started + " thread(s) were started while " +
+					refusals + " callbacks were refused"
 			);
-
-			assertTrue(dispatched, "a refused callback must still be handed to a rescue thread");
-			assertTrue(ran.await(5, TimeUnit.SECONDS), "the rescued callback did not run in time");
 		}
 	}
 

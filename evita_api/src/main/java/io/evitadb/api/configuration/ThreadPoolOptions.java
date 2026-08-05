@@ -67,10 +67,12 @@ import javax.annotation.Nonnull;
  *                       once all `maxThreadCount` threads are busy. Beyond this
  *                       the task is rejected. The exception type depends on the pool:
  *                       server-side pools throw `RejectedExecutionException`, while the
- *                       gRPC client pool throws `EvitaClientPoolSaturatedException`, which
- *                       deliberately does **not** extend `RejectedExecutionException` so that
- *                       driver saturation cannot be mistaken for a consumer's own scheduler
- *                       shutting down.
+ *                       gRPC client pool throws an `EvitaInvalidUsageException` - concretely
+ *                       `EvitaClientPoolSaturatedException`, which deliberately does **not**
+ *                       extend `RejectedExecutionException` so that driver saturation cannot be
+ *                       mistaken for a consumer's own scheduler shutting down. That concrete type
+ *                       lives in a package the driver module does not export, so consumers on the
+ *                       module path catch the supertype.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

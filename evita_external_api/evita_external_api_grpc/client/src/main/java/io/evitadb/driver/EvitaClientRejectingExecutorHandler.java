@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Rejection handler installed on the shared {@link EvitaClient} thread pool. It fails the submission fast with
@@ -55,6 +56,19 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Slf4j
 @RequiredArgsConstructor
 class EvitaClientRejectingExecutorHandler implements RejectedExecutionHandler {
+	/**
+	 * Minimum spacing between two saturation reports. Saturation arrives in storms, so an unthrottled report
+	 * would be a second flood on top of the first - see {@link #logSaturation()}.
+	 */
+	private static final long SATURATION_LOG_INTERVAL_MS = 10_000L;
+	/**
+	 * Epoch millis of the last emitted saturation report.
+	 */
+	private final AtomicLong lastSaturationLogAt = new AtomicLong();
+	/**
+	 * Rejections refused since the last emitted report, so the suppressed volume stays visible.
+	 */
+	private final AtomicLong suppressedRejections = new AtomicLong();
 	/**
 	 * Configured maximum thread count of the guarded pool, reported in the exception message so an operator
 	 * learns which knob to turn without reading the source.
@@ -82,13 +96,39 @@ class EvitaClientRejectingExecutorHandler implements RejectedExecutionHandler {
 			log.debug("The evitaDB client thread pool refused a task because the client is shutting down.");
 			throw new EvitaClientPoolSaturatedException();
 		}
+		logSaturation();
+		throw new EvitaClientPoolSaturatedException(this.maxThreadCount, this.queueSize);
+	}
+
+	/**
+	 * Reports the saturation at most once per {@link #SATURATION_LOG_INTERVAL_MS}, counting what was suppressed
+	 * in between.
+	 *
+	 * Saturation is by nature a *storm* — the condition that produces one rejection produces thousands per
+	 * second — so logging every occurrence would add log and disk-IO pressure to a client that is already
+	 * struggling, i.e. turn one flood into two. The rate limit keeps the condition loud enough to notice while
+	 * bounding its cost, and the suppressed count keeps the severity visible.
+	 */
+	private void logSaturation() {
+		if (!log.isErrorEnabled()) {
+			return;
+		}
+		final long now = System.currentTimeMillis();
+		final long lastLogged = this.lastSaturationLogAt.get();
+		if (now - lastLogged < SATURATION_LOG_INTERVAL_MS
+			|| !this.lastSaturationLogAt.compareAndSet(lastLogged, now)) {
+			// somebody else is logging this window, or the window has not elapsed yet
+			this.suppressedRejections.incrementAndGet();
+			return;
+		}
+		final long suppressed = this.suppressedRejections.getAndSet(0);
 		log.error(
 			"The evitaDB client thread pool is saturated - all {} threads are busy and the backlog of {} tasks " +
 				"is full. Widen the pool via `ThreadPoolOptions.clientThreadPoolBuilder()` (`maxThreadCount`, " +
-				"`queueSize`) or reduce the client's concurrency.",
-			this.maxThreadCount, this.queueSize
+				"`queueSize`) or reduce the client's concurrency. ({} further rejection(s) suppressed in the " +
+				"last {} ms.)",
+			this.maxThreadCount, this.queueSize, suppressed, SATURATION_LOG_INTERVAL_MS
 		);
-		throw new EvitaClientPoolSaturatedException(this.maxThreadCount, this.queueSize);
 	}
 
 }

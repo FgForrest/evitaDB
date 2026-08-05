@@ -29,7 +29,6 @@ import io.evitadb.driver.exception.EvitaClientPoolSaturatedException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.test.TestConstants;
-import java.util.concurrent.CopyOnWriteArrayList;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
@@ -408,12 +408,13 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 		}
 
 		@Test
-		@DisplayName("Closes a closeable delegate off the calling thread when the pool refuses the task")
-		void shouldCloseDelegateOffCallingThreadWhenPoolRefusesTheTask() throws InterruptedException {
+		@DisplayName("Never closes a closeable delegate on the calling thread when the executor refuses the task")
+		void shouldNotCloseDelegateOnCallingThreadWhenExecutorRefusesTheTask() throws InterruptedException {
 			// The delegate's `close` is CONSUMER code and commonly re-subscribes. Running it in place — as
 			// `CallerRunsPolicy` did, and as a naive "run the cleanup synchronously" fallback would — walks
 			// straight back into subscribe() → awaitAcknowledgement() on the thread that must deliver the
-			// acknowledgement. That is the exact re-entrance in the issue #1387 stack trace.
+			// acknowledgement. That is the exact re-entrance in the issue #1387 stack trace. A refused close is
+			// therefore skipped, never relocated onto the caller.
 			final CloseableRecordingSubscriber delegate = new CloseableRecordingSubscriber(0L);
 			final TestHarness harness = new TestHarness(false, new RejectingExecutorService(), delegate);
 			harness.start();
@@ -421,24 +422,23 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 			final Flow.Subscription subscription = delegate.subscription.get();
 			assertNotNull(subscription, "the delegate must have received its subscription");
-			final Thread cancellingThread = Thread.currentThread();
 
 			assertDoesNotThrow(subscription::cancel);
 
-			assertTrue(
-				delegate.closed.await(5, TimeUnit.SECONDS),
-				"the closeable delegate must still be closed even though the pool refused the task"
+			assertFalse(
+				delegate.closed.await(250, TimeUnit.MILLISECONDS),
+				"a refused delegate close must not be run at all - least of all on the calling thread"
 			);
-			assertNotSame(
-				cancellingThread,
-				delegate.closingThread.get(),
-				"the delegate's close must never run on the thread that submitted it"
+			// but the driver-internal half of the teardown still completed, so nothing leaks
+			assertTrue(
+				harness.publisher.isClosed(),
+				"the publisher must auto-close even when the consumer-facing close could not be dispatched"
 			);
 		}
 
 		@Test
-		@DisplayName("Delivers a stream error off the calling thread when the pool refuses the task")
-		void shouldDeliverStreamErrorOffCallingThreadWhenPoolRefusesTheTask() throws InterruptedException {
+		@DisplayName("Never delivers a stream error on the calling thread when the executor refuses the task")
+		void shouldNotDeliverStreamErrorOnCallingThreadWhenExecutorRefusesTheTask() throws InterruptedException {
 			// `onError` is the ordinary production teardown path, and the consumer handler it invokes is the
 			// one that typically re-subscribes — the exact re-entrance that captured the event loop
 			final RecordingSubscriber delegate = new RecordingSubscriber(0L);
@@ -449,15 +449,9 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			final IllegalStateException cause = new IllegalStateException("stream failed");
 			assertDoesNotThrow(() -> harness.deliverStreamError(cause));
 
-			assertTrue(
-				delegate.errorDelivered.await(5, TimeUnit.SECONDS),
-				"the terminal error must still reach the delegate when the pool refuses the task"
-			);
-			assertSame(cause, delegate.lastError.get(), "the delegate must receive the reported failure");
-			assertNotSame(
-				Thread.currentThread(),
-				delegate.notifyingThread.get(),
-				"the terminal error must never be delivered on the thread that submitted it"
+			assertFalse(
+				delegate.errorDelivered.await(250, TimeUnit.MILLISECONDS),
+				"a refused terminal error must not be delivered on the submitting thread"
 			);
 			// the driver-internal cancellation runs inline, so this is race-free
 			assertTrue(harness.publisher.isClosed(), "the publisher must auto-close after the terminal error");
@@ -466,8 +460,9 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 		}
 
 		@Test
-		@DisplayName("Delivers stream completion off the calling thread when the pool refuses the task")
-		void shouldDeliverStreamCompletionOffCallingThreadWhenPoolRefusesTheTask() throws InterruptedException {
+		@DisplayName("Never delivers stream completion on the calling thread when the executor refuses the task")
+		void shouldNotDeliverStreamCompletionOnCallingThreadWhenExecutorRefusesTheTask()
+			throws InterruptedException {
 			final RecordingSubscriber delegate = new RecordingSubscriber(0L);
 			final TestHarness harness = new TestHarness(false, new RejectingExecutorService(), delegate);
 			harness.start();
@@ -475,24 +470,20 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 			assertDoesNotThrow(harness::deliverStreamCompletion);
 
-			assertTrue(
-				delegate.completed.await(5, TimeUnit.SECONDS),
-				"the completion signal must still reach the delegate when the pool refuses the task"
-			);
-			assertNotSame(
-				Thread.currentThread(),
-				delegate.notifyingThread.get(),
-				"the completion signal must never be delivered on the thread that submitted it"
+			assertFalse(
+				delegate.completed.await(250, TimeUnit.MILLISECONDS),
+				"a refused completion signal must not be delivered on the submitting thread"
 			);
 			assertTrue(harness.publisher.isClosed(), "the publisher must auto-close after completion");
 			verify(harness.observer, never()).cancel(anyString(), any());
 		}
 
 		@Test
-		@DisplayName("Drains buffered captures off the calling thread when the pool refuses the task")
-		void shouldDrainBufferedCapturesOffCallingThreadWhenPoolRefusesTheTask() throws InterruptedException {
+		@DisplayName("Fails the subscription when the executor refuses the capture drain")
+		void shouldFailSubscriptionWhenExecutorRefusesTheCaptureDrain() throws InterruptedException {
 			// the hot path: `consume()` is reached from `produce()` on the gRPC inbound thread for every
-			// single capture, so a rejection here must not drain onto that thread either
+			// single capture, so a rejection here must not drain onto that thread either. Since the consumer
+			// cannot be fed at all, the subscription is torn down rather than left silently stalled.
 			final RecordingSubscriber delegate = new RecordingSubscriber(Long.MAX_VALUE);
 			final TestHarness harness = new TestHarness(false, new RejectingExecutorService(), delegate);
 			harness.start();
@@ -500,35 +491,35 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 			assertDoesNotThrow(() -> harness.deliverCapture(0));
 
-			assertTrue(
-				delegate.itemDelivered.await(5, TimeUnit.SECONDS),
-				"the capture must still be delivered when the pool refuses the drain task"
-			);
-			assertNotSame(
-				Thread.currentThread(),
-				delegate.notifyingThread.get(),
+			assertFalse(
+				delegate.itemDelivered.await(250, TimeUnit.MILLISECONDS),
 				"captures must never be drained onto the thread that submitted the drain"
+			);
+			assertTrue(
+				harness.publisher.isClosed(),
+				"a subscription whose captures cannot be delivered must be torn down, not left stalled"
 			);
 		}
 
 		@Test
-		@DisplayName("Delivers a heartbeat off the calling thread when the pool refuses the task")
-		void shouldDeliverHeartBeatOffCallingThreadWhenPoolRefusesTheTask() throws InterruptedException {
+		@DisplayName("Fails the subscription when the executor refuses a heartbeat notification")
+		void shouldFailSubscriptionWhenExecutorRefusesAHeartBeat() throws InterruptedException {
 			// `HeartBeatSensor` exists so a consumer can notice a stale stream and re-establish it — running
-			// it on the inbound thread reproduces issue #1387 on the dedicated CDC connection
+			// it on the inbound thread reproduces issue #1387 on the dedicated CDC connection. Dropping it
+			// silently is not an option either: the consumer reads index continuity, so a hidden gap would be
+			// indistinguishable from missed *server* heartbeats.
 			final HeartBeatSensingSubscriber delegate = new HeartBeatSensingSubscriber(0L);
 			final TestHarness harness = new TestHarness(false, new RejectingExecutorService(), delegate);
 			harness.start();
 			harness.deliverAck();
 
-			assertTrue(
-				delegate.heartBeatDelivered.await(5, TimeUnit.SECONDS),
-				"the heartbeat must still reach the sensor when the pool refuses the task"
-			);
-			assertNotSame(
-				Thread.currentThread(),
-				delegate.heartBeatThread.get(),
+			assertFalse(
+				delegate.heartBeatDelivered.await(250, TimeUnit.MILLISECONDS),
 				"the heartbeat notification must never run on the gRPC inbound thread that delivered it"
+			);
+			assertTrue(
+				harness.publisher.isClosed(),
+				"a heartbeat that cannot be delivered must fail the subscription rather than resume with a gap"
 			);
 		}
 	}

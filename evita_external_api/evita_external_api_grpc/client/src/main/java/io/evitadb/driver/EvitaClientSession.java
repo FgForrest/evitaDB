@@ -28,7 +28,6 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.linecorp.armeria.client.ClientRequestContext;
-import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -146,7 +145,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -195,11 +193,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Getter private final EvitaClient evita;
 	/**
-	 * Executor service used for asynchronous operations. This is the client-wide pool, which is bounded and
-	 * fails fast - see {@link EvitaClient#executor}.
-	 */
-	private final ExecutorService executor;
-	/**
 	 * Service class used for tracking tasks on the server side.
 	 */
 	private final EvitaClientManagement management;
@@ -220,12 +213,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Entity session service.
 	 */
 	private final EvitaSessionServiceStub evitaSessionServiceStub;
-	/**
-	 * Entity session service bound to the dedicated change data capture channel. Used exclusively by
-	 * {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} so that long-lived capture streams do
-	 * not share a connection - nor an event loop thread - with the session's ordinary request/response calls.
-	 */
-	private final EvitaSessionServiceStub evitaSessionServiceCdcStub;
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -362,36 +349,27 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Creates a session bound to a single catalog on the server.
 	 *
-	 * `grpcClientBuilder` and `cdcGrpcClientBuilder` **must be bound to different `ClientFactory` instances**.
-	 * That is the entire mechanism keeping long-lived change data capture streams off the connection - and off
-	 * the event loop thread - that carries ordinary request/response traffic. Passing the same builder twice
-	 * compiles, runs and silently reverts the isolation, reintroducing the failure mode where one stalled
-	 * capture callback kills every call on the connection.
+	 * The two channels are **not** interchangeable: only {@link EvitaClientChannel.Unary} carries the retry
+	 * decorator, which freezes a call's response-timeout budget at call start and therefore defeats the
+	 * per-message re-arm this class performs in {@link #goLiveAndCloseWithProgress}, {@link #closeNow},
+	 * {@link #closeNowWithProgress} and the streaming observers below. That is why they are distinct types -
+	 * building {@link EvitaSessionServiceStub} from the unary channel now fails to compile instead of silently
+	 * reintroducing the 15 s cap of issue #1388.
 	 *
-	 * `grpcClientBuilder` and `streamingGrpcClientBuilder` are **not** interchangeable either, for a different
-	 * reason: only the former carries the retry decorator. A retrying client freezes the call's response-timeout
-	 * deadline at call start, which caps every streaming call at Armeria's 15 s default however much progress is
-	 * flowing and defeats the per-message re-arm this class performs in
-	 * {@link #goLiveAndCloseWithProgress}, {@link #closeNow}, {@link #closeNowWithProgress} and the streaming
-	 * observers below. Building {@link EvitaSessionServiceStub} from `grpcClientBuilder` compiles, runs, and
-	 * silently reintroduces that cap - see `EvitaClient#streamingGrpcClientBuilder` and issue #1388.
+	 * There is deliberately no capture-channel parameter: the capture stub is session-independent and shared
+	 * client-wide, obtained from {@link EvitaClient#sessionCaptureStub()}.
 	 *
-	 * @param grpcClientBuilder          builder for the session's unary request/response stub, with retries
-	 * @param streamingGrpcClientBuilder builder for the session's streaming stub, deliberately *without* retries
-	 * @param cdcGrpcClientBuilder builder for the session's change data capture stub, bound to a *separate*
-	 *                             `ClientFactory` - see
-	 *                             {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} for the
-	 *                             ordering invariant that makes the split safe
+	 * @param evita            the owning client
+	 * @param unaryChannel     channel for the session's unary request/response stub, with retries
+	 * @param streamingChannel channel for the session's streaming stub, deliberately *without* retries
 	 */
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
-		@Nonnull ExecutorService executor,
 		@Nonnull EvitaClientManagement management,
 		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
-		@Nonnull GrpcClientBuilder grpcClientBuilder,
-		@Nonnull GrpcClientBuilder streamingGrpcClientBuilder,
-		@Nonnull GrpcClientBuilder cdcGrpcClientBuilder,
+		@Nonnull EvitaClientChannel.Unary unaryChannel,
+		@Nonnull EvitaClientChannel.Streaming streamingChannel,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID catalogId,
@@ -402,14 +380,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull Timeout timeout
 	) {
 		this.evita = evita;
-		this.executor = executor;
 		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = proxyFactory;
 		this.schemaCache = schemaCache;
-		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
-		this.evitaSessionServiceStub = streamingGrpcClientBuilder.build(EvitaSessionServiceStub.class);
-		this.evitaSessionServiceCdcStub = cdcGrpcClientBuilder.build(EvitaSessionServiceStub.class);
+		this.evitaSessionServiceFutureStub = unaryChannel.stub(EvitaSessionServiceFutureStub.class);
+		this.evitaSessionServiceStub = streamingChannel.stub(EvitaSessionServiceStub.class);
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -719,7 +695,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
 						this.streamingTimeout,
-						this.executor,
+						// capture callbacks get their own executor - never the shared client pool
+						this.evita.cdcCallbackExecutor(),
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
@@ -2568,7 +2545,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithStreamingEvitaCdcSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
 	) {
-		return executeWithStreamingEvitaSessionService(lambda, this.evitaSessionServiceCdcStub);
+		return executeWithStreamingEvitaSessionService(lambda, this.evita.sessionCaptureStub());
 	}
 
 	/**

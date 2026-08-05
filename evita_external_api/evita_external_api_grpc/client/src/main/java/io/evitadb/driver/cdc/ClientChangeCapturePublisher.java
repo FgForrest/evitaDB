@@ -25,6 +25,7 @@ package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.driver.exception.EvitaClientPoolSaturatedException;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
@@ -591,19 +592,23 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 					"drain buffered captures to the delegate subscriber"
 				);
 				if (!dispatched) {
-					// Nothing will run the drain task (the JVM refused even a rescue thread). Release the
-					// flag so a later `produce()` or `request()` can retry — but do not rely on that as the
-					// recovery: `produce()` early-returns once `walkingDead` is set and never calls
-					// `consume()` again, and on the healthy path gRPC credit is only restored from inside
-					// the drain loop, so the server stops pushing after at most `queueSize` messages.
+					// The capture callback executor refused the drain, and nothing may run it on this thread -
+					// this is reached from `produce()`, i.e. from the gRPC inbound thread. Release the flag for
+					// tidiness, but do not treat a later retry as the recovery: `produce()` early-returns once
+					// `walkingDead` is set and never calls `consume()` again, and on the healthy path gRPC
+					// credit is only restored from inside the drain loop, so the server stops pushing after at
+					// most `queueSize` messages either way.
 					this.currentlyConsuming.set(false);
-					// A doomed subscription must therefore be torn down here rather than left to a retry
-					// that cannot come. Only the driver-internal half runs in place — `cancel()` de-registers
-					// the subscription so the publisher can auto-close, and the consumer-facing `onError`
-					// inside `notifyClientFailureAndClose` is itself dispatched off-thread. Without this the
-					// subscription stalls forever with no terminal signal: the silent, permanent outage this
-					// whole teardown path exists to prevent.
-					if (this.walkingDead.get() != null && !this.cancelled.get()) {
+					// So the subscription is failed here instead. Only the driver-internal half runs in place -
+					// `cancel()` de-registers the subscription so the publisher can auto-close, and the
+					// consumer-facing `onError` inside `notifyClientFailureAndClose` is itself dispatched
+					// off-thread. Without this the subscription stalls forever with no terminal signal: the
+					// silent, permanent outage this whole teardown path exists to prevent.
+					if (!this.cancelled.get()) {
+						this.walkingDead.compareAndSet(
+							null,
+							new EvitaClientPoolSaturatedException()
+						);
 						this.internalSubscriber.notifyClientFailureAndClose(this.walkingDead.get());
 						this.cancel();
 					}

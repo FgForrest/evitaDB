@@ -27,7 +27,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
-import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -110,20 +109,20 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	/**
 	 * Creates the management facade.
 	 *
-	 * The two builders are **not** interchangeable: `streamingGrpcClientBuilder` carries no retry decorator,
-	 * because a retrying client freezes the response-timeout deadline at call start and would cap long-lived
-	 * management streams (backup, restore, task progress) at Armeria's 15 s default. Building
-	 * {@link EvitaManagementServiceStub} from `grpcClientBuilder` reintroduces that cap silently — see
-	 * `EvitaClient#streamingGrpcClientBuilder` and issue #1388.
+	 * The two channels are **not** interchangeable: {@link EvitaClientChannel.Streaming} carries no retry
+	 * decorator, because a retrying client freezes the response-timeout budget at call start and would cap
+	 * long-lived management streams (backup, restore, task progress). Building
+	 * {@link EvitaManagementServiceStub} from the unary channel would reintroduce that cap — which is why the
+	 * two are distinct types and the mistake no longer compiles. See issue #1388.
 	 *
-	 * @param evitaClient                the owning client
-	 * @param grpcClientBuilder          builder for unary stubs, carrying the retry decorator
-	 * @param streamingGrpcClientBuilder builder for streaming stubs, deliberately *without* the retry decorator
+	 * @param evitaClient      the owning client
+	 * @param unaryChannel     channel for unary stubs, carrying the retry decorator
+	 * @param streamingChannel channel for streaming stubs, deliberately *without* the retry decorator
 	 */
 	public EvitaClientManagement(
 		@Nonnull EvitaClient evitaClient,
-		@Nonnull GrpcClientBuilder grpcClientBuilder,
-		@Nonnull GrpcClientBuilder streamingGrpcClientBuilder
+		@Nonnull EvitaClientChannel.Unary unaryChannel,
+		@Nonnull EvitaClientChannel.Streaming streamingChannel
 	) {
 		this.evitaClient = evitaClient;
 		this.clientTaskTracker = new ClientTaskTracker(
@@ -131,8 +130,8 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			evitaClient.getConfiguration().trackedTaskLimit(),
 			2000
 		);
-		this.evitaManagementServiceStub = streamingGrpcClientBuilder.build(EvitaManagementServiceStub.class);
-		this.evitaManagementServiceFutureStub = grpcClientBuilder.build(EvitaManagementServiceFutureStub.class);
+		this.evitaManagementServiceStub = streamingChannel.stub(EvitaManagementServiceStub.class);
+		this.evitaManagementServiceFutureStub = unaryChannel.stub(EvitaManagementServiceFutureStub.class);
 	}
 
 	@Nonnull

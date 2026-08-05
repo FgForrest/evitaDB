@@ -255,7 +255,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		// a non-null `subscription` is guaranteed to observe the executor too
 		this.heartBeatExecutor = new SerialCdcExecutor(
 			subscription.getExecutorService(),
-			"deliver onHeartBeat to the delegate subscriber"
+			"deliver onHeartBeat to the delegate subscriber",
+			// a heartbeat that cannot be delivered fails the whole subscription rather than being dropped:
+			// the consumer derives missed-heartbeat counts from index continuity, so resuming after a silent
+			// gap would read as *server* heartbeats being missed when the driver dropped them
+			this::notifyClientFailureAndClose
 		);
 		this.subscription = subscription;
 	}
@@ -494,7 +498,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			);
 			// we notify the subscriber about the error — dispatched off this thread, which is the gRPC
 			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
-			// block the very thread that has to deliver the acknowledgement it then waits for
+			// block the very thread that has to deliver the acknowledgement it then waits for.
+			// The dispatch result is deliberately ignored: this is already the terminal path, so a refusal
+			// leaves nothing further to escalate to — the dispatcher logs it, and the teardown below runs
+			// either way.
 			try {
 				CdcCallbackDispatcher.dispatch(
 					activeSubscription.getExecutorService(),
