@@ -213,7 +213,7 @@ landed before the split.
 
 `ClientChangeCapturePublisherTest`, `CdcCallbackDispatcherTest`, `SerialCdcExecutorTest`,
 `EvitaClientCdcChannelIsolationTest` and `EvitaClientRejectingExecutorHandlerTest` — **35 tests, all
-passing**. The full `driver` tag selection is **275 tests, 0 failures, 1 skipped**, and exercises the
+passing**. The full `driver` tag selection is **276 tests, 0 failures, 1 skipped**, and exercises the
 split CDC channel against real embedded servers, including the session-bound
 `registerChangeCatalogCapture` that would break outright if the second connection mis-wired session-id
 propagation.
@@ -237,6 +237,30 @@ upgrade that changed it would fail the build rather than silently re-merge the t
 `shouldBlockSubscribeUntilAcknowledgementArrives` pins the acknowledgement gate directly: it asserts
 the `subscribe()` thread is still alive 500 ms after the stream initializer has run and only
 completes once the ACK is delivered.
+
+**The re-check in `SerialCdcExecutor.drain()`'s `finally` is guarded, but not from the fast loop.**
+Removing it was measured — the entire functional suite still passes. Reaching the window it protects
+requires a submission to land between the `poll()` that returned null and the `draining.set(false)` two
+lines below, which no functional test can place deterministically. `SerialCdcExecutorTest` pins the
+adjacent, reachable case (a task enqueued while the drain is still running) and is named for it; it was
+previously named for the unreachable one, which is how the gap went unnoticed.
+
+The window itself is covered by `LongRunningSerialCdcExecutorStressTest`, which sweeps the arrival time
+of a competing submission across the drain's start-up over 200 000 independent rounds. Calibrated both
+ways: with the re-check in place all rounds pass in **~2 s**; with it removed the first callback strands
+around **round 20 000** and the run hits its 10-strand cap by round 27 000. It is `@Disabled` and lives
+in `evita_long_running_tests` deliberately — a probabilistic test in the fast loop fails once every few
+hundred CI runs and trains people to press re-run, whereas the same test on a quiet machine, run on
+purpose after touching the drain loop, is evidence. **A stress test whose counterfactual stops failing
+has become decorative**, which is why the calibration numbers are recorded rather than left implicit.
+
+Test waits follow one rule, since the suite runs in parallel forks that contend for CPU: **positive
+liveness waits are latch-based and generous (30 s), negative ones stay short (250 ms)**. A generous
+positive bound costs nothing on a passing run — the latch returns the moment the work completes — and
+a short negative bound is safe in the other direction, because a loaded machine only makes "this did
+*not* happen" more likely to hold. The one remaining `Thread.sleep` (1 ms, inside a task in
+`shouldRunAtMostOneTaskAtATime`) is a detection widener rather than a synchronisation device: it makes
+an overlap easier to observe and cannot cause a false failure.
 
 The premise underpinning the whole change was verified against Armeria 1.40.0 sources rather than
 assumed: `ArmeriaClientCall` uses `MoreExecutors.directExecutor()` when `callOptions.getExecutor()`
@@ -267,6 +291,16 @@ draining the deframed response stream, and that thread is the event loop.
   therefore means what it says — the consumer's own callbacks are not keeping up — rather than
   "something unrelated is busy". This is what makes terminating the subscription the proportionate
   response rather than a harsh one.
+- **The refusal is propagated, never re-created.** `CdcCallbackDispatcher.dispatch` returns the
+  `Throwable` the executor threw (NULL when accepted) rather than a boolean, and both call sites hand
+  *that* object to the consumer. This is a contract, not a style choice: `EvitaClientPoolSaturatedException`
+  has two constructors carrying operationally opposite messages — the saturation one names the
+  `maxThreadCount`/`queueSize` knobs, the no-arg one says the client is shutting down and names no
+  remedy. A `boolean` return forced the caller to *pick* one, and the first implementation picked the
+  shutdown wording for every refusal, so the one consumer this exception exists to inform — an operator
+  whose capture callbacks are overloaded — was sent looking for a shutdown that never happened. Guarded
+  by `CdcCallbackDispatcherTest`, `SerialCdcExecutorTest` and `ClientChangeCapturePublisherTest`, each
+  asserting the message survives rather than only the type.
 - **`queryCatalogAsync` now throws synchronously on saturation** instead of running the query on the
   caller. This is the only path on which the new exception reaches a consumer, and it brings the
   driver into line with embedded evitaDB, whose own rejecting handler throws the same way — the type
