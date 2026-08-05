@@ -49,6 +49,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -234,6 +235,25 @@ public class CatalogIndex implements
 				new AttributeKey(attributeSchema.getName(), locale) :
 				new AttributeKey(attributeSchema.getName())
 		);
+	}
+
+	/**
+	 * Returns every {@link GlobalUniqueIndex} this catalog index holds, keyed by the attribute - and, for an attribute
+	 * that is unique globally only within a locale, the locale - it covers.
+	 *
+	 * Unlike {@link #getGlobalUniqueIndex(GlobalAttributeSchemaContract, Locale)} this needs no schema to address an
+	 * index, which is what lets a caller enumerate the indexes rather than ask for one it already knows about. The
+	 * locale-scoped indexes cannot be reached any other way without knowing the catalog's locale set, which lives in
+	 * the data rather than in the schema.
+	 *
+	 * The returned map is an unmodifiable view over the live map, not a copy: its size is bounded by
+	 * (globally-unique attributes × locales) and therefore by the schema, never by the catalog's data volume.
+	 *
+	 * @return unmodifiable view of the global unique indexes
+	 */
+	@Nonnull
+	public Map<AttributeKey, GlobalUniqueIndex> getGlobalUniqueIndexes() {
+		return Collections.unmodifiableMap(this.uniqueIndex);
 	}
 
 	/**

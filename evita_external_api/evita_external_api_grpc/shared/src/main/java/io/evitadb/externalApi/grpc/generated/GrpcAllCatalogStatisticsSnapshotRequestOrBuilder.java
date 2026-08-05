@@ -33,9 +33,12 @@ public interface GrpcAllCatalogStatisticsSnapshotRequestOrBuilder extends
 
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
-   * expensive collection-only components cannot be requested here and their cost can never be multiplied by the
-   * number of catalogs.
+   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
+   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
+   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
+   * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
+   * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent components = 1;</code>
@@ -44,9 +47,12 @@ public interface GrpcAllCatalogStatisticsSnapshotRequestOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent> getComponentsList();
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
-   * expensive collection-only components cannot be requested here and their cost can never be multiplied by the
-   * number of catalogs.
+   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
+   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
+   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
+   * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
+   * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent components = 1;</code>
@@ -55,9 +61,12 @@ public interface GrpcAllCatalogStatisticsSnapshotRequestOrBuilder extends
   int getComponentsCount();
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
-   * expensive collection-only components cannot be requested here and their cost can never be multiplied by the
-   * number of catalogs.
+   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
+   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
+   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
+   * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
+   * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent components = 1;</code>
@@ -67,9 +76,12 @@ public interface GrpcAllCatalogStatisticsSnapshotRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent getComponents(int index);
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
-   * expensive collection-only components cannot be requested here and their cost can never be multiplied by the
-   * number of catalogs.
+   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
+   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
+   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
+   * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
+   * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent components = 1;</code>
@@ -79,9 +91,12 @@ public interface GrpcAllCatalogStatisticsSnapshotRequestOrBuilder extends
   getComponentsValueList();
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means the two
-   * expensive collection-only components cannot be requested here and their cost can never be multiplied by the
-   * number of catalogs.
+   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
+   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
+   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
+   * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
+   * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
    * </pre>
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent components = 1;</code>

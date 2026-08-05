@@ -57,11 +57,16 @@ import java.util.OptionalInt;
  *
  * **Cost**
  *
- * Every reading here is an `O(1)` counter read except the number of records covered by a *filter* index, which sums
- * the record counts of the index's buckets and is therefore `O(distinct values)` - cheap precisely in the pathological
- * case this component exists to find, and proportional to the reading itself in every other. The component is still
- * classified as expensive and must never join a polled refresh: it is the *response size* and the walk over index keys,
- * not any single counter, that make it so.
+ * Every reading here is an `O(1)` counter read except the number of records **covered** by a filter or unique index,
+ * which sums the record counts of the index's buckets and is therefore `O(distinct values)`.
+ *
+ * How much that costs depends on the attribute, and the two ends are far apart. For a low-cardinality filterable
+ * attribute it is a handful of steps - cheap precisely in the pathological case this component exists to find. For a
+ * *unique* attribute it is one step per record, because uniqueness makes distinct values and records the same number:
+ * on a collection of two million entities, reading a unique index's covered-record count is a two-million-step walk.
+ *
+ * That is the reason this component is classified as expensive and must never join a polled refresh - together with
+ * the response size, which is what keeps the data-bounded indexes undescribed above.
  *
  * @param indexes           one entry per described index, in no guaranteed order; indexes holding no attribute index
  *                          and no reference cardinality are omitted rather than reported empty

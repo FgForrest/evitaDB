@@ -642,6 +642,44 @@ private static final long serialVersionUID = 0L;
     return durability_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics.getDefaultInstance() : durability_;
   }
 
+  public static final int INDEXCARDINALITY_FIELD_NUMBER = 15;
+  private io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality_;
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   * @return Whether the indexCardinality field is set.
+   */
+  @java.lang.Override
+  public boolean hasIndexCardinality() {
+    return ((bitField0_ & 0x00002000) != 0);
+  }
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   * @return The indexCardinality.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality getIndexCardinality() {
+    return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.getDefaultInstance() : indexCardinality_;
+  }
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder getIndexCardinalityOrBuilder() {
+    return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.getDefaultInstance() : indexCardinality_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -697,6 +735,9 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00001000) != 0)) {
       output.writeMessage(14, getDurability());
+    }
+    if (((bitField0_ & 0x00002000) != 0)) {
+      output.writeMessage(15, getIndexCardinality());
     }
     getUnknownFields().writeTo(output);
   }
@@ -762,6 +803,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00001000) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(14, getDurability());
+    }
+    if (((bitField0_ & 0x00002000) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(15, getIndexCardinality());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -845,6 +890,11 @@ private static final long serialVersionUID = 0L;
       if (!getDurability()
           .equals(other.getDurability())) return false;
     }
+    if (hasIndexCardinality() != other.hasIndexCardinality()) return false;
+    if (hasIndexCardinality()) {
+      if (!getIndexCardinality()
+          .equals(other.getIndexCardinality())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -911,6 +961,10 @@ private static final long serialVersionUID = 0L;
     if (hasDurability()) {
       hash = (37 * hash) + DURABILITY_FIELD_NUMBER;
       hash = (53 * hash) + getDurability().hashCode();
+    }
+    if (hasIndexCardinality()) {
+      hash = (37 * hash) + INDEXCARDINALITY_FIELD_NUMBER;
+      hash = (53 * hash) + getIndexCardinality().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1074,6 +1128,7 @@ private static final long serialVersionUID = 0L;
         getComponentStatusFieldBuilder();
         getActivityFieldBuilder();
         getDurabilityFieldBuilder();
+        getIndexCardinalityFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1151,6 +1206,11 @@ private static final long serialVersionUID = 0L;
       if (durabilityBuilder_ != null) {
         durabilityBuilder_.dispose();
         durabilityBuilder_ = null;
+      }
+      indexCardinality_ = null;
+      if (indexCardinalityBuilder_ != null) {
+        indexCardinalityBuilder_.dispose();
+        indexCardinalityBuilder_ = null;
       }
       return this;
     }
@@ -1277,6 +1337,12 @@ private static final long serialVersionUID = 0L;
             : durabilityBuilder_.build();
         to_bitField0_ |= 0x00001000;
       }
+      if (((from_bitField0_ & 0x00004000) != 0)) {
+        result.indexCardinality_ = indexCardinalityBuilder_ == null
+            ? indexCardinality_
+            : indexCardinalityBuilder_.build();
+        to_bitField0_ |= 0x00002000;
+      }
       result.bitField0_ |= to_bitField0_;
     }
 
@@ -1388,6 +1454,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasDurability()) {
         mergeDurability(other.getDurability());
+      }
+      if (other.hasIndexCardinality()) {
+        mergeIndexCardinality(other.getIndexCardinality());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1519,6 +1588,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00002000;
               break;
             } // case 114
+            case 122: {
+              input.readMessage(
+                  getIndexCardinalityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00004000;
+              break;
+            } // case 122
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -3905,6 +3981,163 @@ private static final long serialVersionUID = 0L;
         durability_ = null;
       }
       return durabilityBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder> indexCardinalityBuilder_;
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     * @return Whether the indexCardinality field is set.
+     */
+    public boolean hasIndexCardinality() {
+      return ((bitField0_ & 0x00004000) != 0);
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     * @return The indexCardinality.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality getIndexCardinality() {
+      if (indexCardinalityBuilder_ == null) {
+        return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.getDefaultInstance() : indexCardinality_;
+      } else {
+        return indexCardinalityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public Builder setIndexCardinality(io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality value) {
+      if (indexCardinalityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        indexCardinality_ = value;
+      } else {
+        indexCardinalityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00004000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public Builder setIndexCardinality(
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.Builder builderForValue) {
+      if (indexCardinalityBuilder_ == null) {
+        indexCardinality_ = builderForValue.build();
+      } else {
+        indexCardinalityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00004000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public Builder mergeIndexCardinality(io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality value) {
+      if (indexCardinalityBuilder_ == null) {
+        if (((bitField0_ & 0x00004000) != 0) &&
+          indexCardinality_ != null &&
+          indexCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.getDefaultInstance()) {
+          getIndexCardinalityBuilder().mergeFrom(value);
+        } else {
+          indexCardinality_ = value;
+        }
+      } else {
+        indexCardinalityBuilder_.mergeFrom(value);
+      }
+      if (indexCardinality_ != null) {
+        bitField0_ |= 0x00004000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public Builder clearIndexCardinality() {
+      bitField0_ = (bitField0_ & ~0x00004000);
+      indexCardinality_ = null;
+      if (indexCardinalityBuilder_ != null) {
+        indexCardinalityBuilder_.dispose();
+        indexCardinalityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.Builder getIndexCardinalityBuilder() {
+      bitField0_ |= 0x00004000;
+      onChanged();
+      return getIndexCardinalityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder getIndexCardinalityOrBuilder() {
+      if (indexCardinalityBuilder_ != null) {
+        return indexCardinalityBuilder_.getMessageOrBuilder();
+      } else {
+        return indexCardinality_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.getDefaultInstance() : indexCardinality_;
+      }
+    }
+    /**
+     * <pre>
+     * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder> 
+        getIndexCardinalityFieldBuilder() {
+      if (indexCardinalityBuilder_ == null) {
+        indexCardinalityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder>(
+                getIndexCardinality(),
+                getParentForChildren(),
+                isClean());
+        indexCardinality_ = null;
+      }
+      return indexCardinalityBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

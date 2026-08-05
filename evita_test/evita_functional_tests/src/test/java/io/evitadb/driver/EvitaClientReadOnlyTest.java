@@ -2227,8 +2227,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * lossless in isolation, this one proves the same distinctions survive a real server, a real gRPC call and a real
 	 * driver. The end-to-end proof that a *declined* component arrives as a status rather than as a silently absent
 	 * field now lives in `shouldRetrieveComponentSelectedEntityCollectionStatistics`: delivering `DURABILITY` emptied
-	 * the set of catalog-level components that can still be declined, because `INDEX_CARDINALITY` and
-	 * `MEMORY_FOOTPRINT` are *rejected* at this level rather than declined - the request throws instead of answering.
+	 * the set of catalog-level components that can still be declined, and `MEMORY_FOOTPRINT` - the only one left with
+	 * no catalog-level form at all - is *rejected* at this level rather than declined, so the request throws instead
+	 * of answering. `INDEX_CARDINALITY` is accepted here, but what it delivers is the catalog index's schema-bounded
+	 * global unique indexes, never the far more expensive per-collection form.
 	 */
 	@Test
 	@DisplayName("retrieve component-selected catalog statistics")
@@ -2428,19 +2430,34 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	/**
 	 * Verifies the instance-wide variant, which replaces the deprecated procedure that computed everything for every
 	 * catalog on every call.
+	 *
+	 * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} is requested alongside the cheap counter deliberately: it is
+	 * the component that was weighed hardest before being admitted here, since this call multiplies every listing it
+	 * returns by the number of catalogs. The gate consults only
+	 * {@link CatalogStatisticsComponent#isCatalogLevel()}, so nothing but this assertion distinguishes "allowed and
+	 * answered here" from "allowed and quietly broken here".
 	 */
 	@Test
 	@DisplayName("retrieve statistics of every catalog at once")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveAllCatalogStatistics(EvitaClient evitaClient) {
 		final Collection<CatalogStatistics> statistics = evitaClient.management().getAllCatalogStatistics(
-			EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS)
+			EnumSet.of(CatalogStatisticsComponent.RECORD_COUNTS, CatalogStatisticsComponent.INDEX_CARDINALITY)
 		);
 
 		assertEquals(1, statistics.size());
 		final CatalogStatistics catalogStatistics = statistics.iterator().next();
 		assertEquals(TEST_CATALOG, catalogStatistics.identity().catalogName());
 		assertTrue(catalogStatistics.recordCountsIfPresent().orElseThrow().totalRecords() > 0);
+		// the catalog-level form describes the catalog index's global unique indexes - present and delivered even when
+		// the schema declares no globally-unique attribute, in which case the array is legitimately empty
+		assertNotNull(
+			catalogStatistics.indexCardinalityIfPresent().orElseThrow().globalUniqueIndexes()
+		);
+		assertEquals(
+			ComponentAvailability.DELIVERED,
+			catalogStatistics.statusOf(CatalogStatisticsComponent.INDEX_CARDINALITY).orElseThrow().availability()
+		);
 	}
 
 	/**

@@ -29,6 +29,8 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogIndexCardinality;
+import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
@@ -188,6 +190,9 @@ public class CatalogStatisticsConverter {
 		if (statistics.durability() != null) {
 			builder.setDurability(toGrpcDurabilityStatistics(statistics.durability()));
 		}
+		if (statistics.indexCardinality() != null) {
+			builder.setIndexCardinality(toGrpcCatalogIndexCardinality(statistics.indexCardinality()));
+		}
 		if (statistics.storageSize() != null) {
 			builder.setStorageSize(toGrpcStorageSizeStatistics(statistics.storageSize()));
 		}
@@ -234,6 +239,7 @@ public class CatalogStatisticsConverter {
 			snapshot.hasFragmentation() ? toFragmentationStatistics(snapshot.getFragmentation()) : null,
 			snapshot.hasHistory() ? toHistoryStatistics(snapshot.getHistory()) : null,
 			snapshot.hasIndexSummary() ? toIndexSummaryStatistics(snapshot.getIndexSummary()) : null,
+			snapshot.hasIndexCardinality() ? toCatalogIndexCardinality(snapshot.getIndexCardinality()) : null,
 			snapshot.hasVolatileState() ? toVolatileStateStatistics(snapshot.getVolatileState()) : null,
 			toComponentStatuses(snapshot.getComponentStatusList())
 		);
@@ -1190,6 +1196,54 @@ public class CatalogStatisticsConverter {
 			);
 		}
 		return new CollectionIndexSummary(grpcIndexSummary.getTotalIndexCount(), kindCounts);
+	}
+
+	/**
+	 * Converts the catalog-level index cardinality to its gRPC form.
+	 *
+	 * @param cardinality the component to convert
+	 * @return the gRPC form of the component
+	 */
+	@Nonnull
+	private static GrpcCatalogIndexCardinality toGrpcCatalogIndexCardinality(
+		@Nonnull CatalogIndexCardinality cardinality
+	) {
+		final GrpcCatalogIndexCardinality.Builder builder = GrpcCatalogIndexCardinality.newBuilder();
+		for (final GlobalUniqueIndexCardinality index : cardinality.globalUniqueIndexes()) {
+			final GrpcGlobalUniqueIndexCardinality.Builder indexBuilder = GrpcGlobalUniqueIndexCardinality.newBuilder()
+				.setAttributeName(index.attributeName())
+				.setScope(toGrpcScope(index.scope()))
+				.setDistinctValueCount(index.distinctValueCount());
+			if (index.locale() != null) {
+				indexBuilder.setLocale(EvitaDataTypesConverter.toGrpcLocale(index.locale()));
+			}
+			builder.addGlobalUniqueIndexes(indexBuilder.build());
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts the catalog-level index cardinality from its gRPC form.
+	 *
+	 * @param cardinality the gRPC form of the component
+	 * @return the component
+	 */
+	@Nonnull
+	private static CatalogIndexCardinality toCatalogIndexCardinality(
+		@Nonnull GrpcCatalogIndexCardinality cardinality
+	) {
+		final List<GrpcGlobalUniqueIndexCardinality> indexes = cardinality.getGlobalUniqueIndexesList();
+		final GlobalUniqueIndexCardinality[] result = new GlobalUniqueIndexCardinality[indexes.size()];
+		for (int i = 0; i < result.length; i++) {
+			final GrpcGlobalUniqueIndexCardinality index = indexes.get(i);
+			result[i] = new GlobalUniqueIndexCardinality(
+				index.getAttributeName(),
+				index.hasLocale() ? EvitaDataTypesConverter.toLocale(index.getLocale()) : null,
+				toScope(index.getScope()),
+				index.getDistinctValueCount()
+			);
+		}
+		return new CatalogIndexCardinality(result);
 	}
 
 	/**

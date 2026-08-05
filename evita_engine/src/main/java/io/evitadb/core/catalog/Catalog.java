@@ -1541,8 +1541,11 @@ public final class Catalog
 						);
 					}
 				}
-				// unreachable - both are collection-level only and the assertion above already rejected them
-				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> throw new GenericEvitaInternalError(
+				case INDEX_CARDINALITY -> builder.withIndexCardinality(
+					CatalogIndexCardinalityProjection.describe(collectCatalogIndexes())
+				);
+				// unreachable - collection-level only, and the assertion above already rejected it
+				case MEMORY_FOOTPRINT -> throw new GenericEvitaInternalError(
 					"Collection-level component `" + component + "` passed the catalog-level check!"
 				);
 			}
@@ -1758,6 +1761,25 @@ public final class Catalog
 			totalIndexCount += collection.getIndexCount();
 		}
 		return totalIndexCount;
+	}
+
+	/**
+	 * Collects the catalog-level index of every scope that has actually been created.
+	 *
+	 * A scope whose index has never been created contributes nothing rather than an empty entry - the `ARCHIVED` index
+	 * is created lazily, and reporting it as present-but-empty would be indistinguishable from a scope that exists and
+	 * genuinely holds no globally-unique value.
+	 *
+	 * @return the existing catalog indexes, in {@link Scope#values()} order
+	 */
+	@Nonnull
+	private List<CatalogIndex> collectCatalogIndexes() {
+		final Scope[] scopes = Scope.values();
+		final List<CatalogIndex> catalogIndexes = new ArrayList<>(scopes.length);
+		for (final Scope scope : scopes) {
+			getCatalogIndexIfExits(scope).ifPresent(catalogIndexes::add);
+		}
+		return catalogIndexes;
 	}
 
 	@Override

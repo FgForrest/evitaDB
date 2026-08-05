@@ -82,6 +82,8 @@ import java.util.Optional;
  * @param fragmentation      {@link CatalogStatisticsComponent#FRAGMENTATION}, null unless requested and delivered
  * @param history            {@link CatalogStatisticsComponent#HISTORY}, null unless requested and delivered
  * @param indexSummary       {@link CatalogStatisticsComponent#INDEX_SUMMARY}, null unless requested and delivered
+ * @param indexCardinality   {@link CatalogStatisticsComponent#INDEX_CARDINALITY}, null unless requested and
+ *                           delivered; the catalog-level half, describing the catalog index's global unique indexes
  * @param volatileState      {@link CatalogStatisticsComponent#VOLATILE_STATE}, null unless requested and delivered
  * @param componentStatus    outcome of every *requested* component; components that were not requested are absent
  *                           from the map entirely
@@ -100,6 +102,7 @@ public record CatalogStatistics(
 	@Nullable FragmentationStatistics fragmentation,
 	@Nullable HistoryStatistics history,
 	@Nullable IndexSummaryStatistics indexSummary,
+	@Nullable CatalogIndexCardinality indexCardinality,
 	@Nullable VolatileStateStatistics volatileState,
 	@Nonnull Map<CatalogStatisticsComponent, ComponentStatus> componentStatus
 ) {
@@ -226,6 +229,20 @@ public record CatalogStatistics(
 	}
 
 	/**
+	 * Returns the catalog index cardinality when it was requested and could be computed.
+	 *
+	 * This is the catalog-level half of {@link CatalogStatisticsComponent#INDEX_CARDINALITY} and describes only the
+	 * catalog index's global unique indexes - a collection's own indexes are reported by
+	 * {@link EntityCollectionStatistics#indexCardinalityIfPresent()}, which is a far more expensive reading.
+	 *
+	 * @return the catalog-level {@link CatalogStatisticsComponent#INDEX_CARDINALITY} component, empty otherwise
+	 */
+	@Nonnull
+	public Optional<CatalogIndexCardinality> indexCardinalityIfPresent() {
+		return Optional.ofNullable(this.indexCardinality);
+	}
+
+	/**
 	 * Returns the volatile state statistics when they were requested and could be computed.
 	 *
 	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component, empty otherwise
@@ -285,6 +302,7 @@ public record CatalogStatistics(
 		private FragmentationStatistics fragmentation;
 		private HistoryStatistics history;
 		private IndexSummaryStatistics indexSummary;
+		private CatalogIndexCardinality indexCardinality;
 		private VolatileStateStatistics volatileState;
 
 		Builder(@Nonnull CatalogIdentity identity) {
@@ -426,6 +444,19 @@ public record CatalogStatistics(
 		}
 
 		/**
+		 * Records the catalog-level half of the {@link CatalogStatisticsComponent#INDEX_CARDINALITY} component as
+		 * delivered.
+		 *
+		 * @param value the computed component
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder withIndexCardinality(@Nonnull CatalogIndexCardinality value) {
+			this.indexCardinality = value;
+			return delivered(CatalogStatisticsComponent.INDEX_CARDINALITY);
+		}
+
+		/**
 		 * Records the {@link CatalogStatisticsComponent#VOLATILE_STATE} component as delivered.
 		 *
 		 * @param value the computed component
@@ -475,6 +506,7 @@ public record CatalogStatistics(
 				this.fragmentation,
 				this.history,
 				this.indexSummary,
+				this.indexCardinality,
 				this.volatileState,
 				Collections.unmodifiableMap(new EnumMap<>(this.componentStatus))
 			);

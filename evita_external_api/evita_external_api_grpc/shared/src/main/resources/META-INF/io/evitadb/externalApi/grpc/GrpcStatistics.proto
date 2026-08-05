@@ -422,6 +422,40 @@ message GrpcCatalogStatisticsSnapshot {
   GrpcActivityStatistics activity = 13;
   // The `COMPONENT_DURABILITY` component; absent unless requested and delivered.
   GrpcDurabilityStatistics durability = 14;
+  // The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+  GrpcCatalogIndexCardinality indexCardinality = 15;
+
+}
+
+// The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component - how many distinct values each of the
+// catalog's global unique indexes holds.
+//
+// Unlike the collection-level half (`GrpcCollectionIndexCardinality`) this one is cheap: the number of global unique
+// indexes is bounded by the schema (globally-unique attributes x locales), never by the catalog's data volume, and
+// every reading is a counter maintained incrementally rather than a walk. That is why `COMPONENT_INDEX_CARDINALITY`
+// is available at the catalog level while its collection-level half must never join a polled refresh.
+message GrpcCatalogIndexCardinality {
+
+  // One entry per global unique index the catalog holds, in no guaranteed order. Empty when the schema declares no
+  // globally-unique attribute, or when none has been written to yet.
+  repeated GrpcGlobalUniqueIndexCardinality globalUniqueIndexes = 1;
+
+}
+
+// The cardinality reading of one global unique index of the catalog index.
+message GrpcGlobalUniqueIndexCardinality {
+
+  // Name of the globally-unique attribute this index covers.
+  string attributeName = 1;
+  // Locale this index is bound to; absent when the attribute is unique globally across every locale. A present locale
+  // means the catalog holds one such index per locale.
+  GrpcLocale locale = 2;
+  // Scope of the catalog index holding this global unique index.
+  GrpcEntityScope scope = 3;
+  // How many distinct values the index holds - equivalently, how many records it covers, since a globally-unique
+  // value identifies exactly one record. Only one of the two is reported because their ratio is fixed at 1 by
+  // construction.
+  int32 distinctValueCount = 4;
 
 }
 

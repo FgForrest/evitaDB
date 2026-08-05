@@ -58,6 +58,8 @@ import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
+import io.evitadb.api.statistics.CatalogIndexCardinality;
+import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
@@ -172,7 +174,7 @@ class CatalogStatisticsConverterTest {
 			// deliberately all zeroes - an empty catalog reports a real measurement of zero, and that must not be
 			// mistaken for "no value was produced"
 			new RecordCounts(0L, 0L, 0L),
-			null, null, null, null, null, null, null, null, null, null, null,
+			null, null, null, null, null, null, null, null, null, null, null, null,
 			Map.copyOf(statuses)
 		);
 
@@ -287,7 +289,7 @@ class CatalogStatisticsConverterTest {
 		);
 		final CatalogStatistics roundTripped = roundTrip(
 			new CatalogStatistics(
-				original, null, null, null, null, null, null, null, null, null, null, null, null,
+				original, null, null, null, null, null, null, null, null, null, null, null, null, null,
 				Map.of(
 					CatalogStatisticsComponent.IDENTITY,
 					ComponentStatus.delivered(CatalogStatisticsComponent.IDENTITY)
@@ -414,6 +416,7 @@ class CatalogStatisticsConverterTest {
 			CatalogStatisticsComponent.FRAGMENTATION,
 			CatalogStatisticsComponent.HISTORY,
 			CatalogStatisticsComponent.INDEX_SUMMARY,
+			CatalogStatisticsComponent.INDEX_CARDINALITY,
 			CatalogStatisticsComponent.VOLATILE_STATE,
 			CatalogStatisticsComponent.DURABILITY
 		)) {
@@ -467,6 +470,14 @@ class CatalogStatisticsConverterTest {
 				true, 601L, OLDEST_AVAILABLE, 602L, NEWEST, 603, 604L, 605L, 606, 607L, 608L, 609L
 			),
 			new IndexSummaryStatistics(701L),
+			// both halves of the nullable locale exercised exactly once: a non-localized globally-unique attribute
+			// and one that is unique globally only within a locale, so an arm that dropped either would be caught
+			new CatalogIndexCardinality(
+				new GlobalUniqueIndexCardinality[]{
+					new GlobalUniqueIndexCardinality("code", null, Scope.LIVE, 711),
+					new GlobalUniqueIndexCardinality("url", Locale.GERMAN, Scope.ARCHIVED, 712)
+				}
+			),
 			new VolatileStateStatistics(
 				801L, 802, 803L, OLDEST_RECORD_KEPT,
 				// distinct values throughout: a nested slice copied from its enclosing record would still match on

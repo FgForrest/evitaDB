@@ -425,9 +425,12 @@ public interface EvitaManagementContract {
 	 * indistinguishable from a catalog that no longer exists, and a corrupted catalog is exactly what an operator
 	 * opens this call to find.
 	 *
-	 * The two expensive components ({@link CatalogStatisticsComponent#INDEX_CARDINALITY} and
-	 * {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT}) have no catalog-level form at all, so their cost can never
-	 * be multiplied by the number of catalogs here.
+	 * Everything this call returns is multiplied by the number of catalogs, so components are weighed here on
+	 * **payload as much as on compute time**. The selection is opt-in and the gate is the plain catalog-level one:
+	 * {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT} is refused because it has no catalog-level form at all,
+	 * while {@link CatalogStatisticsComponent#INDEX_CARDINALITY} is accepted - what it reports here is the catalog
+	 * index's global unique indexes, a handful of `O(1)` counter readings whose listing stays in the same size class
+	 * as {@link CatalogStatisticsComponent#COLLECTIONS}, and never the far more expensive per-collection form.
 	 *
 	 * @param components the components to compute for each catalog; every one of them must satisfy
 	 *                   {@link CatalogStatisticsComponent#isCatalogLevel()}

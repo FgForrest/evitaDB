@@ -523,9 +523,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	/**
 	 * Returns count of records in this index.
 	 *
-	 * Unlike {@link #getDistinctValueCount()} this sums the record counts of every bucket and is therefore
-	 * `O(distinct values)` rather than a single counter read - cheap in absolute terms, but not free, and the only
-	 * cardinality reading of the whole statistics surface that is not `O(1)`.
+	 * Unlike {@link #getDistinctValueCount()} this walks a bucket cursor over the whole tree summing per-bucket record
+	 * counts, and is therefore `O(distinct values)` rather than a single counter read - the only cardinality reading
+	 * of the whole statistics surface that is not `O(1)`.
+	 *
+	 * **How expensive that is depends entirely on the attribute.** For a low-cardinality filterable attribute it is a
+	 * handful of steps. For a *unique* attribute it is one step per record, because uniqueness makes distinct values
+	 * and records the same number - and {@link UniqueIndexView#size()} routes here, so reading a unique index's
+	 * covered-record count on a collection of two million entities is a two-million-step walk. That is why
+	 * {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} is declared expensive and is
+	 * never part of a polled refresh.
 	 */
 	public int size() {
 		return this.invertedIndex.getLength();

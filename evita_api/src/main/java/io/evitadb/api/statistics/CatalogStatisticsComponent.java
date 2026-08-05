@@ -48,10 +48,13 @@ import java.util.Set;
  *
  * The line between the levels is drawn by cost, not by tidiness: a catalog-level aggregate may only be assembled from
  * per-collection reads that are *cheap enough to do for every collection on every request*. Where that does not hold,
- * the component has no catalog-level form at all - {@link #INDEX_CARDINALITY} and {@link #MEMORY_FOOTPRINT} are
- * collection-level only for exactly this reason, and {@link #INDEX_SUMMARY} reports only a total index count at the
- * catalog level (an `O(1)` map size per collection) while the kind and scope breakdown, which walks index keys, is
- * collection-level.
+ * the component either has no catalog-level form at all - {@link #MEMORY_FOOTPRINT} is collection-level only for
+ * exactly this reason - or its catalog-level form reports something different and cheaper than its collection-level
+ * one. {@link #INDEX_SUMMARY} reports only a total index count at the catalog level (an `O(1)` map size per
+ * collection) while the kind and scope breakdown is collection-level; {@link #INDEX_CARDINALITY} reports the catalog
+ * index's global unique indexes at the catalog level - a count that does not grow with entity count - while the
+ * collection's own data-bounded indexes stay collection-level. In neither case does the catalog-level form aggregate
+ * the collection-level one.
  *
  * **Components are independently *selectable*, not independently *computed***
  *
@@ -69,8 +72,31 @@ import java.util.Set;
  * - bounded IO - one flat directory listing plus targeted `stat` calls: {@link #STORAGE_SIZE},
  *   {@link #FRAGMENTATION}, {@link #HISTORY}, {@link #DURABILITY}
  * - proportional to index count: {@link #INDEX_SUMMARY} at the collection level
- * - expensive, never poll: {@link #INDEX_CARDINALITY}, {@link #MEMORY_FOOTPRINT}. Both are rejected outright on the
- *   instance-wide variant, where their cost would be multiplied by the number of catalogs.
+ * - expensive, never poll: {@link #INDEX_CARDINALITY} *at the collection level*, and {@link #MEMORY_FOOTPRINT}.
+ *   `MEMORY_FOOTPRINT` has no catalog-level form at all, so the instance-wide call can never multiply its cost by the
+ *   number of catalogs; `INDEX_CARDINALITY` is admitted there because what the catalog level reports is a handful of
+ *   `O(1)` readings rather than the per-collection walk of the same name.
+ *
+ * **What the instance-wide call multiplies**
+ *
+ * Answering for every catalog at once multiplies whatever comes back by the number of catalogs, so a component is
+ * judged there on **payload as much as on time** - a cheap computation can still return a large listing. That call
+ * nevertheless applies the same gate as the single-catalog one ({@link #assertCatalogLevel(Set)}), because every
+ * component reaching the catalog level answers either with scalars or with a listing no larger than
+ * {@link #COLLECTIONS}, which carries one entry per entity collection.
+ *
+ * {@link #INDEX_CARDINALITY} was weighed against exactly that bar and admitted. Its catalog-level listing runs to
+ * (globally-unique attributes × locales in use × scopes) - the same size class as `COLLECTIONS` rather than a
+ * measured ratio, since globally-unique attributes are rare in practice while collections are not.
+ *
+ * The load-bearing argument needs no such estimate, though: selection is opt-in, so a client that cannot afford a
+ * component simply does not name it - and barring this one would not remove its cost, only force that client into one
+ * call per catalog for the same bytes. That is what separates it from {@link #MEMORY_FOOTPRINT}, where the
+ * collection-level walk is genuinely expensive and no cheap catalog-level form exists to fall back on: there a bar
+ * prevents work, here it would only relocate it.
+ *
+ * A future component whose catalog-level answer is materially larger than `COLLECTIONS` would need a gate narrower than
+ * {@link #isCatalogLevel()}. None exists: introduce it together with that component rather than in advance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see CatalogStatistics
@@ -143,16 +169,36 @@ public enum CatalogStatisticsComponent {
 	DURABILITY(true, false),
 
 	/**
-	 * Index counts. Catalog level reports the total only, which each collection answers from an `O(1)` map size;
-	 * the breakdown by index kind and scope requires walking the index keys and is therefore collection-level.
+	 * Index counts. Catalog level reports the total only; the breakdown by index kind and scope is collection-level.
+	 *
+	 * Both are `O(1)` reads - each collection maintains its counts per index kind and scope incrementally rather than
+	 * counting on demand. The split is therefore about *shape*, not cost: a catalog-level breakdown would carry one
+	 * entry per collection per kind per scope, making the response grow with the number of collections, which is
+	 * exactly what the catalog level exists not to do.
 	 */
 	INDEX_SUMMARY(true, true),
 
 	/**
-	 * Distinct values and records covered per index. Expensive - never part of a polled refresh, and available at the
-	 * collection level only, because a catalog-wide form would mean paying that cost for every collection at once.
+	 * Distinct values and records covered per index.
+	 *
+	 * The two levels report different indexes and have different cost classes, which is deliberate rather than an
+	 * oversight. Catalog level reports the *global unique indexes* of the catalog index
+	 * ({@link CatalogIndexCardinality}): there is one per globally-unique attribute per locale in use and every reading
+	 * is an `O(1)` counter, so the cost grows with neither the entity count nor the collection count. Note the locale
+	 * dimension is data-influenced rather than declared, so this is a small constant rather than a schema-derived one.
+	 * Collection level reports the collection's own entity indexes
+	 * ({@link CollectionIndexCardinality}), which is **expensive and must never be part of a polled refresh** - a
+	 * collection reaches hundreds of thousands of data-bounded indexes, and a covered-record count on a unique
+	 * attribute walks one step per record.
+	 *
+	 * There is deliberately no catalog-wide form of the *collection* half: it would mean paying that cost for every
+	 * collection at once.
+	 *
+	 * The catalog-level half **is** answerable for every catalog at once. It was weighed on payload rather than on
+	 * compute - see the class javadoc - and the listing it returns stays in the same size class as
+	 * {@link #COLLECTIONS}.
 	 */
-	INDEX_CARDINALITY(false, true),
+	INDEX_CARDINALITY(true, true),
 
 	/**
 	 * Best-effort heap estimates per collection and index. Expensive - never part of a polled refresh, and available
@@ -181,7 +227,7 @@ public enum CatalogStatisticsComponent {
 
 	/**
 	 * Tells whether this component has a catalog-level form and may therefore appear in a request for
-	 * {@link CatalogStatistics}.
+	 * {@link CatalogStatistics}, including the instance-wide variant that answers for every catalog at once.
 	 *
 	 * @return true when the component may be requested from a catalog-level call
 	 */

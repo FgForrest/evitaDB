@@ -430,4 +430,31 @@ public interface GrpcCatalogStatisticsSnapshotOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatistics durability = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDurabilityStatisticsOrBuilder getDurabilityOrBuilder();
+
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   * @return Whether the indexCardinality field is set.
+   */
+  boolean hasIndexCardinality();
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   * @return The indexCardinality.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality getIndexCardinality();
+  /**
+   * <pre>
+   * The catalog-level half of the `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinality indexCardinality = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCatalogIndexCardinalityOrBuilder getIndexCardinalityOrBuilder();
 }

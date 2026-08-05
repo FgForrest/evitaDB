@@ -52,6 +52,7 @@ import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
+import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -915,6 +916,103 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 			"Archiving created the catalog's `ARCHIVED` index, but the catalog-wide count grew only by the " +
 				"collection's own indexes - the second scope of the catalog-level index is not being counted"
 		);
+	}
+
+	@Test
+	@DisplayName("Catalog-level index cardinality describes the global unique index of every scope")
+	void shouldReportCardinalityOfTheCatalogsGlobalUniqueIndexes() {
+		// the catalog level of INDEX_CARDINALITY reports the *catalog* index - the global unique indexes backing
+		// entity-type-less unique lookups - and never the collections' own indexes. It needs its own catalog for the
+		// same reason the archiving test does: the shared fixture declares no globally-unique attribute at all
+		final Scope[] bothScopes = {Scope.LIVE, Scope.ARCHIVED};
+		final String globalCatalog = CATALOG + "GlobalUnique";
+		this.evita.defineCatalog(globalCatalog)
+			.withAttribute("globalCode", String.class, thatIs -> thatIs.uniqueGloballyInScope(bothScopes))
+			.updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			globalCatalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute("globalCode")
+					.updateVia(session);
+				for (int pk = 1; pk <= 3; pk++) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, pk).setAttribute("globalCode", "product-" + pk)
+					);
+				}
+			}
+		);
+
+		final GlobalUniqueIndexCardinality[] live = globalUniqueCardinalityOf(globalCatalog);
+		assertEquals(1, live.length, "Exactly one global unique index exists before anything is archived");
+		assertEquals("globalCode", live[0].attributeName());
+		assertNull(
+			live[0].locale(),
+			"`globalCode` is unique globally across every locale, so its index is not locale-bound"
+		);
+		assertEquals(Scope.LIVE, live[0].scope());
+		assertEquals(
+			3, live[0].distinctValueCount(),
+			"Three globally-unique values were written, and a globally-unique value covers exactly one record"
+		);
+
+		// archiving one entity moves its value out of the LIVE index and creates the ARCHIVED one, so the component
+		// must now describe both scopes. A projection that only ever looked at `Scope.LIVE` still passes everything
+		// above and fails here
+		this.evita.updateCatalog(
+			globalCatalog,
+			session -> {
+				// a block body, not an expression: `archiveEntity` returns a boolean, which makes a bare lambda match
+				// both the consumer and the function overload of `updateCatalog`
+				session.archiveEntity(ENTITY_PRODUCT, 1);
+			}
+		);
+
+		final GlobalUniqueIndexCardinality[] both = globalUniqueCardinalityOf(globalCatalog);
+		assertEquals(2, both.length, "Archiving created the catalog's `ARCHIVED` index, which must be described too");
+		assertEquals(
+			2, cardinalityInScope(both, Scope.LIVE),
+			"The archived entity's value must have left the `LIVE` global unique index"
+		);
+		assertEquals(
+			1, cardinalityInScope(both, Scope.ARCHIVED),
+			"The archived entity's value must have arrived in the `ARCHIVED` global unique index"
+		);
+	}
+
+	/**
+	 * Reads the catalog-level index cardinality component.
+	 *
+	 * @param catalogName catalog to ask
+	 * @return the described global unique indexes
+	 */
+	@Nonnull
+	private GlobalUniqueIndexCardinality[] globalUniqueCardinalityOf(@Nonnull String catalogName) {
+		return this.evita.management()
+			.getCatalogStatistics(catalogName, EnumSet.of(CatalogStatisticsComponent.INDEX_CARDINALITY))
+			.indexCardinalityIfPresent()
+			.orElseThrow()
+			.globalUniqueIndexes();
+	}
+
+	/**
+	 * Finds the distinct value count of the single global unique index reported in one scope.
+	 *
+	 * @param indexes the described global unique indexes
+	 * @param scope   scope to look up
+	 * @return the distinct value count of that scope's index
+	 */
+	private static int cardinalityInScope(
+		@Nonnull GlobalUniqueIndexCardinality[] indexes,
+		@Nonnull Scope scope
+	) {
+		for (final GlobalUniqueIndexCardinality index : indexes) {
+			if (index.scope() == scope) {
+				return index.distinctValueCount();
+			}
+		}
+		throw new AssertionError("No global unique index was described in scope `" + scope + "`!");
 	}
 
 	/**
