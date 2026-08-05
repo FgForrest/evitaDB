@@ -5,7 +5,7 @@ updated: 2026-08-05 16:20
 status: accepted
 kind: optimization
 issues: [1390]
-prs: []
+prs: [1395]
 areas: [evita_api/requestResponse/schema/dto, evita_api/requestResponse/data, evita_engine/index/mutation]
 supersedes: []
 superseded-by: []
