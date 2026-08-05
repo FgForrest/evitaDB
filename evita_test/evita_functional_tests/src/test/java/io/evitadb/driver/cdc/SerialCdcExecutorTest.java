@@ -38,8 +38,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -100,7 +99,9 @@ class SerialCdcExecutorTest {
 					});
 				}
 
-				assertTrue(done.await(10, TimeUnit.SECONDS), "the tasks did not finish in time");
+				// generous on purpose: this is a liveness bound, not a performance assertion, and the suite runs
+				// in parallel forks that contend for CPU. A passing run never waits, a hung one still fails.
+				assertTrue(done.await(30, TimeUnit.SECONDS), "the tasks did not finish in time");
 				final List<Integer> expected = new ArrayList<>(taskCount);
 				for (int i = 0; i < taskCount; i++) {
 					expected.add(i);
@@ -128,7 +129,10 @@ class SerialCdcExecutorTest {
 				for (int s = 0; s < submitterCount; s++) {
 					submitters.execute(() -> {
 						try {
-							startTogether.await(5, TimeUnit.SECONDS);
+							// all eight submitters must reach the barrier before any proceeds, so this bound
+							// depends on the whole pool being scheduled - the one wait here most exposed to a
+							// busy machine, and the one whose expiry would fail the test for no real reason
+							startTogether.await(30, TimeUnit.SECONDS);
 						} catch (Exception ex) {
 							throw new IllegalStateException(ex);
 						}
@@ -162,10 +166,17 @@ class SerialCdcExecutorTest {
 		}
 
 		@Test
-		@DisplayName("Picks up a task enqueued exactly while the drain guard is being released")
-		void shouldPickUpTaskEnqueuedWhileTheGuardIsBeingReleased() throws Exception {
-			// the re-check in drain()'s finally is what covers this window; without it the late task would
-			// wait for an unrelated future submission that may never come
+		@DisplayName("Picks up a task enqueued while a drain is already active")
+		void shouldPickUpTaskEnqueuedWhileADrainIsActive() throws Exception {
+			// A submission that arrives while a drain owns the guard gets no drain of its own - `scheduleDrain`
+			// loses the CAS and returns - so the in-flight drain loop has to notice it. That is what this pins.
+			//
+			// It deliberately does NOT cover the narrower window between the loop finding the queue empty and
+			// releasing the guard, which the re-check in `drain()`'s `finally` exists for: reaching that window
+			// requires the enqueue to land between two adjacent statements, and no test in this module can
+			// place it there - verified by removing the re-check, after which this whole module still passed.
+			// That window is covered by `LongRunningSerialCdcExecutorStressTest`, which sweeps the timing
+			// instead of fixing it and therefore belongs in the long-running module rather than here.
 			final ExecutorService delegate = Executors.newFixedThreadPool(2);
 			try {
 				final SerialCdcExecutor executor = createExecutor(delegate, failure -> {});
@@ -252,8 +263,9 @@ class SerialCdcExecutorTest {
 		void shouldTerminateTheSubscriptionWhenTheDrainIsRefused() {
 			final AtomicReference<Throwable> reported = new AtomicReference<>();
 			final AtomicBoolean ran = new AtomicBoolean();
+			final EvitaClientPoolSaturatedException thrownByThePool = new EvitaClientPoolSaturatedException(4, 100);
 			final SerialCdcExecutor executor = createExecutor(
-				new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
+				new RejectingExecutorService(() -> thrownByThePool),
 				reported::set
 			);
 
@@ -265,6 +277,19 @@ class SerialCdcExecutorTest {
 					"silently resumes after a gap reads as missed *server* heartbeats"
 			);
 			assertInstanceOf(EvitaClientPoolSaturatedException.class, reported.get());
+			// The pool throws two different exceptions: a saturation one naming `maxThreadCount`/`queueSize`,
+			// and a shutdown one that names nothing. Re-creating either here would pick the wrong message half
+			// the time - and the saturation message is the only one an overloaded operator can act on.
+			assertSame(
+				thrownByThePool,
+				reported.get(),
+				"the owner must be handed the refusal the pool threw, not a synthesized stand-in"
+			);
+			assertTrue(
+				reported.get().getMessage().contains("saturated"),
+				"the reported cause must keep the saturation wording, not the shutdown wording: " +
+					reported.get().getMessage()
+			);
 			assertFalse(ran.get(), "the callback must not run on the submitting thread");
 		}
 

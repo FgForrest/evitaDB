@@ -49,6 +49,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -305,7 +306,7 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 				}
 			);
 			try {
-				final HeartBeatSensingSubscriber delegate = new HeartBeatSensingSubscriber(0L);
+				final HeartBeatSensingSubscriber delegate = new HeartBeatSensingSubscriber(0L, heartbeats);
 				final TestHarness harness = new TestHarness(false, pool, delegate);
 				harness.start();
 				// index 0 is the acknowledgement, which is itself a heartbeat
@@ -314,10 +315,13 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 					harness.deliverHeartbeat(index);
 				}
 
-				// wait for the sensor to observe them all
-				for (int attempt = 0; attempt < 100 && delegate.observedIndices.size() < heartbeats; attempt++) {
-					Thread.sleep(20);
-				}
+				// Await the batch rather than polling a fixed sleep budget: the tests run in parallel forks that
+				// contend for CPU, so any wall-clock guess large enough to be safe there is pure waiting here.
+				// A latch returns the moment the work is done and only trips when it genuinely never completes.
+				assertTrue(
+					delegate.allHeartBeatsDelivered.await(30, TimeUnit.SECONDS),
+					"only " + delegate.observedIndices.size() + " of " + heartbeats + " heartbeats were delivered"
+				);
 
 				assertEquals(
 					heartbeats, delegate.observedIndices.size(),
@@ -355,11 +359,12 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 
 			final Thread subscribeThread = harness.subscribeThread;
 			assertNotNull(subscribeThread, "the subscribe thread must have been started");
-			// the stream initializer has already run; give a regression that drops the gate ample time to
-			// let subscribe() return before asserting it did not
-			for (int i = 0; i < 50 && subscribeThread.isAlive(); i++) {
-				Thread.sleep(10);
-			}
+			// The stream initializer has already run; give a regression that drops the gate ample time to let
+			// subscribe() return before asserting it did not. This wait is safe under CPU contention *because*
+			// the assertion is negative: a loaded machine can only make the thread more likely to still be
+			// blocked, never less. `join` also returns the instant a regression lets the thread finish, so the
+			// failing case is fast and the passing case costs one bounded wait.
+			subscribeThread.join(500L);
 			assertTrue(
 				subscribeThread.isAlive(),
 				"subscribe() must not return before the server acknowledges the subscription"
@@ -522,11 +527,116 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 				"a heartbeat that cannot be delivered must fail the subscription rather than resume with a gap"
 			);
 		}
+
+		@Test
+		@DisplayName("Reports the pool's own refusal to the consumer, not a synthesized one")
+		void shouldReportThePoolsOwnRefusalWhenExecutorRefusesTheCaptureDrain() throws InterruptedException {
+			// The terminal `onError` is the consumer's only clue about *why* its subscription died, and the
+			// saturation variant is the only one that names the `maxThreadCount`/`queueSize` knobs that would
+			// fix it. Re-creating the exception here instead of forwarding what the pool threw handed the
+			// consumer the shutdown wording ("the client is shutting down") during plain overload.
+			final RecordingSubscriber delegate = new RecordingSubscriber(Long.MAX_VALUE);
+			final RefuseOnceExecutorService executor = new RefuseOnceExecutorService();
+			try {
+				final TestHarness harness = new TestHarness(false, executor, delegate);
+				harness.start();
+				harness.deliverAck();
+
+				// refuse exactly the drain, then accept again so the terminal notification it triggers gets
+				// through - a permanently refusing executor would swallow the very signal under test
+				executor.refuseNextSubmission();
+				assertDoesNotThrow(() -> harness.deliverCapture(0));
+
+				assertTrue(
+					delegate.errorDelivered.await(30, TimeUnit.SECONDS),
+					"a refused drain must terminate the subscription with an error the consumer actually receives"
+				);
+				final Throwable reported = delegate.lastError.get();
+				assertInstanceOf(EvitaClientPoolSaturatedException.class, reported);
+				assertTrue(
+					reported.getMessage().contains("saturated"),
+					"the consumer must be told the pool was saturated, not that the client is shutting down: " +
+						reported.getMessage()
+				);
+				assertTrue(
+					reported.getMessage().contains("maxThreadCount"),
+					"the reported cause must keep naming the knobs that widen the pool: " + reported.getMessage()
+				);
+			} finally {
+				executor.shutdownNow();
+			}
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------
 	// Test fixtures
 	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * Executor that refuses a single submission on demand and runs everything else on a real thread — a pool
+	 * that is momentarily saturated rather than permanently dead. Refusing only once is what makes the
+	 * *consequence* of the refusal observable: the terminal notification the driver dispatches in response
+	 * still has somewhere to run.
+	 */
+	private static final class RefuseOnceExecutorService extends AbstractExecutorService {
+		/**
+		 * Daemon-threaded on purpose. `Executors.newSingleThreadExecutor()` produces **non-daemon** threads, so
+		 * a fixture that forgot to shut it down would keep the surefire JVM alive and inflate the JVM-wide
+		 * thread delta that `CdcCallbackDispatcherTest` asserts on in the same fork.
+		 */
+		private final ExecutorService delegate = Executors.newSingleThreadExecutor(
+			runnable -> {
+				final Thread thread = new Thread(runnable, "test-refuse-once-pool");
+				thread.setDaemon(true);
+				return thread;
+			}
+		);
+		private volatile boolean refuseNext;
+
+		/**
+		 * Arms the refusal for the next submission only. Deliberately not a counter - the tests using this
+		 * fixture care about one specific submission, and arming it immediately before that call keeps which
+		 * one unambiguous.
+		 */
+		void refuseNextSubmission() {
+			this.refuseNext = true;
+		}
+
+		@Override
+		public void shutdown() {
+			this.delegate.shutdown();
+		}
+
+		@Nonnull
+		@Override
+		public List<Runnable> shutdownNow() {
+			return this.delegate.shutdownNow();
+		}
+
+		@Override
+		public boolean isShutdown() {
+			return this.delegate.isShutdown();
+		}
+
+		@Override
+		public boolean isTerminated() {
+			return this.delegate.isTerminated();
+		}
+
+		@Override
+		public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
+			return this.delegate.awaitTermination(timeout, unit);
+		}
+
+		@Override
+		public void execute(@Nonnull Runnable command) {
+			if (this.refuseNext) {
+				this.refuseNext = false;
+				throw new EvitaClientPoolSaturatedException(4, 100);
+			}
+			this.delegate.execute(command);
+		}
+	}
 
 	/**
 	 * Synchronous executor — runs every submitted task on the calling thread so the test
@@ -673,6 +783,13 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 	 */
 	private static final class HeartBeatSensingSubscriber extends RecordingSubscriber implements HeartBeatSensor {
 		final CountDownLatch heartBeatDelivered = new CountDownLatch(1);
+		/**
+		 * Counts down to zero once the expected number of heartbeats has arrived, so a test can await the
+		 * completion of an asynchronous batch instead of sleeping for a fixed budget and hoping. A poll loop
+		 * would be worse on both axes: slower than needed on an idle machine, and prone to expiring on a
+		 * loaded one — which is a test failure that says nothing about the code.
+		 */
+		final CountDownLatch allHeartBeatsDelivered;
 		final AtomicReference<Thread> heartBeatThread = new AtomicReference<>();
 		/**
 		 * Indices in the order the sensor observed them — `LongRunningCdcHeartbeatTest` derives its
@@ -681,7 +798,12 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 		final List<Long> observedIndices = new CopyOnWriteArrayList<>();
 
 		HeartBeatSensingSubscriber(long initialRequest) {
+			this(initialRequest, 1);
+		}
+
+		HeartBeatSensingSubscriber(long initialRequest, int expectedHeartBeats) {
 			super(initialRequest);
+			this.allHeartBeatsDelivered = new CountDownLatch(expectedHeartBeats);
 		}
 
 		@Override
@@ -689,6 +811,7 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			this.heartBeatThread.set(Thread.currentThread());
 			this.observedIndices.add(heartBeat.index());
 			this.heartBeatDelivered.countDown();
+			this.allHeartBeatsDelivered.countDown();
 		}
 	}
 
