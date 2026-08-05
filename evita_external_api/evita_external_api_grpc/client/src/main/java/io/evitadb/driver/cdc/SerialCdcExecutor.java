@@ -127,6 +127,15 @@ final class SerialCdcExecutor implements Executor {
 			return;
 		}
 		this.tasks.add(command);
+		// `terminate()` may have run between the check above and this add, in which case it has already
+		// cleared the queue and nothing will ever drain what we just enqueued: `draining` stays raised on a
+		// refusal, so `scheduleDrain` below would lose the CAS and return. Re-check and drop it ourselves, or
+		// the task is retained for the lifetime of this executor. The consumer is unaffected either way - it
+		// was notified by the `onDispatchFailure` handler that `terminate()` invoked.
+		if (this.terminated.get()) {
+			this.tasks.clear();
+			return;
+		}
 		scheduleDrain();
 	}
 
