@@ -85,6 +85,21 @@ These bite when running a **targeted** class from the command line and reading t
   rtk mvn -o -pl evita_engine install -DskipTests
   ```
   Skip this and the failure surfaces as a **compile** error in the test module (e.g. `wrong number of type arguments; required 3`, `NoSuchMethodError`) that points at test code which is actually fine — the stale binary is the real cause.
+- **`evita_long_running_tests` must be built *with* `evita_functional_tests`, and `install` cannot rescue
+  it.** It depends on functional_tests' **test-jar** for shared fixtures, but functional_tests sets
+  `maven.install.skip=true`, so that test-jar is *never* refreshed in `~/.m2` — `mvn install` on it prints
+  "Skipping artifact installation" and exits **successfully**, which is what makes this one so easy to
+  misdiagnose. Building the long-running module alone therefore resolves whatever `-tests` jar happens to
+  sit in the local repository, possibly months stale, and you get dozens of compile errors against helper
+  signatures (`AssertionUtils.assertSavepointCommitKeeps` and friends) pointing at long-running test code
+  that is perfectly correct. Always use one reactor:
+  ```bash
+  rtk mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+  ```
+  The tell is a signature in the error that exists nowhere in the source: compare the compiler's
+  `declared in method` line against the current declaration **before** touching a single call site.
+  `javap -cp ~/.m2/.../evita_functional_tests-<version>-tests.jar io.evitadb.utils.AssertionUtils` settles
+  it in one command.
 
 ## Waiting for concurrency — the asymmetry that decides flakiness
 

@@ -56,9 +56,8 @@ import java.util.concurrent.ExecutorService;
  * with **that** exception rather than one of its own making, because the saturation and shutdown variants of
  * {@link io.evitadb.driver.exception.EvitaClientPoolSaturatedException} carry opposite remedies. A capture
  * stream that cannot deliver to its consumer is not a capture stream, so failing it loudly is the honest
- * outcome — and the driver-internal
- * half of that teardown (cancelling the gRPC stream, de-registering from the publisher) is safe to run in place
- * precisely because it is local, non-blocking and non-re-entrant.
+ * outcome — and the driver-internal half of that teardown (cancelling the gRPC stream, de-registering from
+ * the publisher) is safe to run in place precisely because it is local, non-blocking and non-re-entrant.
  *
  * An earlier revision instead moved refused callbacks onto a fresh one-shot thread, on the grounds that
  * a terminal `onError`/`onComplete` which never arrives leaves the consumer believing its subscription is
