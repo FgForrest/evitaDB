@@ -33,14 +33,16 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.proxy.mock.CategoryInterface;
 import io.evitadb.api.proxy.mock.ProductInterface;
 import io.evitadb.api.proxy.mock.TestEntity;
+import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -2222,7 +2224,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 *
 	 * This is the end-to-end counterpart of `CatalogStatisticsConverterTest`: that one proves the translation is
 	 * lossless in isolation, this one proves the same distinctions survive a real server, a real gRPC call and a real
-	 * driver. `SESSIONS` is requested precisely because this build does not compute it yet - a component the server
+	 * driver. `DURABILITY` is requested precisely because this build does not compute it yet - a component the server
 	 * declined must arrive as a status, never as a silently absent field.
 	 */
 	@Test
@@ -2236,7 +2238,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				CatalogStatisticsComponent.STORAGE_SIZE,
 				CatalogStatisticsComponent.HISTORY,
 				CatalogStatisticsComponent.VOLATILE_STATE,
-				CatalogStatisticsComponent.FRAGMENTATION
+				CatalogStatisticsComponent.FRAGMENTATION,
+				CatalogStatisticsComponent.DURABILITY
 			)
 		);
 
@@ -2277,12 +2280,43 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			"An absent retained-history timestamp must decode back to absent, never to an epoch-zero instant"
 		);
 
+		// the compaction forecast, which no other end-to-end test sees. The projected time is the third nullable
+		// timestamp on this response and the only one that is *usually* absent on a quiet catalog, so the assertion is
+		// the accessor and the field agreeing rather than a value
+		final FragmentationStatistics fragmentation = statistics.fragmentationIfPresent().orElseThrow();
+		assertTrue(
+			fragmentation.activeRecordShare() > 0.0d && fragmentation.activeRecordShare() <= 1.0d,
+			fragmentation.toString()
+		);
+		assertTrue(fragmentation.liveBytes() > 0, fragmentation.toString());
+		assertTrue(fragmentation.fileSizeCompactionThresholdBytes() > 0, "Thresholds must survive the wire");
+		assertEquals(
+			fragmentation.estimatedCompactionAt() == null,
+			fragmentation.estimatedCompactionAtIfKnown().isEmpty(),
+			"An absent compaction projection must decode back to absent, never to an epoch-zero instant"
+		);
+		// the nested catalog-data-store slice is the one part of this component that a converter can drop without any
+		// scalar field noticing, so it is asserted end-to-end rather than only in the round-trip unit test
+		final DataStoreFragmentation catalogDataStore = fragmentation.catalogDataStore();
+		assertNotNull(catalogDataStore, "The catalog data store slice did not survive the wire");
+		assertTrue(catalogDataStore.liveBytes() > 0, catalogDataStore.toString());
+		assertTrue(
+			catalogDataStore.liveBytes() <= fragmentation.liveBytes(),
+			"The catalog store's slice cannot exceed the aggregate it is part of: " + catalogDataStore
+		);
+		assertEquals(
+			catalogDataStore.estimatedCompactionAt() == null,
+			catalogDataStore.estimatedCompactionAtIfKnown().isEmpty(),
+			"An absent projection on the nested slice must decode back to absent as well"
+		);
+
 		// requested but this build cannot compute it - the client must be told why, not left guessing. Whichever
 		// component stands here must still be declined: it is the only end-to-end proof that a component the engine
-		// refused arrives as a status rather than as a silently missing field. `SESSIONS` held this place until it
-		// was delivered, and `ACTIVITY`/`DURABILITY` cannot take it because neither has a record type yet
-		assertNull(statistics.fragmentation());
-		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.FRAGMENTATION)
+		// refused arrives as a status rather than as a silently missing field. `SESSIONS` held this place until it was
+		// delivered and `FRAGMENTATION` after it; the assertion is deliberately made on the *status map* alone, so the
+		// next stage that delivers this one can repoint it at any declined component rather than only at one that
+		// happens to have a record accessor
+		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.DURABILITY)
 			.orElseThrow();
 		assertEquals(ComponentAvailability.NOT_SUPPORTED, declinedStatus.availability());
 		assertNotNull(declinedStatus.reason());
@@ -2308,7 +2342,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				CatalogStatisticsComponent.INDEX_SUMMARY,
 				CatalogStatisticsComponent.STORAGE_COMPOSITION,
 				CatalogStatisticsComponent.COLLECTIONS,
-				CatalogStatisticsComponent.VOLATILE_STATE
+				CatalogStatisticsComponent.VOLATILE_STATE,
+				CatalogStatisticsComponent.FRAGMENTATION
 			)
 		);
 
@@ -2343,12 +2378,27 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertTrue(header.version() > 0, header.toString());
 		assertTrue(header.maxRecordSizeBytes() > 0, header.toString());
 
-		final CollectionVolatileState volatileState = statistics.volatileStateIfPresent().orElseThrow();
+		final DataStoreVolatileState volatileState = statistics.volatileStateIfPresent().orElseThrow();
 		assertTrue(volatileState.totalSizeIncludingVolatileDataBytes() > 0, volatileState.toString());
 		assertEquals(
 			volatileState.oldestRecordKeptTimestamp() == null,
 			volatileState.oldestRecordKeptTimestampIfAny().isEmpty(),
 			"An absent retained-history timestamp must decode back to absent, never to an epoch-zero instant"
+		);
+
+		// the collection level carries its own fragmentation message, not the catalog one narrowed - so its nullable
+		// projection is a second decoder path and needs its own end-to-end assertion. The configured thresholds are
+		// deliberately absent here: they are catalog-wide and reported once, at the catalog level
+		final DataStoreFragmentation fragmentation = statistics.fragmentationIfPresent().orElseThrow();
+		assertTrue(
+			fragmentation.activeRecordShare() > 0.0d && fragmentation.activeRecordShare() <= 1.0d,
+			fragmentation.toString()
+		);
+		assertTrue(fragmentation.liveBytes() > 0, fragmentation.toString());
+		assertEquals(
+			fragmentation.estimatedCompactionAt() == null,
+			fragmentation.estimatedCompactionAtIfKnown().isEmpty(),
+			"An absent compaction projection must decode back to absent, never to an epoch-zero instant"
 		);
 	}
 

@@ -71,6 +71,7 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.CompactionForecast;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
 import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
@@ -235,6 +236,13 @@ public class DefaultEntityCollectionPersistenceService
 	 */
 	@Getter
 	private final long lastCompactionAtMillis;
+	/**
+	 * The configured compaction thresholds. Retained - rather than only consumed by the constructor, as it was before
+	 * the compaction forecast existed - because {@link #measureCompactionForecast()} has to evaluate the very same
+	 * predicate the compaction trigger does, against the very same settings.
+	 */
+	@Nonnull
+	private final StorageSettings storageSettings;
 
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
@@ -526,6 +534,7 @@ public class DefaultEntityCollectionPersistenceService
 		);
 		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.syncWrites = storageSettings.syncWrites();
+		this.storageSettings = storageSettings;
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -966,6 +975,36 @@ public class DefaultEntityCollectionPersistenceService
 	@Override
 	public long getMaxRecordSizeBytes() {
 		return getStoragePartPersistenceService().getMaxRecordSizeBytes();
+	}
+
+	@Nonnull
+	@Override
+	public CompactionForecast measureCompactionForecast() {
+		// a collection asked about itself has no directory listing to share, so the store reads its own length
+		return measureCompactionForecast(DefaultCatalogPersistenceService.getNowEpochMillis(), null);
+	}
+
+	/**
+	 * Forecasts this data store's compaction against a clock reading, and optionally a file length, that the caller
+	 * supplies.
+	 *
+	 * The catalog-wide fold takes one clock reading and one directory listing and passes both to every store, so that
+	 * the stores' cadence gates and projections are all anchored at the same moment rather than at whatever instant
+	 * each was reached in the loop, and so that no store is re-`stat`ed for a length the listing already read.
+	 *
+	 * @param nowMillis        current wall-clock time in epoch milliseconds
+	 * @param measuredFileSize this store's file length as the caller's listing measured it, or `null` to read it here
+	 * @return this data store's compaction forecast as of that moment
+	 */
+	@Nonnull
+	CompactionForecast measureCompactionForecast(long nowMillis, @Nullable Long measuredFileSize) {
+		return DefaultCatalogPersistenceService.forecastCompaction(
+			getStoragePartPersistenceService().getOffsetIndex(),
+			measuredFileSize,
+			this.storageSettings,
+			this.lastCompactionAtMillis,
+			nowMillis
+		);
 	}
 
 	@Nonnull

@@ -35,15 +35,19 @@ import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.GENERIC_ENTITY_COLLECTION_PATTERN;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
 import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FILE_SUFFIX;
 
 /**
  * The storage-layer view of how many bytes a catalog occupies on disk, and which class of storage each of them
- * belongs to. Produced by {@link #measure(String, Path, DataStoreGenerations)} from a single listing of the catalog
- * directory - which is also the *only* way it should be produced, because the reconciliation described below holds
- * by construction of that method and by nothing else.
+ * belongs to. Produced from a single listing of the catalog directory by
+ * {@link #measure(String, Path, DataStoreGenerations)}, or by {@link #measure(String, File[], DataStoreGenerations)}
+ * when the caller has already taken that listing and needs the file lengths for something else too - the first is the
+ * convenience that takes the listing and hands it to the second, which owns the one classification loop. Those two
+ * are the *only* ways it should be produced, because the reconciliation described below holds by construction of that
+ * loop and by nothing else.
  *
  * This is deliberately *not* the API-facing statistics record: the persistence layer knows file names, file lengths
  * and offset-index bookkeeping, and nothing about statistics components. The engine maps this record onto the
@@ -58,6 +62,14 @@ import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FI
  * `blockedByActiveReaderBytes` and `purgeableBytes` are a partition of `awaitingDeletionBytes`, not additional
  * classes: they sum to it and must not be added to the total again.
  *
+ * **The catalog's own data store is reported separately as well as inside the totals.** `catalogDataStoreLiveBytes`
+ * and `catalogDataStoreWasteBytes` are the part of `liveBytes` / `wasteBytes` that belongs to the catalog's own file
+ * rather than to any collection's, so `liveBytes == catalogDataStoreLiveBytes + the sum over every *open* collection`
+ * holds within one measurement. That qualifier is the reason the split has to be measured here rather than derived
+ * by a caller subtracting separately-fetched per-collection values: a current collection file whose persistence
+ * service is not open contributes to neither class and falls into `unaccountedBytes`, so the subtraction is wrong by
+ * exactly those collections - and the two sides of it would be snapshots at different catalog versions anyway.
+ *
  * **The file counts and the reader floor ride along with the byte classes rather than being measured separately.**
  * Both counts are byproducts of the same listing the bytes come from, and the floor is read at the same moment the
  * superseded files are classified by it - so a caller that needs the history view and the size view together pays for
@@ -68,6 +80,9 @@ import static io.evitadb.spi.store.catalog.persistence.PersistenceService.WAL_FI
  *                                   actual lengths
  * @param wasteBytes                 the rest of the current data store files - superseded records that compaction
  *                                   reclaims
+ * @param catalogDataStoreLiveBytes  the part of `liveBytes` held by the catalog's own data store rather than by any
+ *                                   collection's
+ * @param catalogDataStoreWasteBytes the part of `wasteBytes` held by the catalog's own data store
  * @param walFileCount               number of write-ahead log files present in the directory
  * @param walBytes                   bytes of the write-ahead log files present in the directory
  * @param awaitingDeletionFileCount  number of superseded data store files that are no longer current but still on disk
@@ -85,6 +100,8 @@ public record CatalogStorageFootprint(
 	long totalBytes,
 	long liveBytes,
 	long wasteBytes,
+	long catalogDataStoreLiveBytes,
+	long catalogDataStoreWasteBytes,
 	int walFileCount,
 	long walBytes,
 	int awaitingDeletionFileCount,
@@ -121,15 +138,46 @@ public record CatalogStorageFootprint(
 		final File[] files = catalogStoragePath.toFile().listFiles();
 		if (files == null) {
 			// the directory is gone or unreadable - which is itself an honest answer of "nothing measurable here"
-			return new CatalogStorageFootprint(0L, 0L, 0L, 0, 0L, 0, 0L, 0L, 0L, 0L, 0L, 0L);
+			return new CatalogStorageFootprint(0L, 0L, 0L, 0L, 0L, 0, 0L, 0, 0L, 0L, 0L, 0L, 0L, 0L);
 		}
+		return measure(catalogName, files, generations);
+	}
 
+	/**
+	 * Measures an already-listed catalog directory - the same classification as
+	 * {@link #measure(String, Path, DataStoreGenerations)}, for a caller that has the listing in hand and needs the
+	 * file lengths for something else as well.
+	 *
+	 * That caller is the compaction forecast, which evaluates the compaction predicate against each data store's file
+	 * length. Re-reading those lengths itself would cost one `stat` per store *and* let the size report and the
+	 * forecast describe two different moments of the same file - so the listing is taken once and both readings are
+	 * derived from it.
+	 *
+	 * @param catalogName name of the catalog, which is what its bootstrap file is named after
+	 * @param files       the flat listing of the catalog directory
+	 * @param generations what the catalog header says is current, or `null` when it could not be read
+	 * @return the decomposed footprint of the listing
+	 */
+	@Nonnull
+	public static CatalogStorageFootprint measure(
+		@Nonnull String catalogName,
+		@Nonnull File[] files,
+		@Nullable DataStoreGenerations generations
+	) {
 		final String bootstrapFile = getCatalogBootstrapFileName(catalogName);
 		final Pattern catalogFilePattern = getCatalogDataStoreFileNamePattern(catalogName);
+
+		// the catalog's own current data store file, so its share of the live/waste split can be reported apart from
+		// the collections' - without a header there is no current generation to name, and the split stays at zero
+		// alongside every other class the header would have been needed to attribute
+		final String currentCatalogFile = generations == null ?
+			null : getCatalogDataStoreFileName(catalogName, generations.currentCatalogFileIndex());
 
 		long totalBytes = 0L;
 		long liveBytes = 0L;
 		long wasteBytes = 0L;
+		long catalogDataStoreLiveBytes = 0L;
+		long catalogDataStoreWasteBytes = 0L;
 		int walFileCount = 0;
 		long walBytes = 0L;
 		int awaitingDeletionFileCount = 0;
@@ -166,6 +214,10 @@ public record CatalogStorageFootprint(
 					final long live = Math.min(activeSize, length);
 					liveBytes += live;
 					wasteBytes += length - live;
+					if (fileName.equals(currentCatalogFile)) {
+						catalogDataStoreLiveBytes = live;
+						catalogDataStoreWasteBytes = length - live;
+					}
 				}
 				// a current data store file whose service is not open stays in the unaccounted remainder
 			} else if (generations.isSuperseded(fileName, catalogFilePattern)) {
@@ -190,6 +242,8 @@ public record CatalogStorageFootprint(
 			totalBytes,
 			liveBytes,
 			wasteBytes,
+			catalogDataStoreLiveBytes,
+			catalogDataStoreWasteBytes,
 			walFileCount,
 			walBytes,
 			awaitingDeletionFileCount,

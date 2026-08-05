@@ -146,6 +146,7 @@ import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
@@ -1443,15 +1444,27 @@ public final class Catalog
 	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
 		CatalogStatisticsComponent.assertCatalogLevel(components);
 		final CatalogStatistics.Builder builder = CatalogStatistics.builder(getIdentity());
-		// STORAGE_SIZE and HISTORY are two readings of one directory listing: the first attributes its bytes, the second
-		// reports how many files each of two of those classes holds and what is pinning them. Measuring once is not only
-		// the cheaper answer - it is the only one under which the two components cannot describe different moments.
-		// The listing is flat and its sum is the measured total, which is what keeps the size record's
-		// total-equals-sum invariant true by construction rather than by agreement between two measurements
-		final CatalogStorageFootprint storageFootprint =
-			components.contains(CatalogStatisticsComponent.STORAGE_SIZE) ||
-				components.contains(CatalogStatisticsComponent.HISTORY) ?
-				this.persistenceService.measureStorageFootprint() : null;
+		// STORAGE_SIZE, HISTORY and FRAGMENTATION are three readings of one directory listing: the first attributes its
+		// bytes, the second reports how many files each of two of those classes holds and what is pinning them, the
+		// third turns the live/waste split into a share. Measuring once is not only the cheaper answer - it is the only
+		// one under which the three components cannot describe different moments. The listing is flat and its sum is
+		// the measured total, which is what keeps the size record's total-equals-sum invariant true by construction
+		// rather than by agreement between separate measurements.
+		// FRAGMENTATION needs one thing more - the compaction predicate, evaluated against those very file lengths -
+		// so when it is asked for, the persistence layer measures both from the one listing and the other two read
+		// their footprint back out of that snapshot. Asking for them *without* FRAGMENTATION costs no forecast at all
+		final CatalogFragmentationSnapshot fragmentationSnapshot =
+			components.contains(CatalogStatisticsComponent.FRAGMENTATION) ?
+				this.persistenceService.measureFragmentation() : null;
+		final CatalogStorageFootprint storageFootprint;
+		if (fragmentationSnapshot != null) {
+			storageFootprint = fragmentationSnapshot.footprint();
+		} else if (components.contains(CatalogStatisticsComponent.STORAGE_SIZE) ||
+			components.contains(CatalogStatisticsComponent.HISTORY)) {
+			storageFootprint = this.persistenceService.measureStorageFootprint();
+		} else {
+			storageFootprint = null;
+		}
 		for (final CatalogStatisticsComponent component : components) {
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
@@ -1480,7 +1493,13 @@ public final class Catalog
 				}
 				case HISTORY -> builder.withHistory(describeHistory(Objects.requireNonNull(storageFootprint)));
 				case VOLATILE_STATE -> builder.withVolatileState(measureVolatileState());
-				case ACTIVITY, FRAGMENTATION, DURABILITY -> builder.withUnavailable(
+				case FRAGMENTATION -> builder.withFragmentation(
+					FragmentationProjection.toFragmentationStatistics(
+						Objects.requireNonNull(fragmentationSnapshot),
+						this.evitaConfiguration.storage()
+					)
+				);
+				case ACTIVITY, DURABILITY -> builder.withUnavailable(
 					component,
 					ComponentAvailability.NOT_SUPPORTED,
 					"Statistics component `" + component + "` is not computed by this version yet."
@@ -1622,7 +1641,10 @@ public final class Catalog
 	 */
 	@Nonnull
 	private VolatileStateStatistics measureVolatileState() {
-		VolatileDataFootprint footprint = this.persistenceService.measureVolatileData();
+		// the catalog's own data store is measured on its own and *kept*, not just used to seed the fold - it is the
+		// slice that lets a client tell an unflushed backlog in the metadata store from one in a collection
+		final VolatileDataFootprint catalogDataStore = this.persistenceService.measureVolatileData();
+		VolatileDataFootprint footprint = catalogDataStore;
 		for (final EntityCollection collection : this.entityCollections.values()) {
 			footprint = footprint.plus(collection.measureVolatileData());
 		}
@@ -1630,7 +1652,8 @@ public final class Catalog
 			footprint.totalSizeIncludingVolatileDataBytes(),
 			footprint.nonFlushedRecordCount(),
 			footprint.nonFlushedSizeBytes(),
-			footprint.oldestRecordKeptTimestamp()
+			footprint.oldestRecordKeptTimestamp(),
+			VolatileStateProjection.toDataStoreVolatileState(catalogDataStore)
 		);
 	}
 
@@ -1695,11 +1718,25 @@ public final class Catalog
 	 * Counts the indexes of the whole catalog. Each collection answers from the size of its index map, so the cost is
 	 * independent of how large those indexes are - which is what allows this component to stay catalog-level.
 	 *
-	 * @return number of indexes including the catalog-level index itself
+	 * **The catalog-level index is one per {@link Scope}, not one per catalog.** `LIVE` always exists; `ARCHIVED` is
+	 * created lazily by {@link #getCatalogIndex(Scope)} the first time something is indexed in that scope, so a
+	 * catalog holding archived globally-unique data has two. Counting a hard-coded one undercounted every such
+	 * catalog, and would undercount further the day a third scope is added - hence the loop over
+	 * {@link Scope#values()} rather than a constant.
+	 *
+	 * The number counts index *instances*, not non-empty ones: the `LIVE` catalog index exists from the moment the
+	 * catalog does, whether or not any globally-unique attribute has ever been written to it.
+	 *
+	 * @return number of indexes including every scope's catalog-level index
 	 */
 	private long countIndexes() {
-		// the catalog-level index is counted first, then every collection adds its own
-		long totalIndexCount = 1L;
+		// every scope whose catalog-level index has actually been created, then every collection adds its own
+		long totalIndexCount = 0L;
+		for (final Scope scope : Scope.values()) {
+			if (getCatalogIndexIfExits(scope).isPresent()) {
+				totalIndexCount++;
+			}
+		}
 		for (final EntityCollection collection : this.entityCollections.values()) {
 			totalIndexCount += collection.getIndexCount();
 		}

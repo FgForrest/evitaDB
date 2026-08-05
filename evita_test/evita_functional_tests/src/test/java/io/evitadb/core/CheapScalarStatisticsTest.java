@@ -29,14 +29,17 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
-import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.CollectionStorageSize;
+import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.SessionStatistics;
+import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -85,14 +88,13 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 */
 	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED = EnumSet.of(
 		CatalogStatisticsComponent.ACTIVITY,
-		CatalogStatisticsComponent.FRAGMENTATION,
 		CatalogStatisticsComponent.DURABILITY
 	);
 	/**
-	 * The collection-level components no build of this branch computes yet.
+	 * The collection-level components no build of this branch computes yet - the expensive pair, which will keep this
+	 * partition discriminating at the collection level until the last stage delivers them.
 	 */
 	private static final Set<CatalogStatisticsComponent> COLLECTION_LEVEL_NOT_SUPPORTED = EnumSet.of(
-		CatalogStatisticsComponent.FRAGMENTATION,
 		CatalogStatisticsComponent.INDEX_CARDINALITY,
 		CatalogStatisticsComponent.MEMORY_FOOTPRINT
 	);
@@ -343,7 +345,7 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 
 		long summedCollectionBytes = 0L;
 		for (final String entityType : new String[]{ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_BRAND}) {
-			final CollectionVolatileState collectionState = this.evita.management()
+			final DataStoreVolatileState collectionState = this.evita.management()
 				.getEntityCollectionStatistics(
 					CATALOG, entityType, EnumSet.of(CatalogStatisticsComponent.VOLATILE_STATE)
 				)
@@ -365,6 +367,149 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		);
 		assertTrue(catalogWide.nonFlushedRecordCount() >= 0, catalogWide.toString());
 		assertTrue(catalogWide.nonFlushedSizeBytes() >= 0, catalogWide.toString());
+
+		// ... and the catalog's own data store is reported apart from that sum, which is what turns "something is
+		// holding memory" into "the metadata store is" or "a collection is". It is the exact quantity the aggregate
+		// is seeded with, so the difference between them is precisely the collections' contribution
+		final DataStoreVolatileState catalogDataStore = catalogWide.catalogDataStore();
+		assertTrue(
+			catalogDataStore.totalSizeIncludingVolatileDataBytes() > 0,
+			"The catalog's own data store holds the schemas and headers, so it cannot be empty: " + catalogDataStore
+		);
+		assertEquals(
+			catalogWide.totalSizeIncludingVolatileDataBytes() - summedCollectionBytes,
+			catalogDataStore.totalSizeIncludingVolatileDataBytes(),
+			"The catalog-wide total minus its collections must be exactly the catalog data store's own share"
+		);
+	}
+
+	@Test
+	@DisplayName("The catalog's own data store is reported apart from the storage size it is folded into")
+	void shouldReportTheCatalogDataStoreSliceOfTheStorageSize() {
+		final StorageSizeStatistics storageSize = this.evita.management()
+			.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.STORAGE_SIZE))
+			.storageSizeIfPresent()
+			.orElseThrow();
+
+		// the catalog's own file holds the schemas, the headers and the catalog-level indexes, so it is never empty
+		// in a built catalog - and never the whole of it either, since the entities live in collection stores
+		assertTrue(storageSize.catalogDataStoreLiveBytes() > 0, storageSize.toString());
+		assertTrue(
+			storageSize.catalogDataStoreLiveBytes() < storageSize.liveBytes(),
+			"The catalog store's slice cannot account for every live byte in the catalog: " + storageSize
+		);
+		assertTrue(storageSize.catalogDataStoreWasteBytes() >= 0, storageSize.toString());
+		assertTrue(
+			storageSize.catalogDataStoreWasteBytes() <= storageSize.wasteBytes(),
+			"The catalog store's waste cannot exceed the catalog-wide waste it is part of: " + storageSize
+		);
+
+		// the identity that makes the aggregate decomposable: the remainder is the sum over every open collection
+		long summedCollectionLive = 0L;
+		long summedCollectionWaste = 0L;
+		for (final String entityType : new String[]{ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_BRAND}) {
+			final CollectionStorageSize collectionSize = this.evita.management()
+				.getEntityCollectionStatistics(
+					CATALOG, entityType, EnumSet.of(CatalogStatisticsComponent.STORAGE_SIZE)
+				)
+				.storageSizeIfPresent()
+				.orElseThrow();
+			summedCollectionLive += collectionSize.liveBytes();
+			summedCollectionWaste += collectionSize.wasteBytes();
+		}
+		assertEquals(
+			storageSize.liveBytes(),
+			storageSize.catalogDataStoreLiveBytes() + summedCollectionLive,
+			"The catalog-wide live bytes are not the catalog store's plus its collections': " + storageSize
+		);
+		assertEquals(
+			storageSize.wasteBytes(),
+			storageSize.catalogDataStoreWasteBytes() + summedCollectionWaste,
+			"The catalog-wide waste bytes are not the catalog store's plus its collections': " + storageSize
+		);
+	}
+
+	@Test
+	@DisplayName("Both scopes of the catalog-level index are counted, not only the live one")
+	void shouldCountTheArchivedCatalogIndexAsWellAsTheLiveOne() {
+		// the catalog-level index is one per scope: `LIVE` always exists, `ARCHIVED` is created the first time
+		// something globally unique is indexed in that scope. That needs its own catalog, because the shared fixture
+		// declares no globally-unique attribute and would never create the second one
+		final Scope[] bothScopes = {Scope.LIVE, Scope.ARCHIVED};
+		final String archivingCatalog = CATALOG + "Archiving";
+		this.evita.defineCatalog(archivingCatalog)
+			.withAttribute("globalCode", String.class, thatIs -> thatIs.uniqueGloballyInScope(bothScopes))
+			.updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			archivingCatalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withGlobalAttribute("globalCode")
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 1).setAttribute("globalCode", "product-1")
+				);
+			}
+		);
+
+		final long catalogBefore = totalIndexCountOf(archivingCatalog);
+		final long collectionsBefore = collectionIndexCountOf(archivingCatalog, ENTITY_PRODUCT);
+
+		this.evita.updateCatalog(
+			archivingCatalog,
+			session -> {
+				// a block body, not an expression: `archiveEntity` returns a boolean, which makes a bare lambda match
+				// both the consumer and the function overload of `updateCatalog`
+				session.archiveEntity(ENTITY_PRODUCT, 1);
+			}
+		);
+
+		final long catalogAfter = totalIndexCountOf(archivingCatalog);
+		final long collectionsAfter = collectionIndexCountOf(archivingCatalog, ENTITY_PRODUCT);
+
+		// archiving builds the collection's `ARCHIVED` indexes *and* the catalog's own `ARCHIVED` index. The
+		// collection half is counted from its index map either way, so it moves under any implementation; the
+		// catalog half is exactly what a hard-coded count of one silently dropped. Asserting on the difference of
+		// the two deltas rather than on an absolute total keeps this pinned to the bug rather than to how many
+		// entity indexes this fixture happens to produce
+		assertEquals(
+			(collectionsAfter - collectionsBefore) + 1L,
+			catalogAfter - catalogBefore,
+			"Archiving created the catalog's `ARCHIVED` index, but the catalog-wide count grew only by the " +
+				"collection's own indexes - the second scope of the catalog-level index is not being counted"
+		);
+	}
+
+	/**
+	 * Reads the catalog-wide index total.
+	 *
+	 * @param catalogName catalog to ask
+	 * @return the number of indexes it reports across every collection and every scope of its own index
+	 */
+	private long totalIndexCountOf(@Nonnull String catalogName) {
+		return this.evita.management()
+			.getCatalogStatistics(catalogName, EnumSet.of(CatalogStatisticsComponent.INDEX_SUMMARY))
+			.indexSummaryIfPresent()
+			.orElseThrow()
+			.totalIndexCount();
+	}
+
+	/**
+	 * Reads one collection's index total.
+	 *
+	 * @param catalogName catalog holding the collection
+	 * @param entityType  collection to ask
+	 * @return the number of indexes that one collection reports
+	 */
+	private long collectionIndexCountOf(@Nonnull String catalogName, @Nonnull String entityType) {
+		return this.evita.management()
+			.getEntityCollectionStatistics(
+				catalogName, entityType, EnumSet.of(CatalogStatisticsComponent.INDEX_SUMMARY)
+			)
+			.indexSummaryIfPresent()
+			.orElseThrow()
+			.totalIndexCount();
 	}
 
 	/**

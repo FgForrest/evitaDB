@@ -315,6 +315,18 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	long getMaxRecordSizeBytes();
 
 	/**
+	 * Reports whether this collection's data store is due for compaction and when it will be.
+	 *
+	 * The predicate is evaluated here rather than by the caller so that it cannot drift from the trigger that actually
+	 * fires compaction, and the projection is an extrapolation from the observed write rate rather than a schedule -
+	 * see {@link CompactionForecast}.
+	 *
+	 * @return this data store's compaction forecast
+	 */
+	@Nonnull
+	CompactionForecast measureCompactionForecast();
+
+	/**
 	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage
 	 * file). This method is only temporary and will be removed in the future.
 	 *

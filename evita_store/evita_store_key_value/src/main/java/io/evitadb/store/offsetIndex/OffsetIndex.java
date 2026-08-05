@@ -53,6 +53,7 @@ import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
+import io.evitadb.store.offsetIndex.model.WasteAccumulation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
@@ -239,6 +240,13 @@ public class OffsetIndex {
 	 * records except the OffsetIndex index. The removals and dead data are not reflected by this property.
 	 */
 	private final AtomicLong totalSizeBytes = new AtomicLong(0);
+	/**
+	 * How many bytes rewrites and removals have stranded in the current data file, and how fast that is growing. Only
+	 * ever written by the flush thread inside {@link #promoteNonFlushedValuesToSharedState(long, Collection)}, and
+	 * published as one immutable value so a statistics reader cannot pair a counter with a rate from another flush.
+	 */
+	@Nonnull
+	private volatile WasteAccumulation wasteAccumulation = WasteAccumulation.NONE;
 	/**
 	 * Volatile values contains history of previous writes and removals so that offset index can provide access to
 	 * the correct contents based on the catalog version. Volatile values keep track only of the changes that have
@@ -561,6 +569,9 @@ public class OffsetIndex {
 		);
 		this.totalSizeBytes.set(previousOffsetIndex.totalSizeBytes.get());
 		this.maxRecordSizeBytes.set(previousOffsetIndex.getMaxRecordSizeBytes());
+		// this constructor builds the compacted successor of `previousOffsetIndex` - the stranded bytes did not
+		// survive the rewrite, but the write load that produced them did
+		this.wasteAccumulation = previousOffsetIndex.wasteAccumulation.carriedOverToCompactedFile();
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.readOnlyKeyCompressorView = null;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -1256,6 +1267,34 @@ public class OffsetIndex {
 	}
 
 	/**
+	 * Returns how many bytes rewrites and removals have stranded in the current data file and how fast that is
+	 * growing - the input a compaction forecast extrapolates from.
+	 *
+	 * Scoped to the file this index currently writes to, not to the index's whole history: a compaction leaves the
+	 * stranded bytes behind in the file it replaced. See {@link WasteAccumulation} for what the rate does and does
+	 * not say.
+	 *
+	 * @return the waste accumulated by the current data file
+	 */
+	@Nonnull
+	public WasteAccumulation getWasteAccumulation() {
+		return this.wasteAccumulation;
+	}
+
+	/**
+	 * Returns the current length of the data file this index writes to.
+	 *
+	 * This is the very number the compaction trigger compares against `fileSizeCompactionThresholdBytes` when it runs
+	 * at flush time, which is why the forecast reads it from here rather than measuring the file separately - a
+	 * prediction made from a different notion of "file size" than the trigger uses would drift from it.
+	 *
+	 * @return length of the data file in bytes
+	 */
+	public long getFileSize() {
+		return this.writeHandle.getLastWrittenPosition();
+	}
+
+	/**
 	 * Calculates the living object share.
 	 * The living object share is calculated as the ratio of the total size of the object and the size of the file
 	 * that is being written to.
@@ -1595,6 +1634,9 @@ public class OffsetIndex {
 
 		long workingMaxRecordSize = this.maxRecordSizeBytes.get();
 		long recordLengthDelta = 0;
+		// bytes this flush strands in the data file. Deliberately *not* `recordLengthDelta`: a rewrite that shrinks
+		// a record has a negative length delta while still leaving the whole superseded record behind as waste
+		long wasteBytesGenerated = 0;
 		int batchIndex = 0;
 
 		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
@@ -1619,6 +1661,8 @@ public class OffsetIndex {
 						count = -1;
 						byteDelta = -removedLength;
 						recordLengthDelta -= removedLength;
+						// the record leaves the index but not the file - only compaction reclaims it
+						wasteBytesGenerated += removedLength;
 					} else {
 						count = 0;
 						byteDelta = 0L;
@@ -1646,6 +1690,8 @@ public class OffsetIndex {
 						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
 					root = root.updated(recordKey, newRecordLocation);
 					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
+					// the superseded version stays in the file behind the new one
+					wasteBytesGenerated += existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
@@ -1676,6 +1722,9 @@ public class OffsetIndex {
 		// update global statistics
 		this.totalSizeBytes.addAndGet(recordLengthDelta);
 		this.maxRecordSizeBytes.set(workingMaxRecordSize);
+		// sample the waste rate here rather than per write: a flush is where the stranded bytes actually become part
+		// of the file, and it is the same moment the compaction trigger itself evaluates
+		this.wasteAccumulation = this.wasteAccumulation.sampled(wasteBytesGenerated, promotedAt);
 		// append the new per-version snapshots, then drop any history a catalog has released (the watermark set by
 		// purge is applied here, in the serialized writer, so no reader-side lock is needed)
 		Roots published = currentRoots.append(catalogVersion, addVersions, addRoots, addHistograms, addTimestamps);

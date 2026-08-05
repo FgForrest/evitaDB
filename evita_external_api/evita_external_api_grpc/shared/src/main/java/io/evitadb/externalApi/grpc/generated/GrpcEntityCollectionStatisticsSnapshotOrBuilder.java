@@ -194,7 +194,7 @@ public interface GrpcEntityCollectionStatisticsSnapshotOrBuilder extends
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    * @return Whether the fragmentation field is set.
    */
   boolean hasFragmentation();
@@ -203,18 +203,18 @@ public interface GrpcEntityCollectionStatisticsSnapshotOrBuilder extends
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    * @return The fragmentation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation getFragmentation();
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getFragmentation();
   /**
    * <pre>
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder getFragmentationOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getFragmentationOrBuilder();
 
   /**
    * <pre>
@@ -248,7 +248,7 @@ public interface GrpcEntityCollectionStatisticsSnapshotOrBuilder extends
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    * @return Whether the volatileState field is set.
    */
   boolean hasVolatileState();
@@ -257,18 +257,18 @@ public interface GrpcEntityCollectionStatisticsSnapshotOrBuilder extends
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    * @return The volatileState.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getVolatileState();
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getVolatileState();
   /**
    * <pre>
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder getVolatileStateOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getVolatileStateOrBuilder();
 
   /**
    * <pre>

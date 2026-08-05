@@ -47,23 +47,38 @@ import java.util.Optional;
  *
  * Not delivered for an unusable catalog - there is no in-memory state to report.
  *
+ * **Which store is it?**
+ *
+ * Every figure above is folded across the catalog's own data store *and* every collection's, so on its own it cannot
+ * say *where* the memory is being held. `catalogDataStore` reports the catalog's own store - schema, headers and
+ * catalog-level indexes - separately, so an unflushed backlog can be attributed to the metadata store or to a
+ * collection. Within one response `nonFlushedSizeBytes` is `catalogDataStore.nonFlushedSizeBytes()` plus the same
+ * field of every collection; across two responses that identity is not guaranteed, which is why the slice is reported
+ * rather than left to be derived.
+ *
  * **Per collection**
  *
- * The same state for one collection's data store is fetched separately - see {@link CollectionVolatileState}.
+ * The same state for one collection's data store is fetched separately - it is the very same
+ * {@link DataStoreVolatileState} record, because a collection's store and the catalog's own are the same kind of
+ * thing measured the same way.
  *
  * @param totalSizeIncludingVolatileDataBytes bytes every data store of the catalog occupies including data not yet
  *                                            flushed
  * @param nonFlushedRecordCount               records written but not yet flushed to disk, across all of them
  * @param nonFlushedSizeBytes                 bytes those records occupy
  * @param oldestRecordKeptTimestamp           creation time of the oldest record kept alive for an open session; null
- *                                            when nothing is being retained
+ *                                            when nothing is being retained. The one field that is *not* summed - it
+ *                                            is the earliest across the stores
+ * @param catalogDataStore                    the same state for the catalog's own data store alone - the slice of
+ *                                            every figure above that belongs to no collection
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record VolatileStateStatistics(
 	long totalSizeIncludingVolatileDataBytes,
 	int nonFlushedRecordCount,
 	long nonFlushedSizeBytes,
-	@Nullable OffsetDateTime oldestRecordKeptTimestamp
+	@Nullable OffsetDateTime oldestRecordKeptTimestamp,
+	@Nonnull DataStoreVolatileState catalogDataStore
 ) {
 
 	/**

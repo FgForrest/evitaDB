@@ -87,4 +87,34 @@ public interface GrpcVolatileStateStatisticsOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime oldestRecordKeptTimestamp = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getOldestRecordKeptTimestampOrBuilder();
+
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   * @return Whether the catalogDataStore field is set.
+   */
+  boolean hasCatalogDataStore();
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   * @return The catalogDataStore.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getCatalogDataStore();
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getCatalogDataStoreOrBuilder();
 }

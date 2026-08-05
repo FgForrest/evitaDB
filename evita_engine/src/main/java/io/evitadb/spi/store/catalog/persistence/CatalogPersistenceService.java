@@ -726,6 +726,30 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	VolatileDataFootprint measureVolatileData();
 
 	/**
+	 * Measures everything the fragmentation report needs: how the catalog directory's bytes classify, whether any of
+	 * its data stores is due for compaction, and when the next one will be - the latter two both for the catalog's
+	 * own store alone and folded across every collection store it currently holds open.
+	 *
+	 * Unlike {@link #measureStoragePartComposition()} the fold **is** meaningful here, for the same reason
+	 * {@link #measureVolatileData()} may be summed by its caller: eligibility is a disjunction and a rate of stranded
+	 * bytes adds up regardless of which store stranded them. A collection whose persistence service this catalog does
+	 * not hold open is absent from the sum rather than guessed at - the same rule
+	 * {@link #measureStorageFootprint()} applies to a file whose live size no open index can report.
+	 *
+	 * **This returns the footprint too, rather than leaving the caller to fetch it**, because the predicate is
+	 * evaluated against the very file lengths the footprint classifies - see {@link CatalogFragmentationSnapshot} for
+	 * why they have to come from one listing. A caller that wants only the byte classification calls
+	 * {@link #measureStorageFootprint()} and pays for no forecast at all.
+	 *
+	 * The predicate is evaluated here rather than by the caller so that it cannot drift from the trigger that
+	 * actually fires compaction - see {@link CompactionForecast}.
+	 *
+	 * @return the footprint and the compaction forecast, measured together
+	 */
+	@Nonnull
+	CatalogFragmentationSnapshot measureFragmentation();
+
+	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #getOrCreateEntityCollectionPersistenceService(long, String, int)}.
 	 *

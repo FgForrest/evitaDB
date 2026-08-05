@@ -25,17 +25,17 @@ package io.evitadb.externalApi.grpc.requestResponse;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
-import io.evitadb.api.statistics.CollectionFragmentation;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
-import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
@@ -250,13 +250,13 @@ public class CatalogStatisticsConverter {
 			builder.setStorageComposition(toGrpcCollectionStorageComposition(statistics.storageComposition()));
 		}
 		if (statistics.fragmentation() != null) {
-			builder.setFragmentation(toGrpcCollectionFragmentation(statistics.fragmentation()));
+			builder.setFragmentation(toGrpcDataStoreFragmentation(statistics.fragmentation()));
 		}
 		if (statistics.indexSummary() != null) {
 			builder.setIndexSummary(toGrpcCollectionIndexSummary(statistics.indexSummary()));
 		}
 		if (statistics.volatileState() != null) {
-			builder.setVolatileState(toGrpcCollectionVolatileState(statistics.volatileState()));
+			builder.setVolatileState(toGrpcDataStoreVolatileState(statistics.volatileState()));
 		}
 		for (final ComponentStatus status : statistics.componentStatus().values()) {
 			builder.addComponentStatus(toGrpcComponentStatus(status));
@@ -282,9 +282,9 @@ public class CatalogStatisticsConverter {
 			snapshot.hasStorageSize() ? toCollectionStorageSize(snapshot.getStorageSize()) : null,
 			snapshot.hasStorageComposition() ?
 				toCollectionStorageComposition(snapshot.getStorageComposition()) : null,
-			snapshot.hasFragmentation() ? toCollectionFragmentation(snapshot.getFragmentation()) : null,
+			snapshot.hasFragmentation() ? toDataStoreFragmentation(snapshot.getFragmentation()) : null,
 			snapshot.hasIndexSummary() ? toCollectionIndexSummary(snapshot.getIndexSummary()) : null,
-			snapshot.hasVolatileState() ? toCollectionVolatileState(snapshot.getVolatileState()) : null,
+			snapshot.hasVolatileState() ? toDataStoreVolatileState(snapshot.getVolatileState()) : null,
 			toComponentStatuses(snapshot.getComponentStatusList())
 		);
 	}
@@ -585,6 +585,8 @@ public class CatalogStatisticsConverter {
 			.setSizeOnDiskInBytes(storageSize.sizeOnDiskInBytes())
 			.setLiveBytes(storageSize.liveBytes())
 			.setWasteBytes(storageSize.wasteBytes())
+			.setCatalogDataStoreLiveBytes(storageSize.catalogDataStoreLiveBytes())
+			.setCatalogDataStoreWasteBytes(storageSize.catalogDataStoreWasteBytes())
 			.setWalBytes(storageSize.walBytes())
 			.setAwaitingDeletionBytes(storageSize.awaitingDeletionBytes())
 			.setBlockedByActiveReaderBytes(storageSize.blockedByActiveReaderBytes())
@@ -608,6 +610,8 @@ public class CatalogStatisticsConverter {
 			grpcStorageSize.getSizeOnDiskInBytes(),
 			grpcStorageSize.getLiveBytes(),
 			grpcStorageSize.getWasteBytes(),
+			grpcStorageSize.getCatalogDataStoreLiveBytes(),
+			grpcStorageSize.getCatalogDataStoreWasteBytes(),
 			grpcStorageSize.getWalBytes(),
 			grpcStorageSize.getAwaitingDeletionBytes(),
 			grpcStorageSize.getBlockedByActiveReaderBytes(),
@@ -657,16 +661,24 @@ public class CatalogStatisticsConverter {
 	private static GrpcFragmentationStatistics toGrpcFragmentationStatistics(
 		@Nonnull FragmentationStatistics fragmentation
 	) {
-		return GrpcFragmentationStatistics.newBuilder()
+		final GrpcFragmentationStatistics.Builder builder = GrpcFragmentationStatistics.newBuilder()
 			.setActiveRecordShare(fragmentation.activeRecordShare())
 			.setLiveBytes(fragmentation.liveBytes())
 			.setWasteBytes(fragmentation.wasteBytes())
 			.setCompactionEligibleNow(fragmentation.compactionEligibleNow())
+			.setWasteBytesGenerated(fragmentation.wasteBytesGenerated())
+			.setWasteAccumulationRateBytesPerSecond(fragmentation.wasteAccumulationRateBytesPerSecond())
 			.setFileSizeCompactionThresholdBytes(fragmentation.fileSizeCompactionThresholdBytes())
 			.setMinimalActiveRecordShare(fragmentation.minimalActiveRecordShare())
 			.setMaxWasteActiveShare(fragmentation.maxWasteActiveShare())
 			.setMinCompactionIntervalMilliseconds(fragmentation.minCompactionIntervalMilliseconds())
-			.build();
+			.setCatalogDataStore(toGrpcDataStoreFragmentation(fragmentation.catalogDataStore()));
+		if (fragmentation.estimatedCompactionAt() != null) {
+			builder.setEstimatedCompactionAt(
+				EvitaDataTypesConverter.toGrpcOffsetDateTime(fragmentation.estimatedCompactionAt())
+			);
+		}
+		return builder.build();
 	}
 
 	/**
@@ -684,6 +696,11 @@ public class CatalogStatisticsConverter {
 			grpcFragmentation.getLiveBytes(),
 			grpcFragmentation.getWasteBytes(),
 			grpcFragmentation.getCompactionEligibleNow(),
+			grpcFragmentation.getWasteBytesGenerated(),
+			grpcFragmentation.getWasteAccumulationRateBytesPerSecond(),
+			grpcFragmentation.hasEstimatedCompactionAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcFragmentation.getEstimatedCompactionAt()) : null,
+			toDataStoreFragmentation(grpcFragmentation.getCatalogDataStore()),
 			grpcFragmentation.getFileSizeCompactionThresholdBytes(),
 			grpcFragmentation.getMinimalActiveRecordShare(),
 			grpcFragmentation.getMaxWasteActiveShare(),
@@ -788,7 +805,8 @@ public class CatalogStatisticsConverter {
 		final GrpcVolatileStateStatistics.Builder builder = GrpcVolatileStateStatistics.newBuilder()
 			.setTotalSizeIncludingVolatileDataBytes(volatileState.totalSizeIncludingVolatileDataBytes())
 			.setNonFlushedRecordCount(volatileState.nonFlushedRecordCount())
-			.setNonFlushedSizeBytes(volatileState.nonFlushedSizeBytes());
+			.setNonFlushedSizeBytes(volatileState.nonFlushedSizeBytes())
+			.setCatalogDataStore(toGrpcDataStoreVolatileState(volatileState.catalogDataStore()));
 		if (volatileState.oldestRecordKeptTimestamp() != null) {
 			builder.setOldestRecordKeptTimestamp(
 				EvitaDataTypesConverter.toGrpcOffsetDateTime(volatileState.oldestRecordKeptTimestamp())
@@ -812,7 +830,8 @@ public class CatalogStatisticsConverter {
 			grpcVolatileState.getNonFlushedRecordCount(),
 			grpcVolatileState.getNonFlushedSizeBytes(),
 			grpcVolatileState.hasOldestRecordKeptTimestamp() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcVolatileState.getOldestRecordKeptTimestamp()) : null
+				EvitaDataTypesConverter.toOffsetDateTime(grpcVolatileState.getOldestRecordKeptTimestamp()) : null,
+			toDataStoreVolatileState(grpcVolatileState.getCatalogDataStore())
 		);
 	}
 
@@ -961,38 +980,49 @@ public class CatalogStatisticsConverter {
 	}
 
 	/**
-	 * Converts one collection's fragmentation statistics to their gRPC form.
+	 * Converts one data store's fragmentation to its gRPC form - a collection's, or the catalog's own.
 	 *
 	 * @param fragmentation the component to convert
 	 * @return its gRPC form
 	 */
 	@Nonnull
-	private static GrpcCollectionFragmentation toGrpcCollectionFragmentation(
-		@Nonnull CollectionFragmentation fragmentation
+	private static GrpcDataStoreFragmentation toGrpcDataStoreFragmentation(
+		@Nonnull DataStoreFragmentation fragmentation
 	) {
-		return GrpcCollectionFragmentation.newBuilder()
+		final GrpcDataStoreFragmentation.Builder builder = GrpcDataStoreFragmentation.newBuilder()
 			.setActiveRecordShare(fragmentation.activeRecordShare())
 			.setLiveBytes(fragmentation.liveBytes())
 			.setWasteBytes(fragmentation.wasteBytes())
 			.setCompactionEligibleNow(fragmentation.compactionEligibleNow())
-			.build();
+			.setWasteBytesGenerated(fragmentation.wasteBytesGenerated())
+			.setWasteAccumulationRateBytesPerSecond(fragmentation.wasteAccumulationRateBytesPerSecond());
+		if (fragmentation.estimatedCompactionAt() != null) {
+			builder.setEstimatedCompactionAt(
+				EvitaDataTypesConverter.toGrpcOffsetDateTime(fragmentation.estimatedCompactionAt())
+			);
+		}
+		return builder.build();
 	}
 
 	/**
-	 * Reads one collection's fragmentation statistics back from the wire.
+	 * Reads one data store's fragmentation back from the wire.
 	 *
 	 * @param grpcFragmentation the received component
 	 * @return its Java form
 	 */
 	@Nonnull
-	private static CollectionFragmentation toCollectionFragmentation(
-		@Nonnull GrpcCollectionFragmentation grpcFragmentation
+	private static DataStoreFragmentation toDataStoreFragmentation(
+		@Nonnull GrpcDataStoreFragmentation grpcFragmentation
 	) {
-		return new CollectionFragmentation(
+		return new DataStoreFragmentation(
 			grpcFragmentation.getActiveRecordShare(),
 			grpcFragmentation.getLiveBytes(),
 			grpcFragmentation.getWasteBytes(),
-			grpcFragmentation.getCompactionEligibleNow()
+			grpcFragmentation.getCompactionEligibleNow(),
+			grpcFragmentation.getWasteBytesGenerated(),
+			grpcFragmentation.getWasteAccumulationRateBytesPerSecond(),
+			grpcFragmentation.hasEstimatedCompactionAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcFragmentation.getEstimatedCompactionAt()) : null
 		);
 	}
 
@@ -1050,10 +1080,10 @@ public class CatalogStatisticsConverter {
 	 * @return its gRPC form, with the timestamp left unset when nothing is being retained
 	 */
 	@Nonnull
-	private static GrpcCollectionVolatileState toGrpcCollectionVolatileState(
-		@Nonnull CollectionVolatileState volatileState
+	private static GrpcDataStoreVolatileState toGrpcDataStoreVolatileState(
+		@Nonnull DataStoreVolatileState volatileState
 	) {
-		final GrpcCollectionVolatileState.Builder builder = GrpcCollectionVolatileState.newBuilder()
+		final GrpcDataStoreVolatileState.Builder builder = GrpcDataStoreVolatileState.newBuilder()
 			.setTotalSizeIncludingVolatileDataBytes(volatileState.totalSizeIncludingVolatileDataBytes())
 			.setNonFlushedRecordCount(volatileState.nonFlushedRecordCount())
 			.setNonFlushedSizeBytes(volatileState.nonFlushedSizeBytes());
@@ -1072,10 +1102,10 @@ public class CatalogStatisticsConverter {
 	 * @return its Java form
 	 */
 	@Nonnull
-	private static CollectionVolatileState toCollectionVolatileState(
-		@Nonnull GrpcCollectionVolatileState grpcVolatileState
+	private static DataStoreVolatileState toDataStoreVolatileState(
+		@Nonnull GrpcDataStoreVolatileState grpcVolatileState
 	) {
-		return new CollectionVolatileState(
+		return new DataStoreVolatileState(
 			grpcVolatileState.getTotalSizeIncludingVolatileDataBytes(),
 			grpcVolatileState.getNonFlushedRecordCount(),
 			grpcVolatileState.getNonFlushedSizeBytes(),

@@ -60,7 +60,7 @@ package io.evitadb.api.statistics;
  * {@link StorageSizeStatistics} for the blocked/purgeable split that says whether anything is holding them.
  *
  * The active-record share is deliberately not repeated here - it is the headline number of
- * {@link CatalogStatisticsComponent#FRAGMENTATION} and is carried by {@link CollectionFragmentation}, which is what
+ * {@link CatalogStatisticsComponent#FRAGMENTATION} and is carried by {@link DataStoreFragmentation}, which is what
  * a client asks for when it wants to know whether compaction is worth running.
  *
  * @param sizeOnDiskInBytes     measured total - the sum of the lengths of this collection's data files

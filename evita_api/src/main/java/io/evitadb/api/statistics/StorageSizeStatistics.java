@@ -69,6 +69,18 @@ package io.evitadb.api.statistics;
  * in-memory-derived parts (`liveBytes`, `wasteBytes`) then read `0`, and the bytes they would have accounted for
  * surface in `unaccountedBytes`.
  *
+ * **Which store is it?**
+ *
+ * `liveBytes` and `wasteBytes` are folded across the catalog's own data store *and* every collection's.
+ * `catalogDataStoreLiveBytes` / `catalogDataStoreWasteBytes` are the part of each that belongs to the catalog's own
+ * file - schema, headers and catalog-level indexes - rather than to any collection, so growth can be attributed
+ * without fetching every collection separately. Within one response the remainder is the sum over every *open*
+ * collection; across two responses that identity is not guaranteed, which is why the slice is reported rather than
+ * left to be derived.
+ *
+ * Only these two classes are split. The rest are directory-wide by nature: the WAL and the bootstrap file belong to
+ * no single data store, and a superseded file awaiting deletion is not attributed to the store that superseded it.
+ *
  * **Per collection**
  *
  * The same decomposition for one collection's data store is fetched separately - see {@link CollectionStorageSize}.
@@ -79,6 +91,9 @@ package io.evitadb.api.statistics;
  * @param liveBytes                    bytes of active records across the catalog and all collection data stores
  * @param wasteBytes                   bytes of superseded records inside the current data stores; reclaimed by
  *                                     compaction
+ * @param catalogDataStoreLiveBytes    the part of `liveBytes` held by the catalog's own data store rather than by any
+ *                                     collection's; `0` for an unusable catalog, like `liveBytes` itself
+ * @param catalogDataStoreWasteBytes   the part of `wasteBytes` held by the catalog's own data store
  * @param walBytes                     bytes of the retained write-ahead log files; not gated on time travel, which
  *                                     widens the retained window rather than creating it
  * @param awaitingDeletionBytes        bytes of superseded data files that are no longer current but not yet deleted
@@ -94,6 +109,8 @@ public record StorageSizeStatistics(
 	long sizeOnDiskInBytes,
 	long liveBytes,
 	long wasteBytes,
+	long catalogDataStoreLiveBytes,
+	long catalogDataStoreWasteBytes,
 	long walBytes,
 	long awaitingDeletionBytes,
 	long blockedByActiveReaderBytes,

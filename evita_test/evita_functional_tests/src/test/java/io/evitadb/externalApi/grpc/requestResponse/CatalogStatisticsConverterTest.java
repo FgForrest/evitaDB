@@ -25,17 +25,17 @@ package io.evitadb.externalApi.grpc.requestResponse;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
-import io.evitadb.api.statistics.CollectionFragmentation;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
-import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
@@ -107,6 +107,15 @@ class CatalogStatisticsConverterTest {
 		OffsetDateTime.of(2026, 7, 8, 9, 10, 11, 120_000_000, ZoneOffset.UTC);
 	private static final OffsetDateTime OLDEST_RECORD_KEPT =
 		OffsetDateTime.of(2026, 3, 4, 5, 6, 7, 890_000_000, ZoneOffset.UTC);
+	private static final OffsetDateTime ESTIMATED_COMPACTION_AT =
+		OffsetDateTime.of(2026, 9, 10, 11, 12, 13, 140_000_000, ZoneOffset.UTC);
+	// deliberately a different instant from the catalog-wide one, so that a converter arm reading the enclosing
+	// message's timestamp into the nested one cannot pass
+	private static final OffsetDateTime CATALOG_STORE_ESTIMATED_COMPACTION_AT =
+		OffsetDateTime.of(2026, 11, 12, 13, 14, 15, 160_000_000, ZoneOffset.UTC);
+	// likewise distinct from the catalog-wide retained-history timestamp
+	private static final OffsetDateTime CATALOG_STORE_OLDEST_RECORD_KEPT =
+		OffsetDateTime.of(2026, 5, 6, 7, 8, 9, 100_000_000, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -376,19 +385,34 @@ class CatalogStatisticsConverterTest {
 			),
 			new SessionStatistics(11, 12, 13),
 			new CommitPipelineStatistics(201L, 202L, 203L, 204L),
-			new StorageSizeStatistics(301L, 302L, 303L, 304L, 305L, 306L, 307L, 308L, 309L),
+			new StorageSizeStatistics(301L, 302L, 303L, 310L, 311L, 304L, 305L, 306L, 307L, 308L, 309L),
 			new StorageCompositionStatistics(
 				new StoragePartUsage[]{
 					new StoragePartUsage("EntityBodyStoragePart", 401, 402L),
 					new StoragePartUsage("AttributesStoragePart", 403, 404L)
 				}
 			),
-			new FragmentationStatistics(0.75d, 501L, 502L, true, 503L, 0.5d, 0.25d, 504L),
+			// a projected time *and* an eligible store: the two are independent at the catalog level, where one data
+			// store can be due now while the next one is still only heading there
+			new FragmentationStatistics(
+				0.75d, 501L, 502L, true, 505L, 506.5d, ESTIMATED_COMPACTION_AT,
+				// the catalog's own data store carries its own values throughout - a round trip that dropped the
+				// nested message, or filled it from the enclosing one, would still match on every field otherwise
+				new DataStoreFragmentation(
+					0.6d, 511L, 512L, false, 513L, 514.5d, CATALOG_STORE_ESTIMATED_COMPACTION_AT
+				),
+				503L, 0.5d, 0.25d, 504L
+			),
 			new HistoryStatistics(
 				true, 601L, OLDEST_AVAILABLE, 602L, NEWEST, 603, 604L, 605L, 606, 607L, 608L, 609L
 			),
 			new IndexSummaryStatistics(701L),
-			new VolatileStateStatistics(801L, 802, 803L, OLDEST_RECORD_KEPT),
+			new VolatileStateStatistics(
+				801L, 802, 803L, OLDEST_RECORD_KEPT,
+				// distinct values throughout: a nested slice copied from its enclosing record would still match on
+				// every scalar field otherwise
+				new DataStoreVolatileState(811L, 812, 813L, CATALOG_STORE_OLDEST_RECORD_KEPT)
+			),
 			Map.copyOf(statuses)
 		);
 	}
@@ -423,7 +447,9 @@ class CatalogStatisticsConverterTest {
 			new CollectionStorageComposition(
 				new StoragePartUsage[]{new StoragePartUsage("EntityBodyStoragePart", 41, 42L)}
 			),
-			new CollectionFragmentation(0.6d, 51L, 52L, true),
+			// the other half of the same nullable field - an eligible store carries no projection, and an absent one
+			// must decode back to absent rather than to an epoch-zero instant
+			new DataStoreFragmentation(0.6d, 51L, 52L, true, 53L, 54.5d, null),
 			new CollectionIndexSummary(
 				61,
 				new IndexKindCount[]{
@@ -431,7 +457,7 @@ class CatalogStatisticsConverterTest {
 					new IndexKindCount(EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, 63)
 				}
 			),
-			new CollectionVolatileState(71L, 72, 73L, OLDEST_RECORD_KEPT),
+			new DataStoreVolatileState(71L, 72, 73L, OLDEST_RECORD_KEPT),
 			Map.copyOf(statuses)
 		);
 	}

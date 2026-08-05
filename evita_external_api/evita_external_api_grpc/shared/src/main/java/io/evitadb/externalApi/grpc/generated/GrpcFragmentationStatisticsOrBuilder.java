@@ -83,6 +83,58 @@ public interface GrpcFragmentationStatisticsOrBuilder extends
 
   /**
    * <pre>
+   * Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+   * (bytes).
+   * </pre>
+   *
+   * <code>int64 wasteBytesGenerated = 9;</code>
+   * @return The wasteBytesGenerated.
+   */
+  long getWasteBytesGenerated();
+
+  /**
+   * <pre>
+   * Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+   * written; `0` when no waste is accruing (bytes per second).
+   * </pre>
+   *
+   * <code>double wasteAccumulationRateBytesPerSecond = 10;</code>
+   * @return The wasteAccumulationRateBytesPerSecond.
+   */
+  double getWasteAccumulationRateBytesPerSecond();
+
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   * @return Whether the estimatedCompactionAt field is set.
+   */
+  boolean hasEstimatedCompactionAt();
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   * @return The estimatedCompactionAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getEstimatedCompactionAt();
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getEstimatedCompactionAtOrBuilder();
+
+  /**
+   * <pre>
    * Configured active share below which compaction triggers once the minimum interval has elapsed, in the range 0..1.
    * </pre>
    *
@@ -110,4 +162,34 @@ public interface GrpcFragmentationStatisticsOrBuilder extends
    * @return The minCompactionIntervalMilliseconds.
    */
   long getMinCompactionIntervalMilliseconds();
+
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   * @return Whether the catalogDataStore field is set.
+   */
+  boolean hasCatalogDataStore();
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   * @return The catalogDataStore.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getCatalogDataStore();
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getCatalogDataStoreOrBuilder();
 }

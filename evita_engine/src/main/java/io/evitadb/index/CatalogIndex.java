@@ -64,8 +64,12 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This class represents main data structure that keeps all information connected with shared catalog data, that could
- * be used for searching, sorting or another computational task upon these data. There is always only one catalog index
- * present anytime.
+ * be used for searching, sorting or another computational task upon these data.
+ *
+ * There is **one instance per {@link Scope}**, not one per catalog: the `LIVE` one exists for the whole life of the
+ * catalog, and the `ARCHIVED` one is created lazily the first time something globally unique is indexed in that scope
+ * - see `Catalog#getCatalogIndex(Scope)`. Anything counting or iterating catalog indexes must go over the scopes;
+ * treating "the catalog index" as a single object is how `Catalog#countIndexes` came to undercount.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

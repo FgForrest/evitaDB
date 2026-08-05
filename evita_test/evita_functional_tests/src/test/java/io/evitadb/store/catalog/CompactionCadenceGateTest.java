@@ -23,6 +23,9 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.store.settings.StorageSettings;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.RepeatedTest;
@@ -31,14 +34,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.Random;
 
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.isCompactionIntervalElapsed;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.projectCompactionTime;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.shouldCompact;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -216,6 +224,118 @@ class CompactionCadenceGateTest {
 			expected,
 			shouldCompact(fileBigEnough, activeRecordShare, minimalActiveRecordShare, maxWasteActiveShare, intervalElapsed)
 		);
+	}
+
+	/**
+	 * The forward-looking half of the same decision - *when* the predicate above will start holding. Pinned here
+	 * rather than through a running engine because every case is a threshold being approached over time, which a
+	 * functional test can only reach by waiting for it.
+	 */
+	@Nested
+	@DisplayName("projectCompactionTime")
+	class CompactionProjectionTest {
+		private static final long NOW = 1_000_000L;
+
+		@Test
+		@DisplayName("no rate means no projection, however wasteful the file already is")
+		void shouldProjectNothingWithoutARate() {
+			// a distant date would render as a real answer on a management screen; there is no crossing to report,
+			// because nothing is stranding bytes
+			assertNull(projectCompactionTime(1_000L, 10_000L, 0.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
+		}
+
+		@Test
+		@DisplayName("an empty store projects nothing even while bytes are being stranded")
+		void shouldProjectNothingForAStoreWithNoLiveBytes() {
+			// the crossing is derived from `liveBytes / targetShare`, which is `0` for an empty store - it would
+			// project a crossing that has already happened for a file that cannot be worth compacting
+			assertNull(projectCompactionTime(0L, 10_000L, 500.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
+		}
+
+		@Test
+		@DisplayName("the crossing is where the growing file leaves the configured share behind")
+		void shouldProjectTheShareCrossing() {
+			// 1000 live bytes in a 1500-byte file is a share of 0.667; it falls to 0.5 at 2000 bytes, which 100 B/s
+			// of waste reaches in five seconds
+			final OffsetDateTime projected = projectCompactionTime(
+				1_000L, 1_500L, 100.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 5_000L, projected.toInstant().toEpochMilli());
+		}
+
+		@Test
+		@DisplayName("the earlier of the two thresholds wins when the cadence gate is open")
+		void shouldTakeTheEarlierCrossingWhenTheGateIsOpen() {
+			// the softer threshold (0.5, reached at 2000 bytes) is crossed before the hard override (0.25, reached
+			// at 4000), and with the interval disabled nothing holds it back
+			final OffsetDateTime projected = projectCompactionTime(
+				1_000L, 1_500L, 100.0d, settings(0.5d, 0.25d, 100L, 0L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 5_000L, projected.toInstant().toEpochMilli());
+		}
+
+		@Test
+		@DisplayName("a closed cadence gate pushes the projection out to the hard override")
+		void shouldFallBackToTheHardOverrideWhileTheGateIsClosed() {
+			// same two thresholds, but the softer one cannot fire for another hour - so the answer is the hard
+			// override's own crossing at 4000 bytes (25 s at 100 B/s), not the softer one's five seconds
+			final OffsetDateTime projected = projectCompactionTime(
+				1_000L, 1_500L, 100.0d, settings(0.5d, 0.25d, 100L, 3_600_000L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 25_000L, projected.toInstant().toEpochMilli());
+		}
+
+		@Test
+		@DisplayName("a file below the size threshold cannot trigger, however wasteful it is")
+		void shouldWaitForTheFileToGrowPastTheSizeThreshold() {
+			// the share is already below both thresholds, so the share crossing is "now" - but nothing triggers
+			// until the file passes 10 000 bytes, which 100 B/s reaches in 85 seconds
+			final OffsetDateTime projected = projectCompactionTime(
+				100L, 1_500L, 100.0d, settings(0.5d, 0.5d, 10_000L, 0L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 85_000L, projected.toInstant().toEpochMilli());
+		}
+
+		@Test
+		@DisplayName("a crossing beyond the reporting horizon is reported as no crossing at all")
+		void shouldNotProjectBeyondTheHorizon() {
+			// a trickle of one byte per second against a large live set puts the crossing decades out, which is
+			// arithmetic rather than information
+			assertNull(projectCompactionTime(
+				10_000_000_000L, 1_500L, 1.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+			));
+		}
+
+		/**
+		 * Builds storage settings carrying only the four thresholds the projection reads.
+		 *
+		 * @param minimalActiveRecordShare          share below which compaction triggers once the interval elapsed
+		 * @param maxWasteActiveShare               share below which compaction triggers regardless of the interval
+		 * @param fileSizeCompactionThresholdBytes  size below which compaction never triggers
+		 * @param minCompactionIntervalMilliseconds minimum spacing between two compactions of the same file
+		 * @return settings carrying those thresholds
+		 */
+		@Nonnull
+		private StorageSettings settings(
+			double minimalActiveRecordShare,
+			double maxWasteActiveShare,
+			long fileSizeCompactionThresholdBytes,
+			long minCompactionIntervalMilliseconds
+		) {
+			return new StorageSettings(
+				StorageOptions.builder()
+					.minimalActiveRecordShare(minimalActiveRecordShare)
+					.maxWasteActiveShare(maxWasteActiveShare)
+					.fileSizeCompactionThresholdBytes(fileSizeCompactionThresholdBytes)
+					.minCompactionIntervalMilliseconds(minCompactionIntervalMilliseconds)
+					.build(),
+				TransactionOptions.builder().build()
+			);
+		}
 	}
 
 }

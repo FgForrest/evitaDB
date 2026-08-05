@@ -36,7 +36,13 @@ package io.evitadb.api.statistics;
  *
  * Not delivered for an unusable catalog; indexes exist only in a loaded catalog.
  *
- * @param totalIndexCount total number of indexes across the whole catalog, including the catalog-level index
+ * **What the catalog-level index contributes.** There is one catalog-level index *per scope*, not one per catalog:
+ * the `LIVE` one exists from the moment the catalog does, and the `ARCHIVED` one is created the first time something
+ * globally unique is indexed in that scope. A catalog holding archived globally-unique data therefore contributes two
+ * here, not one. The number counts index instances rather than non-empty ones.
+ *
+ * @param totalIndexCount total number of indexes across the whole catalog, including every scope's catalog-level
+ *                        index
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record IndexSummaryStatistics(

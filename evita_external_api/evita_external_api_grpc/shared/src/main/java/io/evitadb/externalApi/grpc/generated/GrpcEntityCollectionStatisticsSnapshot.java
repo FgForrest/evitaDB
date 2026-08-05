@@ -319,13 +319,13 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int FRAGMENTATION_FIELD_NUMBER = 7;
-  private io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation_;
+  private io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation_;
   /**
    * <pre>
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    * @return Whether the fragmentation field is set.
    */
   @java.lang.Override
@@ -337,23 +337,23 @@ private static final long serialVersionUID = 0L;
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    * @return The fragmentation.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation getFragmentation() {
-    return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.getDefaultInstance() : fragmentation_;
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getFragmentation() {
+    return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : fragmentation_;
   }
   /**
    * <pre>
    * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder getFragmentationOrBuilder() {
-    return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.getDefaultInstance() : fragmentation_;
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getFragmentationOrBuilder() {
+    return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : fragmentation_;
   }
 
   public static final int INDEXSUMMARY_FIELD_NUMBER = 8;
@@ -395,13 +395,13 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int VOLATILESTATE_FIELD_NUMBER = 9;
-  private io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState_;
+  private io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState_;
   /**
    * <pre>
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    * @return Whether the volatileState field is set.
    */
   @java.lang.Override
@@ -413,23 +413,23 @@ private static final long serialVersionUID = 0L;
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    * @return The volatileState.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getVolatileState() {
-    return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance() : volatileState_;
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getVolatileState() {
+    return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : volatileState_;
   }
   /**
    * <pre>
    * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder getVolatileStateOrBuilder() {
-    return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance() : volatileState_;
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getVolatileStateOrBuilder() {
+    return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : volatileState_;
   }
 
   public static final int COMPONENTSTATUS_FIELD_NUMBER = 10;
@@ -2107,15 +2107,15 @@ private static final long serialVersionUID = 0L;
       return storageCompositionBuilder_;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation_;
+    private io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder> fragmentationBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder> fragmentationBuilder_;
     /**
      * <pre>
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      * @return Whether the fragmentation field is set.
      */
     public boolean hasFragmentation() {
@@ -2126,12 +2126,12 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      * @return The fragmentation.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation getFragmentation() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getFragmentation() {
       if (fragmentationBuilder_ == null) {
-        return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.getDefaultInstance() : fragmentation_;
+        return fragmentation_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : fragmentation_;
       } else {
         return fragmentationBuilder_.getMessage();
       }
@@ -2141,9 +2141,9 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
-    public Builder setFragmentation(io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation value) {
+    public Builder setFragmentation(io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation value) {
       if (fragmentationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -2161,10 +2161,10 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
     public Builder setFragmentation(
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder builderForValue) {
       if (fragmentationBuilder_ == null) {
         fragmentation_ = builderForValue.build();
       } else {
@@ -2179,13 +2179,13 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
-    public Builder mergeFragmentation(io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation value) {
+    public Builder mergeFragmentation(io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation value) {
       if (fragmentationBuilder_ == null) {
         if (((bitField0_ & 0x00000040) != 0) &&
           fragmentation_ != null &&
-          fragmentation_ != io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.getDefaultInstance()) {
+          fragmentation_ != io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance()) {
           getFragmentationBuilder().mergeFrom(value);
         } else {
           fragmentation_ = value;
@@ -2204,7 +2204,7 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
     public Builder clearFragmentation() {
       bitField0_ = (bitField0_ & ~0x00000040);
@@ -2221,9 +2221,9 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.Builder getFragmentationBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder getFragmentationBuilder() {
       bitField0_ |= 0x00000040;
       onChanged();
       return getFragmentationFieldBuilder().getBuilder();
@@ -2233,14 +2233,14 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder getFragmentationOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getFragmentationOrBuilder() {
       if (fragmentationBuilder_ != null) {
         return fragmentationBuilder_.getMessageOrBuilder();
       } else {
         return fragmentation_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.getDefaultInstance() : fragmentation_;
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : fragmentation_;
       }
     }
     /**
@@ -2248,14 +2248,14 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation fragmentation = 7;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation fragmentation = 7;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder> 
         getFragmentationFieldBuilder() {
       if (fragmentationBuilder_ == null) {
         fragmentationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionFragmentationOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder>(
                 getFragmentation(),
                 getParentForChildren(),
                 isClean());
@@ -2421,15 +2421,15 @@ private static final long serialVersionUID = 0L;
       return indexSummaryBuilder_;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState_;
+    private io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder> volatileStateBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder> volatileStateBuilder_;
     /**
      * <pre>
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      * @return Whether the volatileState field is set.
      */
     public boolean hasVolatileState() {
@@ -2440,12 +2440,12 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      * @return The volatileState.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getVolatileState() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getVolatileState() {
       if (volatileStateBuilder_ == null) {
-        return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance() : volatileState_;
+        return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : volatileState_;
       } else {
         return volatileStateBuilder_.getMessage();
       }
@@ -2455,9 +2455,9 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
-    public Builder setVolatileState(io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState value) {
+    public Builder setVolatileState(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState value) {
       if (volatileStateBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -2475,10 +2475,10 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
     public Builder setVolatileState(
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder builderForValue) {
       if (volatileStateBuilder_ == null) {
         volatileState_ = builderForValue.build();
       } else {
@@ -2493,13 +2493,13 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
-    public Builder mergeVolatileState(io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState value) {
+    public Builder mergeVolatileState(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState value) {
       if (volatileStateBuilder_ == null) {
         if (((bitField0_ & 0x00000100) != 0) &&
           volatileState_ != null &&
-          volatileState_ != io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance()) {
+          volatileState_ != io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance()) {
           getVolatileStateBuilder().mergeFrom(value);
         } else {
           volatileState_ = value;
@@ -2518,7 +2518,7 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
     public Builder clearVolatileState() {
       bitField0_ = (bitField0_ & ~0x00000100);
@@ -2535,9 +2535,9 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder getVolatileStateBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder getVolatileStateBuilder() {
       bitField0_ |= 0x00000100;
       onChanged();
       return getVolatileStateFieldBuilder().getBuilder();
@@ -2547,14 +2547,14 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder getVolatileStateOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getVolatileStateOrBuilder() {
       if (volatileStateBuilder_ != null) {
         return volatileStateBuilder_.getMessageOrBuilder();
       } else {
         return volatileState_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance() : volatileState_;
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : volatileState_;
       }
     }
     /**
@@ -2562,14 +2562,14 @@ private static final long serialVersionUID = 0L;
      * The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState volatileState = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState volatileState = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder> 
         getVolatileStateFieldBuilder() {
       if (volatileStateBuilder_ == null) {
         volatileStateBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder>(
                 getVolatileState(),
                 getParentForChildren(),
                 isClean());

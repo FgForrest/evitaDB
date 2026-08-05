@@ -179,6 +179,11 @@ message GrpcStorageSizeStatistics {
   int64 bootstrapBytes = 8;
   // Everything present in the catalog directory that belongs to none of the classes above (bytes).
   int64 unaccountedBytes = 9;
+  // The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+  // than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+  int64 catalogDataStoreLiveBytes = 10;
+  // The part of `wasteBytes` held by the catalog's own data store (bytes).
+  int64 catalogDataStoreWasteBytes = 11;
 
 }
 
@@ -198,13 +203,31 @@ message GrpcStorageCompositionStatistics {
 
 }
 
-// The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, and how close
-// it is to being compacted.
+// The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, how fast that
+// is getting worse, and when the engine will act on it.
 //
 // The compaction trigger is deterministic, so the configured thresholds that drive it are reported alongside the
-// measurements and a client can draw all of them on one gauge: a data store is compacted when its file exceeds
-// `fileSizeCompactionThresholdBytes` and either its active share is below `maxWasteActiveShare` (which overrides the
-// interval), or below `minimalActiveRecordShare` once `minCompactionIntervalMilliseconds` has elapsed.
+// measurements: a data store is compacted when its file exceeds `fileSizeCompactionThresholdBytes` and either its
+// active share is below `maxWasteActiveShare` (which overrides the interval), or below `minimalActiveRecordShare`
+// once `minCompactionIntervalMilliseconds` has elapsed.
+//
+// `activeRecordShare` is NOT the share that predicate is evaluated against, and the two must not be compared. The
+// share reported here is a catalog-wide aggregate over the bytes reported next to it, so a client can reproduce it;
+// the trigger evaluates each data store separately against its own file length, which also carries the serialized
+// offset-index table. They disagree in both directions - one small very wasteful file sets `compactionEligibleNow`
+// while this aggregate stays high, and the aggregate can fall below `minimalActiveRecordShare` while no file is
+// large enough to qualify. Take the verdict from `compactionEligibleNow` alone.
+//
+// `wasteBytesGenerated` counts the bytes rewrites and removals have stranded since each data store was opened or last
+// compacted - the engine's own production counter, which is not the same quantity as `wasteBytes` and will be smaller
+// on a freshly restarted server. The rate and the projected time extrapolate from it. An unset `estimatedCompactionAt`
+// means no crossing follows from the current write rate - it never means "never", and a client must not substitute a
+// date for it.
+//
+// Every figure here is folded across the catalog's own data store AND every collection's, so on its own it cannot say
+// WHERE the fragmentation is. `catalogDataStore` reports the catalog's own store - schema, headers and catalog-level
+// indexes - separately, which is what lets a raised `compactionEligibleNow` be attributed: set on the nested message
+// means the catalog's own store is due, unset means the flag came from a collection.
 message GrpcFragmentationStatistics {
 
   // Catalog-wide `liveBytes / (liveBytes + wasteBytes)`, in the range 0..1; `1.0` when nothing is stored yet.
@@ -217,12 +240,24 @@ message GrpcFragmentationStatistics {
   bool compactionEligibleNow = 4;
   // Configured minimum file size below which compaction never triggers (bytes).
   int64 fileSizeCompactionThresholdBytes = 5;
+  // Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+  // (bytes).
+  int64 wasteBytesGenerated = 9;
+  // Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+  // written; `0` when no waste is accruing (bytes per second).
+  double wasteAccumulationRateBytesPerSecond = 10;
+  // Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+  // crossing follows from the current rate.
+  GrpcOffsetDateTime estimatedCompactionAt = 11;
   // Configured active share below which compaction triggers once the minimum interval has elapsed, in the range 0..1.
   double minimalActiveRecordShare = 6;
   // Configured active share below which compaction triggers regardless of the interval, in the range 0..1.
   double maxWasteActiveShare = 7;
   // Configured minimum spacing between two compactions of the same file (milliseconds).
   int64 minCompactionIntervalMilliseconds = 8;
+  // The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+  // entity collection. Always set when this component is delivered.
+  GrpcDataStoreFragmentation catalogDataStore = 12;
 
 }
 
@@ -288,6 +323,9 @@ message GrpcVolatileStateStatistics {
   int64 nonFlushedSizeBytes = 3;
   // Creation time of the oldest record kept alive for an open session. Unset when nothing is being retained.
   GrpcOffsetDateTime oldestRecordKeptTimestamp = 4;
+  // The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+  // collection. Always set when this component is delivered.
+  GrpcDataStoreVolatileState catalogDataStore = 5;
 
 }
 
@@ -406,12 +444,25 @@ message GrpcCollectionStorageComposition {
 
 }
 
-// The collection-level `COMPONENT_FRAGMENTATION` component - how much of one collection's data store is still live,
-// and whether it already satisfies the compaction predicate. The configured thresholds driving that predicate are
-// catalog-wide and are reported once at the catalog level rather than repeated for every collection.
-message GrpcCollectionFragmentation {
+// The `COMPONENT_FRAGMENTATION` component for ONE data store - how much of it is still live, how fast that is getting
+// worse, and whether it already satisfies the compaction predicate.
+//
+// One message serves every place a data store is described, because they are the same measurements of the same kind
+// of thing: one entity collection's data store (`GrpcEntityCollectionStatisticsSnapshot.fragmentation`), and the
+// catalog's own data store holding the catalog schema, the catalog and collection headers and the catalog-level
+// indexes (`GrpcFragmentationStatistics.catalogDataStore`). The catalog-wide figures on
+// `GrpcFragmentationStatistics` are the fold of all of them.
+//
+// The configured thresholds the predicate is evaluated against are catalog-wide and are reported once, on
+// `GrpcFragmentationStatistics`, rather than repeated for every store.
+//
+// `activeRecordShare` is derived from the two byte figures reported with it and is NOT the share the predicate is
+// evaluated against - that one is measured against the file length, which also carries the serialized offset-index
+// table. The verdict is `compactionEligibleNow`, never a comparison of this share to a threshold.
+message GrpcDataStoreFragmentation {
 
-  // `liveBytes / (liveBytes + wasteBytes)` for this collection's data store, in the range 0..1.
+  // `liveBytes / (liveBytes + wasteBytes)` for this data store, in the range 0..1; `1.0` when nothing is
+  // stored in it yet.
   double activeRecordShare = 1;
   // Active records in it (bytes).
   int64 liveBytes = 2;
@@ -419,6 +470,14 @@ message GrpcCollectionFragmentation {
   int64 wasteBytes = 3;
   // True when this data store already satisfies the compaction predicate.
   bool compactionEligibleNow = 4;
+  // Bytes stranded by rewrites and removals since this data store was opened or last compacted (bytes).
+  int64 wasteBytesGenerated = 5;
+  // Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+  // written; `0` when no waste is accruing (bytes per second).
+  double wasteAccumulationRateBytesPerSecond = 6;
+  // Projected time at which this data store crosses the predicate. Unset when no crossing follows from the current
+  // rate, and unset once `compactionEligibleNow` holds - a store that is already due needs no forecast.
+  GrpcOffsetDateTime estimatedCompactionAt = 7;
 
 }
 
@@ -452,7 +511,7 @@ message GrpcCollectionIndexSummary {
 
 // The collection-level `COMPONENT_VOLATILE_STATE` component - what one collection's data store holds in memory but
 // not yet on disk, and what it keeps alive purely for readers that started long ago.
-message GrpcCollectionVolatileState {
+message GrpcDataStoreVolatileState {
 
   // Size this data store occupies including data not yet flushed (bytes).
   int64 totalSizeIncludingVolatileDataBytes = 1;
@@ -491,11 +550,11 @@ message GrpcEntityCollectionStatisticsSnapshot {
   // The `COMPONENT_STORAGE_COMPOSITION` component; absent unless requested and delivered.
   GrpcCollectionStorageComposition storageComposition = 6;
   // The `COMPONENT_FRAGMENTATION` component; absent unless requested and delivered.
-  GrpcCollectionFragmentation fragmentation = 7;
+  GrpcDataStoreFragmentation fragmentation = 7;
   // The `COMPONENT_INDEX_SUMMARY` component; absent unless requested and delivered.
   GrpcCollectionIndexSummary indexSummary = 8;
   // The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
-  GrpcCollectionVolatileState volatileState = 9;
+  GrpcDataStoreVolatileState volatileState = 9;
   // Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
   // entry here at all.
   repeated GrpcComponentStatus componentStatus = 10;

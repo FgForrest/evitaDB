@@ -91,9 +91,9 @@ public record EntityCollectionStatistics(
 	@Nullable CollectionRecordCounts recordCounts,
 	@Nullable CollectionStorageSize storageSize,
 	@Nullable CollectionStorageComposition storageComposition,
-	@Nullable CollectionFragmentation fragmentation,
+	@Nullable DataStoreFragmentation fragmentation,
 	@Nullable CollectionIndexSummary indexSummary,
-	@Nullable CollectionVolatileState volatileState,
+	@Nullable DataStoreVolatileState volatileState,
 	@Nonnull Map<CatalogStatisticsComponent, ComponentStatus> componentStatus
 ) {
 
@@ -155,7 +155,7 @@ public record EntityCollectionStatistics(
 	 * @return the {@link CatalogStatisticsComponent#FRAGMENTATION} component, empty otherwise
 	 */
 	@Nonnull
-	public Optional<CollectionFragmentation> fragmentationIfPresent() {
+	public Optional<DataStoreFragmentation> fragmentationIfPresent() {
 		return Optional.ofNullable(this.fragmentation);
 	}
 
@@ -175,7 +175,7 @@ public record EntityCollectionStatistics(
 	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component, empty otherwise
 	 */
 	@Nonnull
-	public Optional<CollectionVolatileState> volatileStateIfPresent() {
+	public Optional<DataStoreVolatileState> volatileStateIfPresent() {
 		return Optional.ofNullable(this.volatileState);
 	}
 
@@ -226,9 +226,9 @@ public record EntityCollectionStatistics(
 		private CollectionRecordCounts recordCounts;
 		private CollectionStorageSize storageSize;
 		private CollectionStorageComposition storageComposition;
-		private CollectionFragmentation fragmentation;
+		private DataStoreFragmentation fragmentation;
 		private CollectionIndexSummary indexSummary;
-		private CollectionVolatileState volatileState;
+		private DataStoreVolatileState volatileState;
 
 		Builder(@Nonnull CatalogIdentity identity, @Nonnull String entityType) {
 			this.identity = identity;
@@ -292,7 +292,7 @@ public record EntityCollectionStatistics(
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder withFragmentation(@Nonnull CollectionFragmentation value) {
+		public Builder withFragmentation(@Nonnull DataStoreFragmentation value) {
 			this.fragmentation = value;
 			return delivered(CatalogStatisticsComponent.FRAGMENTATION);
 		}
@@ -316,7 +316,7 @@ public record EntityCollectionStatistics(
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder withVolatileState(@Nonnull CollectionVolatileState value) {
+		public Builder withVolatileState(@Nonnull DataStoreVolatileState value) {
 			this.volatileState = value;
 			return delivered(CatalogStatisticsComponent.VOLATILE_STATE);
 		}

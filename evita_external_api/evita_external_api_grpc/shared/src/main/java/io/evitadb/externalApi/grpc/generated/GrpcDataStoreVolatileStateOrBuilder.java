@@ -27,8 +27,8 @@
 // Protobuf Java Version: 3.25.8
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcCollectionVolatileStateOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)
+public interface GrpcDataStoreVolatileStateOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)
     com.google.protobuf.MessageOrBuilder {
 
   /**

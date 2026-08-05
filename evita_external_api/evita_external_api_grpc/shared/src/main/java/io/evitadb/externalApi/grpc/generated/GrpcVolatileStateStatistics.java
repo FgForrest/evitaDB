@@ -154,6 +154,47 @@ private static final long serialVersionUID = 0L;
     return oldestRecordKeptTimestamp_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : oldestRecordKeptTimestamp_;
   }
 
+  public static final int CATALOGDATASTORE_FIELD_NUMBER = 5;
+  private io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore_;
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   * @return Whether the catalogDataStore field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogDataStore() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   * @return The catalogDataStore.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getCatalogDataStore() {
+    return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : catalogDataStore_;
+  }
+  /**
+   * <pre>
+   * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+   * collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getCatalogDataStoreOrBuilder() {
+    return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : catalogDataStore_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -180,6 +221,9 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(4, getOldestRecordKeptTimestamp());
     }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(5, getCatalogDataStore());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -204,6 +248,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getOldestRecordKeptTimestamp());
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getCatalogDataStore());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -231,6 +279,11 @@ private static final long serialVersionUID = 0L;
       if (!getOldestRecordKeptTimestamp()
           .equals(other.getOldestRecordKeptTimestamp())) return false;
     }
+    if (hasCatalogDataStore() != other.hasCatalogDataStore()) return false;
+    if (hasCatalogDataStore()) {
+      if (!getCatalogDataStore()
+          .equals(other.getCatalogDataStore())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -253,6 +306,10 @@ private static final long serialVersionUID = 0L;
     if (hasOldestRecordKeptTimestamp()) {
       hash = (37 * hash) + OLDESTRECORDKEPTTIMESTAMP_FIELD_NUMBER;
       hash = (53 * hash) + getOldestRecordKeptTimestamp().hashCode();
+    }
+    if (hasCatalogDataStore()) {
+      hash = (37 * hash) + CATALOGDATASTORE_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogDataStore().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -393,6 +450,7 @@ private static final long serialVersionUID = 0L;
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
         getOldestRecordKeptTimestampFieldBuilder();
+        getCatalogDataStoreFieldBuilder();
       }
     }
     @java.lang.Override
@@ -406,6 +464,11 @@ private static final long serialVersionUID = 0L;
       if (oldestRecordKeptTimestampBuilder_ != null) {
         oldestRecordKeptTimestampBuilder_.dispose();
         oldestRecordKeptTimestampBuilder_ = null;
+      }
+      catalogDataStore_ = null;
+      if (catalogDataStoreBuilder_ != null) {
+        catalogDataStoreBuilder_.dispose();
+        catalogDataStoreBuilder_ = null;
       }
       return this;
     }
@@ -455,6 +518,12 @@ private static final long serialVersionUID = 0L;
             ? oldestRecordKeptTimestamp_
             : oldestRecordKeptTimestampBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.catalogDataStore_ = catalogDataStoreBuilder_ == null
+            ? catalogDataStore_
+            : catalogDataStoreBuilder_.build();
+        to_bitField0_ |= 0x00000002;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -515,6 +584,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasOldestRecordKeptTimestamp()) {
         mergeOldestRecordKeptTimestamp(other.getOldestRecordKeptTimestamp());
       }
+      if (other.hasCatalogDataStore()) {
+        mergeCatalogDataStore(other.getCatalogDataStore());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -563,6 +635,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 34
+            case 42: {
+              input.readMessage(
+                  getCatalogDataStoreFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -867,6 +946,172 @@ private static final long serialVersionUID = 0L;
         oldestRecordKeptTimestamp_ = null;
       }
       return oldestRecordKeptTimestampBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder> catalogDataStoreBuilder_;
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     * @return Whether the catalogDataStore field is set.
+     */
+    public boolean hasCatalogDataStore() {
+      return ((bitField0_ & 0x00000010) != 0);
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     * @return The catalogDataStore.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getCatalogDataStore() {
+      if (catalogDataStoreBuilder_ == null) {
+        return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : catalogDataStore_;
+      } else {
+        return catalogDataStoreBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public Builder setCatalogDataStore(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState value) {
+      if (catalogDataStoreBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogDataStore_ = value;
+      } else {
+        catalogDataStoreBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public Builder setCatalogDataStore(
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder builderForValue) {
+      if (catalogDataStoreBuilder_ == null) {
+        catalogDataStore_ = builderForValue.build();
+      } else {
+        catalogDataStoreBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public Builder mergeCatalogDataStore(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState value) {
+      if (catalogDataStoreBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          catalogDataStore_ != null &&
+          catalogDataStore_ != io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance()) {
+          getCatalogDataStoreBuilder().mergeFrom(value);
+        } else {
+          catalogDataStore_ = value;
+        }
+      } else {
+        catalogDataStoreBuilder_.mergeFrom(value);
+      }
+      if (catalogDataStore_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public Builder clearCatalogDataStore() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      catalogDataStore_ = null;
+      if (catalogDataStoreBuilder_ != null) {
+        catalogDataStoreBuilder_.dispose();
+        catalogDataStoreBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder getCatalogDataStoreBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getCatalogDataStoreFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder getCatalogDataStoreOrBuilder() {
+      if (catalogDataStoreBuilder_ != null) {
+        return catalogDataStoreBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogDataStore_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : catalogDataStore_;
+      }
+    }
+    /**
+     * <pre>
+     * The same state for the catalog's OWN data store alone - the slice of every figure above that belongs to no entity
+     * collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState catalogDataStore = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder> 
+        getCatalogDataStoreFieldBuilder() {
+      if (catalogDataStoreBuilder_ == null) {
+        catalogDataStoreBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder>(
+                getCatalogDataStore(),
+                getParentForChildren(),
+                isClean());
+        catalogDataStore_ = null;
+      }
+      return catalogDataStoreBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

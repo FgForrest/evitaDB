@@ -25,13 +25,14 @@ package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
-import io.evitadb.api.statistics.CollectionVolatileState;
+import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.EntityIndexKind;
@@ -106,7 +107,9 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.catalog.FragmentationProjection;
 import io.evitadb.core.catalog.StoragePartProjection;
+import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
@@ -1039,22 +1042,29 @@ public final class EntityCollection implements
 		final EntityCollectionStatistics.Builder builder = EntityCollectionStatistics.builder(
 			this.catalog.getIdentity(), getEntityType()
 		);
+		// STORAGE_SIZE and FRAGMENTATION are two readings of one listing of this collection's data store files: the
+		// first attributes its bytes, the second turns the same live/waste split into a share. Measuring once is not
+		// only cheaper - it is the only way the two components cannot describe different moments
+		final CollectionStorageFootprint storageFootprint =
+			components.contains(CatalogStatisticsComponent.STORAGE_SIZE) ||
+				components.contains(CatalogStatisticsComponent.FRAGMENTATION) ?
+				this.persistenceService.measureStorageFootprint() : null;
 		for (final CatalogStatisticsComponent component : components) {
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
 				case IDENTITY -> { }
 				case INDEX_SUMMARY -> builder.withIndexSummary(summarizeIndexes());
 				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
-				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
+				case STORAGE_SIZE -> builder.withStorageSize(
+					measureStorageSize(Objects.requireNonNull(storageFootprint))
+				);
 				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
 				case COLLECTIONS -> builder.withHeader(describeHeader());
 				case VOLATILE_STATE -> builder.withVolatileState(describeVolatileState());
-				case FRAGMENTATION -> builder.withUnavailable(
-					component,
-					ComponentAvailability.NOT_SUPPORTED,
-					"Statistics component `" + component + "` is not computed by this version yet."
+				case FRAGMENTATION -> builder.withFragmentation(
+					describeFragmentation(Objects.requireNonNull(storageFootprint))
 				);
-				// kept apart from the arm above because these two are the expensive pair - they arrive last and
+				// kept apart from the arms above because these two are the expensive pair - they arrive last and
 				// their absence is a different statement than "not implemented yet for this collection"
 				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> builder.withUnavailable(
 					component,
@@ -1176,14 +1186,8 @@ public final class EntityCollection implements
 	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component of this collection
 	 */
 	@Nonnull
-	private CollectionVolatileState describeVolatileState() {
-		final VolatileDataFootprint footprint = measureVolatileData();
-		return new CollectionVolatileState(
-			footprint.totalSizeIncludingVolatileDataBytes(),
-			footprint.nonFlushedRecordCount(),
-			footprint.nonFlushedSizeBytes(),
-			footprint.oldestRecordKeptTimestamp()
-		);
+	private DataStoreVolatileState describeVolatileState() {
+		return VolatileStateProjection.toDataStoreVolatileState(measureVolatileData());
 	}
 
 	/**
@@ -1201,15 +1205,37 @@ public final class EntityCollection implements
 		return this.persistenceService.measureVolatileData();
 	}
 
+	/**
+	 * Projects the measured footprint of this collection's data store files onto the component that reports it.
+	 *
+	 * @param footprint the listing the caller measured for this request
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
+	 */
 	@Nonnull
-	private CollectionStorageSize measureStorageSize() {
-		final CollectionStorageFootprint footprint = this.persistenceService.measureStorageFootprint();
+	private static CollectionStorageSize measureStorageSize(@Nonnull CollectionStorageFootprint footprint) {
 		return new CollectionStorageSize(
 			footprint.totalBytes(),
 			footprint.liveBytes(),
 			footprint.wasteBytes(),
 			footprint.awaitingDeletionBytes(),
 			footprint.unaccountedBytes()
+		);
+	}
+
+	/**
+	 * Describes how much of this collection's data store is dead weight and when the engine will reclaim it.
+	 *
+	 * The live and waste bytes come from the footprint the caller already measured - see the comment at that call
+	 * site - while the eligibility flag and the projected time come from the persistence layer, which owns the
+	 * compaction predicate and must remain the only thing that evaluates it.
+	 *
+	 * @param footprint the listing the caller measured for this request
+	 * @return the {@link CatalogStatisticsComponent#FRAGMENTATION} component of this collection
+	 */
+	@Nonnull
+	private DataStoreFragmentation describeFragmentation(@Nonnull CollectionStorageFootprint footprint) {
+		return FragmentationProjection.toDataStoreFragmentation(
+			footprint, this.persistenceService.measureCompactionForecast()
 		);
 	}
 

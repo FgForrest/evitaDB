@@ -33,38 +33,38 @@ package io.evitadb.externalApi.grpc.generated;
  * not yet on disk, and what it keeps alive purely for readers that started long ago.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState}
  */
-public final class GrpcCollectionVolatileState extends
+public final class GrpcDataStoreVolatileState extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)
-    GrpcCollectionVolatileStateOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)
+    GrpcDataStoreVolatileStateOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcCollectionVolatileState.newBuilder() to construct.
-  private GrpcCollectionVolatileState(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcDataStoreVolatileState.newBuilder() to construct.
+  private GrpcDataStoreVolatileState(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcCollectionVolatileState() {
+  private GrpcDataStoreVolatileState() {
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcCollectionVolatileState();
+    return new GrpcDataStoreVolatileState();
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionVolatileState_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionVolatileState_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.class, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.class, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder.class);
   }
 
   private int bitField0_;
@@ -212,10 +212,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState other = (io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState other = (io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState) obj;
 
     if (getTotalSizeIncludingVolatileDataBytes()
         != other.getTotalSizeIncludingVolatileDataBytes()) return false;
@@ -256,44 +256,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -301,26 +301,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -333,7 +333,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -354,26 +354,26 @@ private static final long serialVersionUID = 0L;
    * not yet on disk, and what it keeps alive purely for readers that started long ago.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)
-      io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileStateOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)
+      io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileStateOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionVolatileState_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionVolatileState_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.class, io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.class, io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -407,17 +407,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionVolatileState_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState build() {
-      io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState build() {
+      io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -425,14 +425,14 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState result = new io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState result = new io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState(this);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState result) {
+    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.totalSizeIncludingVolatileDataBytes_ = totalSizeIncludingVolatileDataBytes_;
@@ -487,16 +487,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance()) return this;
       if (other.getTotalSizeIncludingVolatileDataBytes() != 0L) {
         setTotalSizeIncludingVolatileDataBytes(other.getTotalSizeIncludingVolatileDataBytes());
       }
@@ -875,23 +875,23 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcCollectionVolatileState>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcCollectionVolatileState>() {
+  private static final com.google.protobuf.Parser<GrpcDataStoreVolatileState>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcDataStoreVolatileState>() {
     @java.lang.Override
-    public GrpcCollectionVolatileState parsePartialFrom(
+    public GrpcDataStoreVolatileState parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -910,17 +910,17 @@ private static final long serialVersionUID = 0L;
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcCollectionVolatileState> parser() {
+  public static com.google.protobuf.Parser<GrpcDataStoreVolatileState> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcCollectionVolatileState> getParserForType() {
+  public com.google.protobuf.Parser<GrpcDataStoreVolatileState> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcCollectionVolatileState getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

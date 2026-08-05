@@ -214,6 +214,37 @@ private static final long serialVersionUID = 0L;
     return unaccountedBytes_;
   }
 
+  public static final int CATALOGDATASTORELIVEBYTES_FIELD_NUMBER = 10;
+  private long catalogDataStoreLiveBytes_ = 0L;
+  /**
+   * <pre>
+   * The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+   * than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+   * </pre>
+   *
+   * <code>int64 catalogDataStoreLiveBytes = 10;</code>
+   * @return The catalogDataStoreLiveBytes.
+   */
+  @java.lang.Override
+  public long getCatalogDataStoreLiveBytes() {
+    return catalogDataStoreLiveBytes_;
+  }
+
+  public static final int CATALOGDATASTOREWASTEBYTES_FIELD_NUMBER = 11;
+  private long catalogDataStoreWasteBytes_ = 0L;
+  /**
+   * <pre>
+   * The part of `wasteBytes` held by the catalog's own data store (bytes).
+   * </pre>
+   *
+   * <code>int64 catalogDataStoreWasteBytes = 11;</code>
+   * @return The catalogDataStoreWasteBytes.
+   */
+  @java.lang.Override
+  public long getCatalogDataStoreWasteBytes() {
+    return catalogDataStoreWasteBytes_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -254,6 +285,12 @@ private static final long serialVersionUID = 0L;
     }
     if (unaccountedBytes_ != 0L) {
       output.writeInt64(9, unaccountedBytes_);
+    }
+    if (catalogDataStoreLiveBytes_ != 0L) {
+      output.writeInt64(10, catalogDataStoreLiveBytes_);
+    }
+    if (catalogDataStoreWasteBytes_ != 0L) {
+      output.writeInt64(11, catalogDataStoreWasteBytes_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -300,6 +337,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(9, unaccountedBytes_);
     }
+    if (catalogDataStoreLiveBytes_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(10, catalogDataStoreLiveBytes_);
+    }
+    if (catalogDataStoreWasteBytes_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(11, catalogDataStoreWasteBytes_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -333,6 +378,10 @@ private static final long serialVersionUID = 0L;
         != other.getBootstrapBytes()) return false;
     if (getUnaccountedBytes()
         != other.getUnaccountedBytes()) return false;
+    if (getCatalogDataStoreLiveBytes()
+        != other.getCatalogDataStoreLiveBytes()) return false;
+    if (getCatalogDataStoreWasteBytes()
+        != other.getCatalogDataStoreWasteBytes()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -371,6 +420,12 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + UNACCOUNTEDBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getUnaccountedBytes());
+    hash = (37 * hash) + CATALOGDATASTORELIVEBYTES_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCatalogDataStoreLiveBytes());
+    hash = (37 * hash) + CATALOGDATASTOREWASTEBYTES_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCatalogDataStoreWasteBytes());
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -525,6 +580,8 @@ private static final long serialVersionUID = 0L;
       purgeableBytes_ = 0L;
       bootstrapBytes_ = 0L;
       unaccountedBytes_ = 0L;
+      catalogDataStoreLiveBytes_ = 0L;
+      catalogDataStoreWasteBytes_ = 0L;
       return this;
     }
 
@@ -584,6 +641,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000100) != 0)) {
         result.unaccountedBytes_ = unaccountedBytes_;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.catalogDataStoreLiveBytes_ = catalogDataStoreLiveBytes_;
+      }
+      if (((from_bitField0_ & 0x00000400) != 0)) {
+        result.catalogDataStoreWasteBytes_ = catalogDataStoreWasteBytes_;
       }
     }
 
@@ -658,6 +721,12 @@ private static final long serialVersionUID = 0L;
       if (other.getUnaccountedBytes() != 0L) {
         setUnaccountedBytes(other.getUnaccountedBytes());
       }
+      if (other.getCatalogDataStoreLiveBytes() != 0L) {
+        setCatalogDataStoreLiveBytes(other.getCatalogDataStoreLiveBytes());
+      }
+      if (other.getCatalogDataStoreWasteBytes() != 0L) {
+        setCatalogDataStoreWasteBytes(other.getCatalogDataStoreWasteBytes());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -729,6 +798,16 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000100;
               break;
             } // case 72
+            case 80: {
+              catalogDataStoreLiveBytes_ = input.readInt64();
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 80
+            case 88: {
+              catalogDataStoreWasteBytes_ = input.readInt64();
+              bitField0_ |= 0x00000400;
+              break;
+            } // case 88
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1147,6 +1226,97 @@ private static final long serialVersionUID = 0L;
     public Builder clearUnaccountedBytes() {
       bitField0_ = (bitField0_ & ~0x00000100);
       unaccountedBytes_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private long catalogDataStoreLiveBytes_ ;
+    /**
+     * <pre>
+     * The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+     * than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreLiveBytes = 10;</code>
+     * @return The catalogDataStoreLiveBytes.
+     */
+    @java.lang.Override
+    public long getCatalogDataStoreLiveBytes() {
+      return catalogDataStoreLiveBytes_;
+    }
+    /**
+     * <pre>
+     * The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+     * than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreLiveBytes = 10;</code>
+     * @param value The catalogDataStoreLiveBytes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogDataStoreLiveBytes(long value) {
+
+      catalogDataStoreLiveBytes_ = value;
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+     * than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreLiveBytes = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogDataStoreLiveBytes() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      catalogDataStoreLiveBytes_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private long catalogDataStoreWasteBytes_ ;
+    /**
+     * <pre>
+     * The part of `wasteBytes` held by the catalog's own data store (bytes).
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreWasteBytes = 11;</code>
+     * @return The catalogDataStoreWasteBytes.
+     */
+    @java.lang.Override
+    public long getCatalogDataStoreWasteBytes() {
+      return catalogDataStoreWasteBytes_;
+    }
+    /**
+     * <pre>
+     * The part of `wasteBytes` held by the catalog's own data store (bytes).
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreWasteBytes = 11;</code>
+     * @param value The catalogDataStoreWasteBytes to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogDataStoreWasteBytes(long value) {
+
+      catalogDataStoreWasteBytes_ = value;
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The part of `wasteBytes` held by the catalog's own data store (bytes).
+     * </pre>
+     *
+     * <code>int64 catalogDataStoreWasteBytes = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogDataStoreWasteBytes() {
+      bitField0_ = (bitField0_ & ~0x00000400);
+      catalogDataStoreWasteBytes_ = 0L;
       onChanged();
       return this;
     }

@@ -79,8 +79,10 @@ import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStoreGenerations;
+import io.evitadb.spi.store.catalog.persistence.CompactionForecast;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -115,6 +117,7 @@ import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
@@ -127,6 +130,7 @@ import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.model.WasteAccumulation;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -242,6 +246,13 @@ public class DefaultCatalogPersistenceService
 	 * Hoisted into a constant so the thread-local initial value costs no allocation per thread.
 	 */
 	private static final LongSupplier SYSTEM_TIME_MILLIS = System::currentTimeMillis;
+	/**
+	 * How far ahead a compaction projection is worth reporting - one year. Beyond it the extrapolation is describing
+	 * the arithmetic rather than the catalog: a trickle of stranded bytes against a large live set produces dates
+	 * decades out, and a date decades out on a management screen is noise that reads like information. Past this
+	 * horizon the forecast is reported as absent, which is the same answer a rate of zero gives.
+	 */
+	private static final long MAX_PROJECTED_COMPACTION_HORIZON_MILLIS = 365L * 24L * 60L * 60L * 1000L;
 	/**
 	 * This supplier is overridden in tests to provide deterministic time. Do not use elsewhere.
 	 *
@@ -1069,6 +1080,153 @@ public class DefaultCatalogPersistenceService
 			activeRecordShare < maxWasteActiveShare ||
 				(activeRecordShare < minimalActiveRecordShare && minCompactionIntervalElapsed)
 		);
+	}
+
+	/**
+	 * Answers, for a single data store, both halves of what {@link CatalogStatisticsComponent#FRAGMENTATION} reports
+	 * about compaction: whether {@link #shouldCompact} already holds, and - when it does not - when it is projected to.
+	 *
+	 * **This is the only place the predicate is evaluated outside the trigger itself**, and it evaluates the same
+	 * function against the same inputs the trigger uses at flush time: the file length the offset index writes to, the
+	 * active record share derived from it, and the store's own last-compaction timestamp. Re-deriving any of that in
+	 * the engine would produce a second, silently diverging notion of "due for compaction".
+	 *
+	 * **How the projection is derived.** With the live bytes `L` roughly stable, every byte of waste the workload
+	 * strands is also a byte appended to the file, so after `t` seconds at rate `r` the file holds `F + r·t` bytes at
+	 * an active share of `L / (F + r·t)`. Setting that equal to a threshold `s` gives `t = (L/s − F) / r`. Two
+	 * thresholds can fire: `maxWasteActiveShare` unconditionally, and `minimalActiveRecordShare` - which is crossed
+	 * earlier, being the higher share - only once the minimum interval has elapsed. The answer is the earlier of the
+	 * two, pushed out to whenever the file also grows past `fileSizeCompactionThresholdBytes`, because no share
+	 * crossing triggers anything below that size.
+	 *
+	 * A rate of zero yields no projection at all rather than a distant one: nothing is being stranded, so no crossing
+	 * follows, and a rendered date would read as a commitment the engine never made.
+	 *
+	 * @param offsetIndex            the data store to forecast
+	 * @param measuredFileSize       length of that store's file as a caller holding a directory listing already
+	 *                               measured it, or `null` to read it from the store - see below
+	 * @param storageSettings        the configured compaction thresholds
+	 * @param lastCompactionAtMillis wall-clock time of this store's last compaction, in epoch milliseconds
+	 * @param nowMillis              current wall-clock time in epoch milliseconds
+	 * @return the forecast for this one data store
+	 */
+	@Nonnull
+	static CompactionForecast forecastCompaction(
+		@Nonnull OffsetIndex offsetIndex,
+		@Nullable Long measuredFileSize,
+		@Nonnull StorageSettings storageSettings,
+		long lastCompactionAtMillis,
+		long nowMillis
+	) {
+		// a caller that has just listed the directory passes the length it read there, so the fragmentation report
+		// cannot classify a file's bytes at one length and judge its eligibility at another - see
+		// `CatalogFragmentationSnapshot`. Passing nothing is not a lesser answer: `OffsetIndex#getFileSize` resolves
+		// to `File#length()` on the same path for every data store, so the two agree by construction and a caller
+		// with no listing to share (one collection asked about itself) simply reads it here
+		final long fileSize = measuredFileSize == null ? offsetIndex.getFileSize() : measuredFileSize;
+		final double activeRecordShare = offsetIndex.getActiveRecordShare(fileSize);
+		final boolean eligibleNow = shouldCompact(
+			fileSize > storageSettings.fileSizeCompactionThresholdBytes(),
+			activeRecordShare,
+			storageSettings.minimalActiveRecordShare(),
+			storageSettings.maxWasteActiveShare(),
+			isCompactionIntervalElapsed(
+				nowMillis, lastCompactionAtMillis, storageSettings.minCompactionIntervalMilliseconds()
+			)
+		);
+		final WasteAccumulation wasteAccumulation = offsetIndex.getWasteAccumulation();
+		final double rate = wasteAccumulation.effectiveRateBytesPerSecond(nowMillis);
+		return new CompactionForecast(
+			eligibleNow,
+			wasteAccumulation.wasteBytesGenerated(),
+			rate,
+			eligibleNow ?
+				null :
+				projectCompactionTime(
+					offsetIndex.getTotalActiveSize(), fileSize, rate,
+					storageSettings, lastCompactionAtMillis, nowMillis
+				)
+		);
+	}
+
+	/**
+	 * Extrapolates when a data store will satisfy the compaction predicate - see {@link #forecastCompaction} for the
+	 * derivation of the arithmetic and for why an absent answer is the honest one.
+	 *
+	 * @param liveBytes              bytes of active records the store holds
+	 * @param fileSize               current length of the data file
+	 * @param rateBytesPerSecond     rate at which waste is being stranded in it
+	 * @param storageSettings        the configured compaction thresholds
+	 * @param lastCompactionAtMillis wall-clock time of this store's last compaction, in epoch milliseconds
+	 * @param nowMillis              current wall-clock time in epoch milliseconds
+	 * Package-visible so that `CompactionCadenceGateTest` can pin the arithmetic directly, exactly as it does for
+	 * {@link #shouldCompact} and {@link #isCompactionIntervalElapsed}. Every interesting case here is about a
+	 * threshold being approached over time, which a functional test cannot reach without waiting for it.
+	 *
+	 * @return the projected crossing, or null when none follows from the given rate
+	 */
+	@Nullable
+	static OffsetDateTime projectCompactionTime(
+		long liveBytes,
+		long fileSize,
+		double rateBytesPerSecond,
+		@Nonnull StorageSettings storageSettings,
+		long lastCompactionAtMillis,
+		long nowMillis
+	) {
+		if (rateBytesPerSecond <= 0.0d || liveBytes <= 0L) {
+			return null;
+		}
+		// the hard override fires whenever the share is crossed; the softer threshold only once the cadence gate opens
+		final double hardOverrideMillis = millisUntilShareFallsBelow(
+			liveBytes, fileSize, rateBytesPerSecond, storageSettings.maxWasteActiveShare()
+		);
+		final double gateOpensInMillis = Math.max(
+			0.0d, (double) (lastCompactionAtMillis + storageSettings.minCompactionIntervalMilliseconds() - nowMillis)
+		);
+		final double gatedMillis = Math.max(
+			millisUntilShareFallsBelow(
+				liveBytes, fileSize, rateBytesPerSecond, storageSettings.minimalActiveRecordShare()
+			),
+			gateOpensInMillis
+		);
+		final double crossingMillis = Math.min(hardOverrideMillis, gatedMillis);
+		// nothing triggers while the file is below the size threshold, however wasteful it is
+		final double bigEnoughInMillis = fileSize > storageSettings.fileSizeCompactionThresholdBytes() ?
+			0.0d :
+			(double) (storageSettings.fileSizeCompactionThresholdBytes() - fileSize) * 1000.0d / rateBytesPerSecond;
+		final double millisFromNow = Math.max(crossingMillis, bigEnoughInMillis);
+		if (!Double.isFinite(millisFromNow) || millisFromNow > MAX_PROJECTED_COMPACTION_HORIZON_MILLIS) {
+			// past this horizon the extrapolation says more about the arithmetic than about the catalog
+			return null;
+		}
+		return Instant.ofEpochMilli(nowMillis + (long) millisFromNow)
+			.atZone(ZoneId.systemDefault())
+			.toOffsetDateTime();
+	}
+
+	/**
+	 * Returns how many milliseconds it takes for the active record share to fall below the given threshold, given that
+	 * the file grows by `rateBytesPerSecond` while its live bytes stay put.
+	 *
+	 * @param liveBytes          bytes of active records the store holds
+	 * @param fileSize           current length of the data file
+	 * @param rateBytesPerSecond rate at which waste is being stranded in it
+	 * @param targetShare        the share to fall below
+	 * @return milliseconds until the crossing, `0` when it has already happened, positive infinity when the threshold
+	 * is `0` or below and can therefore never be crossed
+	 */
+	private static double millisUntilShareFallsBelow(
+		long liveBytes,
+		long fileSize,
+		double rateBytesPerSecond,
+		double targetShare
+	) {
+		if (targetShare <= 0.0d) {
+			return Double.POSITIVE_INFINITY;
+		}
+		final double targetFileSize = (double) liveBytes / targetShare;
+		return Math.max(0.0d, (targetFileSize - (double) fileSize) * 1000.0d / rateBytesPerSecond);
 	}
 
 	/**
@@ -3035,10 +3193,88 @@ public class DefaultCatalogPersistenceService
 
 	@Nonnull
 	@Override
-	public CatalogStorageFootprint measureStorageFootprint() {
-		// one snapshot of the mutable bootstrap reference drives the whole classification - re-reading it per file
-		// could straddle a compaction and mix two generations' notions of "current"
+	public CatalogFragmentationSnapshot measureFragmentation() {
+		// one snapshot of the mutable bootstrap reference drives the whole measurement - re-reading it per file or
+		// per store could straddle a compaction and mix two generations' notions of "current"
 		final CatalogBootstrap bootstrap = this.bootstrapUsed;
+		final long catalogVersion = bootstrap.catalogVersion();
+		final DataStoreGenerations generations = describeDataStoreGenerations(bootstrap);
+
+		// ONE listing feeds both halves of this answer: the byte classification below, and the file lengths the
+		// compaction predicate is evaluated against. Letting the forecast read those lengths itself would cost a
+		// `stat` per data store that this listing has already paid for, and would let the reported waste and the
+		// reported eligibility describe two different moments of a file that is being appended to
+		final File[] files = this.catalogStoragePath.toFile().listFiles();
+		final CatalogStorageFootprint footprint = files == null ?
+			CatalogStorageFootprint.measure(this.catalogName, this.catalogStoragePath, generations) :
+			CatalogStorageFootprint.measure(this.catalogName, files, generations);
+		// keyed by name, restricted to the current generation of each store - the only files a forecast applies to.
+		// A directory that could not be listed leaves this empty, and every store falls back to reading its own
+		// length rather than being forecast against a length of zero
+		final Map<String, Long> currentFileLengths = CollectionUtils.createHashMap(
+			generations.currentDataStoreFiles().size()
+		);
+		if (files != null) {
+			for (final File file : files) {
+				if (file.isFile() && generations.currentDataStoreFiles().contains(file.getName())) {
+					currentFileLengths.put(file.getName(), file.length());
+				}
+			}
+		}
+
+		// one clock reading drives every store's cadence gate and every projection, so the forecasts cannot be
+		// anchored at moments that differ by however long the loop takes
+		final long nowMillis = getNowEpochMillis();
+		final CompactionForecast catalogDataStoreForecast = forecastCompaction(
+			getStoragePartPersistenceService(catalogVersion).getOffsetIndex(),
+			currentFileLengths.get(getCatalogDataStoreFileName(this.catalogName, bootstrap.catalogFileIndex())),
+			this.storageSettings,
+			this.lastCatalogCompactionAtMillis,
+			nowMillis
+		);
+		CompactionForecast totalForecast = catalogDataStoreForecast;
+		for (final CollectionFileReference reference : getCatalogHeader(catalogVersion).getEntityTypeFileIndexes()) {
+			final DefaultEntityCollectionPersistenceService collectionService =
+				this.entityCollectionPersistenceServices.get(reference);
+			// a collection this catalog does not hold open cannot be forecast and is left out rather than guessed at
+			if (collectionService != null) {
+				totalForecast = totalForecast.plus(
+					collectionService.measureCompactionForecast(
+						nowMillis,
+						currentFileLengths.get(
+							getEntityCollectionDataStoreFileName(
+								reference.entityType(), reference.entityTypePrimaryKey(), reference.fileIndex()
+							)
+						)
+					)
+				);
+			}
+		}
+		return new CatalogFragmentationSnapshot(footprint, catalogDataStoreForecast, totalForecast);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStorageFootprint measureStorageFootprint() {
+		return CatalogStorageFootprint.measure(
+			this.catalogName,
+			this.catalogStoragePath,
+			describeDataStoreGenerations(this.bootstrapUsed)
+		);
+	}
+
+	/**
+	 * Collects what a loaded catalog knows about its own data store files and cannot be recovered from the directory
+	 * listing alone - which generation of each store is current, and how much of it the offset index reports as live.
+	 *
+	 * Shared by {@link #measureStorageFootprint()} and {@link #measureFragmentation()} so that the two cannot disagree
+	 * about which generation is current; both pass in the same bootstrap snapshot for the same reason.
+	 *
+	 * @param bootstrap the snapshot of the mutable bootstrap reference this measurement is anchored at
+	 * @return the generations, for the classifier to attribute the listing with
+	 */
+	@Nonnull
+	private DataStoreGenerations describeDataStoreGenerations(@Nonnull CatalogBootstrap bootstrap) {
 		final long catalogVersion = bootstrap.catalogVersion();
 		final int currentCatalogFileIndex = bootstrap.catalogFileIndex();
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
@@ -3083,17 +3319,13 @@ public class DefaultCatalogPersistenceService
 			}
 		}
 
-		return CatalogStorageFootprint.measure(
-			this.catalogName,
-			this.catalogStoragePath,
-			new DataStoreGenerations(
-				currentCatalogFileIndex,
-				currentDataStoreFiles,
-				activeSizeByCurrentFile,
-				currentIndexByEntityTypePrimaryKey,
-				this.obsoleteFileMaintainer.getMaintainedFileVersions(),
-				this.obsoleteFileMaintainer.getActiveReaderFloor()
-			)
+		return new DataStoreGenerations(
+			currentCatalogFileIndex,
+			currentDataStoreFiles,
+			activeSizeByCurrentFile,
+			currentIndexByEntityTypePrimaryKey,
+			this.obsoleteFileMaintainer.getMaintainedFileVersions(),
+			this.obsoleteFileMaintainer.getActiveReaderFloor()
 		);
 	}
 

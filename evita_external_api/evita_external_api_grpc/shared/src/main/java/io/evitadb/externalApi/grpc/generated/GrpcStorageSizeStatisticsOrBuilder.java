@@ -123,4 +123,25 @@ public interface GrpcStorageSizeStatisticsOrBuilder extends
    * @return The unaccountedBytes.
    */
   long getUnaccountedBytes();
+
+  /**
+   * <pre>
+   * The part of `liveBytes` held by the catalog's OWN data store - schema, headers and catalog-level indexes - rather
+   * than by any collection's (bytes). Within one response the remainder is the sum over every open collection.
+   * </pre>
+   *
+   * <code>int64 catalogDataStoreLiveBytes = 10;</code>
+   * @return The catalogDataStoreLiveBytes.
+   */
+  long getCatalogDataStoreLiveBytes();
+
+  /**
+   * <pre>
+   * The part of `wasteBytes` held by the catalog's own data store (bytes).
+   * </pre>
+   *
+   * <code>int64 catalogDataStoreWasteBytes = 11;</code>
+   * @return The catalogDataStoreWasteBytes.
+   */
+  long getCatalogDataStoreWasteBytes();
 }

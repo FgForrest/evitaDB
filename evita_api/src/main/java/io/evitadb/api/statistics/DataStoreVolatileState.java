@@ -41,7 +41,7 @@ import java.util.Optional;
  *                                            nothing is being retained
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public record CollectionVolatileState(
+public record DataStoreVolatileState(
 	long totalSizeIncludingVolatileDataBytes,
 	int nonFlushedRecordCount,
 	long nonFlushedSizeBytes,

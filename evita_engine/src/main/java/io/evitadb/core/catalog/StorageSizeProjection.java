@@ -59,6 +59,8 @@ final class StorageSizeProjection {
 			footprint.totalBytes(),
 			footprint.liveBytes(),
 			footprint.wasteBytes(),
+			footprint.catalogDataStoreLiveBytes(),
+			footprint.catalogDataStoreWasteBytes(),
 			footprint.walBytes(),
 			footprint.awaitingDeletionBytes(),
 			footprint.blockedByActiveReaderBytes(),

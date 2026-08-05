@@ -29,13 +29,31 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, and how close
- * it is to being compacted.
+ * The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, how fast that
+ * is getting worse, and when the engine will act on it.
  *
  * The compaction trigger is deterministic, so the configured thresholds that drive it are reported alongside the
- * measurements and a client can draw all of them on one gauge: a data store is compacted when its file exceeds
- * `fileSizeCompactionThresholdBytes` and either its active share is below `maxWasteActiveShare` (which overrides the
- * interval), or below `minimalActiveRecordShare` once `minCompactionIntervalMilliseconds` has elapsed.
+ * measurements: a data store is compacted when its file exceeds `fileSizeCompactionThresholdBytes` and either its
+ * active share is below `maxWasteActiveShare` (which overrides the interval), or below `minimalActiveRecordShare`
+ * once `minCompactionIntervalMilliseconds` has elapsed.
+ *
+ * `activeRecordShare` is NOT the share that predicate is evaluated against, and the two must not be compared. The
+ * share reported here is a catalog-wide aggregate over the bytes reported next to it, so a client can reproduce it;
+ * the trigger evaluates each data store separately against its own file length, which also carries the serialized
+ * offset-index table. They disagree in both directions - one small very wasteful file sets `compactionEligibleNow`
+ * while this aggregate stays high, and the aggregate can fall below `minimalActiveRecordShare` while no file is
+ * large enough to qualify. Take the verdict from `compactionEligibleNow` alone.
+ *
+ * `wasteBytesGenerated` counts the bytes rewrites and removals have stranded since each data store was opened or last
+ * compacted - the engine's own production counter, which is not the same quantity as `wasteBytes` and will be smaller
+ * on a freshly restarted server. The rate and the projected time extrapolate from it. An unset `estimatedCompactionAt`
+ * means no crossing follows from the current write rate - it never means "never", and a client must not substitute a
+ * date for it.
+ *
+ * Every figure here is folded across the catalog's own data store AND every collection's, so on its own it cannot say
+ * WHERE the fragmentation is. `catalogDataStore` reports the catalog's own store - schema, headers and catalog-level
+ * indexes - separately, which is what lets a raised `compactionEligibleNow` be attributed: set on the nested message
+ * means the catalog's own store is due, unset means the flag came from a collection.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFragmentationStatistics}
@@ -72,6 +90,7 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcFragmentationStatistics.class, io.evitadb.externalApi.grpc.generated.GrpcFragmentationStatistics.Builder.class);
   }
 
+  private int bitField0_;
   public static final int ACTIVERECORDSHARE_FIELD_NUMBER = 1;
   private double activeRecordShare_ = 0D;
   /**
@@ -147,6 +166,79 @@ private static final long serialVersionUID = 0L;
     return fileSizeCompactionThresholdBytes_;
   }
 
+  public static final int WASTEBYTESGENERATED_FIELD_NUMBER = 9;
+  private long wasteBytesGenerated_ = 0L;
+  /**
+   * <pre>
+   * Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+   * (bytes).
+   * </pre>
+   *
+   * <code>int64 wasteBytesGenerated = 9;</code>
+   * @return The wasteBytesGenerated.
+   */
+  @java.lang.Override
+  public long getWasteBytesGenerated() {
+    return wasteBytesGenerated_;
+  }
+
+  public static final int WASTEACCUMULATIONRATEBYTESPERSECOND_FIELD_NUMBER = 10;
+  private double wasteAccumulationRateBytesPerSecond_ = 0D;
+  /**
+   * <pre>
+   * Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+   * written; `0` when no waste is accruing (bytes per second).
+   * </pre>
+   *
+   * <code>double wasteAccumulationRateBytesPerSecond = 10;</code>
+   * @return The wasteAccumulationRateBytesPerSecond.
+   */
+  @java.lang.Override
+  public double getWasteAccumulationRateBytesPerSecond() {
+    return wasteAccumulationRateBytesPerSecond_;
+  }
+
+  public static final int ESTIMATEDCOMPACTIONAT_FIELD_NUMBER = 11;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt_;
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   * @return Whether the estimatedCompactionAt field is set.
+   */
+  @java.lang.Override
+  public boolean hasEstimatedCompactionAt() {
+    return ((bitField0_ & 0x00000001) != 0);
+  }
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   * @return The estimatedCompactionAt.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getEstimatedCompactionAt() {
+    return estimatedCompactionAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : estimatedCompactionAt_;
+  }
+  /**
+   * <pre>
+   * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+   * crossing follows from the current rate.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getEstimatedCompactionAtOrBuilder() {
+    return estimatedCompactionAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : estimatedCompactionAt_;
+  }
+
   public static final int MINIMALACTIVERECORDSHARE_FIELD_NUMBER = 6;
   private double minimalActiveRecordShare_ = 0D;
   /**
@@ -192,6 +284,47 @@ private static final long serialVersionUID = 0L;
     return minCompactionIntervalMilliseconds_;
   }
 
+  public static final int CATALOGDATASTORE_FIELD_NUMBER = 12;
+  private io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore_;
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   * @return Whether the catalogDataStore field is set.
+   */
+  @java.lang.Override
+  public boolean hasCatalogDataStore() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   * @return The catalogDataStore.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getCatalogDataStore() {
+    return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : catalogDataStore_;
+  }
+  /**
+   * <pre>
+   * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+   * entity collection. Always set when this component is delivered.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getCatalogDataStoreOrBuilder() {
+    return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : catalogDataStore_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -229,6 +362,18 @@ private static final long serialVersionUID = 0L;
     }
     if (minCompactionIntervalMilliseconds_ != 0L) {
       output.writeInt64(8, minCompactionIntervalMilliseconds_);
+    }
+    if (wasteBytesGenerated_ != 0L) {
+      output.writeInt64(9, wasteBytesGenerated_);
+    }
+    if (java.lang.Double.doubleToRawLongBits(wasteAccumulationRateBytesPerSecond_) != 0) {
+      output.writeDouble(10, wasteAccumulationRateBytesPerSecond_);
+    }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(11, getEstimatedCompactionAt());
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(12, getCatalogDataStore());
     }
     getUnknownFields().writeTo(output);
   }
@@ -271,6 +416,22 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt64Size(8, minCompactionIntervalMilliseconds_);
     }
+    if (wasteBytesGenerated_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(9, wasteBytesGenerated_);
+    }
+    if (java.lang.Double.doubleToRawLongBits(wasteAccumulationRateBytesPerSecond_) != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeDoubleSize(10, wasteAccumulationRateBytesPerSecond_);
+    }
+    if (((bitField0_ & 0x00000001) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(11, getEstimatedCompactionAt());
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(12, getCatalogDataStore());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -297,6 +458,16 @@ private static final long serialVersionUID = 0L;
         != other.getCompactionEligibleNow()) return false;
     if (getFileSizeCompactionThresholdBytes()
         != other.getFileSizeCompactionThresholdBytes()) return false;
+    if (getWasteBytesGenerated()
+        != other.getWasteBytesGenerated()) return false;
+    if (java.lang.Double.doubleToLongBits(getWasteAccumulationRateBytesPerSecond())
+        != java.lang.Double.doubleToLongBits(
+            other.getWasteAccumulationRateBytesPerSecond())) return false;
+    if (hasEstimatedCompactionAt() != other.hasEstimatedCompactionAt()) return false;
+    if (hasEstimatedCompactionAt()) {
+      if (!getEstimatedCompactionAt()
+          .equals(other.getEstimatedCompactionAt())) return false;
+    }
     if (java.lang.Double.doubleToLongBits(getMinimalActiveRecordShare())
         != java.lang.Double.doubleToLongBits(
             other.getMinimalActiveRecordShare())) return false;
@@ -305,6 +476,11 @@ private static final long serialVersionUID = 0L;
             other.getMaxWasteActiveShare())) return false;
     if (getMinCompactionIntervalMilliseconds()
         != other.getMinCompactionIntervalMilliseconds()) return false;
+    if (hasCatalogDataStore() != other.hasCatalogDataStore()) return false;
+    if (hasCatalogDataStore()) {
+      if (!getCatalogDataStore()
+          .equals(other.getCatalogDataStore())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -331,6 +507,16 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + FILESIZECOMPACTIONTHRESHOLDBYTES_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getFileSizeCompactionThresholdBytes());
+    hash = (37 * hash) + WASTEBYTESGENERATED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getWasteBytesGenerated());
+    hash = (37 * hash) + WASTEACCUMULATIONRATEBYTESPERSECOND_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        java.lang.Double.doubleToLongBits(getWasteAccumulationRateBytesPerSecond()));
+    if (hasEstimatedCompactionAt()) {
+      hash = (37 * hash) + ESTIMATEDCOMPACTIONAT_FIELD_NUMBER;
+      hash = (53 * hash) + getEstimatedCompactionAt().hashCode();
+    }
     hash = (37 * hash) + MINIMALACTIVERECORDSHARE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         java.lang.Double.doubleToLongBits(getMinimalActiveRecordShare()));
@@ -340,6 +526,10 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + MINCOMPACTIONINTERVALMILLISECONDS_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
         getMinCompactionIntervalMilliseconds());
+    if (hasCatalogDataStore()) {
+      hash = (37 * hash) + CATALOGDATASTORE_FIELD_NUMBER;
+      hash = (53 * hash) + getCatalogDataStore().hashCode();
+    }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -439,13 +629,31 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, and how close
-   * it is to being compacted.
+   * The catalog-level `COMPONENT_FRAGMENTATION` component - how much of the catalog's data is still live, how fast that
+   * is getting worse, and when the engine will act on it.
    *
    * The compaction trigger is deterministic, so the configured thresholds that drive it are reported alongside the
-   * measurements and a client can draw all of them on one gauge: a data store is compacted when its file exceeds
-   * `fileSizeCompactionThresholdBytes` and either its active share is below `maxWasteActiveShare` (which overrides the
-   * interval), or below `minimalActiveRecordShare` once `minCompactionIntervalMilliseconds` has elapsed.
+   * measurements: a data store is compacted when its file exceeds `fileSizeCompactionThresholdBytes` and either its
+   * active share is below `maxWasteActiveShare` (which overrides the interval), or below `minimalActiveRecordShare`
+   * once `minCompactionIntervalMilliseconds` has elapsed.
+   *
+   * `activeRecordShare` is NOT the share that predicate is evaluated against, and the two must not be compared. The
+   * share reported here is a catalog-wide aggregate over the bytes reported next to it, so a client can reproduce it;
+   * the trigger evaluates each data store separately against its own file length, which also carries the serialized
+   * offset-index table. They disagree in both directions - one small very wasteful file sets `compactionEligibleNow`
+   * while this aggregate stays high, and the aggregate can fall below `minimalActiveRecordShare` while no file is
+   * large enough to qualify. Take the verdict from `compactionEligibleNow` alone.
+   *
+   * `wasteBytesGenerated` counts the bytes rewrites and removals have stranded since each data store was opened or last
+   * compacted - the engine's own production counter, which is not the same quantity as `wasteBytes` and will be smaller
+   * on a freshly restarted server. The rate and the projected time extrapolate from it. An unset `estimatedCompactionAt`
+   * means no crossing follows from the current write rate - it never means "never", and a client must not substitute a
+   * date for it.
+   *
+   * Every figure here is folded across the catalog's own data store AND every collection's, so on its own it cannot say
+   * WHERE the fragmentation is. `catalogDataStore` reports the catalog's own store - schema, headers and catalog-level
+   * indexes - separately, which is what lets a raised `compactionEligibleNow` be attributed: set on the nested message
+   * means the catalog's own store is due, unset means the flag came from a collection.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFragmentationStatistics}
@@ -469,13 +677,20 @@ private static final long serialVersionUID = 0L;
 
     // Construct using io.evitadb.externalApi.grpc.generated.GrpcFragmentationStatistics.newBuilder()
     private Builder() {
-
+      maybeForceBuilderInitialization();
     }
 
     private Builder(
         com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-
+      maybeForceBuilderInitialization();
+    }
+    private void maybeForceBuilderInitialization() {
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+        getEstimatedCompactionAtFieldBuilder();
+        getCatalogDataStoreFieldBuilder();
+      }
     }
     @java.lang.Override
     public Builder clear() {
@@ -486,9 +701,21 @@ private static final long serialVersionUID = 0L;
       wasteBytes_ = 0L;
       compactionEligibleNow_ = false;
       fileSizeCompactionThresholdBytes_ = 0L;
+      wasteBytesGenerated_ = 0L;
+      wasteAccumulationRateBytesPerSecond_ = 0D;
+      estimatedCompactionAt_ = null;
+      if (estimatedCompactionAtBuilder_ != null) {
+        estimatedCompactionAtBuilder_.dispose();
+        estimatedCompactionAtBuilder_ = null;
+      }
       minimalActiveRecordShare_ = 0D;
       maxWasteActiveShare_ = 0D;
       minCompactionIntervalMilliseconds_ = 0L;
+      catalogDataStore_ = null;
+      if (catalogDataStoreBuilder_ != null) {
+        catalogDataStoreBuilder_.dispose();
+        catalogDataStoreBuilder_ = null;
+      }
       return this;
     }
 
@@ -538,14 +765,34 @@ private static final long serialVersionUID = 0L;
         result.fileSizeCompactionThresholdBytes_ = fileSizeCompactionThresholdBytes_;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
-        result.minimalActiveRecordShare_ = minimalActiveRecordShare_;
+        result.wasteBytesGenerated_ = wasteBytesGenerated_;
       }
       if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.wasteAccumulationRateBytesPerSecond_ = wasteAccumulationRateBytesPerSecond_;
+      }
+      int to_bitField0_ = 0;
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.estimatedCompactionAt_ = estimatedCompactionAtBuilder_ == null
+            ? estimatedCompactionAt_
+            : estimatedCompactionAtBuilder_.build();
+        to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
+        result.minimalActiveRecordShare_ = minimalActiveRecordShare_;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
         result.maxWasteActiveShare_ = maxWasteActiveShare_;
       }
-      if (((from_bitField0_ & 0x00000080) != 0)) {
+      if (((from_bitField0_ & 0x00000400) != 0)) {
         result.minCompactionIntervalMilliseconds_ = minCompactionIntervalMilliseconds_;
       }
+      if (((from_bitField0_ & 0x00000800) != 0)) {
+        result.catalogDataStore_ = catalogDataStoreBuilder_ == null
+            ? catalogDataStore_
+            : catalogDataStoreBuilder_.build();
+        to_bitField0_ |= 0x00000002;
+      }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -607,6 +854,15 @@ private static final long serialVersionUID = 0L;
       if (other.getFileSizeCompactionThresholdBytes() != 0L) {
         setFileSizeCompactionThresholdBytes(other.getFileSizeCompactionThresholdBytes());
       }
+      if (other.getWasteBytesGenerated() != 0L) {
+        setWasteBytesGenerated(other.getWasteBytesGenerated());
+      }
+      if (other.getWasteAccumulationRateBytesPerSecond() != 0D) {
+        setWasteAccumulationRateBytesPerSecond(other.getWasteAccumulationRateBytesPerSecond());
+      }
+      if (other.hasEstimatedCompactionAt()) {
+        mergeEstimatedCompactionAt(other.getEstimatedCompactionAt());
+      }
       if (other.getMinimalActiveRecordShare() != 0D) {
         setMinimalActiveRecordShare(other.getMinimalActiveRecordShare());
       }
@@ -615,6 +871,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getMinCompactionIntervalMilliseconds() != 0L) {
         setMinCompactionIntervalMilliseconds(other.getMinCompactionIntervalMilliseconds());
+      }
+      if (other.hasCatalogDataStore()) {
+        mergeCatalogDataStore(other.getCatalogDataStore());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -669,19 +928,43 @@ private static final long serialVersionUID = 0L;
             } // case 40
             case 49: {
               minimalActiveRecordShare_ = input.readDouble();
-              bitField0_ |= 0x00000020;
+              bitField0_ |= 0x00000100;
               break;
             } // case 49
             case 57: {
               maxWasteActiveShare_ = input.readDouble();
-              bitField0_ |= 0x00000040;
+              bitField0_ |= 0x00000200;
               break;
             } // case 57
             case 64: {
               minCompactionIntervalMilliseconds_ = input.readInt64();
-              bitField0_ |= 0x00000080;
+              bitField0_ |= 0x00000400;
               break;
             } // case 64
+            case 72: {
+              wasteBytesGenerated_ = input.readInt64();
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 72
+            case 81: {
+              wasteAccumulationRateBytesPerSecond_ = input.readDouble();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 81
+            case 90: {
+              input.readMessage(
+                  getEstimatedCompactionAtFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 90
+            case 98: {
+              input.readMessage(
+                  getCatalogDataStoreFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000800;
+              break;
+            } // case 98
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -919,6 +1202,266 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private long wasteBytesGenerated_ ;
+    /**
+     * <pre>
+     * Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+     * (bytes).
+     * </pre>
+     *
+     * <code>int64 wasteBytesGenerated = 9;</code>
+     * @return The wasteBytesGenerated.
+     */
+    @java.lang.Override
+    public long getWasteBytesGenerated() {
+      return wasteBytesGenerated_;
+    }
+    /**
+     * <pre>
+     * Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+     * (bytes).
+     * </pre>
+     *
+     * <code>int64 wasteBytesGenerated = 9;</code>
+     * @param value The wasteBytesGenerated to set.
+     * @return This builder for chaining.
+     */
+    public Builder setWasteBytesGenerated(long value) {
+
+      wasteBytesGenerated_ = value;
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Bytes stranded by rewrites and removals since each data store was opened or last compacted, summed across them
+     * (bytes).
+     * </pre>
+     *
+     * <code>int64 wasteBytesGenerated = 9;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearWasteBytesGenerated() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      wasteBytesGenerated_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private double wasteAccumulationRateBytesPerSecond_ ;
+    /**
+     * <pre>
+     * Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+     * written; `0` when no waste is accruing (bytes per second).
+     * </pre>
+     *
+     * <code>double wasteAccumulationRateBytesPerSecond = 10;</code>
+     * @return The wasteAccumulationRateBytesPerSecond.
+     */
+    @java.lang.Override
+    public double getWasteAccumulationRateBytesPerSecond() {
+      return wasteAccumulationRateBytesPerSecond_;
+    }
+    /**
+     * <pre>
+     * Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+     * written; `0` when no waste is accruing (bytes per second).
+     * </pre>
+     *
+     * <code>double wasteAccumulationRateBytesPerSecond = 10;</code>
+     * @param value The wasteAccumulationRateBytesPerSecond to set.
+     * @return This builder for chaining.
+     */
+    public Builder setWasteAccumulationRateBytesPerSecond(double value) {
+
+      wasteAccumulationRateBytesPerSecond_ = value;
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Rate at which `wasteBytesGenerated` grows, smoothed over recent flushes and decayed while nothing is being
+     * written; `0` when no waste is accruing (bytes per second).
+     * </pre>
+     *
+     * <code>double wasteAccumulationRateBytesPerSecond = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearWasteAccumulationRateBytesPerSecond() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      wasteAccumulationRateBytesPerSecond_ = 0D;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> estimatedCompactionAtBuilder_;
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     * @return Whether the estimatedCompactionAt field is set.
+     */
+    public boolean hasEstimatedCompactionAt() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     * @return The estimatedCompactionAt.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getEstimatedCompactionAt() {
+      if (estimatedCompactionAtBuilder_ == null) {
+        return estimatedCompactionAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : estimatedCompactionAt_;
+      } else {
+        return estimatedCompactionAtBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public Builder setEstimatedCompactionAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (estimatedCompactionAtBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        estimatedCompactionAt_ = value;
+      } else {
+        estimatedCompactionAtBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public Builder setEstimatedCompactionAt(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (estimatedCompactionAtBuilder_ == null) {
+        estimatedCompactionAt_ = builderForValue.build();
+      } else {
+        estimatedCompactionAtBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public Builder mergeEstimatedCompactionAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (estimatedCompactionAtBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          estimatedCompactionAt_ != null &&
+          estimatedCompactionAt_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getEstimatedCompactionAtBuilder().mergeFrom(value);
+        } else {
+          estimatedCompactionAt_ = value;
+        }
+      } else {
+        estimatedCompactionAtBuilder_.mergeFrom(value);
+      }
+      if (estimatedCompactionAt_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public Builder clearEstimatedCompactionAt() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      estimatedCompactionAt_ = null;
+      if (estimatedCompactionAtBuilder_ != null) {
+        estimatedCompactionAtBuilder_.dispose();
+        estimatedCompactionAtBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getEstimatedCompactionAtBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getEstimatedCompactionAtFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getEstimatedCompactionAtOrBuilder() {
+      if (estimatedCompactionAtBuilder_ != null) {
+        return estimatedCompactionAtBuilder_.getMessageOrBuilder();
+      } else {
+        return estimatedCompactionAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : estimatedCompactionAt_;
+      }
+    }
+    /**
+     * <pre>
+     * Projected time at which the first data store that is not already eligible crosses the predicate. Unset when no
+     * crossing follows from the current rate.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime estimatedCompactionAt = 11;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getEstimatedCompactionAtFieldBuilder() {
+      if (estimatedCompactionAtBuilder_ == null) {
+        estimatedCompactionAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getEstimatedCompactionAt(),
+                getParentForChildren(),
+                isClean());
+        estimatedCompactionAt_ = null;
+      }
+      return estimatedCompactionAtBuilder_;
+    }
+
     private double minimalActiveRecordShare_ ;
     /**
      * <pre>
@@ -944,7 +1487,7 @@ private static final long serialVersionUID = 0L;
     public Builder setMinimalActiveRecordShare(double value) {
 
       minimalActiveRecordShare_ = value;
-      bitField0_ |= 0x00000020;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }
@@ -957,7 +1500,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearMinimalActiveRecordShare() {
-      bitField0_ = (bitField0_ & ~0x00000020);
+      bitField0_ = (bitField0_ & ~0x00000100);
       minimalActiveRecordShare_ = 0D;
       onChanged();
       return this;
@@ -988,7 +1531,7 @@ private static final long serialVersionUID = 0L;
     public Builder setMaxWasteActiveShare(double value) {
 
       maxWasteActiveShare_ = value;
-      bitField0_ |= 0x00000040;
+      bitField0_ |= 0x00000200;
       onChanged();
       return this;
     }
@@ -1001,7 +1544,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearMaxWasteActiveShare() {
-      bitField0_ = (bitField0_ & ~0x00000040);
+      bitField0_ = (bitField0_ & ~0x00000200);
       maxWasteActiveShare_ = 0D;
       onChanged();
       return this;
@@ -1032,7 +1575,7 @@ private static final long serialVersionUID = 0L;
     public Builder setMinCompactionIntervalMilliseconds(long value) {
 
       minCompactionIntervalMilliseconds_ = value;
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000400;
       onChanged();
       return this;
     }
@@ -1045,10 +1588,176 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearMinCompactionIntervalMilliseconds() {
-      bitField0_ = (bitField0_ & ~0x00000080);
+      bitField0_ = (bitField0_ & ~0x00000400);
       minCompactionIntervalMilliseconds_ = 0L;
       onChanged();
       return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder> catalogDataStoreBuilder_;
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     * @return Whether the catalogDataStore field is set.
+     */
+    public boolean hasCatalogDataStore() {
+      return ((bitField0_ & 0x00000800) != 0);
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     * @return The catalogDataStore.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation getCatalogDataStore() {
+      if (catalogDataStoreBuilder_ == null) {
+        return catalogDataStore_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : catalogDataStore_;
+      } else {
+        return catalogDataStoreBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public Builder setCatalogDataStore(io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation value) {
+      if (catalogDataStoreBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        catalogDataStore_ = value;
+      } else {
+        catalogDataStoreBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public Builder setCatalogDataStore(
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder builderForValue) {
+      if (catalogDataStoreBuilder_ == null) {
+        catalogDataStore_ = builderForValue.build();
+      } else {
+        catalogDataStoreBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public Builder mergeCatalogDataStore(io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation value) {
+      if (catalogDataStoreBuilder_ == null) {
+        if (((bitField0_ & 0x00000800) != 0) &&
+          catalogDataStore_ != null &&
+          catalogDataStore_ != io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance()) {
+          getCatalogDataStoreBuilder().mergeFrom(value);
+        } else {
+          catalogDataStore_ = value;
+        }
+      } else {
+        catalogDataStoreBuilder_.mergeFrom(value);
+      }
+      if (catalogDataStore_ != null) {
+        bitField0_ |= 0x00000800;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public Builder clearCatalogDataStore() {
+      bitField0_ = (bitField0_ & ~0x00000800);
+      catalogDataStore_ = null;
+      if (catalogDataStoreBuilder_ != null) {
+        catalogDataStoreBuilder_.dispose();
+        catalogDataStoreBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder getCatalogDataStoreBuilder() {
+      bitField0_ |= 0x00000800;
+      onChanged();
+      return getCatalogDataStoreFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder getCatalogDataStoreOrBuilder() {
+      if (catalogDataStoreBuilder_ != null) {
+        return catalogDataStoreBuilder_.getMessageOrBuilder();
+      } else {
+        return catalogDataStore_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.getDefaultInstance() : catalogDataStore_;
+      }
+    }
+    /**
+     * <pre>
+     * The same measurements for the catalog's own data store alone - the slice of every figure above that belongs to no
+     * entity collection. Always set when this component is delivered.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation catalogDataStore = 12;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder> 
+        getCatalogDataStoreFieldBuilder() {
+      if (catalogDataStoreBuilder_ == null) {
+        catalogDataStoreBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentation.Builder, io.evitadb.externalApi.grpc.generated.GrpcDataStoreFragmentationOrBuilder>(
+                getCatalogDataStore(),
+                getParentForChildren(),
+                isClean());
+        catalogDataStore_ = null;
+      }
+      return catalogDataStoreBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
