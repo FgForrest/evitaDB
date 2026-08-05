@@ -1163,6 +1163,15 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	@Override
+	@Nullable
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeIndexKey lookupKey) {
+		// resolve against the standalone (owner) map first, then the folded (view) map - both are keyed by the unique
+		// key, exactly as the schema-addressed overload does
+		final UniqueIndex owner = this.uniqueIndex.get(lookupKey);
+		return owner != null ? owner : this.uniqueViewIndex.get(lookupKey);
+	}
+
+	@Override
 	@Nonnull
 	public Set<AttributeIndexKey> getFilterIndexes() {
 		// transactional truth = the shared value index key set

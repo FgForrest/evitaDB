@@ -1011,3 +1011,23 @@ enum GrpcEntityIndexKind {
   INDEX_KIND_REFERENCED_GROUP_ENTITY = 5;
 
 }
+
+// Which of an attribute's index structures a cardinality reading describes. One attribute can be indexed several ways
+// at once - a filterable AND sortable attribute has both a filter and a sort index - and their distinct-value counts
+// are not interchangeable, so a reading always names the structure it came from.
+//
+// The chain index used for ordered references has no value dimension at all: it stores predecessor links between
+// records rather than values, so "distinct values" is not a question that can be asked of it and it is deliberately
+// absent here.
+enum GrpcAttributeIndexType {
+
+  // Default value, never sent by the server. Every reported cardinality carries an explicit structure.
+  ATTRIBUTE_INDEX_TYPE_UNSPECIFIED = 0;
+  // The unique index - a value maps to at most one record.
+  ATTRIBUTE_INDEX_TYPE_UNIQUE = 1;
+  // The filter index - the inverted index used to resolve equality, prefix and range predicates.
+  ATTRIBUTE_INDEX_TYPE_FILTER = 2;
+  // The sort index - records ordered by their attribute value.
+  ATTRIBUTE_INDEX_TYPE_SORT = 3;
+
+}

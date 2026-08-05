@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.EntityIndexKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
@@ -1765,6 +1766,38 @@ public class EvitaEnumConverter {
 			case REFERENCED_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_ENTITY;
 			case REFERENCED_GROUP_ENTITY_TYPE -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE;
 			case REFERENCED_GROUP_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeIndexType} to {@link AttributeIndexType}.
+	 *
+	 * @param grpcIndexType the received attribute index structure
+	 * @return its Java form
+	 */
+	@Nonnull
+	public static AttributeIndexType toAttributeIndexType(@Nonnull GrpcAttributeIndexType grpcIndexType) {
+		return switch (grpcIndexType) {
+			case ATTRIBUTE_INDEX_TYPE_UNIQUE -> AttributeIndexType.UNIQUE;
+			case ATTRIBUTE_INDEX_TYPE_FILTER -> AttributeIndexType.FILTER;
+			case ATTRIBUTE_INDEX_TYPE_SORT -> AttributeIndexType.SORT;
+			case ATTRIBUTE_INDEX_TYPE_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized attribute index type: " + grpcIndexType);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeIndexType} to {@link GrpcAttributeIndexType}.
+	 *
+	 * @param indexType the attribute index structure to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcAttributeIndexType toGrpcAttributeIndexType(@Nonnull AttributeIndexType indexType) {
+		return switch (indexType) {
+			case UNIQUE -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_UNIQUE;
+			case FILTER -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_FILTER;
+			case SORT -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_SORT;
 		};
 	}
 }

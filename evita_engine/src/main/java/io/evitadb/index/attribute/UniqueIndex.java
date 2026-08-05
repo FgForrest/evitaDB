@@ -204,6 +204,17 @@ public abstract sealed class UniqueIndex implements
 	public abstract int size();
 
 	/**
+	 * Returns the number of distinct values registered in this index.
+	 *
+	 * For a unique index this normally equals {@link #size()} - that is what makes the index unique - and the two are
+	 * reported separately precisely so the exception is visible: a `localized` attribute that is also unique globally
+	 * has one locale-less key per locale, so a single record can legitimately own several values here.
+	 *
+	 * @return number of distinct unique keys
+	 */
+	public abstract int getDistinctValueCount();
+
+	/**
 	 * Returns true if index is empty.
 	 */
 	public abstract boolean isEmpty();

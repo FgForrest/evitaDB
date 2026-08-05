@@ -654,6 +654,19 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the number of distinct values this index orders by - the public form of {@link #valueCount()}, read from
+	 * the value tree's cached bucket counter and therefore `O(1)`.
+	 *
+	 * Read against {@link #size()} it says how large the blocks of ties are: a sort index with few distinct values
+	 * imposes almost no ordering.
+	 *
+	 * @return number of distinct ordering values
+	 */
+	public int getDistinctValueCount() {
+		return valueCount();
+	}
+
+	/**
 	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
 	 *
 	 * A plain query opens no transaction at all (read-only sessions never do, and even a read-write session only binds

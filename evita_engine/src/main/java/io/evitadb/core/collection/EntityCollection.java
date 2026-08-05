@@ -289,6 +289,12 @@ public final class EntityCollection implements
 	 */
 	private final PersistentTransactionalProducerMap<Integer, EntityIndex> indexesByPrimaryKey;
 	/**
+	 * How many indexes {@link #indexes} holds, split by type and scope, maintained incrementally so that reporting the
+	 * split does not walk a map whose size is a function of the catalog's data volume. See {@link IndexPopulation} for
+	 * why the counts move at commit rather than at the call sites that create and drop indexes.
+	 */
+	private final IndexPopulation indexPopulation;
+	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
 	private final AtomicBoolean terminated = new AtomicBoolean(false);
@@ -459,6 +465,9 @@ public final class EntityCollection implements
 					EntityIndex.class::cast
 				);
 			}
+			// the maps are empty at this point either way - the load path fills them through `addIndex`, which is what
+			// grows this population, so seeding it with a walk here would count nothing
+			this.indexPopulation = new IndexPopulation();
 
 			// sanity check whether we deserialized the file offset index we expect to
 			Assert.isTrue(
@@ -532,6 +541,7 @@ public final class EntityCollection implements
 			indexTuple.indexesByPk(),
 			EntityIndex.class::cast
 		);
+		this.indexPopulation = indexTuple.indexPopulation();
 		this.cacheSupervisor = previousCollection.cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -557,6 +567,7 @@ public final class EntityCollection implements
 		@Nonnull EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> persistenceService,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull Map<Integer, EntityIndex> indexesByPk,
+		@Nonnull IndexPopulation indexPopulation,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
@@ -581,6 +592,7 @@ public final class EntityCollection implements
 		// map (bulk load, compaction re-attach) is copied into the mutable warm-up buffer exactly as before
 		this.indexes = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexes, EntityIndex.class::cast);
 		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexesByPk, EntityIndex.class::cast);
+		this.indexPopulation = indexPopulation;
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -1066,13 +1078,18 @@ public final class EntityCollection implements
 				case FRAGMENTATION -> builder.withFragmentation(
 					describeFragmentation(Objects.requireNonNull(storageFootprint))
 				);
-				// kept apart from the arms above because these two are the expensive pair - they arrive last and
-				// their absence is a different statement than "not implemented yet for this collection"
-				case INDEX_CARDINALITY, MEMORY_FOOTPRINT -> builder.withUnavailable(
+				case INDEX_CARDINALITY -> builder.withIndexCardinality(
+					IndexCardinalityProjection.describe(
+						this.indexes, getInternalSchema().getReferences().keySet()
+					)
+				);
+				// kept apart from the arms above because this is the remaining expensive component - its absence is
+				// a different statement than "not implemented yet for this collection"
+				case MEMORY_FOOTPRINT -> builder.withUnavailable(
 					component,
 					ComponentAvailability.NOT_SUPPORTED,
-					"Statistics component `" + component + "` walks index contents and is not implemented yet; it " +
-						"will never be part of a polled refresh."
+					"Statistics component `" + component + "` walks in-memory index structures and is not " +
+						"implemented yet; it will never be part of a polled refresh."
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
 				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
@@ -1091,7 +1108,7 @@ public final class EntityCollection implements
 	 * @return number of indexes of this collection
 	 */
 	public int getIndexCount() {
-		return this.indexes.size();
+		return this.indexPopulation.total();
 	}
 
 	/**
@@ -1258,9 +1275,17 @@ public final class EntityCollection implements
 		final Scope[] scopes = Scope.values();
 		final int[][] countsByKindAndScope = new int[kinds.length][scopes.length];
 		int totalIndexCount = 0;
-		for (final EntityIndexKey indexKey : this.indexes.keySet()) {
-			countsByKindAndScope[toIndexKind(indexKey.type()).ordinal()][indexKey.scope().ordinal()]++;
-			totalIndexCount++;
+		// folded out of the maintained per-(type, scope) counters rather than walked: a production collection holds
+		// hundreds of thousands of per-referenced-entity indexes and this component is polled. The fold is over a dozen
+		// cells and collapses the engine's legacy `REFERENCED_HIERARCHY_NODE` into the kind it was merged into, exactly
+		// as `toIndexKind` does for every other consumer
+		for (final EntityIndexType indexType : EntityIndexType.values()) {
+			final int kindOrdinal = toIndexKind(indexType).ordinal();
+			for (final Scope scope : scopes) {
+				final int count = this.indexPopulation.countOf(indexType, scope);
+				countsByKindAndScope[kindOrdinal][scope.ordinal()] += count;
+				totalIndexCount += count;
+			}
 		}
 		int occupiedPairCount = 0;
 		for (int kind = 0; kind < kinds.length; kind++) {
@@ -1298,7 +1323,7 @@ public final class EntityCollection implements
 	 * @return its API-side counterpart
 	 */
 	@Nonnull
-	private static EntityIndexKind toIndexKind(@Nonnull EntityIndexType indexType) {
+	static EntityIndexKind toIndexKind(@Nonnull EntityIndexType indexType) {
 		return switch (indexType) {
 			case GLOBAL -> EntityIndexKind.GLOBAL;
 			case REFERENCED_ENTITY_TYPE -> EntityIndexKind.REFERENCED_ENTITY_TYPE;
@@ -2059,6 +2084,7 @@ public final class EntityCollection implements
 				newPersistenceService,
 				indexTuple.indexes(),
 				indexTuple.indexesByPk(),
+				indexTuple.indexPopulation(),
 				this.cacheSupervisor,
 				this.trafficRecorder
 			);
@@ -2095,6 +2121,7 @@ public final class EntityCollection implements
 					newPersistenceService,
 					indexTuple.indexes(),
 					indexTuple.indexesByPk(),
+					indexTuple.indexPopulation(),
 					this.cacheSupervisor,
 					this.trafficRecorder
 				);
@@ -2138,6 +2165,9 @@ public final class EntityCollection implements
 			newPersistenceService,
 			forwardedIndexes,
 			forwardedIndexesByPk,
+			// carried by value even when the maps themselves are forwarded by reference: a WARMING_UP collection hands
+			// over its still-mutable buffer, and the counts must follow the collection that will be written through
+			this.indexPopulation.copy(),
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -2170,6 +2200,7 @@ public final class EntityCollection implements
 			this.persistenceService,
 			indexTuple.indexes(),
 			indexTuple.indexesByPk(),
+			indexTuple.indexPopulation(),
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -2193,6 +2224,9 @@ public final class EntityCollection implements
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
+		// disk load and WAL replay attach indexes through here, outside any transaction, so the count moves inline -
+		// there is no commit to derive it from and no layer a rollback could discard
+		this.indexPopulation.recordCreated(entityIndex.getIndexKey());
 	}
 
 	/**
@@ -3083,7 +3117,58 @@ public final class EntityCollection implements
 		// surfaces loudly in TransactionalLayerMaintainer#verifyLayerWasFullySwept.
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexes);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey);
-		return new IndexTuple(mergedIndexes, mergedIndexesByPk);
+		return new IndexTuple(
+			mergedIndexes, mergedIndexesByPk,
+			mergePopulation(indexChanges, rebuiltKeys, previousIndexes, mergedIndexes)
+		);
+	}
+
+	/**
+	 * Derives the next catalog version's index population from this one plus the transaction's key delta.
+	 *
+	 * **This is the only place the transactional path moves those counts, and it is what makes them
+	 * rollback-correct.** A rolled-back transaction never reaches this method - its diff layer is discarded with the
+	 * counts untouched - whereas a counter bumped at {@link EntityIndexMaintainer#getOrCreateIndex(EntityIndexKey)}
+	 * would already have moved and would stay wrong for the life of the process.
+	 *
+	 * The delta is read off the same two sources the map merge itself uses, so the counts cannot describe a different
+	 * key set than the map they accompany: a removed key that the previous version actually held is a drop, and a
+	 * touched key the previous version did not hold is a create. A key that is both created and dropped within one
+	 * transaction appears in neither, which is correct - the collection never published it.
+	 *
+	 * Membership is decided against the two *maps* - the one this version published and the one the next version
+	 * will - rather than against the diff layer, which by this point has already been disposed of a few lines above.
+	 *
+	 * @param indexChanges    the transaction's diff layer over the index map, null when it changed no keys
+	 * @param rebuiltKeys     keys this transaction touched
+	 * @param previousIndexes the index map as it stood before this transaction
+	 * @param mergedIndexes   the index map the next catalog version will hold
+	 * @return the population the next catalog version starts from
+	 */
+	@Nonnull
+	private IndexPopulation mergePopulation(
+		@Nullable MapChanges<EntityIndexKey, EntityIndex> indexChanges,
+		@Nonnull Set<EntityIndexKey> rebuiltKeys,
+		@Nonnull ChampMap<EntityIndexKey, EntityIndex> previousIndexes,
+		@Nonnull ChampMap<EntityIndexKey, EntityIndex> mergedIndexes
+	) {
+		final IndexPopulation population = this.indexPopulation.copy();
+		if (indexChanges != null) {
+			for (final EntityIndexKey removedKey : indexChanges.getRemovedKeys()) {
+				if (previousIndexes.containsKey(removedKey) && !mergedIndexes.containsKey(removedKey)) {
+					population.recordRemoved(removedKey);
+				}
+			}
+		}
+		for (final EntityIndexKey rebuiltKey : rebuiltKeys) {
+			// present now and absent before is a create; a key touched but held by both versions is a mutation of an
+			// index that already existed, and one held by neither was created and dropped inside this transaction -
+			// neither moves a count
+			if (mergedIndexes.containsKey(rebuiltKey) && !previousIndexes.containsKey(rebuiltKey)) {
+				population.recordCreated(rebuiltKey);
+			}
+		}
+		return population;
 	}
 
 	/**
@@ -3173,7 +3258,9 @@ public final class EntityCollection implements
 		// entry by entry would cost a full N-entry map here AND leave the next version holding a mutable buffer, which the
 		// first transactional touch would then have to seal into a fresh trie: three O(N) passes for a version bump that
 		// changed nothing
-		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed());
+		// the population is carried by value: the assertion above proves no uncommitted change to the index set
+		// exists, so the counts this version holds are exactly the counts the next version starts from
+		return new IndexTuple(this.indexes.sealed(), this.indexesByPrimaryKey.sealed(), this.indexPopulation.copy());
 	}
 
 	/**
@@ -3421,6 +3508,20 @@ public final class EntityCollection implements
 							// register index also in the map by primary key for fast access
 							EntityCollection.this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
 
+							// only the non-transactional (warm-up / bulk-load) path moves the count here. In a
+							// transaction the map write lands in a diff layer a rollback would discard, so the count
+							// is derived at commit instead - see `mergePopulation`. Counting in both places would
+							// double-count every committed index.
+							//
+							// The test is "is a transaction bound to this thread", NOT "does the index map already
+							// have a diff layer": `computeIfAbsent` is the inherited Map default, so this lambda runs
+							// BEFORE the `put` that creates the layer. Asking the map would answer "no layer" for the
+							// first index created in each transaction and leak exactly one count per rolled-back
+							// transaction - which is what it did until this was corrected
+							if (!Transaction.isTransactionAvailable()) {
+								EntityCollection.this.indexPopulation.recordCreated(eikAgain);
+							}
+
 							return entityIndex;
 						}
 					)
@@ -3475,6 +3576,10 @@ public final class EntityCollection implements
 				entityIndexKey,
 				eik -> {
 					final EntityIndex index = Objects.requireNonNull(EntityCollection.this.indexes.remove(eik));
+					// the mirror of the create above: inline outside a transaction, derived at commit within one
+					if (!Transaction.isTransactionAvailable()) {
+						EntityCollection.this.indexPopulation.recordRemoved(eik);
+					}
 					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
 					Assert.isPremiseValid(
 						index == indexByPk,
@@ -3701,7 +3806,8 @@ public final class EntityCollection implements
 	 */
 	private record IndexTuple(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull Map<Integer, EntityIndex> indexesByPk
+		@Nonnull Map<Integer, EntityIndex> indexesByPk,
+		@Nonnull IndexPopulation indexPopulation
 	) {
 	}
 }

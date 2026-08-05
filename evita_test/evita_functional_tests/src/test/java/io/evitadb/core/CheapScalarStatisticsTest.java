@@ -32,8 +32,17 @@ import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
+import io.evitadb.api.statistics.CollectionIndexCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
+import io.evitadb.api.statistics.CollectionIndexSummary;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionStorageSize;
+import io.evitadb.api.statistics.EntityIndexKind;
 import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
@@ -103,13 +112,17 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED =
 		EnumSet.noneOf(CatalogStatisticsComponent.class);
 	/**
-	 * The collection-level components no build of this branch computes yet - the expensive pair, which will keep this
-	 * partition discriminating at the collection level until the last stage delivers them.
+	 * The collection-level components no build of this branch computes yet - what remains of the expensive pair now
+	 * that `INDEX_CARDINALITY` landed, and the last thing keeping this partition discriminating at either level.
 	 */
 	private static final Set<CatalogStatisticsComponent> COLLECTION_LEVEL_NOT_SUPPORTED = EnumSet.of(
-		CatalogStatisticsComponent.INDEX_CARDINALITY,
 		CatalogStatisticsComponent.MEMORY_FOOTPRINT
 	);
+	/**
+	 * The three values the indexed fixture's `availability` attribute cycles through - few enough that its filter
+	 * index cannot narrow anything down, which is exactly what `INDEX_CARDINALITY` has to make visible.
+	 */
+	private static final String[] AVAILABILITIES = {"IN_STOCK", "OUT_OF_STOCK", "PRE_ORDER"};
 
 	private TestPaths paths;
 	private Evita evita;
@@ -571,6 +584,288 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("A low-selectivity index is distinguishable from a discriminating one")
+	void shouldReportDistinctValuesApartFromTheRecordsTheyCover() {
+		// the shared fixture indexes nothing, so this needs its own catalog: `code` is unique per product and
+		// `availability` deliberately holds three values across all fifty. Both are filterable, so a reading that
+		// confused distinct values with records covered would report the same pair twice
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+
+		final CollectionIndexCardinality cardinality = cardinalityOf(indexedCatalog, ENTITY_PRODUCT);
+		final AttributeCardinality code = filterCardinalityOf(cardinality, "code");
+		final AttributeCardinality availability = filterCardinalityOf(cardinality, "availability");
+
+		assertEquals(
+			50, code.recordsCovered(),
+			"The filter index over `code` covers every product; `recordsCovered` is not being read from the index"
+		);
+		assertEquals(
+			50, code.distinctValueCount(),
+			"`code` is unique per product, so its distinct-value count must equal the records it covers"
+		);
+		assertEquals(
+			50, availability.recordsCovered(),
+			"Every product carries an `availability`, so its filter index covers all fifty as well"
+		);
+		// the whole point of the component: two indexes covering the identical record set, one of which cannot
+		// narrow anything down. A `distinctValueCount` wired to the same counter as `recordsCovered` reports 50 here
+		assertEquals(
+			3, availability.distinctValueCount(),
+			"`availability` holds three values across fifty products - the low-selectivity case this component " +
+				"exists to expose - but its distinct-value count does not say so"
+		);
+	}
+
+	@Test
+	@DisplayName("Data-bounded indexes are counted rather than described")
+	void shouldOmitThePerReferencedEntityIndexesFromTheCardinalityReport() {
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+
+		final CollectionIndexCardinality cardinality = cardinalityOf(indexedCatalog, ENTITY_PRODUCT);
+
+		// every described index is schema-bounded: the global one plus one per reference schema. Asserting the kinds
+		// rather than a count keeps this pinned to the partition instead of to how many indexes the fixture makes
+		for (final IndexCardinality index : cardinality.indexes()) {
+			assertTrue(
+				index.indexKind() == EntityIndexKind.GLOBAL ||
+					index.indexKind() == EntityIndexKind.REFERENCED_ENTITY_TYPE ||
+					index.indexKind() == EntityIndexKind.REFERENCED_GROUP_ENTITY_TYPE,
+				"Index kind `" + index.indexKind() + "` grows with the data and must not be described one by one"
+			);
+		}
+		// ten categories referenced by the products produce ten `REFERENCED_ENTITY` indexes. Without the omission
+		// they would each be described, and the response would grow with the catalog's contents
+		assertTrue(
+			cardinality.omittedIndexCount() > 0,
+			"The fixture references ten categories, so per-referenced-entity indexes exist and must be counted as " +
+				"omitted rather than silently dropped: " + cardinality
+		);
+		// cross-checked against `INDEX_SUMMARY`, which reaches the same number by a different route: it *walks* every
+		// index key and classifies each by kind, while `INDEX_CARDINALITY` never visits the omitted ones at all and
+		// derives their number by subtracting what its targeted lookups found from the map size. Asserting
+		// `described + omitted == total` instead would be a tautology under that derivation, and would pass even if
+		// every targeted lookup silently missed
+		assertEquals(
+			dataBoundedIndexCountOf(indexedCatalog, ENTITY_PRODUCT),
+			cardinality.omittedIndexCount(),
+			"The indexes counted as omitted do not match the data-bounded indexes the summary walks - a targeted " +
+				"lookup missed a schema-bounded index and it was silently folded into the omitted count"
+		);
+		// the reference index is where the reference cardinality lives; the global index has no reference dimension
+		// at all, and reporting `0` for it would read as "this collection references nothing"
+		final IndexCardinality global = indexOfKind(cardinality, EntityIndexKind.GLOBAL);
+		assertTrue(
+			global.referencedEntityCountIfKnown().isEmpty(),
+			"The global index tracks no references, but it reported a reference cardinality: " + global
+		);
+		final IndexCardinality referenced = indexOfKind(cardinality, EntityIndexKind.REFERENCED_ENTITY_TYPE);
+		assertEquals(
+			10, referenced.referencedEntityCountIfKnown().orElseThrow(),
+			"The reference index tracks the ten referenced categories"
+		);
+		assertEquals(
+			"categories", referenced.discriminator(),
+			"A reference index is discriminated by its reference name; without it siblings are indistinguishable"
+		);
+	}
+
+	@Test
+	@DisplayName("Indexes a committed transaction created are counted")
+	void shouldCountIndexesCreatedByACommittedTransaction() {
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+		this.evita.updateCatalog(indexedCatalog, EvitaSessionContract::goLiveAndClose);
+
+		final long before = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+		final int dataBoundedBefore = dataBoundedIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+
+		// a category nothing references yet: referencing it is what makes the engine create one more
+		// per-referenced-entity index, which is the population change this test is about
+		this.evita.updateCatalog(
+			indexedCatalog,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, 500));
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 500)
+						.setAttribute("code", "product-500")
+						.setAttribute("availability", AVAILABILITIES[0])
+						.setReference("categories", 500)
+				);
+			}
+		);
+
+		final long after = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+		assertTrue(
+			after > before,
+			"Referencing a category nothing referenced before creates at least one index, but the maintained count " +
+				"did not move: " + before + " -> " + after
+		);
+		assertTrue(
+			dataBoundedIndexCountOf(indexedCatalog, ENTITY_PRODUCT) > dataBoundedBefore,
+			"The indexes created are per-referenced-entity ones, so the data-bounded count has to carry the growth"
+		);
+
+		// The independent oracle, and the reason this test does not assert a fixed delta: reopening the engine rebuilds
+		// the population from disk through the load path, which counts every index it attaches and shares no code with
+		// the commit-time delta. Agreement between the two therefore catches over- AND under-counting, while a
+		// hard-coded `before + 1` would only pin how many indexes this particular fixture happens to produce.
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration(false));
+		awaitCatalogLoaded(indexedCatalog);
+
+		assertEquals(
+			after, collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT),
+			"The maintained count disagrees with what a reload counts from disk - the commit-time delta and the " +
+				"index set have drifted apart"
+		);
+	}
+
+	@Test
+	@DisplayName("Index counts stay accurate while the catalog is still warming up")
+	void shouldMaintainIndexCountsDuringWarmUp() {
+		// deliberately NOT taken live: a WARMING_UP catalog opens no transaction, so its index creations and removals
+		// are counted inline rather than derived at commit. That is the other half of the maintenance and nothing
+		// else in this class exercises it - both other counter tests go live first
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+
+		final long afterBuild = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+
+		this.evita.updateCatalog(
+			indexedCatalog,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, 500));
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 500)
+						.setAttribute("code", "product-500")
+						.setAttribute("availability", AVAILABILITIES[0])
+						.setReference("categories", 500)
+				);
+			}
+		);
+		final long afterCreate = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+		assertTrue(
+			afterCreate > afterBuild,
+			"A bulk-loaded index creation was not counted: " + afterBuild + " -> " + afterCreate
+		);
+
+		// removing the only entity referencing that category takes its index with it, which is the inline decrement
+		this.evita.updateCatalog(
+			indexedCatalog,
+			session -> {
+				session.deleteEntity(ENTITY_PRODUCT, 500);
+			}
+		);
+		final long afterDelete = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+		assertTrue(
+			afterDelete < afterCreate,
+			"Removing the only entity referencing that category did not drop its index, so this test proves nothing " +
+				"about the inline decrement: " + afterCreate + " -> " + afterDelete
+		);
+
+		// the same independent oracle the committed-transaction test uses, and it is what covers the removal: had the
+		// drop failed to decrement, the maintained count would stand above what a reload counts from disk
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration(false));
+		awaitCatalogLoaded(indexedCatalog);
+
+		assertEquals(
+			afterDelete, collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT),
+			"The count maintained during warm-up disagrees with what a reload counts from disk"
+		);
+	}
+
+	@Test
+	@DisplayName("Indexes a committed transaction dropped stop being counted")
+	void shouldStopCountingIndexesDroppedByACommittedTransaction() {
+		// the mirror of the creation case, and the only test that drives the removal arm of the commit-time delta.
+		// The warm-up test covers dropping an index too, but through the inline path - the two share no code, so
+		// neither stands in for the other
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+		this.evita.updateCatalog(indexedCatalog, EvitaSessionContract::goLiveAndClose);
+
+		// created in its own committed transaction, so the drop below removes an index this catalog version holds
+		// rather than one that was never published
+		this.evita.updateCatalog(
+			indexedCatalog,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, 500));
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 500)
+						.setAttribute("code", "product-500")
+						.setAttribute("availability", AVAILABILITIES[0])
+						.setReference("categories", 500)
+				);
+			}
+		);
+		final long afterCreate = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+
+		this.evita.updateCatalog(
+			indexedCatalog,
+			session -> {
+				// a block body, not an expression: `deleteEntity` returns a boolean, which makes a bare lambda match
+				// both the consumer and the function overload of `updateCatalog`
+				session.deleteEntity(ENTITY_PRODUCT, 500);
+			}
+		);
+		final long afterDelete = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+		assertTrue(
+			afterDelete < afterCreate,
+			"The committed transaction dropped no index at all, so this test proves nothing about the removal arm " +
+				"of the commit-time delta: " + afterCreate + " -> " + afterDelete
+		);
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration(false));
+		awaitCatalogLoaded(indexedCatalog);
+
+		assertEquals(
+			afterDelete, collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT),
+			"The maintained count disagrees with what a reload counts from disk - the dropped index is still being " +
+				"counted"
+		);
+	}
+
+	@Test
+	@DisplayName("Indexes a rolled-back transaction created are not counted")
+	void shouldNotCountIndexesCreatedByARolledBackTransaction() {
+		final String indexedCatalog = CATALOG + "Indexed";
+		buildIndexedCatalog(indexedCatalog);
+		this.evita.updateCatalog(indexedCatalog, EvitaSessionContract::goLiveAndClose);
+
+		final long before = collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT);
+
+		// the same work as the committed case above, discarded. This is the case a counter incremented where the
+		// index is *created* silently gets wrong: the map write lands in a diff layer the rollback throws away, but
+		// the increment would already have happened and would never be undone
+		assertThrows(
+			RollbackException.class,
+			() -> this.evita.updateCatalog(
+				indexedCatalog,
+				session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, 600));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, 600)
+							.setAttribute("code", "product-600")
+							.setAttribute("availability", AVAILABILITIES[0])
+							.setReference("categories", 600)
+					);
+					session.setRollbackOnly();
+				}
+			)
+		);
+
+		assertEquals(
+			before, collectionIndexCountOf(indexedCatalog, ENTITY_PRODUCT),
+			"A rolled-back transaction moved the index count - the count is being maintained where the index is " +
+				"created rather than where the transaction commits, and is now permanently wrong"
+		);
+	}
+
+	@Test
 	@DisplayName("Both scopes of the catalog-level index are counted, not only the live one")
 	void shouldCountTheArchivedCatalogIndexAsWellAsTheLiveOne() {
 		// the catalog-level index is one per scope: `LIVE` always exists, `ARCHIVED` is created the first time
@@ -684,6 +979,135 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Builds a catalog whose product collection is actually indexed - the shared fixture indexes nothing at all, and
+	 * an unindexed collection reports an empty cardinality for every index it holds.
+	 *
+	 * `code` is filterable and unique per product; `availability` is filterable and deliberately holds only three
+	 * values across all fifty, which is the low-selectivity case `INDEX_CARDINALITY` exists to expose. Each product
+	 * references one of ten categories, which is what creates both the schema-bounded reference index and the ten
+	 * data-bounded per-referenced-entity indexes the report must omit.
+	 *
+	 * @param catalogName name of the catalog to create
+	 */
+	private void buildIndexedCatalog(@Nonnull String catalogName) {
+		this.evita.defineCatalog(catalogName).updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			catalogName,
+			session -> {
+				session.defineEntitySchema(ENTITY_CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("code", String.class, AttributeSchemaEditor::filterable)
+					.withAttribute("availability", String.class, AttributeSchemaEditor::filterable)
+					// `withReferenceToEntity`, not `withReferenceTo` - the latter declares an *unmanaged* reference and
+					// the schema is rejected when a collection of that name actually exists. Indexing is what
+					// creates the reference indexes this test is about
+					.withReferenceToEntity(
+						"categories", ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
+					.updateVia(session);
+				for (int i = 1; i <= 10; i++) {
+					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i));
+				}
+				for (int i = 1; i <= 50; i++) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, i)
+							.setAttribute("code", "product-" + i)
+							.setAttribute("availability", AVAILABILITIES[i % AVAILABILITIES.length])
+							.setReference("categories", (i % 10) + 1)
+					);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Counts the collection's data-bounded indexes - the per-referenced-entity and per-group-entity ones - by walking
+	 * the `INDEX_SUMMARY` breakdown, which reaches them by a different route than `INDEX_CARDINALITY` does.
+	 *
+	 * @param catalogName catalog holding the collection
+	 * @param entityType  collection to ask
+	 * @return how many of its indexes grow with the data rather than with the schema
+	 */
+	private int dataBoundedIndexCountOf(@Nonnull String catalogName, @Nonnull String entityType) {
+		final CollectionIndexSummary summary = this.evita.management()
+			.getEntityCollectionStatistics(
+				catalogName, entityType, EnumSet.of(CatalogStatisticsComponent.INDEX_SUMMARY)
+			)
+			.indexSummaryIfPresent()
+			.orElseThrow();
+		int dataBounded = 0;
+		for (final IndexKindCount kindCount : summary.byKindAndScope()) {
+			if (kindCount.indexKind() == EntityIndexKind.REFERENCED_ENTITY ||
+				kindCount.indexKind() == EntityIndexKind.REFERENCED_GROUP_ENTITY) {
+				dataBounded += kindCount.count();
+			}
+		}
+		return dataBounded;
+	}
+
+	/**
+	 * Reads one collection's index cardinality readings.
+	 *
+	 * @param catalogName catalog holding the collection
+	 * @param entityType  collection to ask
+	 * @return the delivered component
+	 */
+	@Nonnull
+	private CollectionIndexCardinality cardinalityOf(@Nonnull String catalogName, @Nonnull String entityType) {
+		return this.evita.management()
+			.getEntityCollectionStatistics(
+				catalogName, entityType, EnumSet.of(CatalogStatisticsComponent.INDEX_CARDINALITY)
+			)
+			.indexCardinalityIfPresent()
+			.orElseThrow();
+	}
+
+	/**
+	 * Picks the readings of one filter index out of the global index's attributes.
+	 *
+	 * @param cardinality   the delivered component
+	 * @param attributeName attribute whose filter index is wanted
+	 * @return its readings
+	 */
+	@Nonnull
+	private static AttributeCardinality filterCardinalityOf(
+		@Nonnull CollectionIndexCardinality cardinality,
+		@Nonnull String attributeName
+	) {
+		final IndexCardinality global = indexOfKind(cardinality, EntityIndexKind.GLOBAL);
+		for (final AttributeCardinality attribute : global.attributes()) {
+			if (attribute.indexType() == AttributeIndexType.FILTER && attributeName.equals(attribute.attributeName())) {
+				return attribute;
+			}
+		}
+		throw new AssertionError(
+			"The global index reports no filter index over `" + attributeName + "`: " + global
+		);
+	}
+
+	/**
+	 * Picks the single described index of one kind.
+	 *
+	 * @param cardinality the delivered component
+	 * @param indexKind   kind to look for
+	 * @return the one index of that kind
+	 */
+	@Nonnull
+	private static IndexCardinality indexOfKind(
+		@Nonnull CollectionIndexCardinality cardinality,
+		@Nonnull EntityIndexKind indexKind
+	) {
+		for (final IndexCardinality index : cardinality.indexes()) {
+			if (index.indexKind() == indexKind) {
+				return index;
+			}
+		}
+		throw new AssertionError("No index of kind `" + indexKind + "` was described: " + cardinality);
 	}
 
 	/**
@@ -820,12 +1244,21 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 * placeholder - the honest answer while activation is in flight, and not what these tests are measuring.
 	 */
 	private void awaitCatalogLoaded() {
+		awaitCatalogLoaded(CATALOG);
+	}
+
+	/**
+	 * Blocks until the named catalog has finished loading.
+	 *
+	 * @param catalogName catalog to wait for
+	 */
+	private void awaitCatalogLoaded(@Nonnull String catalogName) {
 		await()
 			.atMost(30, TimeUnit.SECONDS)
 			.pollInterval(50, TimeUnit.MILLISECONDS)
 			.until(
 				() -> !this.evita.management()
-					.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.IDENTITY))
+					.getCatalogStatistics(catalogName, EnumSet.of(CatalogStatisticsComponent.IDENTITY))
 					.identity()
 					.unusable()
 			);

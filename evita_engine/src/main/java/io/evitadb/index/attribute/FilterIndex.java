@@ -522,9 +522,26 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 
 	/**
 	 * Returns count of records in this index.
+	 *
+	 * Unlike {@link #getDistinctValueCount()} this sums the record counts of every bucket and is therefore
+	 * `O(distinct values)` rather than a single counter read - cheap in absolute terms, but not free, and the only
+	 * cardinality reading of the whole statistics surface that is not `O(1)`.
 	 */
 	public int size() {
 		return this.invertedIndex.getLength();
+	}
+
+	/**
+	 * Returns the number of distinct values this index holds - one per bucket of the underlying inverted index, read
+	 * from the tree's cached bucket counter and therefore `O(1)`.
+	 *
+	 * Read against {@link #size()} this is what says whether the index discriminates: three distinct values over two
+	 * million records is an index that cannot narrow anything down.
+	 *
+	 * @return number of distinct indexed values
+	 */
+	public int getDistinctValueCount() {
+		return this.invertedIndex.getBucketCount();
 	}
 
 	/**

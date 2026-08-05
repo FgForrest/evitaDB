@@ -272,6 +272,36 @@ public interface GrpcEntityCollectionStatisticsSnapshotOrBuilder extends
 
   /**
    * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   * @return Whether the indexCardinality field is set.
+   */
+  boolean hasIndexCardinality();
+  /**
+   * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   * @return The indexCardinality.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality getIndexCardinality();
+  /**
+   * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder getIndexCardinalityOrBuilder();
+
+  /**
+   * <pre>
    * Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
    * entry here at all.
    * </pre>

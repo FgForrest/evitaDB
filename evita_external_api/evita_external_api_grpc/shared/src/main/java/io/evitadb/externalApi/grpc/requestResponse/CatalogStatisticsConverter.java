@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse;
 
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.ActivityStatistics;
@@ -31,6 +32,9 @@ import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
+import io.evitadb.api.statistics.CollectionIndexCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
@@ -65,9 +69,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toEntityIndexKind;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexKind;
@@ -265,6 +271,9 @@ public class CatalogStatisticsConverter {
 		if (statistics.indexSummary() != null) {
 			builder.setIndexSummary(toGrpcCollectionIndexSummary(statistics.indexSummary()));
 		}
+		if (statistics.indexCardinality() != null) {
+			builder.setIndexCardinality(toGrpcCollectionIndexCardinality(statistics.indexCardinality()));
+		}
 		if (statistics.volatileState() != null) {
 			builder.setVolatileState(toGrpcDataStoreVolatileState(statistics.volatileState()));
 		}
@@ -294,6 +303,8 @@ public class CatalogStatisticsConverter {
 				toCollectionStorageComposition(snapshot.getStorageComposition()) : null,
 			snapshot.hasFragmentation() ? toDataStoreFragmentation(snapshot.getFragmentation()) : null,
 			snapshot.hasIndexSummary() ? toCollectionIndexSummary(snapshot.getIndexSummary()) : null,
+			snapshot.hasIndexCardinality() ?
+				toCollectionIndexCardinality(snapshot.getIndexCardinality()) : null,
 			snapshot.hasVolatileState() ? toDataStoreVolatileState(snapshot.getVolatileState()) : null,
 			toComponentStatuses(snapshot.getComponentStatusList())
 		);
@@ -1179,6 +1190,110 @@ public class CatalogStatisticsConverter {
 			);
 		}
 		return new CollectionIndexSummary(grpcIndexSummary.getTotalIndexCount(), kindCounts);
+	}
+
+	/**
+	 * Converts one collection's index cardinality readings to their gRPC form.
+	 *
+	 * @param indexCardinality the component to convert
+	 * @return its gRPC form, with the discriminator left unset for the global index and the reference cardinality
+	 * left unset for every index that tracks no references
+	 */
+	@Nonnull
+	private static GrpcCollectionIndexCardinality toGrpcCollectionIndexCardinality(
+		@Nonnull CollectionIndexCardinality indexCardinality
+	) {
+		final GrpcCollectionIndexCardinality.Builder builder = GrpcCollectionIndexCardinality.newBuilder()
+			.setOmittedIndexCount(indexCardinality.omittedIndexCount());
+		for (final IndexCardinality index : indexCardinality.indexes()) {
+			final GrpcIndexCardinality.Builder indexBuilder = GrpcIndexCardinality.newBuilder()
+				.setIndexKind(toGrpcEntityIndexKind(index.indexKind()))
+				.setScope(toGrpcScope(index.scope()))
+				.setEntityCount(index.entityCount());
+			if (index.discriminator() != null) {
+				indexBuilder.setDiscriminator(StringValue.of(index.discriminator()));
+			}
+			if (index.referencedEntityCount() != null) {
+				indexBuilder.setReferencedEntityCount(Int32Value.of(index.referencedEntityCount()));
+			}
+			for (final AttributeCardinality attribute : index.attributes()) {
+				indexBuilder.addAttributes(toGrpcAttributeCardinality(attribute));
+			}
+			builder.addIndexes(indexBuilder.build());
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts the readings of one attribute index to their gRPC form.
+	 *
+	 * @param attribute the readings to convert
+	 * @return their gRPC form, with the reference name left unset for an entity-level attribute and the locale left
+	 * unset for one that is not localized
+	 */
+	@Nonnull
+	private static GrpcAttributeCardinality toGrpcAttributeCardinality(@Nonnull AttributeCardinality attribute) {
+		final GrpcAttributeCardinality.Builder builder = GrpcAttributeCardinality.newBuilder()
+			.setAttributeName(attribute.attributeName())
+			.setIndexType(toGrpcAttributeIndexType(attribute.indexType()))
+			.setDistinctValueCount(attribute.distinctValueCount())
+			.setRecordsCovered(attribute.recordsCovered());
+		if (attribute.referenceName() != null) {
+			builder.setReferenceName(StringValue.of(attribute.referenceName()));
+		}
+		if (attribute.locale() != null) {
+			builder.setLocale(EvitaDataTypesConverter.toGrpcLocale(attribute.locale()));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads one collection's index cardinality readings back from the wire.
+	 *
+	 * @param grpcIndexCardinality the received component
+	 * @return its Java form, with every unset optional field left null
+	 */
+	@Nonnull
+	private static CollectionIndexCardinality toCollectionIndexCardinality(
+		@Nonnull GrpcCollectionIndexCardinality grpcIndexCardinality
+	) {
+		final List<GrpcIndexCardinality> grpcIndexes = grpcIndexCardinality.getIndexesList();
+		final IndexCardinality[] indexes = new IndexCardinality[grpcIndexes.size()];
+		for (int i = 0; i < indexes.length; i++) {
+			final GrpcIndexCardinality grpcIndex = grpcIndexes.get(i);
+			final List<GrpcAttributeCardinality> grpcAttributes = grpcIndex.getAttributesList();
+			final AttributeCardinality[] attributes = new AttributeCardinality[grpcAttributes.size()];
+			for (int j = 0; j < attributes.length; j++) {
+				attributes[j] = toAttributeCardinality(grpcAttributes.get(j));
+			}
+			indexes[i] = new IndexCardinality(
+				toEntityIndexKind(grpcIndex.getIndexKind()),
+				toScope(grpcIndex.getScope()),
+				grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
+				grpcIndex.getEntityCount(),
+				grpcIndex.hasReferencedEntityCount() ? grpcIndex.getReferencedEntityCount().getValue() : null,
+				attributes
+			);
+		}
+		return new CollectionIndexCardinality(indexes, grpcIndexCardinality.getOmittedIndexCount());
+	}
+
+	/**
+	 * Reads the readings of one attribute index back from the wire.
+	 *
+	 * @param grpcAttribute the received readings
+	 * @return their Java form, with every unset optional field left null
+	 */
+	@Nonnull
+	private static AttributeCardinality toAttributeCardinality(@Nonnull GrpcAttributeCardinality grpcAttribute) {
+		return new AttributeCardinality(
+			grpcAttribute.getAttributeName(),
+			grpcAttribute.hasReferenceName() ? grpcAttribute.getReferenceName().getValue() : null,
+			grpcAttribute.hasLocale() ? EvitaDataTypesConverter.toLocale(grpcAttribute.getLocale()) : null,
+			toAttributeIndexType(grpcAttribute.getIndexType()),
+			grpcAttribute.getDistinctValueCount(),
+			grpcAttribute.getRecordsCovered()
+		);
 	}
 
 	/**

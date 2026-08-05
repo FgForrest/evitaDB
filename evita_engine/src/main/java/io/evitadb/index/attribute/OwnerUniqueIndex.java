@@ -319,6 +319,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	@Override
+	public int getDistinctValueCount() {
+		return this.tree.size();
+	}
+
+	@Override
 	public boolean isEmpty() {
 		// emptiness MUST be value-based, not record-based: a `localized` + `uniqueGlobally` attribute has a locale-less
 		// unique key, so one record legitimately owns several values (one per locale) in this single index, registered

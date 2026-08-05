@@ -159,6 +159,21 @@ public final class GrpcStatistics {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexSummary_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeCardinality_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeCardinality_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexCardinality_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexCardinality_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexCardinality_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexCardinality_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -338,12 +353,33 @@ public final class GrpcStatistics {
       "tionIndexSummary\022\027\n\017totalIndexCount\030\001 \001(" +
       "\005\022Q\n\016byKindAndScope\030\002 \003(\01329.io.evitadb.e" +
       "xternalApi.grpc.generated.GrpcIndexKindC" +
-      "ount\"\343\001\n\032GrpcDataStoreVolatileState\022+\n#t" +
+      "ount\"\257\002\n\030GrpcAttributeCardinality\022\025\n\ratt" +
+      "ributeName\030\001 \001(\t\0223\n\rreferenceName\030\002 \001(\0132" +
+      "\034.google.protobuf.StringValue\022A\n\006locale\030" +
+      "\003 \001(\01321.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcLocale\022P\n\tindexType\030\004 \001(\0162=.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "AttributeIndexType\022\032\n\022distinctValueCount" +
+      "\030\005 \001(\005\022\026\n\016recordsCovered\030\006 \001(\005\"\207\003\n\024GrpcI" +
+      "ndexCardinality\022M\n\tindexKind\030\001 \001(\0162:.io." +
+      "evitadb.externalApi.grpc.generated.GrpcE" +
+      "ntityIndexKind\022E\n\005scope\030\002 \001(\01626.io.evita" +
+      "db.externalApi.grpc.generated.GrpcEntity" +
+      "Scope\0223\n\rdiscriminator\030\003 \001(\0132\034.google.pr" +
+      "otobuf.StringValue\022\023\n\013entityCount\030\004 \001(\005\022" +
+      ":\n\025referencedEntityCount\030\005 \001(\0132\033.google." +
+      "protobuf.Int32Value\022S\n\nattributes\030\006 \003(\0132" +
+      "?.io.evitadb.externalApi.grpc.generated." +
+      "GrpcAttributeCardinality\"\211\001\n\036GrpcCollect" +
+      "ionIndexCardinality\022L\n\007indexes\030\001 \003(\0132;.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cIndexCardinality\022\031\n\021omittedIndexCount\030\002" +
+      " \001(\005\"\343\001\n\032GrpcDataStoreVolatileState\022+\n#t" +
       "otalSizeIncludingVolatileDataBytes\030\001 \001(\003" +
       "\022\035\n\025nonFlushedRecordCount\030\002 \001(\005\022\033\n\023nonFl" +
       "ushedSizeBytes\030\003 \001(\003\022\\\n\031oldestRecordKept" +
       "Timestamp\030\004 \001(\01329.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcOffsetDateTime\"\322\006\n&G" +
+      ".grpc.generated.GrpcOffsetDateTime\"\263\007\n&G" +
       "rpcEntityCollectionStatisticsSnapshot\022L\n" +
       "\010identity\030\001 \001(\0132:.io.evitadb.externalApi" +
       ".grpc.generated.GrpcCatalogIdentity\022\022\n\ne" +
@@ -363,9 +399,12 @@ public final class GrpcStatistics {
       "rated.GrpcCollectionIndexSummary\022X\n\rvola" +
       "tileState\030\t \001(\0132A.io.evitadb.externalApi" +
       ".grpc.generated.GrpcDataStoreVolatileSta" +
-      "te\022S\n\017componentStatus\030\n \003(\0132:.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcComponen" +
-      "tStatusB\014P\001\252\002\007EvitaDBb\006proto3"
+      "te\022_\n\020indexCardinality\030\013 \001(\0132E.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcCollect" +
+      "ionIndexCardinality\022S\n\017componentStatus\030\n" +
+      " \003(\0132:.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcComponentStatusB\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -518,18 +557,36 @@ public final class GrpcStatistics {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexSummary_descriptor,
         new java.lang.String[] { "TotalIndexCount", "ByKindAndScope", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeCardinality_descriptor =
       getDescriptor().getMessageTypes().get(24);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeCardinality_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeCardinality_descriptor,
+        new java.lang.String[] { "AttributeName", "ReferenceName", "Locale", "IndexType", "DistinctValueCount", "RecordsCovered", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexCardinality_descriptor =
+      getDescriptor().getMessageTypes().get(25);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexCardinality_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexCardinality_descriptor,
+        new java.lang.String[] { "IndexKind", "Scope", "Discriminator", "EntityCount", "ReferencedEntityCount", "Attributes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexCardinality_descriptor =
+      getDescriptor().getMessageTypes().get(26);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexCardinality_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcCollectionIndexCardinality_descriptor,
+        new java.lang.String[] { "Indexes", "OmittedIndexCount", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor =
+      getDescriptor().getMessageTypes().get(27);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcDataStoreVolatileState_descriptor,
         new java.lang.String[] { "TotalSizeIncludingVolatileDataBytes", "NonFlushedRecordCount", "NonFlushedSizeBytes", "OldestRecordKeptTimestamp", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatisticsSnapshot_descriptor =
-      getDescriptor().getMessageTypes().get(25);
+      getDescriptor().getMessageTypes().get(28);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatisticsSnapshot_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionStatisticsSnapshot_descriptor,
-        new java.lang.String[] { "Identity", "EntityType", "Header", "RecordCounts", "StorageSize", "StorageComposition", "Fragmentation", "IndexSummary", "VolatileState", "ComponentStatus", });
+        new java.lang.String[] { "Identity", "EntityType", "Header", "RecordCounts", "StorageSize", "StorageComposition", "Fragmentation", "IndexSummary", "VolatileState", "IndexCardinality", "ComponentStatus", });
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();

@@ -612,6 +612,76 @@ message GrpcCollectionIndexSummary {
 
 }
 
+// The cardinality readings of one attribute index within one entity index.
+message GrpcAttributeCardinality {
+
+  // Name of the indexed attribute.
+  string attributeName = 1;
+  // Name of the reference the attribute is defined on. Unset for an entity-level attribute - one defined directly on
+  // the entity rather than on one of its references.
+  google.protobuf.StringValue referenceName = 2;
+  // Locale of the indexed values. Unset when the attribute is not localized; a localized attribute has one index per
+  // locale and each is reported separately, because their selectivities genuinely differ.
+  GrpcLocale locale = 3;
+  // Which of the attribute's index structures these readings describe.
+  GrpcAttributeIndexType indexType = 4;
+  // How many distinct values the structure holds (values).
+  int32 distinctValueCount = 5;
+  // How many records those values cover between them (records). `recordsCovered` divided by `distinctValueCount` is
+  // the average number of records sharing one value, and a large quotient is what "this index is not earning its
+  // keep" looks like.
+  int32 recordsCovered = 6;
+
+}
+
+// The cardinality readings of one index of the collection.
+message GrpcIndexCardinality {
+
+  // Kind of this index.
+  GrpcEntityIndexKind indexKind = 1;
+  // Scope this index belongs to.
+  GrpcEntityScope scope = 2;
+  // What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
+  // Unset for the global index, which has no sibling within its scope.
+  google.protobuf.StringValue discriminator = 3;
+  // How many entities this index covers - the denominator every distinct-value count below should be read against
+  // (entities).
+  int32 entityCount = 4;
+  // How many distinct referenced entities this index tracks (entities). Unset for an index that tracks none - only
+  // the reference indexes maintain a reference cardinality, and reporting `0` for the global index would read as
+  // "this collection references nothing", which is a different statement.
+  google.protobuf.Int32Value referencedEntityCount = 5;
+  // One entry per attribute index held by this index, in no guaranteed order.
+  repeated GrpcAttributeCardinality attributes = 6;
+
+}
+
+// The collection-level `COMPONENT_INDEX_CARDINALITY` component - how many distinct values each of one collection's
+// indexes holds, next to how many records those values cover.
+//
+// This is the statistic that answers "is this index earning its keep, or is it three distinct values over two
+// million records?" - a question neither the index count nor the record count can answer, because both are blind to
+// selectivity. Paired with the schema, which a management client already holds, it turns "this collection has 412
+// indexes" into "these four are doing nothing".
+//
+// Only the schema-bounded indexes are described, and that is the whole design. A collection holds one global index
+// per scope and one reference-type / reference-group-type index per reference schema per scope - all bounded by the
+// schema - and one index per referenced entity, of which there can be tens of thousands. Describing the second group
+// would make this response's size grow with the catalog's data volume, multiplied again by the attributes indexed
+// within each one, so those indexes are counted into `omittedIndexCount` instead. Nothing is lost analytically: a
+// per-referenced-entity index covers the records referencing one entity, so its selectivity is a property of the
+// reference, which the reference-type index above it already summarises.
+message GrpcCollectionIndexCardinality {
+
+  // One entry per described index, in no guaranteed order. Indexes holding no attribute index and no reference
+  // cardinality are omitted rather than reported empty.
+  repeated GrpcIndexCardinality indexes = 1;
+  // How many of this collection's indexes were counted but not described, for the reason above (indexes). `0` means
+  // every index the collection holds is present in `indexes`.
+  int32 omittedIndexCount = 2;
+
+}
+
 // The collection-level `COMPONENT_VOLATILE_STATE` component - what one collection's data store holds in memory but
 // not yet on disk, and what it keeps alive purely for readers that started long ago.
 message GrpcDataStoreVolatileState {
@@ -658,6 +728,9 @@ message GrpcEntityCollectionStatisticsSnapshot {
   GrpcCollectionIndexSummary indexSummary = 8;
   // The `COMPONENT_VOLATILE_STATE` component; absent unless requested and delivered.
   GrpcDataStoreVolatileState volatileState = 9;
+  // The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+  // never part of a polled refresh - request it only when a developer opened this collection.
+  GrpcCollectionIndexCardinality indexCardinality = 11;
   // Outcome of every requested component, `COMPONENT_IDENTITY` included. Components that were not requested have no
   // entry here at all.
   repeated GrpcComponentStatus componentStatus = 10;

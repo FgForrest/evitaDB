@@ -61,6 +61,15 @@ public interface AttributeIndexContract {
 	Set<AttributeIndexKey> getUniqueIndexes();
 
 	/**
+	 * Returns {@link UniqueIndex} for passed lookup key - the key-addressed counterpart of the schema-addressed
+	 * `AttributeIndex#getUniqueIndex(ReferenceSchemaContract, AttributeSchemaContract, Scope, Locale)`, mirroring
+	 * {@link #getFilterIndex(AttributeIndexKey)} and {@link #getSortIndex(AttributeIndexKey)} so a caller holding a key
+	 * from {@link #getUniqueIndexes()} can resolve it without re-deriving the schema it came from.
+	 */
+	@Nullable
+	UniqueIndex getUniqueIndex(@Nonnull AttributeIndexKey lookupKey);
+
+	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull

@@ -78,6 +78,7 @@ import java.util.Optional;
  *                           delivered
  * @param fragmentation      {@link CatalogStatisticsComponent#FRAGMENTATION}, null unless requested and delivered
  * @param indexSummary       {@link CatalogStatisticsComponent#INDEX_SUMMARY}, null unless requested and delivered
+ * @param indexCardinality   {@link CatalogStatisticsComponent#INDEX_CARDINALITY}, null unless requested and delivered
  * @param volatileState      {@link CatalogStatisticsComponent#VOLATILE_STATE}, null unless requested and delivered
  * @param componentStatus    outcome of every *requested* component; components that were not requested are absent from
  *                           the map entirely
@@ -93,6 +94,7 @@ public record EntityCollectionStatistics(
 	@Nullable CollectionStorageComposition storageComposition,
 	@Nullable DataStoreFragmentation fragmentation,
 	@Nullable CollectionIndexSummary indexSummary,
+	@Nullable CollectionIndexCardinality indexCardinality,
 	@Nullable DataStoreVolatileState volatileState,
 	@Nonnull Map<CatalogStatisticsComponent, ComponentStatus> componentStatus
 ) {
@@ -170,6 +172,16 @@ public record EntityCollectionStatistics(
 	}
 
 	/**
+	 * Returns the per-index cardinality readings when they were requested and could be computed.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#INDEX_CARDINALITY} component, empty otherwise
+	 */
+	@Nonnull
+	public Optional<CollectionIndexCardinality> indexCardinalityIfPresent() {
+		return Optional.ofNullable(this.indexCardinality);
+	}
+
+	/**
 	 * Returns the volatile state statistics when they were requested and could be computed.
 	 *
 	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component, empty otherwise
@@ -228,6 +240,7 @@ public record EntityCollectionStatistics(
 		private CollectionStorageComposition storageComposition;
 		private DataStoreFragmentation fragmentation;
 		private CollectionIndexSummary indexSummary;
+		private CollectionIndexCardinality indexCardinality;
 		private DataStoreVolatileState volatileState;
 
 		Builder(@Nonnull CatalogIdentity identity, @Nonnull String entityType) {
@@ -310,6 +323,18 @@ public record EntityCollectionStatistics(
 		}
 
 		/**
+		 * Records the {@link CatalogStatisticsComponent#INDEX_CARDINALITY} component as delivered.
+		 *
+		 * @param value the computed component
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder withIndexCardinality(@Nonnull CollectionIndexCardinality value) {
+			this.indexCardinality = value;
+			return delivered(CatalogStatisticsComponent.INDEX_CARDINALITY);
+		}
+
+		/**
 		 * Records the {@link CatalogStatisticsComponent#VOLATILE_STATE} component as delivered.
 		 *
 		 * @param value the computed component
@@ -355,6 +380,7 @@ public record EntityCollectionStatistics(
 				this.storageComposition,
 				this.fragmentation,
 				this.indexSummary,
+				this.indexCardinality,
 				this.volatileState,
 				Collections.unmodifiableMap(new EnumMap<>(this.componentStatus))
 			);

@@ -432,6 +432,47 @@ private static final long serialVersionUID = 0L;
     return volatileState_ == null ? io.evitadb.externalApi.grpc.generated.GrpcDataStoreVolatileState.getDefaultInstance() : volatileState_;
   }
 
+  public static final int INDEXCARDINALITY_FIELD_NUMBER = 11;
+  private io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality_;
+  /**
+   * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   * @return Whether the indexCardinality field is set.
+   */
+  @java.lang.Override
+  public boolean hasIndexCardinality() {
+    return ((bitField0_ & 0x00000100) != 0);
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   * @return The indexCardinality.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality getIndexCardinality() {
+    return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.getDefaultInstance() : indexCardinality_;
+  }
+  /**
+   * <pre>
+   * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+   * never part of a polled refresh - request it only when a developer opened this collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder getIndexCardinalityOrBuilder() {
+    return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.getDefaultInstance() : indexCardinality_;
+  }
+
   public static final int COMPONENTSTATUS_FIELD_NUMBER = 10;
   @SuppressWarnings("serial")
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcComponentStatus> componentStatus_;
@@ -542,6 +583,9 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < componentStatus_.size(); i++) {
       output.writeMessage(10, componentStatus_.get(i));
     }
+    if (((bitField0_ & 0x00000100) != 0)) {
+      output.writeMessage(11, getIndexCardinality());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -589,6 +633,10 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < componentStatus_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(10, componentStatus_.get(i));
+    }
+    if (((bitField0_ & 0x00000100) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(11, getIndexCardinality());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -647,6 +695,11 @@ private static final long serialVersionUID = 0L;
       if (!getVolatileState()
           .equals(other.getVolatileState())) return false;
     }
+    if (hasIndexCardinality() != other.hasIndexCardinality()) return false;
+    if (hasIndexCardinality()) {
+      if (!getIndexCardinality()
+          .equals(other.getIndexCardinality())) return false;
+    }
     if (!getComponentStatusList()
         .equals(other.getComponentStatusList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
@@ -693,6 +746,10 @@ private static final long serialVersionUID = 0L;
     if (hasVolatileState()) {
       hash = (37 * hash) + VOLATILESTATE_FIELD_NUMBER;
       hash = (53 * hash) + getVolatileState().hashCode();
+    }
+    if (hasIndexCardinality()) {
+      hash = (37 * hash) + INDEXCARDINALITY_FIELD_NUMBER;
+      hash = (53 * hash) + getIndexCardinality().hashCode();
     }
     if (getComponentStatusCount() > 0) {
       hash = (37 * hash) + COMPONENTSTATUS_FIELD_NUMBER;
@@ -849,6 +906,7 @@ private static final long serialVersionUID = 0L;
         getFragmentationFieldBuilder();
         getIndexSummaryFieldBuilder();
         getVolatileStateFieldBuilder();
+        getIndexCardinalityFieldBuilder();
         getComponentStatusFieldBuilder();
       }
     }
@@ -897,13 +955,18 @@ private static final long serialVersionUID = 0L;
         volatileStateBuilder_.dispose();
         volatileStateBuilder_ = null;
       }
+      indexCardinality_ = null;
+      if (indexCardinalityBuilder_ != null) {
+        indexCardinalityBuilder_.dispose();
+        indexCardinalityBuilder_ = null;
+      }
       if (componentStatusBuilder_ == null) {
         componentStatus_ = java.util.Collections.emptyList();
       } else {
         componentStatus_ = null;
         componentStatusBuilder_.clear();
       }
-      bitField0_ = (bitField0_ & ~0x00000200);
+      bitField0_ = (bitField0_ & ~0x00000400);
       return this;
     }
 
@@ -938,9 +1001,9 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot result) {
       if (componentStatusBuilder_ == null) {
-        if (((bitField0_ & 0x00000200) != 0)) {
+        if (((bitField0_ & 0x00000400) != 0)) {
           componentStatus_ = java.util.Collections.unmodifiableList(componentStatus_);
-          bitField0_ = (bitField0_ & ~0x00000200);
+          bitField0_ = (bitField0_ & ~0x00000400);
         }
         result.componentStatus_ = componentStatus_;
       } else {
@@ -1001,6 +1064,12 @@ private static final long serialVersionUID = 0L;
             ? volatileState_
             : volatileStateBuilder_.build();
         to_bitField0_ |= 0x00000080;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.indexCardinality_ = indexCardinalityBuilder_ == null
+            ? indexCardinality_
+            : indexCardinalityBuilder_.build();
+        to_bitField0_ |= 0x00000100;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1078,11 +1147,14 @@ private static final long serialVersionUID = 0L;
       if (other.hasVolatileState()) {
         mergeVolatileState(other.getVolatileState());
       }
+      if (other.hasIndexCardinality()) {
+        mergeIndexCardinality(other.getIndexCardinality());
+      }
       if (componentStatusBuilder_ == null) {
         if (!other.componentStatus_.isEmpty()) {
           if (componentStatus_.isEmpty()) {
             componentStatus_ = other.componentStatus_;
-            bitField0_ = (bitField0_ & ~0x00000200);
+            bitField0_ = (bitField0_ & ~0x00000400);
           } else {
             ensureComponentStatusIsMutable();
             componentStatus_.addAll(other.componentStatus_);
@@ -1095,7 +1167,7 @@ private static final long serialVersionUID = 0L;
             componentStatusBuilder_.dispose();
             componentStatusBuilder_ = null;
             componentStatus_ = other.componentStatus_;
-            bitField0_ = (bitField0_ & ~0x00000200);
+            bitField0_ = (bitField0_ & ~0x00000400);
             componentStatusBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getComponentStatusFieldBuilder() : null;
@@ -1204,6 +1276,13 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 82
+            case 90: {
+              input.readMessage(
+                  getIndexCardinalityFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 90
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2578,12 +2657,178 @@ private static final long serialVersionUID = 0L;
       return volatileStateBuilder_;
     }
 
+    private io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder> indexCardinalityBuilder_;
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     * @return Whether the indexCardinality field is set.
+     */
+    public boolean hasIndexCardinality() {
+      return ((bitField0_ & 0x00000200) != 0);
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     * @return The indexCardinality.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality getIndexCardinality() {
+      if (indexCardinalityBuilder_ == null) {
+        return indexCardinality_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.getDefaultInstance() : indexCardinality_;
+      } else {
+        return indexCardinalityBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public Builder setIndexCardinality(io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality value) {
+      if (indexCardinalityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        indexCardinality_ = value;
+      } else {
+        indexCardinalityBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public Builder setIndexCardinality(
+        io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.Builder builderForValue) {
+      if (indexCardinalityBuilder_ == null) {
+        indexCardinality_ = builderForValue.build();
+      } else {
+        indexCardinalityBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public Builder mergeIndexCardinality(io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality value) {
+      if (indexCardinalityBuilder_ == null) {
+        if (((bitField0_ & 0x00000200) != 0) &&
+          indexCardinality_ != null &&
+          indexCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.getDefaultInstance()) {
+          getIndexCardinalityBuilder().mergeFrom(value);
+        } else {
+          indexCardinality_ = value;
+        }
+      } else {
+        indexCardinalityBuilder_.mergeFrom(value);
+      }
+      if (indexCardinality_ != null) {
+        bitField0_ |= 0x00000200;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public Builder clearIndexCardinality() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      indexCardinality_ = null;
+      if (indexCardinalityBuilder_ != null) {
+        indexCardinalityBuilder_.dispose();
+        indexCardinalityBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.Builder getIndexCardinalityBuilder() {
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return getIndexCardinalityFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder getIndexCardinalityOrBuilder() {
+      if (indexCardinalityBuilder_ != null) {
+        return indexCardinalityBuilder_.getMessageOrBuilder();
+      } else {
+        return indexCardinality_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.getDefaultInstance() : indexCardinality_;
+      }
+    }
+    /**
+     * <pre>
+     * The `COMPONENT_INDEX_CARDINALITY` component; absent unless requested and delivered. Expensive to produce and
+     * never part of a polled refresh - request it only when a developer opened this collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality indexCardinality = 11;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder> 
+        getIndexCardinalityFieldBuilder() {
+      if (indexCardinalityBuilder_ == null) {
+        indexCardinalityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinality.Builder, io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexCardinalityOrBuilder>(
+                getIndexCardinality(),
+                getParentForChildren(),
+                isClean());
+        indexCardinality_ = null;
+      }
+      return indexCardinalityBuilder_;
+    }
+
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcComponentStatus> componentStatus_ =
       java.util.Collections.emptyList();
     private void ensureComponentStatusIsMutable() {
-      if (!((bitField0_ & 0x00000200) != 0)) {
+      if (!((bitField0_ & 0x00000400) != 0)) {
         componentStatus_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcComponentStatus>(componentStatus_);
-        bitField0_ |= 0x00000200;
+        bitField0_ |= 0x00000400;
        }
     }
 
@@ -2788,7 +3033,7 @@ private static final long serialVersionUID = 0L;
     public Builder clearComponentStatus() {
       if (componentStatusBuilder_ == null) {
         componentStatus_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000200);
+        bitField0_ = (bitField0_ & ~0x00000400);
         onChanged();
       } else {
         componentStatusBuilder_.clear();
@@ -2900,7 +3145,7 @@ private static final long serialVersionUID = 0L;
         componentStatusBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcComponentStatus, io.evitadb.externalApi.grpc.generated.GrpcComponentStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcComponentStatusOrBuilder>(
                 componentStatus_,
-                ((bitField0_ & 0x00000200) != 0),
+                ((bitField0_ & 0x00000400) != 0),
                 getParentForChildren(),
                 isClean());
         componentStatus_ = null;

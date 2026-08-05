@@ -141,6 +141,18 @@ public final class UniqueIndexView extends UniqueIndex {
 		return filterView == null ? 0 : filterView.size();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A view that is not yet bound to a shared tree reports `0`, exactly as {@link #size()} does - it is a live
+	 * presence marker created before the tree exists, so it genuinely holds no values yet.
+	 */
+	@Override
+	public int getDistinctValueCount() {
+		final FilterIndex filterView = this.sharedFilterView;
+		return filterView == null ? 0 : filterView.getDistinctValueCount();
+	}
+
 	@Override
 	public boolean isEmpty() {
 		final FilterIndex filterView = this.sharedFilterView;

@@ -255,8 +255,12 @@ public final class GrpcEnums {
       "DEX_KIND_REFERENCED_ENTITY_TYPE\020\002\022 \n\034IND" +
       "EX_KIND_REFERENCED_ENTITY\020\003\022+\n\'INDEX_KIN" +
       "D_REFERENCED_GROUP_ENTITY_TYPE\020\004\022&\n\"INDE" +
-      "X_KIND_REFERENCED_GROUP_ENTITY\020\005B\014P\001\252\002\007E" +
-      "vitaDBb\006proto3"
+      "X_KIND_REFERENCED_GROUP_ENTITY\020\005*\237\001\n\026Grp" +
+      "cAttributeIndexType\022$\n ATTRIBUTE_INDEX_T" +
+      "YPE_UNSPECIFIED\020\000\022\037\n\033ATTRIBUTE_INDEX_TYP" +
+      "E_UNIQUE\020\001\022\037\n\033ATTRIBUTE_INDEX_TYPE_FILTE" +
+      "R\020\002\022\035\n\031ATTRIBUTE_INDEX_TYPE_SORT\020\003B\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

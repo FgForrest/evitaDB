@@ -29,7 +29,11 @@ import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
+import io.evitadb.api.statistics.CollectionIndexCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
+import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexSummary;
 import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
@@ -69,6 +73,7 @@ import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -218,7 +223,7 @@ class CatalogStatisticsConverterTest {
 			"product",
 			null,
 			new CollectionRecordCounts(0, 0, 0),
-			null, null, null, null, null,
+			null, null, null, null, null, null,
 			Map.copyOf(statuses)
 		);
 
@@ -258,7 +263,7 @@ class CatalogStatisticsConverterTest {
 			identity(),
 			"product",
 			new CollectionHeaderInfo(11, 12L, 13, 14, 15, 16L, 17L, null),
-			null, null, null, null, null, null,
+			null, null, null, null, null, null, null,
 			Map.copyOf(statuses)
 		);
 
@@ -489,6 +494,7 @@ class CatalogStatisticsConverterTest {
 			CatalogStatisticsComponent.STORAGE_COMPOSITION,
 			CatalogStatisticsComponent.FRAGMENTATION,
 			CatalogStatisticsComponent.INDEX_SUMMARY,
+			CatalogStatisticsComponent.INDEX_CARDINALITY,
 			CatalogStatisticsComponent.VOLATILE_STATE
 		)) {
 			statuses.put(component, ComponentStatus.delivered(component));
@@ -514,6 +520,29 @@ class CatalogStatisticsConverterTest {
 					new IndexKindCount(EntityIndexKind.GLOBAL, Scope.LIVE, 62),
 					new IndexKindCount(EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, 63)
 				}
+			),
+			// both halves of every nullable field appear exactly once: the global index has no discriminator and no
+			// reference cardinality, the reference index has both; the first attribute is entity-level and
+			// non-localized, the second is defined on a reference and localized. An arm that dropped a `has...()`
+			// guard decodes the absent half into `""` / `0` and fails on the first pair
+			new CollectionIndexCardinality(
+				new IndexCardinality[]{
+					new IndexCardinality(
+						EntityIndexKind.GLOBAL, Scope.LIVE, null, 81, null,
+						new AttributeCardinality[]{
+							new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 82, 83)
+						}
+					),
+					new IndexCardinality(
+						EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.ARCHIVED, "categories", 84, 85,
+						new AttributeCardinality[]{
+							new AttributeCardinality(
+								"label", "categories", Locale.GERMAN, AttributeIndexType.SORT, 86, 87
+							)
+						}
+					)
+				},
+				88
 			),
 			new DataStoreVolatileState(71L, 72, 73L, OLDEST_RECORD_KEPT),
 			Map.copyOf(statuses)
