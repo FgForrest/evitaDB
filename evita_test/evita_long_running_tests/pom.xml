@@ -199,6 +199,23 @@
 			<artifactId>json-unit-assertj</artifactId>
 			<version>6.0.1</version>
 		</dependency>
+		<!--
+			Required to boot EvitaServer, which registers ParameterNamesModule on its YAML mapper. Declared in
+			evita_functional_tests at test scope, and test-scope dependencies are not transitive, so depending on
+			that module does not bring it along - without this every test here that starts a server dies in setUp
+			with NoClassDefFoundError. Went unnoticed because the tests that need it are @Disabled by default.
+		-->
+		<dependency>
+			<groupId>com.fasterxml.jackson.module</groupId>
+			<artifactId>jackson-module-parameter-names</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-text</artifactId>
+			<version>1.15.0</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
