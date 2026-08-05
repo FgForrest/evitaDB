@@ -203,6 +203,19 @@ public enum CatalogStatisticsComponent {
 	/**
 	 * Best-effort heap estimates per collection and index. Expensive - never part of a polled refresh, and available
 	 * at the collection level only, for the same reason as {@link #INDEX_CARDINALITY}.
+	 *
+	 * **Not delivered by any build, and the obstacle is structural rather than unfinished work.** An index's storage
+	 * is not one record: the entity-id bitmaps live in its own `EntityIndexStoragePart`, while its attribute, price,
+	 * facet and histogram sub-indexes are separate storage parts under independent keys. Nothing maps an index back
+	 * to the parts it owns without running the flush machinery that assembles that list as a side effect of writing.
+	 * So a measured size can be read cheaply for the main part alone - which would report the bitmaps and silently
+	 * omit everything an operator opens this component to find - and a computed estimate would have to model a dozen
+	 * structures whose byte cost varies by orders of magnitude with compression and layout, not by a constant factor.
+	 *
+	 * Reporting a number that is wrong in an unknown direction is worse here than reporting none: the whole point is
+	 * to decide which index to act on. The component therefore reports {@link ComponentAvailability#NOT_SUPPORTED}
+	 * with that reason rather than a partial figure, and the decision of which way to resolve it is deliberately
+	 * left open.
 	 */
 	MEMORY_FOOTPRINT(false, true),
 

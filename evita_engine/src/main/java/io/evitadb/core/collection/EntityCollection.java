@@ -1085,13 +1085,16 @@ public final class EntityCollection implements
 						this.indexes, getInternalSchema().getReferences().keySet()
 					)
 				);
-				// kept apart from the arms above because this is the remaining expensive component - its absence is
-				// a different statement than "not implemented yet for this collection"
+				// kept apart from the arms above because this is the remaining undelivered component, and what stops
+				// it is structural rather than unfinished work - see the reason, and the enum's own javadoc
 				case MEMORY_FOOTPRINT -> builder.withUnavailable(
 					component,
 					ComponentAvailability.NOT_SUPPORTED,
-					"Statistics component `" + component + "` walks in-memory index structures and is not " +
-						"implemented yet; it will never be part of a polled refresh."
+					"Statistics component `" + component + "` is not delivered: an index's storage is spread across " +
+						"its own storage part and the independently-keyed sub-parts of its attribute, price, facet " +
+						"and histogram indexes, and nothing maps an index back to those parts outside the flush " +
+						"path. A figure covering only the part that is cheap to measure would omit exactly what " +
+						"this component is opened to find, so none is reported."
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
 				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
