@@ -1,7 +1,7 @@
 ---
 title: Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls
 date: 2026-08-03
-updated: 2026-08-03 16:30
+updated: 2026-08-05 06:05
 status: accepted
 kind: fix
 issues: [1367, 1368]
@@ -9,7 +9,7 @@ prs: [1371]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_external_api_core/http, evita_server/resources, documentation/user/en]
 supersedes: []
 superseded-by: []
-relates: [2026-07-16-client-session-cancellation-cascade, 2026-08-04-http2-connection-teardown-observability]
+relates: [2026-07-16-client-session-cancellation-cascade, 2026-08-04-http2-connection-teardown-observability, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation, 2026-08-05-streaming-calls-must-not-be-retry-decorated]
 ---
 
 # Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls
@@ -147,6 +147,16 @@ the side with a hard lower bound.
   per-attempt override (unset here) and the *original* call's remaining deadline, so a down server fails
   no later than today's configured per-call timeout, just with a few backoff attempts inside that budget
   instead of one immediate failure.
+  - **Corrected 2026-08-05 — the premise of the previous sentence is wrong, and it caused #1388.** The
+    budget `AbstractRetryingClient` freezes is `ctx.responseTimeoutMillis()`, which is **not**
+    `ClientTimeoutOptions` — that value is applied as a *gRPC deadline* via `withDeadlineAfter`, a
+    different clock. The driver set no Armeria response timeout anywhere, so the frozen budget was
+    Armeria's own `DEFAULT_RESPONSE_TIMEOUT_MILLIS` (15 s). Harmless for unary calls, fatal for streaming
+    ones: `State.deadlineNanos` is `final`, computed once at call start, so the driver's per-message
+    `setResponseTimeout(SET_FROM_NOW, …)` re-arm could not move it and every streaming call died at call
+    start + 15 s. Making the decorator unconditional here turned a defect that only `retry(true)` users
+    could meet into the default. Superseded on the streaming side by
+    `2026-08-05-streaming-calls-must-not-be-retry-decorated`; the unary behaviour described above stands.
 - **Invariant a future change must preserve:** the client ping must stay (a) at or above the worst
   tolerable event-loop stall / GC pause — production evidence in the 2026-07-16 ADR put this at multiple
   seconds, hence `30000` ms, not a much shorter probe frequency — **and** (b) strictly below the client's
@@ -188,6 +198,14 @@ the side with a hard lower bound.
 
 ## Consequences & open follow-ups
 
+- **Resolved, and the most important trap this record carries: installing `RetryingClient` imposes a
+  frozen response-timeout budget on the call.** Making the decorator unconditional capped *every*
+  long-lived streaming driver call at 15 s from call start — `goLive`, transaction commit,
+  `applyMutationWithProgress`, `restoreCatalog`, `fetchFile`, mutation history, backup progress and CDC.
+  The decision recorded here reasoned carefully about *which requests are safe to replay*, which is the
+  right question for unary calls, and never asked what installing the decorator does to a call's timeout
+  budget — so nothing in the diff revealed it. Fixed in #1388 by scoping the decorator to unary channels;
+  see `2026-08-05-streaming-calls-must-not-be-retry-decorated` for the invariant that now guards it.
 - **Still open — no cross-side precondition check.** #1368 suggested the server could advertise its idle
   timeout during the client handshake so `EvitaClient`'s existing warning could compare against it instead
   of only the client's own value. That is a real protocol change, not a config-default fix, and was
@@ -217,3 +235,5 @@ the side with a hard lower bound.
 ## Timeline
 
 - **2026-08-03** — issues #1367 and #1368 filed; root-caused, fixed and merged the same day.
+- **2026-08-05** — the retry decision's unexamined side effect surfaced as #1388; corrected above and
+  in `2026-08-05-streaming-calls-must-not-be-retry-decorated`.
