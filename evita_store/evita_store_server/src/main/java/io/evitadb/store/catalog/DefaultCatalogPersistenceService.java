@@ -2176,18 +2176,21 @@ public class DefaultCatalogPersistenceService
 				intervalElapsed
 			);
 			if (newDescriptor.version() > previousVersion && shouldCompact) {
+				// every figure here was already computed by the flush above - the message deliberately takes no
+				// measurement of its own, and the size it reports is handed to `compact` so the completion message
+				// can state what the rewrite actually reclaimed without reading the directory either
 				log.info(
-					"Compacting catalog `{}` entity collection `{}`, size exceeds threshold `{}` and active record share is `{}`%, " +
-						"entity collection files on disk consume `{}` bytes.",
+					"Compacting catalog `{}` entity collection `{}`, its data store is `{}` bytes against a `{}` " +
+						"byte threshold and its active record share is `{}`%.",
 					this.catalogName,
 					entityCollectionHeader.entityType(),
 					newDescriptor.getFileSize(),
-					newDescriptor.getActiveRecordShare(),
-					entityCollectionPersistenceService.getSizeOnDiskInBytes()
+					this.storageSettings.fileSizeCompactionThresholdBytes(),
+					Math.round(newDescriptor.getActiveRecordShare() * 100.0D)
 				);
 
 				final EntityCollectionFileHeader compactedHeader = entityCollectionPersistenceService.compact(
-					this.catalogName, catalogVersion, headerInfoSupplier
+					this.catalogName, catalogVersion, headerInfoSupplier, newDescriptor.getFileSize()
 				);
 				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
 					new CollectionFileReference(

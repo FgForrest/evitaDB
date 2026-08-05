@@ -1474,7 +1474,7 @@ public final class Catalog
 		final CommitPipelineStatistics commitPipeline =
 			supportsTransaction() && (components.contains(CatalogStatisticsComponent.COMMIT_PIPELINE) ||
 				components.contains(CatalogStatisticsComponent.ACTIVITY)) ?
-				describeCommitPipeline() : null;
+				this.transactionManager.describeCommitPipeline() : null;
 		for (final CatalogStatisticsComponent component : components) {
 			switch (component) {
 				// always recorded by the builder itself, since nothing else can be interpreted without it
@@ -1511,12 +1511,7 @@ public final class Catalog
 				);
 				case ACTIVITY -> {
 					if (commitPipeline != null) {
-						builder.withActivity(
-							this.transactionManager.describeActivity(
-								commitPipeline.lastAssignedCatalogVersion() -
-									commitPipeline.lastFinalizedCatalogVersion()
-							)
-						);
+						builder.withActivity(this.transactionManager.describeActivity(commitPipeline));
 					} else {
 						// every counter would read zero however hard the catalog is being written, because bulk
 						// ingestion never enters the pipeline that counts them - "idle and healthy" is the exact
@@ -1583,34 +1578,6 @@ public final class Catalog
 		return this.evita.getCatalogSessionRegistry(getName())
 			.map(SessionRegistry::countActiveSessions)
 			.orElse(NO_ACTIVE_SESSIONS);
-	}
-
-	/**
-	 * Reads the four watermarks the commit pipeline maintains. All four are counter reads, and they are read in
-	 * *reverse* pipeline order - finalized, durable, written, assigned - so that the deltas the record derives from
-	 * them cannot come out negative through a stage advancing between two reads.
-	 *
-	 * The direction matters and is the opposite of the intuitive one. Every watermark only grows, and
-	 * `assigned >= written >= durable >= finalized` holds at every instant. Reading the *trailing* watermark first
-	 * therefore bounds it below by a value the next read cannot have overtaken: whatever `written` turns out to be, it
-	 * was `>= durable` at the moment it was read, and `durable` has not gone down since it was read a moment earlier.
-	 * Reading forwards gives no such bound - `assigned` is captured, both stages then advance, and the `written` read
-	 * a moment later can legitimately exceed it, reporting a negative write lag on a perfectly healthy pipeline.
-	 *
-	 * Only meaningful for a transactional catalog; the caller reports {@link ComponentAvailability#FEATURE_DISABLED}
-	 * otherwise.
-	 *
-	 * @return the {@link CatalogStatisticsComponent#COMMIT_PIPELINE} component
-	 */
-	@Nonnull
-	private CommitPipelineStatistics describeCommitPipeline() {
-		final long finalizedVersion = this.transactionManager.getLastFinalizedCatalogVersion();
-		final long durableVersion = this.transactionManager.getLastDurableCatalogVersion();
-		final long writtenVersion = this.transactionManager.getLastWrittenCatalogVersion();
-		final long assignedVersion = this.transactionManager.getLastAssignedCatalogVersion();
-		return new CommitPipelineStatistics(
-			assignedVersion, writtenVersion, durableVersion, finalizedVersion
-		);
 	}
 
 	/**

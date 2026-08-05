@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
 import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
@@ -1783,6 +1784,14 @@ public class TransactionManager implements Closeable {
 	 * happens downstream, and counting it at trunk incorporation instead would also count every transaction replayed
 	 * from the log at startup as if it had just been written.
 	 *
+	 * **Deliberately separate from {@link #updateLastWrittenCatalogVersion(long)}, which the same call site invokes a
+	 * line later.** Folding it in there looks like it would remove a duplicated call, but that method is not
+	 * transaction-specific: {@link #advanceVersion(long)} also drives it when the catalog version moves for external
+	 * reasons such as a rename, and every such advance would then be counted as a committed transaction carrying zero
+	 * mutations. The two arguments below are the second half of the argument - a version advance has no mutation count
+	 * and no appended bytes to report, so the watermark update would have to take two parameters that only one of its
+	 * callers can answer.
+	 *
 	 * @param mutationCount mutations the transaction carried
 	 * @param walBytes      bytes it appended to the write-ahead log
 	 */
@@ -1806,25 +1815,56 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
+	 * Reads the four watermarks this pipeline maintains. All four are counter reads, and they are read in *reverse*
+	 * pipeline order - finalized, durable, written, assigned - so that the deltas the record derives from them cannot
+	 * come out negative through a stage advancing between two reads.
+	 *
+	 * The direction matters and is the opposite of the intuitive one. Every watermark only grows, and
+	 * `assigned >= written >= durable >= finalized` holds at every instant. Reading the *trailing* watermark first
+	 * therefore bounds it below by a value the next read cannot have overtaken: whatever `written` turns out to be, it
+	 * was `>= durable` at the moment it was read, and `durable` has not gone down since it was read a moment earlier.
+	 * Reading forwards gives no such bound - `assigned` is captured, both stages then advance, and the `written` read
+	 * a moment later can legitimately exceed it, reporting a negative write lag on a perfectly healthy pipeline.
+	 *
+	 * Only meaningful for a transactional catalog; the caller reports
+	 * {@link io.evitadb.api.statistics.ComponentAvailability#FEATURE_DISABLED} otherwise.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COMMIT_PIPELINE} component
+	 */
+	@Nonnull
+	public CommitPipelineStatistics describeCommitPipeline() {
+		final long finalizedVersion = getLastFinalizedCatalogVersion();
+		final long durableVersion = getLastDurableCatalogVersion();
+		final long writtenVersion = getLastWrittenCatalogVersion();
+		final long assignedVersion = getLastAssignedCatalogVersion();
+		return new CommitPipelineStatistics(
+			assignedVersion, writtenVersion, durableVersion, finalizedVersion
+		);
+	}
+
+	/**
 	 * Describes how much write work this catalog has done and how fast it is doing it.
 	 *
 	 * The rates are read through the accumulation's `effective...` methods rather than off its fields, so an idle
 	 * catalog reports a rate falling towards zero instead of the load it last saw - see {@link ActivityAccumulation}
 	 * for why that correction cannot be applied when the sample is taken.
 	 *
-	 * The pipeline depth is passed in rather than read here, because the caller has already read the very watermarks
-	 * it is the span of. Reading them a second time would let this component and
-	 * {@link io.evitadb.api.statistics.CommitPipelineStatistics} describe two different moments of the same pipeline
-	 * within one response.
+	 * **The pipeline snapshot is handed in rather than taken here**, and the parameter is the whole
+	 * {@link CommitPipelineStatistics} rather than the depth alone precisely so it cannot be anything else. The depth
+	 * is by definition the span between two of those watermarks, so a second read of them would let this component
+	 * and the commit pipeline component describe two different moments of the same pipeline within one response -
+	 * a client comparing them would see a depth that does not match the watermarks it is derived from, and would be
+	 * right to call it a bug.
 	 *
 	 * Only meaningful for a transactional catalog; the caller reports
 	 * {@link io.evitadb.api.statistics.ComponentAvailability#FEATURE_DISABLED} otherwise.
 	 *
-	 * @param pipelineDepth versions accepted but not yet visible to readers, as the caller measured them
+	 * @param commitPipeline the watermark snapshot this response is already reporting, from
+	 *                       {@link #describeCommitPipeline()}
 	 * @return the {@link CatalogStatisticsComponent#ACTIVITY} component
 	 */
 	@Nonnull
-	public ActivityStatistics describeActivity(long pipelineDepth) {
+	public ActivityStatistics describeActivity(@Nonnull CommitPipelineStatistics commitPipeline) {
 		final ActivityAccumulation current = this.activity.get();
 		final long now = System.currentTimeMillis();
 		return new ActivityStatistics(
@@ -1833,7 +1873,7 @@ public class TransactionManager implements Closeable {
 			this.transactionsConflicted.get(),
 			current.mutationsApplied(),
 			current.walBytesAppended(),
-			pipelineDepth,
+			commitPipeline.lastAssignedCatalogVersion() - commitPipeline.lastFinalizedCatalogVersion(),
 			current.effectiveTransactionsPerSecond(now),
 			current.effectiveMutationsPerSecond(now),
 			current.effectiveWalBytesPerSecond(now),

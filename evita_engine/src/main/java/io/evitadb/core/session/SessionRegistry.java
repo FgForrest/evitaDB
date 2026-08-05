@@ -37,6 +37,7 @@ import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -372,30 +373,7 @@ public final class SessionRegistry {
 						"Session not found in the queue."
 					);
 
-					session.getTransaction().ifPresent(transaction -> {
-						// find oldest session with open transaction using loop to avoid Stream allocation
-						OffsetDateTime oldestWithTransaction = null;
-						for (EvitaSessionTuple tuple : this.sessionsFifoQueue) {
-							final EvitaSession queuedSession = tuple.plainSession();
-							if (queuedSession.getOpenedTransaction().isPresent()) {
-								oldestWithTransaction = queuedSession.getCreated();
-								break;
-							}
-						}
-						// emit event
-						transaction.getFinalizationEvent()
-							.finishWithResolution(
-								oldestWithTransaction,
-								transaction.isRollbackOnly() ?
-									TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
-							).commit();
-						if (transaction.isRollbackOnly()) {
-							// this is the only place a rolled-back transaction is observable at all: it is discarded
-							// here and never offered to the pipeline, so the commit stages that count everything else
-							// for the ACTIVITY component never see it
-							this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
-						}
-					});
+					session.getTransaction().ifPresent(this::reportTransactionResolution);
 
 					this.catalogConsumedVersions.get(session.getCatalogName())
 						.unregisterSessionConsumingCatalogInVersion(
@@ -415,6 +393,58 @@ public final class SessionRegistry {
 						);
 				}
 			);
+		}
+	}
+
+	/**
+	 * Reports how the closing session's transaction ended - both to the observability event and, when it was rolled
+	 * back, to the {@link io.evitadb.api.statistics.CatalogStatisticsComponent#ACTIVITY} counters.
+	 *
+	 * **Both readings are taken from a single {@link Transaction#isRollbackOnly()} evaluation, deliberately.** The
+	 * event's {@link TransactionResolution} and the counter describe the same population, and reading the flag twice
+	 * in two places is what would eventually let them disagree.
+	 *
+	 * **Why the counter lives here and not in {@link Transaction#close()}, which is where the rollback actually
+	 * happens.** Three reasons, none of them cosmetic:
+	 *
+	 * - `Transaction` is not only a user transaction. `TransactionManager` builds instances with `replay = true` to
+	 *   incorporate the write-ahead log into the trunk and closes each one as the log drains, so `close()` also runs
+	 *   for every transaction replayed at startup. Since `Transaction.executeInTransactionIfProvided` marks a
+	 *   transaction rollback-only on any throwable, a failed replay would be counted as a client rollback - the same
+	 *   distortion that kept `recordCommittedTransaction` out of the trunk incorporation stage. A `!replay` guard
+	 *   would paper over it, which is the tell: the call site would not carry the distinction, a filter would.
+	 * - `Transaction` has no route to the {@link io.evitadb.core.transaction.TransactionManager}. It holds a
+	 *   `TransactionHandler`, whose implementation differs between a session and a replay, so reaching the manager
+	 *   would take a downcast, a new field, or a wider interface - all of which put statistics bookkeeping into the
+	 *   transaction's construction path.
+	 * - A session's transaction is discarded here and never offered to the commit pipeline, so this is the only place
+	 *   a rolled-back transaction is observable at all; the stages that count everything else never see it.
+	 *
+	 * Note a **dry-run** session marks its transaction rollback-only at creation, so its transactions are counted as
+	 * rolled back. That is literally true - they never commit - but it means the counter tracks dry runs rather than
+	 * failures on a catalog that receives them.
+	 *
+	 * @param transaction the closing session's transaction
+	 */
+	private void reportTransactionResolution(@Nonnull Transaction transaction) {
+		// find oldest session with open transaction using loop to avoid Stream allocation
+		OffsetDateTime oldestWithTransaction = null;
+		for (EvitaSessionTuple tuple : this.sessionsFifoQueue) {
+			final EvitaSession queuedSession = tuple.plainSession();
+			if (queuedSession.getOpenedTransaction().isPresent()) {
+				oldestWithTransaction = queuedSession.getCreated();
+				break;
+			}
+		}
+		final boolean rolledBack = transaction.isRollbackOnly();
+		// emit event
+		transaction.getFinalizationEvent()
+			.finishWithResolution(
+				oldestWithTransaction,
+				rolledBack ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
+			).commit();
+		if (rolledBack) {
+			this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
 		}
 	}
 

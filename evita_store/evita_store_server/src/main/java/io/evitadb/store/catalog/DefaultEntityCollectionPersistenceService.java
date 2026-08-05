@@ -945,21 +945,6 @@ public class DefaultEntityCollectionPersistenceService
 		};
 	}
 
-	@Override
-	public long getSizeOnDiskInBytes() {
-		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(
-			this.entityCollectionFileReference.entityType(),
-			this.entityCollectionFileReference.entityTypePrimaryKey()
-		);
-		return Arrays.stream(
-			Objects.requireNonNull(
-				this.entityCollectionFile.getParent().toFile().listFiles(
-					(dir, name) -> pattern.matcher(name).matches()
-				)
-			)
-		).mapToLong(File::length).sum();
-	}
-
 	@Nonnull
 	@Override
 	public StoragePartFootprint[] measureStoragePartComposition() {
@@ -1097,8 +1082,25 @@ public class DefaultEntityCollectionPersistenceService
 		return newDescriptor;
 	}
 
+	/**
+	 * Rewrites this collection's data store into a fresh generation holding only the records still reachable at the
+	 * given catalog version. The superseded file stays on disk until every reader of it has closed.
+	 *
+	 * @param catalogName        name of the catalog owning this collection
+	 * @param catalogVersion     catalog version the compacted snapshot is taken at
+	 * @param headerInfoSupplier supplier of the header counters recorded alongside the new file
+	 * @param previousFileSize   length of the data store file being replaced, as the caller's own flush already
+	 *                           measured it - handed in rather than re-read so the log line below costs no file
+	 *                           system access
+	 * @return the header addressing the newly written data store file
+	 */
 	@Nonnull
-	public EntityCollectionFileHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+	public EntityCollectionFileHeader compact(
+		@Nonnull String catalogName,
+		long catalogVersion,
+		@Nonnull HeaderInfoSupplier headerInfoSupplier,
+		long previousFileSize
+	) {
 		final DataFileCompactEvent event = new DataFileCompactEvent(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
@@ -1130,14 +1132,18 @@ public class DefaultEntityCollectionPersistenceService
 		final EntityCollectionFileHeader newCollectionHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
+		// this message used to close with the sum of every generation of this collection's files, which cost a
+		// directory listing on the write path for a log line. Both figures below were already computed by the flush
+		// and the compaction themselves, and what the total actually answers - how much the superseded generations
+		// still hold - is now `CollectionStorageSize#awaitingDeletionBytes`, measured only when a client asks for it
 		log.info(
-			"Compaction of catalog `{}` entity collection `{}` finished, current size is `{}` and active record share is `{}`%, " +
-				"entity collection files on disk consume `{}` bytes.",
+			"Compaction of catalog `{}` entity collection `{}` finished, its data store shrank from `{}` to `{}` " +
+				"bytes and its active record share is now `{}`%.",
 			catalogName,
 			this.entityCollectionFileReference.entityType(),
+			previousFileSize,
 			offsetIndexDescriptor.getFileSize(),
-			Math.round(offsetIndexDescriptor.getActiveRecordShare() * 100.0D),
-			this.getSizeOnDiskInBytes()
+			Math.round(offsetIndexDescriptor.getActiveRecordShare() * 100.0D)
 		);
 		return newCollectionHeader;
 	}

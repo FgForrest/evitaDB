@@ -264,15 +264,14 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Returns the size of the entity collection on disk in bytes.
-	 * @return size of the entity collection on disk in bytes
-	 */
-	long getSizeOnDiskInBytes();
-
-	/**
 	 * Measures this collection's disk footprint and attributes it to live data, compaction waste and superseded data
-	 * store files that have not been deleted yet. Answers the same question as {@link #getSizeOnDiskInBytes()} but
-	 * broken down; the write-ahead log and the bootstrap file are catalog-wide and therefore absent here.
+	 * store files that have not been deleted yet. Its `totalBytes` is the measured sum of this collection's data store
+	 * file lengths - the whole size on disk - and the remaining fields decompose it; the write-ahead log and the
+	 * bootstrap file are catalog-wide and therefore absent here.
+	 *
+	 * This is the only measurement of those file lengths on the service, deliberately: a second method returning the
+	 * bare total would take its own directory listing and could report a different size of the same collection within
+	 * one statistics response.
 	 *
 	 * @return the decomposed footprint of this collection's data store files
 	 */
