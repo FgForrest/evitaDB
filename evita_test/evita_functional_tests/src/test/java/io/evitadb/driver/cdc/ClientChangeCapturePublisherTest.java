@@ -542,6 +542,16 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 				harness.start();
 				harness.deliverAck();
 
+				// `onSubscribe` requested Long.MAX_VALUE, and every `request` dispatches a drain of its own - so
+				// a drain task is already in flight on the fixture pool here, and joining the subscribe thread
+				// does not wait for it. Arming the refusal while that drain still holds `currentlyConsuming`
+				// asserts something the driver cannot produce: `produce()` would lose the CAS, return without
+				// ever reaching the executor, and the in-flight drain would deliver the capture normally - no
+				// refusal, therefore no terminal error, however long the wait below. Quiesce the pool first so
+				// the drain under test is unambiguously the next submission. On an idle machine it always was,
+				// which is why this only ever failed under CI's parallel load.
+				executor.awaitIdle();
+
 				// refuse exactly the drain, then accept again so the terminal notification it triggers gets
 				// through - a permanently refusing executor would swallow the very signal under test
 				executor.refuseNextSubmission();
@@ -600,6 +610,23 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 		 */
 		void refuseNextSubmission() {
 			this.refuseNext = true;
+		}
+
+		/**
+		 * Blocks until every task submitted so far has finished running.
+		 *
+		 * The delegate is single-threaded and therefore FIFO, so a barrier task that has run proves every
+		 * earlier submission has completed - including the flag reset at the end of a capture drain. Call this
+		 * before {@link #refuseNextSubmission()} whenever a test needs the refusal to land on a *specific*
+		 * submission; see the call site for what an unnoticed in-flight drain turns the assertion into.
+		 *
+		 * Submitted straight to the delegate on purpose: the barrier must never become the submission a test
+		 * armed its refusal for.
+		 */
+		void awaitIdle() throws InterruptedException {
+			final CountDownLatch idle = new CountDownLatch(1);
+			this.delegate.execute(idle::countDown);
+			assertTrue(idle.await(30, TimeUnit.SECONDS), "the fixture pool never went idle");
 		}
 
 		@Override
@@ -962,7 +989,7 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			this.subscribeThread.start();
 			try {
 				assertTrue(
-					this.initialized.await(5, TimeUnit.SECONDS),
+					this.initialized.await(30, TimeUnit.SECONDS),
 					"stream initializer did not run in time"
 				);
 			} catch (InterruptedException e) {
@@ -1014,7 +1041,7 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			final Thread thread = this.subscribeThread;
 			if (thread != null) {
 				try {
-					thread.join(TimeUnit.SECONDS.toMillis(5));
+					thread.join(TimeUnit.SECONDS.toMillis(30));
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
 					throw new AssertionError("interrupted while joining the subscribe thread", e);

@@ -187,19 +187,19 @@ class SerialCdcExecutorTest {
 				executor.execute(() -> {
 					firstRunning.countDown();
 					try {
-						releaseFirst.await(5, TimeUnit.SECONDS);
+						releaseFirst.await(30, TimeUnit.SECONDS);
 					} catch (InterruptedException ex) {
 						Thread.currentThread().interrupt();
 					}
 				});
 
-				assertTrue(firstRunning.await(5, TimeUnit.SECONDS), "the first task never started");
+				assertTrue(firstRunning.await(30, TimeUnit.SECONDS), "the first task never started");
 				// enqueued while the drain is still active and therefore owns the guard
 				executor.execute(secondRan::countDown);
 				releaseFirst.countDown();
 
 				assertTrue(
-					secondRan.await(5, TimeUnit.SECONDS),
+					secondRan.await(30, TimeUnit.SECONDS),
 					"a task enqueued while a drain was active must still be picked up"
 				);
 			} finally {
@@ -221,7 +221,7 @@ class SerialCdcExecutorTest {
 				executor.execute(afterThrow::countDown);
 
 				assertTrue(
-					afterThrow.await(5, TimeUnit.SECONDS),
+					afterThrow.await(30, TimeUnit.SECONDS),
 					"one failing consumer callback must not strand the callbacks queued behind it"
 				);
 			} finally {
@@ -243,7 +243,7 @@ class SerialCdcExecutorTest {
 					ran.countDown();
 				});
 
-				assertTrue(ran.await(5, TimeUnit.SECONDS), "the task did not run in time");
+				assertTrue(ran.await(30, TimeUnit.SECONDS), "the task did not run in time");
 				assertNotSame(
 					Thread.currentThread(), taskThread.get(),
 					"running on the submitter is the event-loop capture this class exists to prevent"

@@ -104,7 +104,7 @@ class CdcCallbackDispatcherTest {
 				);
 
 				assertNull(refusal, "an accepting pool must report a successful hand-off");
-				assertTrue(ran.await(5, TimeUnit.SECONDS), "the callback did not run in time");
+				assertTrue(ran.await(30, TimeUnit.SECONDS), "the callback did not run in time");
 				assertNotSame(
 					Thread.currentThread(),
 					callbackThread.get(),

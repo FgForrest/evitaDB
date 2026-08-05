@@ -85,7 +85,7 @@ class EvitaClientRejectingExecutorHandlerTest {
 						awaitQuietly(release);
 					}
 				);
-				assertTrue(started.await(5, TimeUnit.SECONDS), "the pool worker did not start in time");
+				assertTrue(started.await(30, TimeUnit.SECONDS), "the pool worker did not start in time");
 				// ... and fill the single backlog slot
 				executor.execute(() -> {});
 
@@ -185,11 +185,15 @@ class EvitaClientRejectingExecutorHandlerTest {
 	 * Awaits the latch, restoring the interrupt flag rather than propagating a checked exception into
 	 * a {@link Runnable}.
 	 *
+	 * Generously bounded: this is what holds the single pool worker occupied while the test saturates the
+	 * pool, so an early expiry would free the worker and dissolve the saturation the assertions depend on.
+	 * The latch is released from the test's `finally`, so the bound is never actually reached on any run.
+	 *
 	 * @param latch the latch to await
 	 */
 	private static void awaitQuietly(CountDownLatch latch) {
 		try {
-			latch.await(10, TimeUnit.SECONDS);
+			latch.await(30, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		}
