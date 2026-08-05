@@ -37,7 +37,9 @@ import com.linecorp.armeria.common.ClosedSessionException;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.grpc.GrpcSerializationFormats;
 import com.linecorp.armeria.common.stream.ClosedStreamException;
+import com.linecorp.armeria.common.util.EventLoopGroupBuilder;
 import com.linecorp.armeria.common.util.EventLoopGroups;
+import com.linecorp.armeria.common.util.ThreadFactories;
 import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress;
@@ -187,6 +189,11 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final EvitaServiceStub evitaServiceStub;
 	/**
+	 * Asynchronous stub bound to the {@link #cdcClientFactory dedicated CDC channel}, used exclusively for
+	 * system-level change capture streams.
+	 */
+	private final EvitaServiceStub evitaServiceCdcStub;
+	/**
 	 * The configuration of the evitaDB client.
 	 */
 	@Getter private final EvitaClientConfiguration configuration;
@@ -216,6 +223,11 @@ public class EvitaClient implements EvitaContract {
 		16);
 	/**
 	 * Executor service used for asynchronous operations.
+	 *
+	 * Sized by `ThreadPoolOptions` and guarded by {@link EvitaClientRejectingExecutorHandler}: once all
+	 * threads are busy **and** the bounded backlog is full, submission throws
+	 * {@link io.evitadb.driver.exception.EvitaClientPoolSaturatedException} rather than running the task on
+	 * the submitting thread. Every submission site must therefore tolerate a rejection.
 	 */
 	private final ExecutorService executor;
 	/**
@@ -223,9 +235,42 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final ClientFactory clientFactory;
 	/**
-	 * Builder for creating the gRPC client.
+	 * Client manager dedicated to long-lived change data capture streams. It owns a small event loop group of
+	 * its own, so CDC traffic lands on a different connection — and a different I/O thread — than ordinary
+	 * request/response calls. A capture callback that stalls therefore cannot stall unrelated calls.
+	 */
+	private final ClientFactory cdcClientFactory;
+	/**
+	 * Builder for creating the gRPC client. Carries the {@link RetryingClient} decorator and therefore backs
+	 * **unary stubs only** — see {@link #streamingGrpcClientBuilder} for why streaming must not use it.
 	 */
 	private final GrpcClientBuilder grpcClientBuilder;
+	/**
+	 * Builder for creating gRPC clients that issue **streaming** calls. Shares the {@link #clientFactory main
+	 * connection} with {@link #grpcClientBuilder} and differs from it in exactly one respect: it carries no
+	 * {@link RetryingClient} decorator.
+	 *
+	 * That difference is load-bearing, not cosmetic. `AbstractRetryingClient` freezes the call's response-timeout
+	 * deadline at call start, which silently caps every stream at Armeria's 15 s default however much progress is
+	 * flowing, and defeats the driver's per-message re-arm. See
+	 * {@link #createGrpcClientBuilder(String, ClientFactory, RetryRule, Duration, ClientConnectionOptions, SemVer,
+	 * Consumer)}
+	 * and issue #1388.
+	 */
+	private final GrpcClientBuilder streamingGrpcClientBuilder;
+	/**
+	 * Builder for creating gRPC clients bound to the {@link #cdcClientFactory dedicated CDC channel}.
+	 *
+	 * Note that `registerChangeCatalogCapture` is a *session-bound* call, so routing it here puts it on
+	 * a different connection from the rest of its session's calls, and HTTP/2 guarantees ordering only within
+	 * a connection. This is safe only because
+	 * {@link io.evitadb.driver.cdc.ClientChangeCaptureSubscriber#awaitAcknowledgement()} gates the call — see
+	 * {@link EvitaClientSession#registerChangeCatalogCapture} for the full invariant.
+	 *
+	 * Carries no {@link RetryingClient} decorator: capture streams are the longest-lived streams the driver opens,
+	 * so the frozen-deadline problem described on {@link #streamingGrpcClientBuilder} applies to them most of all.
+	 */
+	private final GrpcClientBuilder cdcGrpcClientBuilder;
 	/**
 	 * Client implementation of management service.
 	 */
@@ -335,6 +380,102 @@ public class EvitaClient implements EvitaContract {
 				.thenBackoff(),
 			RetryRule.builder().onStatus(HttpStatus.TOO_MANY_REQUESTS).thenNoRetry()
 		);
+	}
+
+	/**
+	 * Builds the event loop group backing the {@link #cdcClientFactory dedicated CDC channel}.
+	 *
+	 * Deliberately a single thread. The isolation comes from the group being *distinct*, not from its size:
+	 * Armeria assigns one event loop per endpoint (`DefaultEventLoopScheduler.DEFAULT_MAX_NUM_EVENT_LOOPS` is
+	 * `1`) and the driver talks to exactly one endpoint, so any further threads here would never be used.
+	 * The point is not throughput but *separation* — CDC frames are read by a thread that carries no ordinary
+	 * request/response traffic, so a capture stream that misbehaves degrades captures only.
+	 *
+	 * Because that one thread serves every capture stream on this client, nothing that blocks may run on it —
+	 * see {@link io.evitadb.driver.cdc.ClientChangeCaptureSubscriber#awaitAcknowledgement()}.
+	 *
+	 * @return a dedicated event loop group for change data capture streams
+	 */
+	@Nonnull
+	private static EventLoopGroup createCdcWorkerGroup() {
+		final EventLoopGroupBuilder builder = EventLoopGroups
+			.builder()
+			.numThreads(1)
+			.threadFactory(
+				ThreadFactories.builder("evita-client-cdc-eventloop").daemon(true).eventLoop(true).build()
+			);
+		// in tests we don't want to wait for graceful shutdown (mirrors the main worker group)
+		if (DevelopmentConstants.isTestRun()) {
+			builder.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Builds a {@link GrpcClientBuilder} bound to the given {@link ClientFactory}. Called three times - for the
+	 * ordinary unary request/response channel, for the streaming stubs sharing that same connection, and for the
+	 * {@link #cdcClientFactory dedicated CDC channel} - so that all of them carry an identical interceptor stack
+	 * and differ only in the connection, the event loop, and whether retries are installed.
+	 *
+	 * **`retryRule` must be NULL for any builder whose stubs issue streaming calls.**
+	 * {@link com.linecorp.armeria.client.retry.AbstractRetryingClient} snapshots
+	 * `ctx.responseTimeoutMillis()` into an immutable per-call deadline the moment the call starts, and nothing
+	 * recomputes it afterwards. The driver re-arms the response timeout on every streamed message
+	 * (`ClientRequestContext.current().setResponseTimeout(SET_FROM_NOW, ...)`) precisely because a long-lived
+	 * stream cannot know its total duration up front - and that re-arm cannot move a frozen deadline. Decorating a
+	 * streaming stub therefore caps it at Armeria's default response timeout (15 s) from call start no matter how
+	 * much progress is streaming. See issue #1388.
+	 *
+	 * Nothing is lost by the omission: the always-on rule is `onUnprocessed()` only, and a server-streaming call
+	 * that has already begun emitting messages is by construction not unprocessed, so there is never anything
+	 * safe to replay.
+	 *
+	 * @param uri               target URI of the evitaDB server, including the scheme
+	 * @param clientFactory     factory (and therefore connection pool and event loop group) to bind to
+	 * @param retryRule         retry rule to install, or NULL to install no retry decorator at all - which is
+	 *                          mandatory for builders backing streaming stubs (see above)
+	 * @param responseTimeout   response timeout to seed the channel with, or NULL to leave Armeria's 15 s default
+	 *                          in place. Streaming builders pass the client's `streamingTimeout` so that the window
+	 *                          before the *first* streamed message matches the one the driver re-arms to after
+	 *                          every subsequent message; leaving the default here would cap a stream whose first
+	 *                          message is slow to produce at 15 s, which is the same defect in a narrower window.
+	 * @param connectionOptions connection options providing the client id reported to the server
+	 * @param clientVersion     semantic version of this client, or NULL when it could not be parsed
+	 * @param grpcConfigurator  optional caller-supplied customization applied last, so it can override defaults
+	 * @return the configured gRPC client builder
+	 */
+	@Nonnull
+	private static GrpcClientBuilder createGrpcClientBuilder(
+		@Nonnull String uri,
+		@Nonnull ClientFactory clientFactory,
+		@Nullable RetryRule retryRule,
+		@Nullable Duration responseTimeout,
+		@Nonnull ClientConnectionOptions connectionOptions,
+		@Nullable SemVer clientVersion,
+		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
+	) {
+		final GrpcClientBuilder grpcClientBuilder = GrpcClients
+			.builder(uri)
+			.factory(clientFactory)
+			.serializationFormat(GrpcSerializationFormats.PROTO)
+			.intercept(new ClientSessionInterceptor(connectionOptions.clientId(), clientVersion));
+
+		// Installed on unary channels only: requests Armeria can prove never reached the server are safe to replay
+		// regardless of the `retry` flag (see createRetryRule); the broader, potentially-duplicating rule set stays
+		// opt-in. Streaming channels pass NULL - see the method contract above.
+		if (retryRule != null) {
+			grpcClientBuilder.decorator(
+				RetryingClient.builder(retryRule)
+					.useRetryAfter(true)
+					.newDecorator()
+			);
+		}
+		if (responseTimeout != null) {
+			grpcClientBuilder.responseTimeout(responseTimeout);
+		}
+
+		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
+		return grpcClientBuilder;
 	}
 
 	@Nonnull
@@ -539,10 +680,28 @@ public class EvitaClient implements EvitaContract {
 				}
 				return thread;
 			},
-			// Use CallerRunsPolicy to apply backpressure on the calling thread when the queue is full.
-			new ThreadPoolExecutor.CallerRunsPolicy()
+			// Fail the submission fast once the bounded backlog is exhausted. `CallerRunsPolicy` must never be
+			// used here: the driver does not control who submits, and when the submitter is an Armeria event
+			// loop, "backpressure" becomes driver work executed on the single thread that reads the connection
+			// — which then deadlocks the transport if that work waits for an inbound message. See
+			// EvitaClientRejectingExecutorHandler.
+			new EvitaClientRejectingExecutorHandler(
+				threadPoolOptions.maxThreadCount(),
+				threadPoolOptions.queueSize()
+			)
 		);
 		this.clientFactory = clientFactoryBuilder.build();
+		// Long-lived change-data-capture streams get their own ClientFactory, and therefore their own
+		// connection, so that a stalled capture callback can never stall unrelated request/response traffic.
+		// The dedicated event loop group makes the assignment deterministic instead of leaving it to whichever
+		// loop Armeria's scheduler happens to pick — a plain client concentrates everything on a single loop
+		// (`DefaultEventLoopScheduler.DEFAULT_MAX_NUM_EVENT_LOOPS` is 1, and `HttpChannelPool` is instantiated
+		// per event loop), so without this split one blocked CDC callback takes the whole client down.
+		// `build()` snapshots the builder's options, so re-pointing the worker group here does not disturb the
+		// factory built above.
+		this.cdcClientFactory = clientFactoryBuilder
+			.workerGroup(createCdcWorkerGroup(), true)
+			.build();
 
 		SemVer clientVersion;
 		try {
@@ -551,36 +710,35 @@ public class EvitaClient implements EvitaContract {
 			clientVersion = null;
 		}
 
-		final GrpcClientBuilder grpcClientBuilder = GrpcClients
-			.builder(uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/")
-			.factory(this.clientFactory)
-			.serializationFormat(GrpcSerializationFormats.PROTO)
-			.intercept(new ClientSessionInterceptor(connectionOptions.clientId(), clientVersion));
-
-		// Always installed: requests Armeria can prove never reached the server are safe to replay regardless of
-		// the `retry` flag (see createRetryRule); the broader, potentially-duplicating rule set stays opt-in.
-		grpcClientBuilder.decorator(
-			RetryingClient.builder(createRetryRule(configuration.retry()))
-				.useRetryAfter(true)
-				.newDecorator()
-		);
-
 		final ClientTracingContext context = getClientTracingContext(configuration);
 		if (configuration.openTelemetryInstance() != null) {
 			context.setOpenTelemetry(configuration.openTelemetryInstance());
 		}
 
-		ofNullable(grpcConfigurator).ifPresent(it -> it.accept(grpcClientBuilder));
-		this.grpcClientBuilder = grpcClientBuilder;
-		this.evitaServiceFutureStub = grpcClientBuilder.build(EvitaServiceFutureStub.class);
-		this.evitaServiceStub = grpcClientBuilder.build(EvitaServiceStub.class);
+		final String uri = uriScheme + "://" + connectionOptions.host() + ":" + connectionOptions.port() + "/";
+		// Unary calls retry; streaming calls must not be decorated at all, or the retry layer freezes their
+		// response-timeout deadline at call start and caps every stream at 15 s (issue #1388).
+		this.grpcClientBuilder = createGrpcClientBuilder(
+			uri, this.clientFactory, createRetryRule(configuration.retry()), null, connectionOptions, clientVersion,
+			grpcConfigurator
+		);
+		this.streamingGrpcClientBuilder = createGrpcClientBuilder(
+			uri, this.clientFactory, null, this.streamingTimeout, connectionOptions, clientVersion, grpcConfigurator
+		);
+		this.cdcGrpcClientBuilder = createGrpcClientBuilder(
+			uri, this.cdcClientFactory, null, this.streamingTimeout, connectionOptions, clientVersion,
+			grpcConfigurator
+		);
+		this.evitaServiceFutureStub = this.grpcClientBuilder.build(EvitaServiceFutureStub.class);
+		this.evitaServiceStub = this.streamingGrpcClientBuilder.build(EvitaServiceStub.class);
+		this.evitaServiceCdcStub = this.cdcGrpcClientBuilder.build(EvitaServiceStub.class);
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.timeout = ThreadLocal.withInitial(() -> {
 			final LinkedList<Timeout> timeouts = new LinkedList<>();
 			timeouts.add(new Timeout(clientTimeouts.timeout(), clientTimeouts.timeoutUnit()));
 			return timeouts;
 		});
-		this.management = new EvitaClientManagement(this, this.grpcClientBuilder);
+		this.management = new EvitaClientManagement(this, this.grpcClientBuilder, this.streamingGrpcClientBuilder);
 		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 		this.active.set(true);
 
@@ -699,6 +857,8 @@ public class EvitaClient implements EvitaContract {
 				EvitaEntitySchemaCache::new
 			),
 			this.grpcClientBuilder,
+			this.streamingGrpcClientBuilder,
+			this.cdcGrpcClientBuilder,
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
 			ofNullable(grpcResponse.getCatalogId())
@@ -1025,6 +1185,18 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The work is submitted to the shared client pool, which is bounded and fails fast. When the pool is
+	 * saturated (or the client is closing) `CompletableFuture.supplyAsync` propagates the refusal
+	 * **synchronously** — this method throws instead of returning a future that later completes
+	 * exceptionally. That matches the embedded implementation, whose own rejecting handler throws from
+	 * `Evita#queryCatalogAsync` the same way.
+	 *
+	 * @throws io.evitadb.driver.exception.EvitaClientPoolSaturatedException if the client thread pool cannot
+	 *         accept the task
+	 */
 	@Nonnull
 	@Override
 	public <T> CompletableFuture<T> queryCatalogAsync(
@@ -1164,7 +1336,7 @@ public class EvitaClient implements EvitaContract {
 						this.configuration.changeCaptureQueueSize(),
 						this.streamingTimeout,
 						this.executor,
-						subscriber -> executeWithStreamingEvitaService(
+						subscriber -> executeWithStreamingEvitaCdcService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
 									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(request),
@@ -1193,7 +1365,9 @@ public class EvitaClient implements EvitaContract {
 			this.executor.shutdownNow();
 			IOUtils.closeSafely(
 				this.management::close,
-				this.clientFactory::close
+				this.clientFactory::close,
+				// releases the dedicated CDC event loop group too (registered with shutdownOnClose = true)
+				this.cdcClientFactory::close
 			);
 		}
 	}
@@ -1289,9 +1463,42 @@ public class EvitaClient implements EvitaContract {
 	private <T> T executeWithStreamingEvitaService(
 		@Nonnull AsyncCallFunction<EvitaServiceStub, T> lambda
 	) {
+		return executeWithStreamingEvitaService(lambda, this.evitaServiceStub);
+	}
+
+	/**
+	 * Variant of {@link #executeWithStreamingEvitaService(AsyncCallFunction)} that issues the call on the
+	 * {@link #cdcClientFactory dedicated CDC channel}, so a long-lived capture stream never shares
+	 * a connection - nor an event loop thread - with ordinary request/response traffic.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 * @param <T>    return type of the function
+	 * @return result of the applied function
+	 */
+	@Nullable
+	private <T> T executeWithStreamingEvitaCdcService(
+		@Nonnull AsyncCallFunction<EvitaServiceStub, T> lambda
+	) {
+		return executeWithStreamingEvitaService(lambda, this.evitaServiceCdcStub);
+	}
+
+	/**
+	 * Applies the caller's logic on the given stub with the streaming deadline attached, translating the
+	 * transport-level failures into the driver's exception family.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 * @param stub   stub - and therefore channel - the call is issued on
+	 * @param <T>    return type of the function
+	 * @return result of the applied function
+	 */
+	@Nullable
+	private <T> T executeWithStreamingEvitaService(
+		@Nonnull AsyncCallFunction<EvitaServiceStub, T> lambda,
+		@Nonnull EvitaServiceStub stub
+	) {
 		try {
 			return lambda.apply(
-				this.evitaServiceStub.withDeadlineAfter(this.streamingTimeout)
+				stub.withDeadlineAfter(this.streamingTimeout)
 			);
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(

@@ -65,7 +65,12 @@ import javax.annotation.Nonnull;
  *                       preferred over the ones with lesser priority.
  * @param queueSize      Maximum number of tasks allowed to wait in the backlog
  *                       once all `maxThreadCount` threads are busy. Beyond this
- *                       the task is rejected with a `RejectedExecutionException`.
+ *                       the task is rejected. The exception type depends on the pool:
+ *                       server-side pools throw `RejectedExecutionException`, while the
+ *                       gRPC client pool throws `EvitaClientPoolSaturatedException`, which
+ *                       deliberately does **not** extend `RejectedExecutionException` so that
+ *                       driver saturation cannot be mistaken for a consumer's own scheduler
+ *                       shutting down.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

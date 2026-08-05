@@ -89,6 +89,11 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	/**
 	 * Executor service used to process captures asynchronously for each subscriber.
 	 * This allows subscribers to consume captures at their own pace without blocking each other.
+	 *
+	 * The shared client pool has a bounded backlog and **fails fast** rather than running rejected tasks on
+	 * the submitting thread, so a submission here can throw. Refusal is absorbed rather than propagated:
+	 * driver-internal cleanup completes in place (see `ClientSubscription#cancel`) and consumer callbacks move
+	 * off the submitting thread ({@link CdcCallbackDispatcher}).
 	 */
 	private final ExecutorService executorService;
 
@@ -295,7 +300,8 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 */
 		private final long id;
 		/**
-		 * Executor service used to process captures asynchronously.
+		 * Executor service used to process captures asynchronously. Bounded and fail-fast — every submission
+		 * site must tolerate a rejection; see the publisher's field of the same name.
 		 */
 		@Getter(lombok.AccessLevel.PACKAGE)
 		private final ExecutorService executorService;
@@ -390,6 +396,19 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 *
 		 * This method closes the internal subscriber, which will eventually
 		 * lead to the removal of this subscription from the publisher.
+		 *
+		 * The cleanup is dispatched to the shared client pool, but **must not be lost when that pool refuses
+		 * the task** — a dropped cleanup leaves this subscription in the publisher's `subscriptions`
+		 * collection, so the publisher never auto-closes, and the consumer's own "recreate if missing" guard
+		 * keeps seeing a dead-but-present subscriber and skips recovery forever. The pool fails fast rather
+		 * than running rejected tasks on the caller (see `EvitaClientRejectingExecutorHandler`), so the
+		 * rejection is caught here and the cleanup is completed in place.
+		 *
+		 * Running it in place is safe precisely because the runnable is **driver-internal**: closing the
+		 * internal subscriber and de-registering from the publisher are local, non-blocking operations, not
+		 * the re-entrant path back into {@link ClientChangeCapturePublisher#subscribe}. The consumer-facing
+		 * work reachable from `internalSubscriber.close()` — the delegate's own `close` — is dispatched
+		 * off-thread by {@link CdcCallbackDispatcher} at its own submission site.
 		 */
 		@Override
 		public void cancel() {
@@ -404,7 +423,13 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 				try {
 					this.executorService.execute(runnable);
 				} catch (Throwable ex) {
-					// if the executor service is already shut down, run the cleanup synchronously
+					// the pool is saturated or already shut down — finish the driver-internal cleanup here
+					// rather than leaking a zombie subscription
+					log.debug(
+						"The evitaDB client thread pool refused the cancellation of subscription {}; " +
+							"completing it on the calling thread.",
+						this.id, ex
+					);
 					runnable.run();
 				}
 			}
@@ -422,12 +447,12 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		/**
 		 * Adds a new capture to this subscription's queue.
 		 *
-		 * Uses a non-blocking `offer` so the calling thread — typically an Armeria event-loop
-		 * thread carrying every multiplexed gRPC stream for the channel — can never be parked
-		 * by a slow downstream consumer. With manual gRPC flow control in place (see
+		 * Uses a non-blocking `offer` so the calling thread — the dedicated change-data-capture
+		 * event-loop thread, which reads every capture stream this client holds — can never be
+		 * parked by a slow downstream consumer. With manual gRPC flow control in place (see
 		 * `ClientChangeCaptureSubscriber.beforeStart`) the queue cannot fill under normal
 		 * operation; if it ever does, the subscription is marked dead with a
-		 * `BufferOverflowException` instead of stalling the shared event loop.
+		 * `BufferOverflowException` instead of stalling that event loop.
 		 *
 		 * @param item the capture to add
 		 */
@@ -504,63 +529,84 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * If draining throws, the queue is cleared and the exception is parked
 		 * in `walkingDead` so the fall-through delivers it to the subscriber and
 		 * cancels the subscription.
+		 *
+		 * The drain runs consumer code (`Flow.Subscriber#onNext` on the delegate), so it is dispatched
+		 * through {@link CdcCallbackDispatcher} and never executed on the calling thread: `consume()` is
+		 * reached from `produce()`, i.e. from the gRPC inbound thread, and draining there would hand
+		 * arbitrary consumer code to the event loop that has to stay free to read the connection.
+		 * For the same reason a refused dispatch is never rethrown — it would escape into a gRPC inbound
+		 * callback, which has no defined error path.
 		 */
 		private void consume() {
 			// the walking-dead path still has to drain — schedule a tick to fire `onError`
 			// even if the queue is currently empty; otherwise we'd silently stall a
 			// subscription whose overflow happened before any consume() was triggered
 			if (this.currentlyConsuming.compareAndSet(false, true)) {
-				try {
-					this.executorService.execute(
-						() -> {
-							try {
-								while (this.walkingDead.get() == null
-									&& !this.items.isEmpty()
-									&& this.requested.getAndUpdate(
-										counter -> counter > 0 ? counter - 1 : 0) > 0) {
-									this.internalSubscriber.onDelegateNext(
-										Objects.requireNonNull(this.items.poll())
-									);
-									// restore one gRPC credit per delivered item — keeps the in-flight
-									// window bounded by `queueSize` without sacrificing throughput
-									this.internalSubscriber.requestOneMore();
-								}
-							} catch (Throwable ex) {
-								// if an error occurs during consumption, we need to report it to the subscriber
-								// clear the items queue and set the walking dead exception
-								this.items.clear();
-								this.walkingDead.compareAndSet(null, ex);
-							}
-							// if the walking dead exception is set, notify the subscriber (which closes the
-							// subscription); any unconsumed items are dropped because the stream is doomed.
-							// `notifyClientFailureAndClose` keeps `serverSideClosed=false` so the subsequent
-							// `cancel()` still propagates the cancellation to the gRPC stream — without it
-							// the server would keep pushing into a dead client.
-							if (this.walkingDead.get() != null) {
-								this.items.clear();
-								this.internalSubscriber.notifyClientFailureAndClose(
-									this.walkingDead.get()
+				final boolean dispatched = CdcCallbackDispatcher.dispatch(
+					this.executorService,
+					() -> {
+						try {
+							while (this.walkingDead.get() == null
+								&& !this.items.isEmpty()
+								&& this.requested.getAndUpdate(
+									counter -> counter > 0 ? counter - 1 : 0) > 0) {
+								this.internalSubscriber.onDelegateNext(
+									Objects.requireNonNull(this.items.poll())
 								);
-								this.cancel();
+								// restore one gRPC credit per delivered item — keeps the in-flight
+								// window bounded by `queueSize` without sacrificing throughput
+								this.internalSubscriber.requestOneMore();
 							}
-							// reset the consuming flag
-							this.currentlyConsuming.set(false);
-							// re-check after releasing the flag — a producer thread that lost the CAS
-							// while we were resetting could otherwise stall its enqueued item or its
-							// freshly raised walking-dead signal forever. The `!cancelled` guard
-							// prevents an infinite reschedule loop once the subscription has already
-							// been terminated (walkingDead stays set, but no further work is owed).
-							if (!this.cancelled.get()
-								&& (this.walkingDead.get() != null
-									|| (!this.items.isEmpty() && this.requested.get() > 0))) {
-								this.consume();
-							}
+						} catch (Throwable ex) {
+							// if an error occurs during consumption, we need to report it to the subscriber
+							// clear the items queue and set the walking dead exception
+							this.items.clear();
+							this.walkingDead.compareAndSet(null, ex);
 						}
-					);
-				} catch (Exception ex) {
-					// If submission fails, reset the flag
+						// if the walking dead exception is set, notify the subscriber (which closes the
+						// subscription); any unconsumed items are dropped because the stream is doomed.
+						// `notifyClientFailureAndClose` keeps `serverSideClosed=false` so the subsequent
+						// `cancel()` still propagates the cancellation to the gRPC stream — without it
+						// the server would keep pushing into a dead client.
+						if (this.walkingDead.get() != null) {
+							this.items.clear();
+							this.internalSubscriber.notifyClientFailureAndClose(
+								this.walkingDead.get()
+							);
+							this.cancel();
+						}
+						// reset the consuming flag
+						this.currentlyConsuming.set(false);
+						// re-check after releasing the flag — a producer thread that lost the CAS
+						// while we were resetting could otherwise stall its enqueued item or its
+						// freshly raised walking-dead signal forever. The `!cancelled` guard
+						// prevents an infinite reschedule loop once the subscription has already
+						// been terminated (walkingDead stays set, but no further work is owed).
+						if (!this.cancelled.get()
+							&& (this.walkingDead.get() != null
+								|| (!this.items.isEmpty() && this.requested.get() > 0))) {
+							this.consume();
+						}
+					},
+					"drain buffered captures to the delegate subscriber"
+				);
+				if (!dispatched) {
+					// Nothing will run the drain task (the JVM refused even a rescue thread). Release the
+					// flag so a later `produce()` or `request()` can retry — but do not rely on that as the
+					// recovery: `produce()` early-returns once `walkingDead` is set and never calls
+					// `consume()` again, and on the healthy path gRPC credit is only restored from inside
+					// the drain loop, so the server stops pushing after at most `queueSize` messages.
 					this.currentlyConsuming.set(false);
-					throw ex;
+					// A doomed subscription must therefore be torn down here rather than left to a retry
+					// that cannot come. Only the driver-internal half runs in place — `cancel()` de-registers
+					// the subscription so the publisher can auto-close, and the consumer-facing `onError`
+					// inside `notifyClientFailureAndClose` is itself dispatched off-thread. Without this the
+					// subscription stalls forever with no terminal signal: the silent, permanent outage this
+					// whole teardown path exists to prevent.
+					if (this.walkingDead.get() != null && !this.cancelled.get()) {
+						this.internalSubscriber.notifyClientFailureAndClose(this.walkingDead.get());
+						this.cancel();
+					}
 				}
 			}
 		}

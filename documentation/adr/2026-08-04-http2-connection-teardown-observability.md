@@ -9,7 +9,7 @@ prs: [1383]
 areas: [evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http, evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/event]
 supersedes: []
 superseded-by: []
-relates: [2026-08-03-driver-connection-resilience, 2026-07-16-client-session-cancellation-cascade]
+relates: [2026-08-03-driver-connection-resilience, 2026-07-16-client-session-cancellation-cascade, 2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation]
 ---
 
 # Report HTTP/2 connection-level teardowns; stop enforcing the Rapid-Reset limit by default

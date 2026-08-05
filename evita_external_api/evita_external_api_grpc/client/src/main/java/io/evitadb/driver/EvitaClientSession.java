@@ -195,7 +195,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Getter private final EvitaClient evita;
 	/**
-	 * Executor service used for asynchronous operations.
+	 * Executor service used for asynchronous operations. This is the client-wide pool, which is bounded and
+	 * fails fast - see {@link EvitaClient#executor}.
 	 */
 	private final ExecutorService executor;
 	/**
@@ -219,6 +220,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Entity session service.
 	 */
 	private final EvitaSessionServiceStub evitaSessionServiceStub;
+	/**
+	 * Entity session service bound to the dedicated change data capture channel. Used exclusively by
+	 * {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} so that long-lived capture streams do
+	 * not share a connection - nor an event loop thread - with the session's ordinary request/response calls.
+	 */
+	private final EvitaSessionServiceStub evitaSessionServiceCdcStub;
 	/**
 	 * Contains reference to the catalog name targeted by queries / mutations from this session.
 	 */
@@ -352,6 +359,30 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return entityReference;
 	}
 
+	/**
+	 * Creates a session bound to a single catalog on the server.
+	 *
+	 * `grpcClientBuilder` and `cdcGrpcClientBuilder` **must be bound to different `ClientFactory` instances**.
+	 * That is the entire mechanism keeping long-lived change data capture streams off the connection - and off
+	 * the event loop thread - that carries ordinary request/response traffic. Passing the same builder twice
+	 * compiles, runs and silently reverts the isolation, reintroducing the failure mode where one stalled
+	 * capture callback kills every call on the connection.
+	 *
+	 * `grpcClientBuilder` and `streamingGrpcClientBuilder` are **not** interchangeable either, for a different
+	 * reason: only the former carries the retry decorator. A retrying client freezes the call's response-timeout
+	 * deadline at call start, which caps every streaming call at Armeria's 15 s default however much progress is
+	 * flowing and defeats the per-message re-arm this class performs in
+	 * {@link #goLiveAndCloseWithProgress}, {@link #closeNow}, {@link #closeNowWithProgress} and the streaming
+	 * observers below. Building {@link EvitaSessionServiceStub} from `grpcClientBuilder` compiles, runs, and
+	 * silently reintroduces that cap - see `EvitaClient#streamingGrpcClientBuilder` and issue #1388.
+	 *
+	 * @param grpcClientBuilder          builder for the session's unary request/response stub, with retries
+	 * @param streamingGrpcClientBuilder builder for the session's streaming stub, deliberately *without* retries
+	 * @param cdcGrpcClientBuilder builder for the session's change data capture stub, bound to a *separate*
+	 *                             `ClientFactory` - see
+	 *                             {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} for the
+	 *                             ordering invariant that makes the split safe
+	 */
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
 		@Nonnull ExecutorService executor,
@@ -359,6 +390,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull GrpcClientBuilder grpcClientBuilder,
+		@Nonnull GrpcClientBuilder streamingGrpcClientBuilder,
+		@Nonnull GrpcClientBuilder cdcGrpcClientBuilder,
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID catalogId,
@@ -375,7 +408,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.proxyFactory = proxyFactory;
 		this.schemaCache = schemaCache;
 		this.evitaSessionServiceFutureStub = grpcClientBuilder.build(EvitaSessionServiceFutureStub.class);
-		this.evitaSessionServiceStub = grpcClientBuilder.build(EvitaSessionServiceStub.class);
+		this.evitaSessionServiceStub = streamingGrpcClientBuilder.build(EvitaSessionServiceStub.class);
+		this.evitaSessionServiceCdcStub = cdcGrpcClientBuilder.build(EvitaSessionServiceStub.class);
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
 		this.commitBehaviour = commitBehaviour;
@@ -562,6 +596,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return goLiveProgress;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Like {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)}, this is an **asynchronous,
+	 * ungated** session call: the observer is attached to the streaming stub and the method returns the
+	 * still-incomplete `closedFuture` without waiting for the server. It is safe only because the session is
+	 * being torn down — no further call may be issued on it — so there is nothing left to order against. Do
+	 * not copy the shape into a call that leaves the session usable; see
+	 * {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} for the serialization invariant.
+	 */
 	@Nonnull
 	@Override
 	public CompletionStage<CommitVersions> closeNow(@Nonnull CommitBehavior commitBehaviour) {
@@ -635,6 +679,32 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return this.closedFuture;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * **Session-call serialization invariant.** This is the one session-bound call that does not block on
+	 * a server response: it hands the subscriber to the *asynchronous* stub and returns immediately, so on
+	 * its own it gives no guarantee that the server-side registration has happened by the time it returns.
+	 * Ordering nevertheless holds — but only because its sole caller,
+	 * {@link io.evitadb.driver.cdc.ClientChangeCapturePublisher#subscribe}, gates it with a blocking
+	 * `awaitAcknowledgement()` immediately afterwards. Session calls are therefore serialized **by one
+	 * deliberate gate, not by construction**.
+	 *
+	 * Two consequences that are easy to break:
+	 *
+	 * 1. Any new asynchronous session API must either block on its own server acknowledgement or be gated
+	 *    the same way. Without that, a caller's next same-session call races the still-pending registration
+	 *    on the server request pool (surfacing as a concurrent-session-access error), or a mutation fires
+	 *    before the subscriber is wired into the change observer and its event is silently missed.
+	 * 2. Change-data-capture streams run on their own channel (see `EvitaClient#cdcGrpcClientBuilder`), so
+	 *    this session-bound call travels a *different connection* from the rest of its session's calls, and
+	 *    HTTP/2 guarantees ordering only within a connection. The acknowledgement gate is what makes that
+	 *    safe; `ClientChangeCapturePublisherTest` asserts it, and that test is a prerequisite of the split
+	 *    channel rather than a nice-to-have.
+	 *
+	 * The same "asynchronous, ungated" shape applies to {@link #closeNow(CommitBehavior)} and
+	 * {@link #closeNowWithProgress()}.
+	 */
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
@@ -659,14 +729,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 								return null;
 							};
 							if (this.isActive()) {
-								executeWithStreamingEvitaSessionService(callFunction);
+								executeWithStreamingEvitaCdcSessionService(callFunction);
 							} else {
 								// when current session is no longer active, create new one
 								final EvitaClientSession session = this.evita.createSession(
 									new SessionTraits(this.catalogName)
 								);
 								// and register the change capture on it
-								session.executeWithStreamingEvitaSessionService(callFunction);
+								session.executeWithStreamingEvitaCdcSessionService(callFunction);
 							}
 						},
 						publisher -> this.evita.activePublishers.remove(key, publisher)
@@ -674,6 +744,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The second **asynchronous, ungated** session call — see {@link #closeNow(CommitBehavior)} for why the
+	 * missing acknowledgement gate is acceptable on a teardown path, and
+	 * {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} for the serialization invariant that
+	 * any new asynchronous session API must respect.
+	 */
 	@Nonnull
 	@Override
 	public CommitProgress closeNowWithProgress() {
@@ -2463,7 +2541,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
-	 * from a channel pool. This method doesn't apply any timeout to the call.
+	 * from a channel pool. The per-call {@link Timeout} is deliberately not applied - streaming calls are bounded
+	 * by the streaming deadline instead, which every received message restarts.
 	 *
 	 * @param lambda function that holds a logic passed by the caller
 	 */
@@ -2471,9 +2550,42 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private <T> T executeWithStreamingEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
 	) {
+		return executeWithStreamingEvitaSessionService(lambda, this.evitaSessionServiceStub);
+	}
+
+	/**
+	 * Variant of {@link #executeWithStreamingEvitaSessionService(AsyncCallFunction)} that issues the call on
+	 * the dedicated change data capture channel.
+	 *
+	 * The session id still travels in the gRPC metadata, so this remains a session-bound call - it simply
+	 * takes a different connection. HTTP/2 orders frames only within a connection, so the ordering that the
+	 * rest of the session relies on is supplied here by the acknowledgement gate described on
+	 * {@link #registerChangeCatalogCapture(ChangeCatalogCaptureRequest)}.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 */
+	@Nullable
+	private <T> T executeWithStreamingEvitaCdcSessionService(
+		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
+	) {
+		return executeWithStreamingEvitaSessionService(lambda, this.evitaSessionServiceCdcStub);
+	}
+
+	/**
+	 * Applies the caller's logic on the given stub with the session id attached to the gRPC metadata and the
+	 * streaming deadline applied, translating transport-level failures into the driver's exception family.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 * @param stub   stub - and therefore channel - the call is issued on
+	 */
+	@Nullable
+	private <T> T executeWithStreamingEvitaSessionService(
+		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda,
+		@Nonnull EvitaSessionServiceStub stub
+	) {
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceStub.withDeadlineAfter(this.streamingTimeout));
+			return lambda.apply(stub.withDeadlineAfter(this.streamingTimeout));
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
 			if (EvitaClient.isTransportFailure(theException)) {

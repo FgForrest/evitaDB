@@ -107,14 +107,31 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	 */
 	private final EvitaManagementServiceFutureStub evitaManagementServiceFutureStub;
 
-	public EvitaClientManagement(@Nonnull EvitaClient evitaClient, @Nonnull GrpcClientBuilder grpcClientBuilder) {
+	/**
+	 * Creates the management facade.
+	 *
+	 * The two builders are **not** interchangeable: `streamingGrpcClientBuilder` carries no retry decorator,
+	 * because a retrying client freezes the response-timeout deadline at call start and would cap long-lived
+	 * management streams (backup, restore, task progress) at Armeria's 15 s default. Building
+	 * {@link EvitaManagementServiceStub} from `grpcClientBuilder` reintroduces that cap silently — see
+	 * `EvitaClient#streamingGrpcClientBuilder` and issue #1388.
+	 *
+	 * @param evitaClient                the owning client
+	 * @param grpcClientBuilder          builder for unary stubs, carrying the retry decorator
+	 * @param streamingGrpcClientBuilder builder for streaming stubs, deliberately *without* the retry decorator
+	 */
+	public EvitaClientManagement(
+		@Nonnull EvitaClient evitaClient,
+		@Nonnull GrpcClientBuilder grpcClientBuilder,
+		@Nonnull GrpcClientBuilder streamingGrpcClientBuilder
+	) {
 		this.evitaClient = evitaClient;
 		this.clientTaskTracker = new ClientTaskTracker(
 			this,
 			evitaClient.getConfiguration().trackedTaskLimit(),
 			2000
 		);
-		this.evitaManagementServiceStub = grpcClientBuilder.build(EvitaManagementServiceStub.class);
+		this.evitaManagementServiceStub = streamingGrpcClientBuilder.build(EvitaManagementServiceStub.class);
 		this.evitaManagementServiceFutureStub = grpcClientBuilder.build(EvitaManagementServiceFutureStub.class);
 	}
 
