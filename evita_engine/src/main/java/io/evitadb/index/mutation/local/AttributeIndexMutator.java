@@ -891,10 +891,11 @@ public interface AttributeIndexMutator {
 	) {
 		return it -> {
 			final AttributeSchema attributeSchema = attributeSchemaProvider.getAttributeSchema(it.attributeName());
+			// canonical keys shared by the schema - they are only used to look the existing value up
 			return existingAttributeValueProvider.apply(
 				attributeSchema.isLocalized() ?
-					new AttributeKey(it.attributeName(), locale) :
-					new AttributeKey(it.attributeName())
+					attributeSchema.getAttributeKey(locale) :
+					attributeSchema.getAttributeKey()
 			);
 		};
 	}

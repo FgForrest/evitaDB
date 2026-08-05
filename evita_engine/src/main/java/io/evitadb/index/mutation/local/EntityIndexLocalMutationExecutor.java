@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -1908,9 +1907,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final ReferenceKey effectiveReferenceKey = referenceKey != null
 				? referenceKey : representativeKey.referenceKey();
 			final String referenceName = effectiveReferenceKey.referenceName();
-			referenceSchema = entitySchema.getReference(referenceName)
-				.orElseThrow(() -> new ReferenceNotFoundException(
-					referenceName, entitySchema));
+			// same contract as the previous getReference(..).orElseThrow(..) chain, without the Optional and the lambda
+			referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
 				ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 					this,
@@ -2119,15 +2117,35 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
+		// references come in name-sorted runs, so the schema resolved for the previous reference is almost always
+		// the one needed again - resolve it, and the facts derived from it, once per run instead of once per
+		// reference. The scope is fixed for the whole loop and the schema is immutable, so all three facts can
+		// only change where the run boundary moves. The `indexedForFiltering` guards below keep the evaluation
+		// order identical to the per-reference form they replace
+		ReferenceSchemaContract lastResolvedReferenceSchema = null;
+		boolean indexedForFiltering = false;
+		boolean indexedForEntityComponent = false;
+		boolean indexedForGroupComponent = false;
 		for (ReferenceContract reference : entity.getReferences()) {
 			if (reference.exists()) {
 				final ReferenceKey referenceKey = reference.getReferenceKey();
-				final ReferenceSchemaContract referenceSchema =
-					entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+				if (lastResolvedReferenceSchema == null ||
+					!lastResolvedReferenceSchema.getName().equals(referenceKey.referenceName())) {
+					lastResolvedReferenceSchema =
+						entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+					indexedForFiltering = ReferenceIndexMutator.isIndexedReferenceForFiltering(
+						lastResolvedReferenceSchema, scope
+					);
+					indexedForEntityComponent = indexedForFiltering &&
+						ReferenceIndexMutator.isIndexedForEntityComponent(lastResolvedReferenceSchema, scope);
+					indexedForGroupComponent = indexedForFiltering &&
+						ReferenceIndexMutator.isIndexedForGroupComponent(lastResolvedReferenceSchema, scope);
+				}
+				final ReferenceSchemaContract referenceSchema = lastResolvedReferenceSchema;
 				final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
 					epk, globalIndex, referenceKey, referenceSchema, true
 				);
-				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
+				if (indexedForFiltering) {
 					final Integer groupId = extractActiveGroupPrimaryKey(reference);
 					// histogram: remove histogram entries before facet/component cleanup
 					ReferenceIndexMutator.removeHistogramFromIndex(
@@ -2139,7 +2157,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						this
 					);
 					// entity component: entity type index + entity reduced index (only when configured)
-					if (ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope)) {
+					if (indexedForEntityComponent) {
 						final ReferencedTypeEntityIndex referenceTypeIndex =
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
@@ -2154,7 +2172,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						);
 					}
 					// group component: independent — group type index + group reduced index
-					if (ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)) {
+					if (indexedForGroupComponent) {
 						removeFromGroupIndexes(
 							epk, entitySchema, referenceSchema, rrk, referenceKey,
 							reference, scope, existingDataSupplierFactory
@@ -2410,15 +2428,39 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
+		// references come in name-sorted runs, so the schema resolved for the previous reference is almost always
+		// the one needed again - resolve it, and the facts derived from it, once per run instead of once per
+		// reference. The scope is fixed for the whole loop and the schema is immutable, so all four facts can
+		// only change where the run boundary moves. The guards below keep the evaluation order identical to the
+		// per-reference form they replace - `faceted` in particular is only ever evaluated under the same
+		// condition that guarded it before
+		ReferenceSchemaContract lastResolvedReferenceSchema = null;
+		boolean indexedForFiltering = false;
+		boolean indexedForEntityComponent = false;
+		boolean indexedForGroupComponent = false;
+		boolean faceted = false;
 		for (ReferenceContract reference : entity.getReferences()) {
 			if (reference.exists()) {
 				final ReferenceKey referenceKey = reference.getReferenceKey();
-				final ReferenceSchemaContract referenceSchema =
-					entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+				if (lastResolvedReferenceSchema == null ||
+					!lastResolvedReferenceSchema.getName().equals(referenceKey.referenceName())) {
+					lastResolvedReferenceSchema =
+						entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+					indexedForFiltering = ReferenceIndexMutator.isIndexedReferenceForFiltering(
+						lastResolvedReferenceSchema, scope
+					);
+					indexedForEntityComponent = indexedForFiltering &&
+						ReferenceIndexMutator.isIndexedForEntityComponent(lastResolvedReferenceSchema, scope);
+					indexedForGroupComponent = indexedForFiltering &&
+						ReferenceIndexMutator.isIndexedForGroupComponent(lastResolvedReferenceSchema, scope);
+					faceted = indexedForEntityComponent &&
+						lastResolvedReferenceSchema.isFacetedInScope(scope);
+				}
+				final ReferenceSchemaContract referenceSchema = lastResolvedReferenceSchema;
 				final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
 					epk, globalIndex, referenceKey, referenceSchema, true
 				);
-				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
+				if (indexedForFiltering) {
 					final Integer groupId = extractActiveGroupPrimaryKey(reference);
 					// prevent referenceInsertGlobal from deferring a histogram add —
 					// indexAllReferences handles histogram directly with the correct groupId
@@ -2432,7 +2474,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						this
 					);
 					// entity component: entity type index + entity reduced index (only when configured)
-					if (ReferenceIndexMutator.isIndexedForEntityComponent(referenceSchema, scope)) {
+					if (indexedForEntityComponent) {
 						final ReferencedTypeEntityIndex referenceTypeIndex =
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, rrk.referenceName(), scope
@@ -2448,7 +2490,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							existingDataSupplierFactory
 						);
 						// cross-reference facet indexing: only when entity component is enabled
-						if (referenceSchema.isFacetedInScope(scope)) {
+						if (faceted) {
 							for (ReferenceContract otherRef : entity.getReferences()) {
 								if (ReferenceKey.FULL_COMPARATOR.compare(
 									rrk.referenceKey(), otherRef.getReferenceKey()
@@ -2466,10 +2508,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						}
 					}
 					// group component: independent — group type index + group reduced index
-					if (
-						groupId != null &&
-							ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope)
-					) {
+					if (groupId != null && indexedForGroupComponent) {
 						insertIntoGroupIndexes(
 							epk, entitySchema, referenceSchema, rrk, referenceKey,
 							groupId, scope, existingDataSupplierFactory

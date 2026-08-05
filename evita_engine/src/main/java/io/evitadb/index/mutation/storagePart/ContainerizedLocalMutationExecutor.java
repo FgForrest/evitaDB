@@ -253,13 +253,14 @@ public final class ContainerizedLocalMutationExecutor
 			final boolean nullable = attributeSchema.isNullable();
 			if (attributeSchema.isLocalized()) {
 				for (final Locale locale : entityLocales) {
-					final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName(), locale);
+					// canonical key shared by the schema - it is only compared and looked up here
+					final AttributeKey attributeKey = attributeSchema.getAttributeKey(locale);
 					if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
 						missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 					}
 				}
 			} else {
-				final AttributeKey attributeKey = new AttributeKey(attributeSchema.getName());
+				final AttributeKey attributeKey = attributeSchema.getAttributeKey();
 				if (!reference.isAttributeValuePresentAndExists(attributeKey)) {
 					missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 				}
@@ -2123,14 +2124,15 @@ public final class ContainerizedLocalMutationExecutor
 			final boolean nullable = attribute.isNullable();
 			if (checkLocalized && attribute.isLocalized()) {
 				for (final Locale locale : entityLocales) {
-					final AttributeKey attributeKey = new AttributeKey(attribute.getName(), locale);
+					// canonical key shared by the schema - it is only compared and looked up here
+					final AttributeKey attributeKey = attribute.getAttributeKey(locale);
 					final Set<AttributeKey> localeAttributes = availableLocalizedAttributes.get(locale);
 					if (localeAttributes == null || !localeAttributes.contains(attributeKey)) {
 						missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 					}
 				}
 			} else if (checkGlobal && !attribute.isLocalized()) {
-				final AttributeKey attributeKey = new AttributeKey(attribute.getName());
+				final AttributeKey attributeKey = attribute.getAttributeKey();
 				if (!availableGlobalAttributes.contains(attributeKey)) {
 					missingAttributeHandler.accept(defaultValue, nullable, attributeKey);
 				}
@@ -2747,13 +2749,20 @@ public final class ContainerizedLocalMutationExecutor
 		// go through all input mutations
 		final Map<EntityReference, List<ReferenceAttributeMutation>>
 			referenceAttributeMutationsByEntityReference = new LazyHashMap<>(inputMutations.size());
+		// attribute mutations of one reference arrive in a run, so the schema resolved for the previous mutation is
+		// almost always the one needed again - a name comparison is cheaper than a repeated map lookup
+		ReferenceSchema lastResolvedReferenceSchema = null;
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
 				final ReferenceKey referenceKey = getReferenceKeyManager().getAssignedReferenceKey(ram.getReferenceKey());
 				// find the reference schema
 				final String referenceName = referenceKey.referenceName();
-				final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+				if (lastResolvedReferenceSchema == null ||
+					!lastResolvedReferenceSchema.getName().equals(referenceName)) {
+					lastResolvedReferenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+				}
+				final ReferenceSchema referenceSchema = lastResolvedReferenceSchema;
 				// if the mutation relate to reference which hasn't been created in the same entity update
 				if (!getReferenceKeyManager().isReferenceKeyCreated(referenceKey)) {
 					// access the data store reader of referenced collection
@@ -3357,13 +3366,18 @@ public final class ContainerizedLocalMutationExecutor
 	 * {@link AttributesStoragePart#getAttributes()}. The appropriate storage part is located by information about
 	 * locale in passed `localMutation` argument.
 	 */
-	private void updateAttributes(@Nonnull EntitySchemaContract entitySchema, @Nonnull AttributeMutation localMutation) {
+	private void updateAttributes(@Nonnull EntitySchema entitySchema, @Nonnull AttributeMutation localMutation) {
 		final AttributeKey attributeKey = localMutation.getAttributeKey();
-		final AttributeSchemaContract attributeDefinition = entitySchema.getAttribute(attributeKey.attributeName())
-			.orElseThrow(() -> new EvitaInvalidUsageException(
+		// resolved once per attribute mutation - the Optional-returning variant would allocate per resolution
+		final AttributeSchemaContract attributeDefinition = entitySchema.getAttributeOrNull(
+			attributeKey.attributeName()
+		);
+		if (attributeDefinition == null) {
+			throw new EvitaInvalidUsageException(
 				"Attribute `" + attributeKey.attributeName() +
 					"` is not known for entity `" + entitySchema.getName() + "`."
-			));
+			);
+		}
 		// get or create the locale-specific attributes container, or the locale-agnostic (global) one
 		final Locale attributeLocale = attributeKey.locale();
 		final AttributesStoragePart attributesStorageContainer = attributeLocale != null
@@ -3433,21 +3447,22 @@ public final class ContainerizedLocalMutationExecutor
 		final ReferencesStoragePart referencesStorageCnt = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		// replace or add the mutated reference in the container
 		final ReferenceKey referenceKey = localMutation.getReferenceKey();
+		// resolve the reference schema once - the very same name was previously looked up up to three times per
+		// mutation (twice from a supplier, once for the cardinality check, once more when removing the reference).
+		// The resolution is now eager on every branch; a reference whose name is unknown to the schema cannot be
+		// stored in the first place, so this only moves an unreachable failure earlier
+		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+		final MissingReferenceBehavior missingReferenceBehavior =
+			referenceSchema instanceof ReflectedReferenceSchemaContract ?
+				MissingReferenceBehavior.ACCEPT_INTERNAL_KEY : MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY;
 		final ReferenceContract updatedReference;
 		if (referenceKey.isKnownInternalPrimaryKey() || referenceKey.isNewReference()) {
 			updatedReference = referencesStorageCnt.replaceOrAddReference(
 				referenceKey,
 				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract),
-				() -> entitySchema.getReferenceOrThrowException(
-					referenceKey.referenceName()
-				) instanceof ReflectedReferenceSchemaContract ?
-					MissingReferenceBehavior.ACCEPT_INTERNAL_KEY : MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
+				() -> missingReferenceBehavior
 			);
-		} else if (
-			entitySchema.getReferenceOrThrowException(referenceKey.referenceName())
-			            .getCardinality()
-			            .allowsDuplicates()
-		) {
+		} else if (referenceSchema.getCardinality().allowsDuplicates()) {
 			throw new InvalidMutationException(
 				"Reference `" + referenceKey.referenceName() + "` in entity `" + entitySchema.getName() + "` allows duplicates. " +
 					"It's not possible to modify it without providing identification using reference key with internal id!"
@@ -3456,10 +3471,7 @@ public final class ContainerizedLocalMutationExecutor
 			updatedReference = referencesStorageCnt.replaceOrAddReference(
 				referenceKey,
 				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract),
-				() -> entitySchema.getReferenceOrThrowException(
-					referenceKey.referenceName()
-				) instanceof ReflectedReferenceSchemaContract ?
-					MissingReferenceBehavior.ACCEPT_INTERNAL_KEY : MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
+				() -> missingReferenceBehavior
 			);
 		}
 		// change in entity parts also change the entity itself (we need to update the version)
@@ -3470,10 +3482,7 @@ public final class ContainerizedLocalMutationExecutor
 		if (localMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
 			recomputeLanguageOnAttributeUpdate(referenceAttributesUpdateMutation.getAttributeMutation());
 		} else if (localMutation instanceof RemoveReferenceMutation) {
-			removeEntireReference(
-				updatedReference,
-				entitySchema.getReferenceOrThrowException(referenceKey.referenceName())
-			);
+			removeEntireReference(updatedReference, referenceSchema);
 		}
 	}
 
