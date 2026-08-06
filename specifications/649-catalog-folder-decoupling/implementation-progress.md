@@ -492,6 +492,54 @@ them as **active** (divergence registers as *inactive* — a pre-existing incons
 through the classifier would change the upgrade path for installations whose engine state is absent,
 which wants its own step and its own tests.
 
+### Landed: the drain, scoped to `PROVISIONAL` only
+
+`CatalogFolderCleaner` removes folders an operation abandoned, and boot now classifies **once** and uses the
+verdicts twice — the drain is a side effect and had to stay out of `computeCatalogInventoryDivergence`,
+whose whole contract is that it is a pure value.
+
+**`RETIRED` is deliberately not drained yet.** It is equally expendable, but deleting a tombstoned folder
+without also dropping its tombstone from the engine state leaks that tombstone *permanently*: the folder is
+gone, so the classifier never reports it again, and the entry accumulates in persisted state on every drop
+and replace for the life of the installation. Dropping it needs the engine mutation path, which does not
+exist at the point boot classification runs — so both halves land together with the operators that produce
+tombstones. `PROVISIONAL` needs none of that: unreferenced, untracked, its removal updates nothing.
+
+The drain consumes `CatalogFolderState#isDeletable()` rather than re-deriving the policy in its own switch,
+guarded twice — a static initialiser refusing a non-deletable state in `DRAINED_STATES`, and a premise check
+on the last line before the delete. The parametrised test walks all six enum values and asserts a
+non-deletable folder is never removed, which pins the coupling in a way per-row tests cannot.
+
+### `FileUtils.deleteDirectory` followed symbolic links — fixed, in its own commit
+
+It branched on `it.toFile().isDirectory()`, and `File#isDirectory()` **resolves links**. So a symlink to a
+directory was recursed into and its *contents* deleted, outside the tree the caller pointed at entirely.
+
+The behaviour is old — `git log -L` puts that line at `63c659c86` (2023-03-24), and #649 never touched
+`FileUtils.java`. It surfaced now only because the drain is the first code to point a recursive delete at a
+folder chosen by *classification* rather than by a caller who already knows what it is.
+
+**Johnny's ruling: symlinks are not expected in the data folder — so the helper should enforce that rather
+than assume it.** An unexpected link is an anomaly, and letting an anomaly steer a recursive delete outside
+its target is the worst available response to one. Landed as a separate commit, ahead of the drain, because
+it changes deletion semantics for catalog drop, catalog replace and the `2025_1` migration — blast radius
+with nothing to do with #649.
+
+The implementation is now `Files.walkFileTree` with no `FOLLOW_LINKS`, which hands a link to `visitFile` so
+deleting unlinks it and never touches the target. The existence guard uses `LinkOption.NOFOLLOW_LINKS` too,
+so a dangling link is still cleaned up rather than silently skipped. `CatalogFolderCleaner` therefore just
+calls the shared helper — its private link-safe walk was duplication once the shared one was safe.
+
+**Verified by counterfactual, not by assumption.** Adding `FileVisitOption.FOLLOW_LINKS` back makes the
+containment test fail on exactly the right assertion — *"Data outside the storage directory must never be
+touched"* — proving both that the guard works and that the hazard was real rather than theoretical.
+
+The first attempt at that counterfactual **appeared to pass, and was worthless**: swapping in
+`FileUtils.deleteDirectory` directly failed to compile (it throws `UnexpectedIOException`, a
+`RuntimeException`, so the surrounding `catch (IOException)` became unreachable), so the test ran against the
+previously installed jar. A green counterfactual means nothing until the build that produced it is checked —
+`-q` on the install step is what hid it.
+
 ### Verification
 
 Full suite: **20937 tests, 1 failure, 1 error, 37 skipped** in the functional module, against 20909 / 1
@@ -504,13 +552,30 @@ The +28 count delta was reconciled per container rather than assumed: 26 are the
 `Sort index first-touch cost …` appearing with 1 — both sort-index performance tests unrelated to this
 work, reflecting how loaded the machine was during the step 4 run.
 
+After the drain and the `FileUtils` fix: **20951 tests, 2 failures, 1 error, 39 skipped**. The delta is
+exactly +14 (12 cleaner, 2 `FileUtils`) and +2 skips (the parametrised rows declining the two deletable
+states). The extra failure is `SortIndexRankScalingTest#shouldNotScaleFirstTouchWithDistinctValueCount`,
+which is **environmental**: it asserts a wall-clock *ratio* (measured 26.9x against a 3.0x limit), passed in
+the immediately preceding full suite at 83.06 s, and passes in isolation in **5.83 s** against 53.80 s under
+suite load. The `SortIndex` changes this branch carries are `422c3bda0` / `596154931`, both older than
+today's work and green in the previous suite.
+
+That makes **two** load-sensitive timing tests on this branch — this one and `CdcCallbackDispatcherTest`.
+Neither has been ruled on; both will keep producing red suites on a busy machine.
+
 ### Still open in step 5
 
-`.provisional` clearing wired into the create/restore/duplicate paths (the allocator exposes
-`clearProvisionalMarker`, nothing calls it yet), the tombstone drain, foreign/legacy adoption with the
-boot-time rename, the `.catalogname` marker, and rewiring `computeCatalogInventoryDivergence` onto the
-classifier — it still matches directory names against catalog names and dumps every unknown directory
-into `autoDiscovered`. The two units that landed are not referenced by production code yet.
+The classifier **is** wired into boot (see above); the allocator is not — no production path calls it
+yet, so nothing writes `.provisional` and nothing allocates a suffixed folder.
+
+Remaining: the allocator used by the create/restore/duplicate paths with `clearProvisionalMarker`
+sequenced ahead of the binding commit — those two must land **together**, since writing markers without
+clearing them leaves every fresh folder wearing one; the tombstone drain, for which the classifier
+already reports `PROVISIONAL` and `RETIRED` but boot only logs them; foreign/legacy adoption with the
+boot-time rename; and the `.catalogname` marker.
+
+`CatalogFolderState#isDeletable` has no consumer until the drain lands — that is the flag the drain is
+built around, and it is deliberately the only thing standing between a classification and an `rm`.
 
 ### The three §0 open items do not gate step 5
 

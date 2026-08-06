@@ -309,7 +309,15 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// divergence as proper WAL-backed engine mutations once `EngineTransactionManager` exists,
 		// preserving the WAL-first invariant and making the boot-time reconciliation observable through CDC.
 		if (!this.created) {
-			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(this.storageSettings, this.engineState);
+			// Classify once and use the verdicts twice: removing abandoned folders is a side effect and has to
+			// stay out of the divergence computation, which must remain a pure value.
+			final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+				this.storageSettings.storageDirectory(), this.engineState
+			);
+			CatalogFolderCleaner.drain(this.storageSettings.storageDirectory(), classifications);
+			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(
+				classifications, this.engineState
+			);
 		}
 	}
 
@@ -932,18 +940,15 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * after `EngineTransactionManager` is wired by emitting one engine mutation per entry, which preserves the
 	 * WAL-first invariant and makes the reconciliation observable through CDC.
 	 *
-	 * @param storageSettings configuration options for persistent storage, including the storage directory
+	 * @param classifications verdicts {@link CatalogFolderClassifier} reached for the storage directory
 	 * @param engineState the current engine state to compare against the on-disk folder contents
 	 * @return divergence record; never null, possibly {@link CatalogInventoryDivergence#EMPTY}
 	 */
 	@Nonnull
 	private static CatalogInventoryDivergence computeCatalogInventoryDivergence(
-		@Nonnull StorageSettings storageSettings,
+		@Nonnull List<CatalogFolderClassification> classifications,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
-		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
-			storageSettings.storageDirectory(), engineState
-		);
 		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
 		for (final CatalogFolderClassification classification : classifications) {
 			foldersOnDisk.add(classification.folderName());
@@ -998,9 +1003,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					"Storage folder `{}` holds no catalog bootstrap file and is not referenced — leaving it " +
 						"untouched.", folderName
 				);
-				case PROVISIONAL, RETIRED -> log.info(
-					"Storage folder `{}` is {} and awaits removal — cleanup is not wired up yet, so it is left " +
-						"in place for now.", folderName, classification.state()
+				case PROVISIONAL -> {
+					// already removed by the drain that ran before this, or left in place for the next boot
+					// because the removal failed - either way it is not part of the divergence
+				}
+				case RETIRED -> log.info(
+					"Storage folder `{}` is tombstoned and awaits removal — dropping the tombstone needs the " +
+						"engine mutation path, so both halves land together and it stays in place for now.",
+					folderName
 				);
 			}
 		}
