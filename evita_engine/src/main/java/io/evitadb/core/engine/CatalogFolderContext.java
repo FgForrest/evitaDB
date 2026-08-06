@@ -32,10 +32,12 @@ import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
 
@@ -53,6 +55,7 @@ import java.util.function.ToIntFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Slf4j
 @RequiredArgsConstructor
 public class CatalogFolderContext {
 	/**
@@ -81,6 +84,14 @@ public class CatalogFolderContext {
 	 * classification because it still wears its provisional marker.
 	 */
 	private final Map<String, CatalogFolderId> reservedFolders = new ConcurrentHashMap<>(8);
+	/**
+	 * Folders whose removal has been confirmed and whose tombstones may therefore be dropped from engine state.
+	 *
+	 * Also deliberately not persisted, and for the same reason: an entry only has to survive until the next
+	 * engine-state commit discharges it. Losing one to a crash costs nothing, because the tombstone it would have
+	 * removed names a folder that is already gone — the next boot observes that and refills the set.
+	 */
+	private final Set<CatalogFolderId> drainedFolders = ConcurrentHashMap.newKeySet(8);
 
 	/**
 	 * Returns the folder token the passed catalog is currently bound to.
@@ -245,6 +256,66 @@ public class CatalogFolderContext {
 	 */
 	public void recordCatalogName(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
 		this.folderOperations.recordCatalogNameInFolder(folderId, catalogName);
+	}
+
+	/**
+	 * Deletes a folder the engine state has already tombstoned, and remembers the deletion when it succeeds.
+	 *
+	 * Call this **after** the commit that retired the folder, never before: until that commit is durable the
+	 * folder is still the live home of a catalog, and a delete that races ahead of it destroys data the engine
+	 * still points at. Everything about the call is best-effort by design — a folder the operating system refuses
+	 * to remove (an open handle on Windows, a transient I/O failure) leaves the tombstone in place, and the boot
+	 * drain retries it. That is the whole reason the tombstone exists, so a failure here is logged rather than
+	 * propagated: the operation the user asked for has already succeeded.
+	 *
+	 * @param folderId folder to remove
+	 */
+	public void deleteRetiredFolder(@Nonnull CatalogFolderId folderId) {
+		try {
+			this.folderOperations.dropCatalogFolder(folderId);
+			noteFolderDrained(folderId);
+		} catch (RuntimeException ex) {
+			log.warn(
+				"Failed to remove retired storage folder `{}` — it stays tombstoned and the next boot retries it.",
+				folderId.id(), ex
+			);
+		}
+	}
+
+	/**
+	 * Records that a folder is confirmed gone, so the next engine-state commit drops its tombstone.
+	 *
+	 * Called both by {@link #deleteRetiredFolder(CatalogFolderId)} and by the boot drain, which removes the
+	 * folders a previous run could not — and, equally, observes tombstones whose folders are already absent
+	 * because the deletion succeeded but no commit followed it.
+	 *
+	 * @param folderId folder confirmed to be gone
+	 */
+	public void noteFolderDrained(@Nonnull CatalogFolderId folderId) {
+		this.drainedFolders.add(folderId);
+	}
+
+	/**
+	 * Returns the folders confirmed gone whose tombstones are still carried by the engine state.
+	 *
+	 * @return live view of the confirmed-gone set; never null
+	 */
+	@Nonnull
+	public Set<CatalogFolderId> getDrainedFolders() {
+		return this.drainedFolders;
+	}
+
+	/**
+	 * Forgets the folders whose tombstones a commit has just dropped.
+	 *
+	 * Called only once the pruned state is durable. Forgetting earlier would lose the pruning if the commit
+	 * failed; not forgetting at all would grow the set for the lifetime of the run, and re-pruning an already
+	 * absent tombstone is a no-op rather than an error.
+	 *
+	 * @param folderIds folders whose tombstones are provably no longer in persisted state
+	 */
+	public void forgetDrainedFolders(@Nonnull Set<CatalogFolderId> folderIds) {
+		this.drainedFolders.removeAll(folderIds);
 	}
 
 	/**

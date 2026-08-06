@@ -1712,29 +1712,28 @@ public class DefaultCatalogPersistenceService
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
 			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
 
-		final boolean restoreFlagExists;
-		try {
-			final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
-				.toFile();
-			verifyCatalogNameMatches(
-				catalogInstance, catalogVersion, this.catalogStoragePath,
-				catalogStoragePartPersistenceService, restoreFlagFile.exists() ?
-					OnDifferentCatalogName.ADAPT : OnDifferentCatalogName.THROW_EXCEPTION,
-				this.bootstrapUsed
+		final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
+			.toFile();
+		// The name is reconciled unconditionally, in the direction the engine state dictates. That authority
+		// flip is what #649 changes here: the name being loaded under no longer comes from the folder, so a
+		// header naming a different catalog stopped being evidence of a mistake and became the ordinary trace of
+		// a rename or replace whose post-commit header rewrite did not land. Refusing the load would turn a
+		// recoverable lag into a catalog reported CORRUPTED; adapting makes the folder agree with the one
+		// durable fact there is.
+		reconcileStoredCatalogName(
+			catalogInstance, catalogVersion, catalogStoragePartPersistenceService, this.bootstrapUsed
+		);
+		final boolean restoreFlagExists = restoreFlagFile.exists();
+		if (restoreFlagExists) {
+			// the flag still carries its second meaning - "this folder arrived from outside, regenerate the
+			// naming variants" - which is why it is read here and deleted only once the reconcile has run
+			Assert.isPremiseValid(
+				restoreFlagFile.delete(),
+				() -> new UnexpectedIOException(
+					"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
+					"Unable to delete restore flag file!"
+				)
 			);
-			restoreFlagExists = restoreFlagFile.exists();
-			if (restoreFlagExists) {
-				Assert.isPremiseValid(
-					restoreFlagFile.delete(),
-					() -> new UnexpectedIOException(
-						"Unable to delete restore flag file `" + restoreFlagFile.getAbsolutePath() + "`!",
-						"Unable to delete restore flag file!"
-					)
-				);
-			}
-		} catch (UnexpectedCatalogContentsException ex) {
-			this.close();
-			throw ex;
 		}
 
 		this.catalogWal = createWalIfAnyWalFilePresent(
@@ -1776,11 +1775,13 @@ public class DefaultCatalogPersistenceService
 			this.storageSettings
 		);
 		this.catalogName = catalogName;
-		// this constructor serves `replaceWith`, which physically renames every file in the folder onto the new
-		// catalog name before handing it over - so the prefix provably equals that name and is not discovered.
-		// The whole physical-rename path disappears once rename becomes a pointer swap.
-		this.storagePrefix = catalogName;
-		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
+		// this constructor serves `replaceWith`, which relabels a catalog without touching a single file name -
+		// so the prefix is whatever the folder's files already carry, inherited rather than derived from the new
+		// catalog name. Deriving it would send every read after files that do not exist, and it is precisely the
+		// assumption that a folder's contents are named after its catalog that #649 removes.
+		this.storagePrefix = formerService.storagePrefix;
+		final String inheritedPrefix = this.storagePrefix;
+		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(inheritedPrefix, index);
 		// internal constructor - the caller is inside the storage layer and already holds a concrete
 		// folder, so there is no token to resolve here
 		this.catalogStoragePath = catalogStoragePath;
@@ -2617,13 +2618,6 @@ public class DefaultCatalogPersistenceService
 		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer,
 		@Nonnull BiIntConsumer progressObserver
 	) {
-		final Path newPath = pathForCatalog(catalogNameToBeReplaced, this.storageSettings.storageDirectory());
-		final boolean targetPathExists = newPath.toFile().exists();
-		if (targetPathExists) {
-			Assert.isPremiseValid(
-				newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
-		}
-
 		// store the catalog that replaces the original header
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
@@ -2646,7 +2640,7 @@ public class DefaultCatalogPersistenceService
 		storagePartPersistenceService.writeCatalogHeader(
 			STORAGE_PROTOCOL_VERSION,
 			newCatalogVersion,
-			newPath,
+			this.catalogStoragePath,
 			catalogHeader.walFileReference(),
 			catalogHeader.collectionFileIndex(),
 			catalogHeader.catalogId(),
@@ -2655,92 +2649,27 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.lastEntityCollectionPrimaryKey()
 		);
 
-		final int catalogIndex = this.bootstrapUsed.catalogFileIndex();
+		// the bootstrap keeps being written under the prefix the folder's files already carry - the files are not
+		// renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that does not
+		// exist and leave the real one holding a stale pointer
 		recordBootstrap(
 			newCatalogVersion,
-			catalogNameToBeReplaced,
-			catalogIndex,
+			this.storagePrefix,
+			this.bootstrapUsed.catalogFileIndex(),
 			dataStoreMemoryBuffer
 		);
 
-		// close the catalog
+		// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
+		// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
+		// progress waits forever on an operation that has already finished.
+		progressObserver.accept(1, 1);
+
+		// close the catalog and reopen it under its new name, in the very same folder
 		this.close();
 
-		// name files in the directory that replaces the original first
-		// Matched against the *discovered* storage prefix rather than the catalog name: the two are equal only
-		// until a folder outlives a rename, and once they diverge a name-based filter silently matches nothing,
-		// renames nothing and still reports success - which is the one failure mode this must not have.
-		final File[] filesToRename = this.catalogStoragePath
-			.toFile()
-			.listFiles((dir, name) -> name.startsWith(this.storagePrefix));
-		if (filesToRename != null) {
-			for (int i = 0; i < filesToRename.length; i++) {
-				File it = filesToRename[i];
-				final Path filePath = it.toPath();
-				final String fileNameToRename;
-				if (it.getName().equals(getCatalogBootstrapFileName(this.storagePrefix))) {
-					fileNameToRename = getCatalogBootstrapFileName(catalogNameToBeReplaced);
-				} else if (it.getName().equals(getCatalogDataStoreFileName(this.storagePrefix, catalogIndex))) {
-					fileNameToRename = getCatalogDataStoreFileName(catalogNameToBeReplaced, catalogIndex);
-				} else {
-					continue;
-				}
-				final Path filePathForRename = filePath.getParent().resolve(fileNameToRename);
-				Assert.isPremiseValid(
-					it.renameTo(filePathForRename.toFile()),
-					() -> new GenericEvitaInternalError(
-						"Failed to rename `" + it.getAbsolutePath() + "` to `" + filePathForRename.toAbsolutePath() + "`!",
-						"Failed to rename one of the `" + this.catalogName + "` catalog files to target catalog name!"
-					)
-				);
-
-				progressObserver.accept(i + 1, filesToRename.length);
-			}
-		} else {
-			throw new GenericEvitaInternalError(
-				"No file found in directory `" + this.catalogStoragePath.toAbsolutePath() + "`!",
-				"Failed to rename catalog files to target catalog name!"
-			);
-		}
-
-		final Path temporaryOriginal;
-		if (targetPathExists) {
-			temporaryOriginal = newPath.getParent().resolve(catalogNameToBeReplaced + "_renamed");
-			Assert.isPremiseValid(
-				newPath.toFile().renameTo(temporaryOriginal.toFile()),
-				"Failed to rename original catalog directory `" + newPath.toAbsolutePath() + "`!"
-			);
-		} else {
-			temporaryOriginal = null;
-		}
-
-		try {
-			Assert.isPremiseValid(
-				this.catalogStoragePath.toFile().renameTo(newPath.toFile()),
-				"Failed to rename catalog directory `" + this.catalogStoragePath.toAbsolutePath() + "` to `" + newPath.toAbsolutePath() + "`!"
-			);
-
-			// finally remove original catalog contents
-			ofNullable(temporaryOriginal)
-				.ifPresent(FileUtils::deleteDirectory);
-
-			return new DefaultCatalogPersistenceService(
-				catalogNameToBeReplaced, newPath, this
-			);
-		} catch (RuntimeException ex) {
-			// rename original directory back
-			if (temporaryOriginal != null) {
-				Assert.isPremiseValid(
-					temporaryOriginal.toFile().renameTo(newPath.toFile()),
-					() -> new GenericEvitaInternalError(
-						"Failed to rename the original directory back to `" + newPath.toAbsolutePath() + "` the original catalog will not be available as well!",
-						"Failing to rename the original directory back to the original catalog will not be available as well!",
-						ex
-					)
-				);
-			}
-			throw ex;
-		}
+		return new DefaultCatalogPersistenceService(
+			catalogNameToBeReplaced, this.catalogStoragePath, this
+		);
 	}
 
 	@Override
@@ -4585,42 +4514,42 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Verifies that the catalog name (derived from catalog directory) matches the catalog schema stored in the catalog
-	 * file.
+	 * Makes the catalog name stored inside the folder agree with the name the catalog is being loaded under.
+	 *
+	 * The engine state is the sole authority on which catalog a folder holds, so this reconciles in one
+	 * direction only: whatever the header says is overwritten. Before #649 the incoming name was itself derived
+	 * from the folder's name, which made a disagreement evidence of a mistake worth refusing the load over; now
+	 * that a folder is bound to a catalog by an opaque token, a header naming a different catalog is the ordinary
+	 * trace of a rename or replace whose post-commit header rewrite did not land, and refusing would report a
+	 * perfectly loadable catalog as corrupted.
+	 *
+	 * The rewrite covers the header, the catalog schema (including its naming variants) and a fresh bootstrap
+	 * record; it is deliberately not written to the WAL, since it reconciles state that predates the load.
 	 *
 	 * @param catalogInstance               the catalog contract instance
 	 * @param catalogVersion                the version of the catalog
-	 * @param catalogStoragePath            the path to the catalog storage directory
 	 * @param storagePartPersistenceService the storage part persistence service
-	 * @param onDifferentCatalogName        the action to take when catalog names differ
 	 * @param bootstrapUsed                 the bootstrap used to load the catalog
 	 */
-	private void verifyCatalogNameMatches(
+	private void reconcileStoredCatalogName(
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
-		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> storagePartPersistenceService,
-		@Nonnull OnDifferentCatalogName onDifferentCatalogName,
 		@Nonnull CatalogBootstrap bootstrapUsed
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
-		final boolean catalogNameIsSame = catalogHeader.catalogName().equals(this.catalogName);
-		if (onDifferentCatalogName.equals(OnDifferentCatalogName.THROW_EXCEPTION)) {
-			Assert.isTrue(
-				catalogNameIsSame,
-				() -> new UnexpectedCatalogContentsException(
-					"Directory " + catalogStoragePath + " contains data of " + catalogHeader.catalogName() +
-						" catalog. Cannot load catalog " + this.catalogName + " from this directory!"
-				)
+		if (!catalogHeader.catalogName().equals(this.catalogName)) {
+			log.info(
+				"Folder `{}` stores catalog `{}` but the engine binds it to `{}` — adapting the stored name.",
+				this.catalogStoragePath, catalogHeader.catalogName(), this.catalogName
 			);
-		} else if (!catalogNameIsSame) {
 			// update name in the catalog header
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
-				catalogStoragePath,
+				this.catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
 					.map(it -> new LogFileRecordReference(
 						this.walFileNameProvider, it.fileIndex(), it.fileLocation(),
@@ -4671,8 +4600,12 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Verifies that the catalog name (derived from catalog directory) matches the catalog schema stored in the catalog
-	 * file.
+	 * Asserts that the folder this service has just re-opened really does store the catalog it was handed.
+	 *
+	 * Unlike {@link #reconcileStoredCatalogName} this refuses rather than adapts, and deliberately so: its only
+	 * caller is the constructor that follows `replaceWith`, which wrote the new name into the header moments
+	 * earlier in this same process. A disagreement here is not a stale header but a broken invariant, and
+	 * adapting would paper over it.
 	 *
 	 * @param catalogVersion                the version of the catalog
 	 * @param catalogStoragePath            the path to the catalog storage directory
@@ -5323,21 +5256,6 @@ public class DefaultCatalogPersistenceService
 			endVersion,
 			catalogBootstraps[1].timestamp()
 		);
-	}
-
-	/**
-	 * Enumeration of possible actions to be taken when the catalog name is different from the target catalog name.
-	 */
-	enum OnDifferentCatalogName {
-		/**
-		 * Throw an exception when the catalog name is different from the target catalog name.
-		 */
-		THROW_EXCEPTION,
-		/**
-		 * Adapt the catalog name in the schema to the target catalog name.
-		 */
-		ADAPT
-
 	}
 
 	/**

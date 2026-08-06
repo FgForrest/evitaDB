@@ -96,7 +96,6 @@ import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
@@ -350,28 +349,27 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldDetectInvalidCatalogContents() {
+	void shouldAdaptCatalogContentsStoringADifferentNameEvenWithoutRestoreFlag() throws IOException {
+		// The authority flip of #649: the name a catalog is loaded under comes from the engine state, not from
+		// the folder, so a header naming something else is no longer evidence of a mistake - it is the ordinary
+		// trace of a rename or replace whose header rewrite did not land. Before this it threw
+		// UnexpectedCatalogContentsException unless a restore flag was present to license the adaptation.
 		prepareInvalidCatalogContents();
 
-		assertThrows(
-			UnexpectedCatalogContentsException.class,
-			() -> {
-				//noinspection EmptyTryBlock
-				try (
-					var ignored = new DefaultCatalogPersistenceService(
-						Mockito.mock(CatalogContract.class),
-						RENAMED_CATALOG,
-						new CatalogFolderId(RENAMED_CATALOG),
-						getStorageOptions(),
-						getTransactionOptions(),
-						Mockito.mock(Scheduler.class),
-						Mockito.mock(ExportFileService.class)
-					)
-				) {
-					// do nothing
-				}
-			}
-		);
+		try (
+			var persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				RENAMED_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
+			assertEquals(RENAMED_CATALOG, persistenceService.getCatalogHeader(lastCatalogVersion).catalogName());
+		}
 	}
 
 	@Test

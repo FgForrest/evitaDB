@@ -5050,6 +5050,90 @@ class EvitaTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@DisplayName("Rename a catalog without moving a single byte")
+	void shouldRenameCatalogAsAPointerSwap() {
+		setupCatalogWithProductAndCategory();
+
+		final Path folderBeforeRename = catalogFolder(TEST_CATALOG);
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// The whole of a rename: the new name points at the folder the old one was pointing at. Nothing is
+		// created, moved or copied, which is what makes the operation atomic instead of a five-step dance that a
+		// crash - or a Windows file lock - can leave half-finished (#649).
+		assertEquals(
+			folderBeforeRename, catalogFolder(renamedCatalogName),
+			"A rename must repoint the name, never move the data!"
+		);
+		assertTrue(folderBeforeRename.toFile().isDirectory(), "The folder must still be exactly where it was!");
+		// the folder's name deliberately still says `testCatalog` - folder names are cosmetic and the label
+		// inside the folder is what carries the truth for anyone reading the storage directory by hand
+		assertTrue(
+			folderBeforeRename.toFile().getName().startsWith(TEST_CATALOG + "_"),
+			"The folder keeps the name it was allocated under, since renaming it is not part of the operation!"
+		);
+	}
+
+	@Test
+	@DisplayName("Replace a catalog by repointing at the source folder and retiring the superseded one")
+	void shouldReplaceCatalogAsAPointerSwap() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		final String sourceCatalogName = TEST_CATALOG + "_source";
+		this.evita.defineCatalog(sourceCatalogName);
+		final Path sourceFolder = catalogFolder(sourceCatalogName);
+		final Path supersededFolder = catalogFolder(TEST_CATALOG);
+
+		this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+
+		assertEquals(
+			sourceFolder, catalogFolder(TEST_CATALOG),
+			"The replaced name must point at the folder the source was already living in!"
+		);
+		assertTrue(sourceFolder.toFile().isDirectory(), "The surviving folder must not have been touched!");
+		assertTrue(
+			supersededFolder.toFile().exists() == false,
+			"The folder the replaced catalog occupied is tombstoned and must have been removed!"
+		);
+		// the label follows the data, or disaster recovery against a bare storage directory reads the previous
+		// occupant's name off a folder that now holds something else entirely
+		assertEquals(
+			TEST_CATALOG,
+			Files.readString(sourceFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+		);
+	}
+
+	@Test
+	@DisplayName("Discharge a folder's tombstone once its removal is confirmed")
+	void shouldNotAccumulateTombstonesAcrossRepeatedReplaces() {
+		setupCatalogWithProductAndCategory();
+
+		// A tombstone is durable on purpose - it is what lets a delete the operating system refuses be retried
+		// on the next boot. Nothing would ever remove it again, though, because a folder that is gone is never
+		// classified again; without the discharge below, every replace and every drop would add one entry to
+		// persisted engine state and none would ever leave.
+		for (int i = 1; i <= 3; i++) {
+			final String sourceCatalogName = TEST_CATALOG + "_source" + i;
+			this.evita.defineCatalog(sourceCatalogName);
+			this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+			assertTrue(
+				this.evita.getEngineState().engineState().retiredFolders().length <= 1,
+				"Tombstones must not accumulate — each replace discharges the previous one!"
+			);
+		}
+
+		// The discharge rides on the *next* engine mutation, so the final replace leaves its own tombstone
+		// behind until something else commits. Any mutation will do; this one is deliberately unrelated.
+		this.evita.defineCatalog(TEST_CATALOG + "_unrelated");
+
+		assertEquals(
+			0, this.evita.getEngineState().engineState().retiredFolders().length,
+			"Every removal succeeded, so no tombstone may survive the mutation that follows it!"
+		);
+	}
+
 	/**
 	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
 	 *

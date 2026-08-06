@@ -499,7 +499,16 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Replaces folder of the `catalogNameToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `catalogNameToBeReplaced`, in place.
+	 *
+	 * The name is rewritten into the catalog's header and schema and a fresh bootstrap record is written — that
+	 * is the whole of it. **Nothing is moved, copied or deleted**: the catalog keeps the folder it already
+	 * occupies and every file inside keeps the name it already has (#649). File names inside a folder are
+	 * discovered from the folder's own bootstrap file rather than derived from the catalog name, which is what
+	 * lets them stay put; the folder that the replaced catalog used to occupy is the caller's concern, retired
+	 * through the engine state rather than deleted here.
+	 *
+	 * The returned service addresses the same folder under the new name; this one is closed.
 	 *
 	 * @param catalogVersion                    version of the catalog
 	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog

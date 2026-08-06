@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 
@@ -234,6 +235,62 @@ public record EngineState<T extends LogRecordReference>(
 			bindings, catalogName, (examined, key) -> examined.catalogName().compareTo(key)
 		);
 		return index >= 0 ? ArrayUtils.removeRecordFromArrayOnIndex(bindings, index) : bindings;
+	}
+
+	/**
+	 * Returns the tombstone array with `retiredFolder` recorded, or the input array when that folder is already
+	 * tombstoned.
+	 *
+	 * Re-retiring a folder is a no-op rather than an error: the array is a set of folders awaiting deletion, so a
+	 * second entry for one folder would say nothing the first does not, and the array is asserted to hold no
+	 * duplicates.
+	 *
+	 * @param retiredFolders current tombstones, strictly ascending by folder token
+	 * @param retiredFolder  tombstone to record
+	 * @return new array carrying the tombstone; the input is never modified
+	 */
+	@Nonnull
+	public static RetiredFolder[] withRetiredFolder(
+		@Nonnull RetiredFolder[] retiredFolders,
+		@Nonnull RetiredFolder retiredFolder
+	) {
+		final int index = binarySearch(
+			retiredFolders, retiredFolder.folderId().id(),
+			(examined, key) -> examined.folderId().id().compareTo(key)
+		);
+		return index >= 0 ?
+			retiredFolders :
+			ArrayUtils.insertRecordIntoArrayOnIndex(retiredFolder, retiredFolders, -1 * index - 1);
+	}
+
+	/**
+	 * Returns the tombstone array without the entries naming folders that are provably gone.
+	 *
+	 * This is how a tombstone is retired in turn: it exists solely to say "this folder still has to be deleted",
+	 * so once the deletion is confirmed the entry is noise that would otherwise be carried in persisted state for
+	 * the lifetime of the installation — the folder is gone, so boot classification never reports it again and
+	 * nothing else would ever drop it.
+	 *
+	 * @param retiredFolders current tombstones, strictly ascending by folder token
+	 * @param drainedFolders folders whose removal has been confirmed; may name folders that were never tombstoned
+	 * @return array without the confirmed entries; the input is returned unchanged when nothing matches
+	 */
+	@Nonnull
+	public static RetiredFolder[] withoutRetiredFolders(
+		@Nonnull RetiredFolder[] retiredFolders,
+		@Nonnull Set<CatalogFolderId> drainedFolders
+	) {
+		if (retiredFolders.length == 0 || drainedFolders.isEmpty()) {
+			return retiredFolders;
+		}
+		RetiredFolder[] result = retiredFolders;
+		// walked backwards so that a removal never shifts an index still to be examined
+		for (int i = retiredFolders.length - 1; i >= 0; i--) {
+			if (drainedFolders.contains(retiredFolders[i].folderId())) {
+				result = ArrayUtils.removeRecordFromArrayOnIndex(result, i);
+			}
+		}
+		return result;
 	}
 
 	/**

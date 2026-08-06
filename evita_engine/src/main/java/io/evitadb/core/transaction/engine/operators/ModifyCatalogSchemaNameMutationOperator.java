@@ -55,10 +55,21 @@ import static io.evitadb.utils.Assert.isTrue;
 /**
  * Replaces or renames existing catalog in evitaDB.
  *
- * Forward-replay is intentionally **not** implemented here. The completion phase returns a `replacedCatalog`
- * produced by `catalogToBeReplacedWith.replace(...)`, which performs a deep rename on disk and terminates the
- * original catalog. Neither can be re-run safely at replay time without risking state divergence. The default
- * `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to wedge loudly.
+ * Both are the same operation and both are a **pointer swap** (#649): the target name is bound to the folder the
+ * source catalog already occupies, the source name stops naming anything, and — on a replace — the folder the
+ * target used to occupy is tombstoned for deletion. No folder is created, none is moved, nothing is copied. The
+ * only disk work is rewriting the catalog name stored *inside* the folder, which `replaceWith` does before the
+ * commit, and deleting the superseded folder, which happens after it and is allowed to fail.
+ *
+ * That ordering is what bounds the damage a crash can do. Before the commit nothing has been repointed, so both
+ * catalogs are untouched and the operation simply did not happen — the contract's warning that the source is
+ * "unknown and should be treated as damaged" no longer describes any failure that is not a crash of the commit
+ * itself. After it, the worst residue is a folder that outlived its tombstone, which the next boot drains.
+ *
+ * Forward-replay is still **not** implemented, but the reason has changed and narrowed: the disk work is now
+ * idempotent, and what blocks replay is the completion phase's need for a live catalog instance to stage, which
+ * does not exist at replay time when every catalog is still a stub. The default `Optional.empty()` in
+ * `EngineMutationOperator` causes the transaction manager to wedge loudly.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -141,6 +152,12 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 
 		try {
 			final boolean replaceOperation = catalogToBeReplaced != catalogToBeReplacedWith;
+			// Both folders are resolved here, in the read-only phase, and never again. The commit below repoints
+			// the target name at the source folder, so re-reading either afterwards would answer about the world
+			// the commit has just created rather than the one it acted on.
+			final CatalogFolderId prevailingFolderId = this.folderContext.folderIdFor(catalogNameToBeReplacedWith);
+			final CatalogFolderId supersededFolderId = replaceOperation && catalogToBeReplaced != null ?
+				this.folderContext.folderIdFor(catalogNameToBeReplaced) : null;
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
 			if (replaceOperation) {
 				removedCatalogSessionRegistry
@@ -171,23 +188,27 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-								// `replace(...)` has just renamed the whole directory onto a path derived from
-								// the target's name, so that name-derived folder is where the data now is -
-								// whatever either catalog was bound to a moment ago. The binding follows the
-								// bytes rather than the other way round, which is why this rebinds instead of
-								// establishing a binding: on a replace the target name is already bound, to
-								// the folder that has just been superseded.
-								//
-								// Step 7 turns this into a pointer swap and removes both the directory move
-								// and this rebinding with it.
+								// The entire operation, on disk and in state: the target name is pointed at the
+								// folder the source was already living in, and the source name stops naming
+								// anything. Nothing moved - `replace(...)` only rewrote the name stored inside
+								// that folder - so this is a pointer swap and a crash either side of it leaves
+								// one of two consistent worlds rather than a half-renamed directory.
 								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState
 									.builder(expandedEngineState)
 									.withVersion(version)
-									.withRelocatedCatalog(
-										replacedCatalog, new CatalogFolderId(catalogNameToBeReplaced)
-									);
+									.withCatalogBoundTo(replacedCatalog, prevailingFolderId);
 								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {
 									stateAfterAddingRenamedCatalog.withoutCatalog(catalogNameToBeReplacedWith);
+								}
+								if (supersededFolderId != null) {
+									// The folder the replaced catalog lived in is now unreachable, and the
+									// tombstone is what authorises deleting it: an unreferenced folder with no
+									// positive evidence of our ownership is deliberately never destroyed. It is
+									// staged in this same commit so that a crash before the delete still leaves
+									// the instruction behind for the next boot.
+									stateAfterAddingRenamedCatalog.withRetiredFolder(
+										catalogNameToBeReplaced, supersededFolderId
+									);
 								}
 								return stateAfterAddingRenamedCatalog.build();
 							}
@@ -198,9 +219,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					// move with it or disaster recovery reads the previous occupant's name. Written after the
 					// commit rather than inside it: the state updater runs under the engine-state lock, and a
 					// file only humans read has no business being written while every other mutation waits.
-					this.folderContext.recordCatalogName(
-						catalogNameToBeReplaced, this.folderContext.folderIdFor(catalogNameToBeReplaced)
-					);
+					this.folderContext.recordCatalogName(catalogNameToBeReplaced, prevailingFolderId);
 
 					// notify callback that it's now a live snapshot
 					((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
@@ -230,6 +249,15 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					// terminate the catalog that was replaced
 					if (replaceOperation && catalogToBeReplaced != null) {
 						catalogToBeReplaced.terminate();
+					}
+
+					// Strictly after `terminate()`, never before: the delete has to follow the close of every
+					// handle into that folder, or an operating system that refuses to remove an open directory
+					// turns this into an intermittent failure - the exact class of bug the pointer-only design
+					// exists to remove. A refusal here is not an error either way; the tombstone staged above
+					// survives the run and the next boot drains it.
+					if (supersededFolderId != null) {
+						this.folderContext.deleteRetiredFolder(supersededFolderId);
 					}
 
 					return new CommitVersions(

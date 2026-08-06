@@ -109,6 +109,7 @@ import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
@@ -1509,6 +1510,13 @@ public final class Evita implements EvitaContract {
 	 * @param divergence divergence record returned by the persistence service; never null
 	 */
 	private void drainPendingCatalogInventoryDivergence(@Nonnull CatalogInventoryDivergence divergence) {
+		// Noted before the emptiness check and outside it: confirming a tombstoned folder gone produces no
+		// mutation of its own, so a boot whose only finding is a discharged tombstone still has to record it.
+		// The entry is then dropped from persisted state by whichever engine mutation comes next - possibly one
+		// of the mutations dispatched below, possibly the first catalog operation of the run.
+		for (final CatalogFolderId drained : divergence.drainedFolders()) {
+			this.catalogFolderContext.noteFolderDrained(drained);
+		}
 		if (!divergence.isEmpty()) {
 			log.info(
 				"Draining boot-time catalog inventory divergence: {} becomeMissing, {} reappeared, {} autoDiscovered.",

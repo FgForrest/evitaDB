@@ -43,13 +43,12 @@ import java.util.Set;
  * consumes {@link CatalogFolderState#isDeletable()} rather than re-deriving it. Two copies of that policy could
  * drift, and the drift that matters removes something the classifier said to keep.
  *
- * **Only {@link CatalogFolderState#PROVISIONAL} is drained today.** {@link CatalogFolderState#RETIRED} is
- * equally expendable, but removing a tombstoned folder without also dropping its tombstone from the engine
- * state would leak that tombstone permanently: the folder is gone, so the classifier never reports it again,
- * and the entry accumulates in persisted state on every drop and replace. Tombstone removal needs the engine
- * mutation path, which does not exist at the point boot classification runs, so both halves land together with
- * the operators that produce tombstones. A provisional folder needs none of that — it is unreferenced and
- * untracked, so its removal updates nothing.
+ * Two states are drained, and they differ in what a removal owes afterwards. A {@link CatalogFolderState#PROVISIONAL}
+ * folder is unreferenced and untracked, so its removal updates nothing. A {@link CatalogFolderState#RETIRED} one is
+ * named by a tombstone in the engine state, and removing the folder without eventually dropping that tombstone
+ * would leak the entry permanently — the folder is gone, so the classifier never reports it again. The drain
+ * therefore *reports* which tombstoned folders it removed, and the caller feeds that back to the engine so the
+ * next engine-state commit discharges them.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -60,7 +59,9 @@ public class CatalogFolderCleaner {
 	 * States this drain acts on. Every member must be deletable, which the initialiser below enforces so the
 	 * set cannot be widened past what the classifier authorises.
 	 */
-	private static final Set<CatalogFolderState> DRAINED_STATES = EnumSet.of(CatalogFolderState.PROVISIONAL);
+	private static final Set<CatalogFolderState> DRAINED_STATES = EnumSet.of(
+		CatalogFolderState.PROVISIONAL, CatalogFolderState.RETIRED
+	);
 
 	static {
 		for (final CatalogFolderState state : DRAINED_STATES) {
@@ -109,11 +110,19 @@ public class CatalogFolderCleaner {
 				// FileUtils#deleteDirectory never traverses a symbolic link, so this cannot reach outside the
 				// folder the classification authorised - see CatalogFolderCleanerTest containment coverage
 				FileUtils.deleteDirectory(folder);
-				log.info("Removed abandoned storage folder `{}` — an operation died while creating it.", folderName);
+				if (classification.state() == CatalogFolderState.RETIRED) {
+					log.info(
+						"Removed retired storage folder `{}` — the operation that unbound it could not.", folderName
+					);
+				} else {
+					log.info(
+						"Removed abandoned storage folder `{}` — an operation died while creating it.", folderName
+					);
+				}
 				removed.add(folderName);
 			} catch (UnexpectedIOException ex) {
 				log.warn(
-					"Failed to remove abandoned storage folder `{}` — it will be retried on the next boot.",
+					"Failed to remove expendable storage folder `{}` — it will be retried on the next boot.",
 					folderName, ex
 				);
 			}

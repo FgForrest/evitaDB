@@ -172,11 +172,10 @@ class CatalogFolderCleanerTest {
 		}
 
 		@Test
-		@DisplayName("Leaves a tombstoned folder alone until tombstone removal is implemented")
-		void shouldDeferRetiredFolders(@TempDir Path storageDirectory) {
-			// RETIRED is deletable, but removing the folder without also dropping its tombstone from the engine
-			// state would leak that tombstone forever - the classifier would never see the folder again. The two
-			// halves land together with the mutation plumbing, not before.
+		@DisplayName("Removes a tombstoned folder and reports it, so its tombstone can be discharged")
+		void shouldRemoveRetiredFolders(@TempDir Path storageDirectory) {
+			// a tombstone is positive evidence that evitaDB unbound this folder itself, which is what authorises
+			// destroying it - and reporting the removal is what stops the tombstone outliving the folder
 			final Path retired = folder(storageDirectory, "products_2", "products.boot");
 
 			final List<String> removed = CatalogFolderCleaner.drain(
@@ -184,8 +183,8 @@ class CatalogFolderCleanerTest {
 				List.of(new CatalogFolderClassification("products_2", CatalogFolderState.RETIRED, "products"))
 			);
 
-			assertTrue(removed.isEmpty());
-			assertTrue(Files.exists(retired.resolve("products.boot")));
+			assertEquals(List.of("products_2"), removed);
+			assertTrue(Files.notExists(retired));
 		}
 	}
 

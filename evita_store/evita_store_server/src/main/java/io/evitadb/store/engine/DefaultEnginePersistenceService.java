@@ -41,6 +41,7 @@ import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -318,9 +319,11 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
 				this.storageSettings.storageDirectory(), this.engineState
 			);
-			CatalogFolderCleaner.drain(this.storageSettings.storageDirectory(), classifications);
+			final List<String> removedFolders = CatalogFolderCleaner.drain(
+				this.storageSettings.storageDirectory(), classifications
+			);
 			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(
-				classifications, this.engineState
+				classifications, removedFolders, this.engineState
 			);
 		}
 	}
@@ -944,18 +947,37 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * after `EngineTransactionManager` is wired by emitting one engine mutation per entry, which preserves the
 	 * WAL-first invariant and makes the reconciliation observable through CDC.
 	 *
+	 * A fourth category is reported rather than detected: the tombstoned folders that are provably gone, either
+	 * because the drain that ran just before this removed them or because they were already absent. They produce
+	 * no mutation — the engine simply needs to know, so that the next engine-state commit stops carrying their
+	 * tombstones.
+	 *
 	 * @param classifications verdicts {@link CatalogFolderClassifier} reached for the storage directory
+	 * @param removedFolders  folders the drain removed, in the order it processed them
 	 * @param engineState the current engine state to compare against the on-disk folder contents
 	 * @return divergence record; never null, possibly {@link CatalogInventoryDivergence#EMPTY}
 	 */
 	@Nonnull
 	private static CatalogInventoryDivergence computeCatalogInventoryDivergence(
 		@Nonnull List<CatalogFolderClassification> classifications,
+		@Nonnull List<String> removedFolders,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
 		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
 		for (final CatalogFolderClassification classification : classifications) {
 			foldersOnDisk.add(classification.folderName());
+		}
+		final Set<String> removedFolderNames = Set.copyOf(removedFolders);
+
+		// Tombstones whose folder is provably gone. Both terms are needed and neither subsumes the other: the
+		// drain covers a folder removed a moment ago, while the absence check covers one whose removal succeeded
+		// on an earlier run that never got to record the fact - a crash between the delete and the next commit.
+		final List<CatalogFolderId> drainedFolders = new ArrayList<>(engineState.retiredFolders().length);
+		for (final RetiredFolder retiredFolder : engineState.retiredFolders()) {
+			final String folderName = retiredFolder.folderId().id();
+			if (removedFolderNames.contains(folderName) || !foldersOnDisk.contains(folderName)) {
+				drainedFolders.add(retiredFolder.folderId());
+			}
 		}
 
 		final ArrayList<String> becomeMissing = new ArrayList<>(16);
@@ -1016,15 +1038,15 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					// already removed by the drain that ran before this, or left in place for the next boot
 					// because the removal failed - either way it is not part of the divergence
 				}
-				case RETIRED -> log.info(
-					"Storage folder `{}` is tombstoned and awaits removal — dropping the tombstone needs the " +
-						"engine mutation path, so both halves land together and it stays in place for now.",
-					folderName
-				);
+				case RETIRED -> {
+					// removed by the drain that ran before this, or left in place for the next boot because the
+					// removal failed - a removed one is reported through `drainedFolders`, a surviving one keeps
+					// its tombstone so the next boot tries again
+				}
 			}
 		}
 
-		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty()) {
+		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty() && drainedFolders.isEmpty()) {
 			return CatalogInventoryDivergence.EMPTY;
 		}
 
@@ -1032,7 +1054,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		Collections.sort(becomeMissing);
 		Collections.sort(reappeared);
 		autoDiscovered.sort(Comparator.comparing(AdoptableCatalogFolder::catalogName));
-		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered);
+		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered, drainedFolders);
 	}
 
 	/**

@@ -31,6 +31,7 @@ import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -419,6 +420,7 @@ public record ExpandedEngineState(
 		@Nonnull private String[] readOnlyCatalogs;
 		@Nonnull private String[] missingCatalogs;
 		@Nonnull private CatalogFolderBinding[] catalogFolders;
+		@Nonnull private RetiredFolder[] retiredFolders;
 
 		/**
 		 * Initializes builder with values from the provided snapshot.
@@ -433,6 +435,7 @@ public record ExpandedEngineState(
 			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
 			this.missingCatalogs = base.engineState.missingCatalogs();
 			this.catalogFolders = base.engineState.catalogFolders();
+			this.retiredFolders = base.engineState.retiredFolders();
 		}
 
 		/**
@@ -487,24 +490,24 @@ public record ExpandedEngineState(
 		}
 
 		/**
-		 * Stages a catalog whose data has physically moved into a different folder, rebinding it unconditionally.
+		 * Points a catalog name at a folder, overwriting whatever it was bound to before.
 		 *
-		 * This is the one entry point that overwrites an existing binding, and it exists for exactly one caller:
-		 * the rename/replace path, whose `replaceWith` renames the whole directory onto a name-derived path
-		 * before handing the catalog back. The binding has to follow the bytes, or the engine state describes a
-		 * folder that no longer holds the catalog — which is silent, because the loader would then open a
-		 * directory that either does not exist or holds the *previous* occupant.
+		 * This is the one entry point that overwrites an existing binding, and it is the whole of a rename and a
+		 * replace: no folder is created, none is deleted, nothing is copied, and not a single byte moves on disk.
+		 * `renameCatalog(A → B)` makes `B` name the folder `A` was in; `replaceCatalog(A → B)` does the same and
+		 * leaves `B`'s former folder to be tombstoned by the caller.
 		 *
-		 * **Step 7 deletes this method along with the directory move it compensates for.** Once a rename is a
-		 * pointer swap the folder never moves, so the binding never needs to chase it, and every remaining
-		 * caller of the builder either introduces a name or re-stages one.
+		 * The distinction from {@link #withCatalog(CatalogContract, CatalogFolderId)} is deliberate and worth
+		 * keeping: that one establishes a binding for a name the state has never seen and leaves an existing one
+		 * untouched, so a create or a restore cannot silently relocate a live catalog by passing a stale token.
+		 * Only the pointer swap is allowed to repoint a name, and only because repointing *is* the operation.
 		 *
-		 * @param catalog  catalog whose data has moved
+		 * @param catalog  catalog whose name is being pointed at the folder
 		 * @param folderId folder the catalog now occupies
 		 * @return this builder instance
 		 */
 		@Nonnull
-		public Builder withRelocatedCatalog(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
+		public Builder withCatalogBoundTo(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
 			this.catalogFolders = EngineState.withBinding(
 				this.catalogFolders, new CatalogFolderBinding(catalog.getName(), folderId)
 			);
@@ -620,6 +623,48 @@ public record ExpandedEngineState(
 		}
 
 		/**
+		 * Records that nothing points at the passed folder any more and that the engine owes its deletion.
+		 *
+		 * This is what makes a folder removal non-blocking: the tombstone is durable *before* anything touches the
+		 * filesystem, so a delete that the operating system refuses merely postpones the work to the next boot
+		 * instead of failing the operation the user asked for. It is also the only positive evidence of ownership
+		 * that authorises deleting a folder the engine no longer references — without it such a folder classifies
+		 * as unclaimed, which is deliberately never destroyed.
+		 *
+		 * Stage it in the **same commit** that unbinds the folder. A tombstone written afterwards is not durable
+		 * across the crash it exists to survive, and one written before would authorise deleting a folder that is
+		 * still live if the commit never happens.
+		 *
+		 * @param catalogName name of the catalog whose data the folder holds, carried for diagnostics only
+		 * @param folderId    folder awaiting deletion
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withRetiredFolder(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
+			this.retiredFolders = EngineState.withRetiredFolder(
+				this.retiredFolders, new RetiredFolder(catalogName, folderId)
+			);
+			return this;
+		}
+
+		/**
+		 * Drops the tombstones of folders whose deletion has since been confirmed.
+		 *
+		 * Applied centrally by the engine-state commit path rather than by the operators, so that a tombstone is
+		 * discharged by *any* subsequent engine mutation instead of only by whoever happened to delete the folder.
+		 * Nothing else would ever drop it: a folder that is gone is never classified again, so the entry would
+		 * otherwise be carried in persisted state forever.
+		 *
+		 * @param drainedFolders folders whose removal is confirmed; entries that were never tombstoned are ignored
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withoutRetiredFolders(@Nonnull Set<CatalogFolderId> drainedFolders) {
+			this.retiredFolders = EngineState.withoutRetiredFolders(this.retiredFolders, drainedFolders);
+			return this;
+		}
+
+		/**
 		 * Marks the catalog as read-only in the staged snapshot.
 		 */
 		@Nonnull
@@ -649,7 +694,8 @@ public record ExpandedEngineState(
 				.inactiveCatalogs(this.inactiveCatalogs)
 				.readOnlyCatalogs(this.readOnlyCatalogs)
 				.missingCatalogs(this.missingCatalogs)
-				.catalogFolders(this.catalogFolders);
+				.catalogFolders(this.catalogFolders)
+				.retiredFolders(this.retiredFolders);
 			return new ExpandedEngineState(
 				this.startVersion,
 				engineStateBuilder.build(),

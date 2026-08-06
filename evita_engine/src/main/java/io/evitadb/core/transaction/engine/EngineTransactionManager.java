@@ -49,6 +49,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.utils.Assert;
@@ -141,6 +142,11 @@ public class EngineTransactionManager implements Closeable {
 	 * storage.
 	 */
 	private final EnginePersistenceService<LogRecordReference> enginePersistenceService;
+	/**
+	 * Everything the engine knows about catalog storage folders. Held here — beyond being handed to the operators
+	 * — so that the engine-state commit path can discharge the tombstones of folders already confirmed gone.
+	 */
+	private final CatalogFolderContext folderContext;
 	/**
 	 * Lock that is used to synchronize access to the engine state.
 	 */
@@ -245,6 +251,7 @@ public class EngineTransactionManager implements Closeable {
 			evita.getCatalogFolderContext(),
 			"Catalog folder resolver is not available on the Evita instance!"
 		);
+		this.folderContext = folderContext;
 
 		this.engineMutationOperators = new HashMap<>(16);
 		// register all engine mutation operators that are used to process specific types of mutations
@@ -743,7 +750,24 @@ public class EngineTransactionManager implements Closeable {
 			// persisted `EngineState` from this snapshot by embedding the fresh
 			// WAL reference.
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
+			// Tombstones of folders that are provably gone are discharged here rather than by whoever deleted
+			// them: the delete happens *after* its own commit, so the operator that performed it has no further
+			// commit to record the fact in. Riding on the next engine mutation - any engine mutation - is what
+			// keeps a discharged tombstone from being carried in persisted state for the lifetime of the
+			// installation. The snapshot is taken before the state is built so that a folder drained concurrently
+			// is left for the following commit rather than being forgotten below without having been pruned.
+			final Set<CatalogFolderId> drainedFolders = Set.copyOf(this.folderContext.getDrainedFolders());
+			final ExpandedEngineState mutatedEngineState = engineStateUpdater.apply(
+				nextStateVersion, this.evita.getEngineState()
+			);
+			final ExpandedEngineState nextEngineState = drainedFolders.isEmpty() ?
+				mutatedEngineState :
+				ExpandedEngineState.builder(mutatedEngineState)
+					// the version stays exactly where the mutation put it - discharging a tombstone is bookkeeping
+					// that rides along with a commit, never a commit of its own
+					.withVersion(nextStateVersion)
+					.withoutRetiredFolders(drainedFolders)
+					.build();
 
 			// Fused WAL append + bootstrap rewrite. The persistence service takes its WAL lock for the whole
 			// critical section, so there is no longer a window in which engine state could advance without a
@@ -768,6 +792,8 @@ public class EngineTransactionManager implements Closeable {
 
 			this.lastStoredEngineStateVersion++;
 			this.evita.setNextEngineState(nextEngineState);
+			// only now is the pruning durable, so the confirmations that produced it can be forgotten
+			this.folderContext.forgetDrainedFolders(drainedFolders);
 			// finally, notify the change observer about the new version
 			this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
 		} finally {
