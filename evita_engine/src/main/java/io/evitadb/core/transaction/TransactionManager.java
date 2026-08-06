@@ -1671,7 +1671,7 @@ public class TransactionManager implements Closeable {
 	 * 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI box would
 	 * trade a real guard for a test-harness convenience. Callers that knowingly run oversubscribed
 	 * should instead raise
-	 * {@link io.evitadb.api.configuration.TransactionOptions#waitForTransactionAcceptanceInMillis},
+	 * {@link io.evitadb.api.configuration.TransactionOptions.Builder#waitForTransactionAcceptanceInMillis(long)},
 	 * which scales this deadline with it — see `SharedRgeiSoakTest` in `evita_long_running_tests`.
 	 *
 	 * A progress-aware sweep (re-anchoring the clock whenever a record advances a pipeline stage, or
