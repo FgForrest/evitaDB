@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -42,6 +43,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 
@@ -235,6 +237,43 @@ class FileUtilsTest {
 			FileUtils.deleteFileIfExists(testFile);
 
 			assertFalse(testFile.toFile().exists());
+		}
+
+		@Test
+		@DisplayName("Should delete a symbolic link without following it out of the deleted tree")
+		void shouldDeleteSymbolicLinkWithoutFollowingIt() throws IOException {
+			// evitaDB does not expect symbolic links inside its data folder, which is exactly why one turning up
+			// must not be followed: an anomaly steering a recursive delete outside the directory it was pointed
+			// at destroys data nobody chose, and none of it is recoverable
+			final Path outside = FileUtilsTest.this.directoryTest.getParent().resolve("outsideDeletionTest");
+			FileUtils.deleteDirectory(outside);
+			Files.createDirectories(outside);
+			final Path treasure = Files.createFile(outside.resolve("treasure.dat"));
+
+			final Path doomed = Files.createDirectories(
+				FileUtilsTest.this.directoryTest.resolve("doomed")
+			);
+			try {
+				Files.createSymbolicLink(doomed.resolve("escape"), outside);
+			} catch (UnsupportedOperationException | FileSystemException ex) {
+				assumeTrue(false, "symbolic links are not available on this platform: " + ex.getMessage());
+			}
+
+			try {
+				FileUtils.deleteDirectory(doomed);
+
+				assertFalse(doomed.toFile().exists(), "The directory that was pointed at must be gone!");
+				assertTrue(Files.exists(treasure), "Data behind the link must never be touched!");
+				assertTrue(Files.exists(outside), "The link target directory must survive!");
+			} finally {
+				FileUtils.deleteDirectory(outside);
+			}
+		}
+
+		@Test
+		@DisplayName("Should silently do nothing when the directory does not exist")
+		void shouldDoNothingWhenDirectoryIsAbsent() {
+			FileUtils.deleteDirectory(FileUtilsTest.this.directoryTest.resolve("neverExisted"));
 		}
 	}
 

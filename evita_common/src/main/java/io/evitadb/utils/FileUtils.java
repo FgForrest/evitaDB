@@ -28,15 +28,20 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
@@ -83,35 +88,52 @@ public class FileUtils {
 
 	/**
 	 * Method deletes directory along with its contents.
+	 *
+	 * A symbolic link encountered anywhere in the tree is **removed as a link and never traversed**. The walk
+	 * runs without {@link java.nio.file.FileVisitOption#FOLLOW_LINKS}, so a link is handed to `visitFile` and
+	 * deleting it unlinks it rather than emptying whatever it points at.
+	 *
+	 * evitaDB does not expect symbolic links inside its data folder at all — which is precisely why one turning
+	 * up must not be followed. An unexpected link is an anomaly, and letting an anomaly steer a recursive delete
+	 * outside the directory being removed is the worst available response to one: the damage lands on data this
+	 * method was never pointed at, and none of it is recoverable.
 	 */
 	public static void deleteDirectory(@Nonnull Path directory) {
-		if (directory.toFile().exists()) {
-			try (final Stream<Path> stream = Files.list(directory)) {
-				stream.forEach(it -> {
-					if (it.toFile().isDirectory()) {
-						deleteDirectory(it);
-					} else {
-						if (!it.toFile().delete()) {
-							throw new UnexpectedIOException(
-								"Failed to delete file: " + it,
-								"Failed to delete file!"
-							);
-						}
-					}
-				});
+		// NOFOLLOW_LINKS so a dangling link is still seen, and so a link to a directory is never mistaken
+		// for the directory itself
+		if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+			return;
+		}
+		try {
+			Files.walkFileTree(directory, new SimpleFileVisitor<>() {
 
-				if (!directory.toFile().delete()) {
-					throw new UnexpectedIOException(
-						"Failed to delete directory: " + directory,
-						"Failed to delete directory!"
-					);
+				@Nonnull
+				@Override
+				public FileVisitResult visitFile(
+					@Nonnull Path file, @Nonnull BasicFileAttributes attributes
+				) throws IOException {
+					// symbolic links arrive here rather than in preVisitDirectory, so this unlinks them
+					Files.delete(file);
+					return FileVisitResult.CONTINUE;
 				}
-			} catch (IOException ex) {
-				throw new UnexpectedIOException(
-					"Failed to delete directory: " + directory,
-					"Failed to delete directory!", ex
-				);
-			}
+
+				@Nonnull
+				@Override
+				public FileVisitResult postVisitDirectory(
+					@Nonnull Path visited, @Nullable IOException failure
+				) throws IOException {
+					if (failure != null) {
+						throw failure;
+					}
+					Files.delete(visited);
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		} catch (IOException ex) {
+			throw new UnexpectedIOException(
+				"Failed to delete directory: " + directory,
+				"Failed to delete directory!", ex
+			);
 		}
 	}
 
