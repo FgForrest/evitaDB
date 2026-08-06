@@ -26,8 +26,10 @@ package io.evitadb.core.engine;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.catalog.UnusableCatalog.UnusableCatalogExceptionFactory;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.CatalogFolderOperations;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -66,12 +68,48 @@ public class CatalogFolderContext {
 	/**
 	 * Returns the folder token the passed catalog is currently bound to.
 	 *
+	 * The lookup is deliberately strict: an unbound name here is a programming error, because every path that
+	 * registers a catalog records its binding in the same engine-state commit, and states arriving from an
+	 * older on-disk format are translated into explicit bindings on the way in. Falling back to the catalog's
+	 * own name would send reads and writes to whatever directory carries that name and report success.
+	 *
 	 * @param catalogName name of the catalog
 	 * @return token identifying the catalog's folder
+	 * @throws GenericEvitaInternalError when the catalog is not bound to any folder
 	 */
 	@Nonnull
 	public CatalogFolderId folderIdFor(@Nonnull String catalogName) {
-		return this.folderResolver.folderIdFor(catalogName);
+		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
+		Assert.isPremiseValid(
+			folderId != null,
+			() -> new GenericEvitaInternalError(
+				"Catalog `" + catalogName + "` is not bound to any storage folder!"
+			)
+		);
+		return folderId;
+	}
+
+	/**
+	 * Returns the folder token to bind the passed catalog to — its current binding when it has one, and
+	 * otherwise the folder a catalog the engine state does not know yet is to occupy.
+	 *
+	 * This is the counterpart of {@link #folderIdFor(String)} and covers exactly the moments at which a name
+	 * legitimately has no binding: a catalog being created, a backup being restored into a fresh name, and a
+	 * folder just discovered on disk. Returning the existing binding when there is one is what makes recovery
+	 * from the missing bucket land back in the folder the catalog left, rather than somewhere new.
+	 *
+	 * The unbound branch answers with the identity token, which is where such a catalog is in fact
+	 * materialised today. Once folders carry an allocated generation this is where that allocation happens —
+	 * burning a number per attempt and marking the folder provisional before anything is written into it —
+	 * which is why the decision lives here rather than at each of the three call sites.
+	 *
+	 * @param catalogName name of the catalog
+	 * @return token identifying the folder the catalog is to be bound to
+	 */
+	@Nonnull
+	public CatalogFolderId folderIdForBinding(@Nonnull String catalogName) {
+		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
+		return folderId == null ? new CatalogFolderId(catalogName) : folderId;
 	}
 
 	/**

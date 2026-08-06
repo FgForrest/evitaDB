@@ -248,10 +248,161 @@ decoupling itself (a folder whose bootstrap no longer carries the catalog name s
 corruption guard (files but no bootstrap file throws rather than falling back), and the regex-wildcard
 case. 16 tests in that class, plus 94 across the eight storage/WAL classes — all green.
 
-## Steps 3–10 — not started
+## Step 3 — backup/restore normalisation ✅ (commit `ac7900df3`)
 
-Next up is step 3 (backup/restore normalisation), which owns the one remaining length-based file-name
-arithmetic in the tree: `RestoreTask:89`.
+Backup archives now carry the canonical suffix-free shape by construction, and restore stopped needing
+to be told what prefix the archive was written with.
+
+### What changed
+
+A new package-private `CatalogFileNaming.canonicalizeTo(fileName, targetPrefix)` in
+`io.evitadb.store.catalog.task` is the single point at which an archive entry's name is decided.
+`BackupTask`, `FullBackupTask` and `RestoreTask` all route through it.
+
+### Improved on the spec, deliberately
+
+§6 proposed giving `RestoreTask` a `*.boot` discovery *fallback* for the source prefix. The rewrite
+instead became prefix-independent outright: both index parsers scan digits backwards from the suffix,
+so the incoming name is decomposed by its suffix and trailing index alone. That removed the tree's last
+piece of length-based filename arithmetic (`RestoreTask:89` used to slice by the top-level directory's
+length, which mis-slices for an archive taken from a renamed catalog) and made the discovery fallback
+unnecessary rather than merely correct.
+
+### Verification
+
+New `CatalogFileNamingTest` (4 tests), plus a full clean `unitAndFunctional` suite: **20893 tests, 1
+failure, 1 error**, both environmental — `CdcCallbackDispatcherTest` (flaky by construction, see below)
+and `ExportS3ServiceTest` (no Docker).
+
+## Step 4 — engine state schema + sequences ✅
+
+`EngineState` now carries the catalog-to-folder mapping, and the engine has the sequence machinery that
+folder generations will be drawn from. Nothing allocates a suffixed folder yet — that is step 5 — so
+every binding this step produces is still identity-shaped and behaviour is unchanged.
+
+### What changed
+
+**Three new records** in `io.evitadb.spi.store.engine.model` — `CatalogFolderBinding` (name → folder),
+`RetiredFolder` (tombstone, carrying the catalog name so the drain never parses it back out of the
+token) and `CatalogGenerationPeak`. They become three new components on `EngineState`, each a sorted
+array validated by the compact constructor. Bindings and peaks order by catalog name; tombstones order
+by folder token, because one catalog can have several folders awaiting deletion.
+
+**A new serializer rung.** `EngineState.serialVersionUID` moved to `3948172605583194127L`;
+`EngineStateSerializer_2026_2` reads the previous shape and is registered under
+`7261559824913670482L`. That UID shipped in v2026.2.0–v2026.2.3, verified with
+`git show <tag>:…/EngineState.java`, so the rung is mandatory rather than a precaution — an in-place
+extension would have made those installations unbootable.
+
+**The reader synthesises identity bindings, not empty ones.** Under the old format a catalog's folder
+*was* its name, so that is the faithful translation of what the absent map meant. It is written down
+exactly once, in the eight-argument `EngineState` convenience constructor, which all three
+backward-compatible rungs and `createNewEngineState` delegate to. The consequence is that a lookup is
+total from the first moment a state exists, which is what let the resolver be made strict.
+
+**Two questions, two methods.** `CatalogFolderResolver` now answers `@Nullable boundFolderIdFor`, and
+`CatalogFolderContext` splits the policy: `folderIdFor` throws on an unbound name, `folderIdForBinding`
+returns the existing binding or, for a catalog the engine state does not know yet, the folder it is to
+occupy. **`folderIdForBinding` is the single seam step 5's allocator drops into** — burning a
+generation, guarding with `Files.exists`, writing the `.provisional` marker — which is why the decision
+lives there rather than at each call site.
+
+Making the resolver strict *first*, before looking for callers, is what surfaced all five sites asking
+that second question. Three came out of a targeted run and two out of reading every
+`createUnusableCatalog` site afterwards:
+
+| site | what is unbound |
+|---|---|
+| `CreateCatalogMutationOperator` | the `BEING_CREATED` placeholder, staged in the transition phase |
+| `Catalog.java:596` | the persistence service of a brand-new catalog, in the work phase |
+| `DuplicateCatalogMutationOperator` | the duplicate's target name |
+| `EvitaManagement:312` | the folder `RestoreTask` unpacks a backup into |
+| `RestoreCatalogSchemaMutationOperator:86` | restore and auto-discovery only — see below |
+
+That last row is the interesting one: the operator serves three paths, and the third —
+flapping recovery, `MISSING` → `INACTIVE` — starts from a catalog the state *does* know and must land
+back in the folder it left. `folderIdForBinding` covers both in one call precisely because it returns
+an existing binding when there is one.
+
+The create path is worth noting because the two sites are ordered: the transition phase establishes the
+binding, and the work phase then reads it back rather than deciding again. Under step 5 that is exactly
+what is wanted — the folder is allocated once, before anything is written into it.
+
+**Sequences.** `SequenceType.CATALOG_GENERATION`, `SequenceService#removeSequences(catalog)` (the maps
+were append-only, so create/drop churn leaked an entry per name forever), and an engine-scoped
+`SequenceService` on `Evita` seeded from the persisted peaks.
+
+### Constructor reordering in `Evita`
+
+The boot stubs at `Evita:512–527` resolve their folder through the resolver, which now reads the engine
+state — so the persisted snapshot is published with an empty catalog map *before* the stub loop and
+immediately superseded once the stubs exist. Only the name-to-folder mapping is read in between. The
+one observable this changes is `emitEvitaStatistics`'s `engineState.get() != null` guard, and both of
+its schedulers are wired later in the constructor than the full publish, so nothing can observe the
+intermediate state.
+
+### A latent bug this made load-bearing
+
+`DefaultEnginePersistenceService:237` (the storage-protocol migration) rebuilt the engine state by
+enumerating its fields, and had silently dropped `missingCatalogs` ever since that bucket was added.
+Harmless while the dropped bucket was reconstructible; not harmless for folder bindings, which cannot
+be reconstructed from anything once lost. Rewritten to carry everything forward through
+`EngineState.builder(existing)`.
+
+### Deliberately not in step 4
+
+- **Tombstone staging API** (`withRetiredFolder` / `withoutRetiredFolder`). When a folder enters and
+  leaves the list is decided by step 5's boot classification; writing the API now means guessing that
+  shape and reshaping it later. The *format* field is here, which is the part that is expensive to add
+  late.
+- **An explicit-token `withCatalog(catalog, folderId)` overload.** Step 4's single-argument form
+  preserves an existing binding and creates an identity one for a name it has never seen, which is
+  true today. Step 5 adds the overload and wires it at the creation sites; that is also the moment the
+  identity default in `ExpandedEngineState#bindingsIncluding` stops being correct and must go.
+- **The disk-scan half of the generation seed.** `max(persisted peak, highest <name>_N on disk)` — the
+  scan arrives with allocation in step 5. Until then no suffixed folder exists to find, so seeding from
+  the peaks alone is complete, and `seedCatalogGenerationSequences` says so.
+- **Sequence retirement wiring.** The removal API exists and is tested; what triggers it is the
+  tombstone drain, which does not exist yet.
+
+### Settled: the generation peaks stay, but they are hygiene rather than the liveness guarantee
+
+Johnny's answer to the open question: the peak is a *fuse*. A rename that fails mid-flight can leave a
+folder the filesystem then refuses to clear — or reports as cleared while still refusing to recreate the
+name. Retrying the same rename draws the same number, hits the same name, and fails identically forever.
+
+That corrected the question I had been asking. My analysis tested a *safety* property — can the disk scan
+see the folder — when the concern is *liveness*: can the operation ever succeed again. The two come apart
+exactly here, because `Files.exists` answers `false` both for "absent" and for "cannot determine"
+(it reports `AccessDeniedException` as absence, on POSIX as much as on Windows). So the scan can report a
+name free that creation will reject, and "the scan sees it" is not the reliable term I treated it as.
+
+**But the peak is still not what keeps the operation live**, for two independent reasons:
+
+1. Allocation has to treat a failed directory creation as "burn this number, draw the next" regardless —
+   precisely because the existence pre-check cannot be trusted, the create call is itself the decision
+   point. With that loop, Johnny's scenario costs one wasted probe per restart and then completes, peak or
+   no peak. The permanent wedge needs an allocator that draws once and gives up, which is the real defect.
+2. `EngineStateSerializer_2026_2` substitutes `NO_GENERATION_PEAKS` for every legacy payload, so the first
+   boot of every upgraded installation has zero peaks *by construction*. Anything that depended on peaks
+   for liveness would ship a guaranteed-vulnerable window in the field.
+
+Decision: **keep them**, on the narrower justification — a peak stops a known-bad name from being drawn
+again after every restart, and it survives a hard kill where no cleanup path ran to leave a tombstone. The
+scan covers the disjoint case (a folder created by an attempt that died before persisting anything).
+Neither term subsumes the other; `CatalogGenerationPeak`'s JavaDoc now says exactly that, where it
+previously called the scan the primary authority.
+
+### Verification
+
+`EngineStateTest` grew a `CatalogFolderBindings` nested class (6 tests: strict-vs-absent lookup,
+identity synthesis over active ∪ inactive ∪ missing, rebinding an already-bound name — which the shared
+`insertRecordIntoOrderedArray` helper would *not* do, since it inserts only when absent — ordering, and
+survival across a builder copy). `EngineStateSerializerTest` gained the round trip and the
+old-bytes-to-identity-bindings test. New `SequenceServiceTest` (4 tests) covers fast-forward-only
+seeding and the removal API.
+
+## Steps 5–10 — not started
 
 ### Found before starting step 2: the prefix goes into a regex unescaped
 

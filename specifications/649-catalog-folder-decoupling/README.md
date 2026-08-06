@@ -801,5 +801,29 @@ These are ordering hazards discovered during implementation, not part of any sin
   going to be open, convert both to `this.storagePrefix` before step 5 merges. The failure mode is
   the dangerous kind: `replaceWith` would match nothing and rename nothing, reporting success.
 
+- [ ] **Step 5 must delete the identity default in `ExpandedEngineState#bindingsIncluding`, not just
+  add an allocator alongside it.** Step 4 made the folder lookup strict everywhere *except* there: a
+  name the engine state has never seen gets a binding equal to the name itself, which is where such a
+  catalog is genuinely created today. The moment step 5 allocates `<name>_<gen>` folders, any creation
+  path that has not been switched to pass its allocated token keeps compiling and keeps working — it
+  simply binds the catalog to a bare-named folder and reports success. Add the explicit-token
+  `withCatalog(catalog, folderId)` overload, convert every creation site to it (the five listed in
+  `implementation-progress.md` under step 4), and then make the unbound branch throw. Doing it in that
+  order means the compiler and the suite find the stragglers instead of a user finding them.
+
+- [ ] **Step 5's allocator must burn-and-retry on a failed directory creation, under a bounded limit —
+  an existence pre-check is not a substitute.** `Files.exists` answers `false` both when a path is
+  absent and when its existence *cannot be determined*: it reports an `AccessDeniedException` as
+  absence, on POSIX as much as on Windows. So the guard can call a name free that creation then
+  rejects, which makes the create call itself the decision point. An allocator that draws one number,
+  pre-checks, and gives up on failure turns a poisoned name into a **permanent** wedge: a rename that
+  died leaving a folder the filesystem will not clear (or reports as cleared while still refusing to
+  recreate) is retried against the same number after every restart, forever, and the catalog can never
+  be replaced again. It fails silently in the sense that matters — each attempt surfaces an ordinary
+  filesystem error, so it reads as environmental rather than as a livelock. Bound the loop and fail the
+  operation after N consecutive creation failures rather than spinning. The generation peaks do **not**
+  cover this: `EngineStateSerializer_2026_2` substitutes none for legacy payloads, so the first boot
+  after an upgrade always runs with an empty peak set (see §2.1 and `implementation-progress.md`).
+
 - [ ] **Re-check this list before the branch merges**, not only before each step. A step reordering
   is exactly the event that makes a dormant gate live.

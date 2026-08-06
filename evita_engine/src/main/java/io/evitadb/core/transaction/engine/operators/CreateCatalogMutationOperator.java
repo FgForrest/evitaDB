@@ -89,6 +89,10 @@ public class CreateCatalogMutationOperator
 						.withCatalog(
 							CreateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
+								// this transition is where a brand-new catalog gets its folder binding: the work
+								// phase below then reads that binding back rather than deciding again, so the
+								// folder is settled once, before anything is written into it
+								CreateCatalogMutationOperator.this.folderContext.folderIdForBinding(catalogName),
 								CatalogState.BEING_CREATED,
 								(cn, folderId, root) -> new CatalogTransitioningException(
 									cn, folderId, root, CatalogState.BEING_CREATED)

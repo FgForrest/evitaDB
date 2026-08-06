@@ -26,6 +26,7 @@ package io.evitadb.core.engine;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Answers the single question "which folder holds the data of catalog `X`?" — as an opaque
@@ -50,26 +51,30 @@ import javax.annotation.Nonnull;
 public interface CatalogFolderResolver {
 
 	/**
-	 * Returns the folder token the passed catalog is currently bound to.
+	 * Returns the folder token the passed catalog is currently bound to, or `null` when it has no binding.
 	 *
-	 * The folder is not guaranteed to exist — callers that materialise a brand-new catalog receive the token
-	 * the catalog *will* occupy. Callers that load an existing catalog can rely on the binding being
-	 * consistent with what the engine state records.
+	 * A catalog is unbound exactly while the engine state does not know it: it is being created, restored, or
+	 * has just been discovered on disk. Every other caller is asking about a registered catalog and should go
+	 * through {@link CatalogFolderContext#folderIdFor(String)}, which refuses an unbound name rather than
+	 * inventing an answer for it.
+	 *
+	 * The folder is not guaranteed to exist — a binding may name a directory that has gone missing, which is
+	 * precisely how a catalog ends up in the missing bucket.
 	 *
 	 * @param catalogName name of the catalog to look the folder token up for
-	 * @return token identifying the folder holding the catalog data
+	 * @return token identifying the folder holding the catalog data, or `null` when the catalog is unbound
 	 */
-	@Nonnull
-	CatalogFolderId folderIdFor(@Nonnull String catalogName);
+	@Nullable
+	CatalogFolderId boundFolderIdFor(@Nonnull String catalogName);
 
 	/**
 	 * Creates the identity resolver, binding every catalog to a folder token equal to its own name.
 	 *
-	 * This reproduces the historical, pre-#649 mapping and is in force until the engine state carries an
-	 * explicit name-to-folder map, at which point {@link io.evitadb.core.Evita} wires that mapping instead
-	 * and this factory is deleted outright. Do not wire new production code to it — a component bound this
-	 * way keeps working only for as long as folder token and catalog name happen to coincide, which is the
-	 * very assumption this interface exists to retire.
+	 * This reproduces the historical, pre-#649 mapping. Production wiring reads the engine state's own
+	 * name-to-folder map instead; what keeps this factory alive is testing engine components in isolation,
+	 * where standing up an engine state merely to answer folder lookups would obscure what is under test. Do
+	 * not wire production code to it — a component bound this way keeps working only for as long as folder
+	 * token and catalog name happen to coincide, which is the very assumption this interface exists to retire.
 	 *
 	 * @return resolver binding a catalog name onto a folder token of the same name
 	 */

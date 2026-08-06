@@ -49,5 +49,15 @@ public enum SequenceType {
 	/**
 	 * {@link PriceInternalIdContainer#getInternalPriceId()} type.
 	 */
-	PRICE
+	PRICE,
+	/**
+	 * Generation counter of a catalog's storage folder, drawn per catalog name.
+	 *
+	 * Unlike every other type here, this one is not a primary key inside a catalog — it numbers the *folders* a
+	 * catalog occupies over its lifetime and therefore lives in an engine-scoped
+	 * {@link io.evitadb.core.sequence.SequenceService}, not the per-catalog one. Its defining property is that a
+	 * number is burned per allocation *attempt*: a failed attempt may leave its folder on disk, so the retry must
+	 * never be handed the same number back. See issue #649.
+	 */
+	CATALOG_GENERATION
 }

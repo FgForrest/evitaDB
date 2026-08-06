@@ -93,6 +93,8 @@ import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.sequence.SequenceService;
+import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.session.SessionRegistry;
@@ -106,6 +108,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.utils.ArrayUtils;
@@ -250,6 +253,17 @@ public final class Evita implements EvitaContract {
 	 * Reference keeps the current state of the evitaDB engine instance.
 	 */
 	private final AtomicReference<ExpandedEngineState> engineState = new AtomicReference<>();
+	/**
+	 * Generation counters numbering the storage folders each catalog occupies over its lifetime, keyed by catalog
+	 * name under {@link SequenceType#CATALOG_GENERATION}.
+	 *
+	 * This is an engine-scoped instance, distinct from the per-catalog {@link SequenceService} that hands out
+	 * entity and index primary keys and dies with its catalog: a folder generation has to outlive the catalog
+	 * object that occupied it, because a folder left behind by a failed operation is exactly what the next
+	 * allocation must not collide with. Its counters burn a number per attempt rather than per success, and are
+	 * seeded at boot from the peaks the engine state carries.
+	 */
+	@Getter private final SequenceService catalogGenerationSequences = new SequenceService();
 	/**
 	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
 	 * the list is cleared.
@@ -480,7 +494,7 @@ public final class Evita implements EvitaContract {
 		// storage layer on the engine's behalf - the engine binds catalogs to opaque folder tokens and never
 		// joins one onto the storage root itself. See `CatalogFolderId` for the boundary rule.
 		this.catalogFolderContext = new CatalogFolderContext(
-			CatalogFolderResolver.identity(),
+			catalogName -> this.engineState.get().boundFolderIdFor(catalogName),
 			enginePersistenceService,
 			configuration.storage().storageDirectory()
 		);
@@ -489,6 +503,14 @@ public final class Evita implements EvitaContract {
 		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 
 		final EngineState<LogRecordReference> engineState = enginePersistenceService.getEngineState();
+
+		// The resolver above reads the engine state, and the stubs built below resolve their folder through it,
+		// so the persisted snapshot has to be published before the first lookup. It is published with no catalog
+		// instances attached and immediately superseded once the stubs exist - only the name-to-folder mapping is
+		// read in between.
+		this.engineState.set(ExpandedEngineState.create(engineState, Map.of()));
+		seedCatalogGenerationSequences(engineState);
+
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
@@ -1414,6 +1436,26 @@ public final class Evita implements EvitaContract {
 			},
 			this.serviceExecutor
 		);
+	}
+
+	/**
+	 * Fast-forwards the engine-scoped folder generation counters to the peaks the persisted state carries.
+	 *
+	 * This is only half of the seed the design calls for — the other half is the highest `<name>_N` suffix
+	 * actually present under the storage directory, which is the term that observes litter a crash left behind
+	 * before its peak could be persisted. That scan arrives together with folder allocation; until then no
+	 * suffixed folder exists to find, so seeding from the persisted peaks alone is complete.
+	 *
+	 * @param engineState persisted snapshot whose generation peaks are to be applied
+	 */
+	private void seedCatalogGenerationSequences(@Nonnull EngineState<LogRecordReference> engineState) {
+		// `getOrCreateSequence` only ever fast-forwards, so seeding is idempotent and can never walk a counter
+		// back onto a number it has already handed out.
+		for (final CatalogGenerationPeak peak : engineState.generationPeaks()) {
+			this.catalogGenerationSequences.getOrCreateSequence(
+				peak.catalogName(), SequenceType.CATALOG_GENERATION, peak.peak()
+			);
+		}
 	}
 
 	/**

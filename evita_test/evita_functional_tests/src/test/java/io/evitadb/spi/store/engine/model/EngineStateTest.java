@@ -27,6 +27,7 @@ import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
@@ -265,5 +267,161 @@ class EngineStateTest {
 		assertEquals(0, engineState.activeCatalogs().length);
 		assertNotNull(engineState.inactiveCatalogs());
 		assertEquals(0, engineState.inactiveCatalogs().length);
+	}
+
+	/**
+	 * Covers the engine state in its role as the sole authority for the catalog-to-folder mapping — see
+	 * {@link CatalogFolderBinding} and issue #649.
+	 */
+	@Nested
+	@DisplayName("Catalog folder bindings")
+	class CatalogFolderBindings {
+
+		@Test
+		@DisplayName("Resolves a bound catalog and reports an unbound one instead of guessing")
+		void shouldResolveBoundCatalogAndReportUnboundOne() {
+			final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+				.activeCatalogs(new String[]{"products"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("products", new CatalogFolderId("products_7"))
+					}
+				)
+				.build();
+
+			assertEquals(new CatalogFolderId("products_7"), engineState.boundFolderIdFor("products"));
+			// answering an unbound name with the name itself is exactly the guess this lookup must not make
+			assertNull(engineState.boundFolderIdFor("orders"));
+		}
+
+		@Test
+		@DisplayName("Translates a state that predates the folder map into identity bindings")
+		void shouldSynthesiseIdentityBindingsForLegacyShapedState() {
+			// the eight-argument constructor is the shape every backward-compatible serializer delegates to;
+			// under that format a catalog's folder *was* its name, so the bindings are not empty but identity
+			final EngineState<LogFileRecordReference> engineState = new EngineState<>(
+				1, 1L, OffsetDateTime.parse("2026-01-01T00:00:00Z"), null,
+				new String[]{"products"},
+				new String[]{"orders"},
+				new String[0],
+				new String[]{"archive"}
+			);
+
+			// every bucket a catalog name can sit in must come out bound - a lookup has to be total from the
+			// first moment the state exists
+			assertEquals(new CatalogFolderId("products"), engineState.boundFolderIdFor("products"));
+			assertEquals(new CatalogFolderId("orders"), engineState.boundFolderIdFor("orders"));
+			assertEquals(new CatalogFolderId("archive"), engineState.boundFolderIdFor("archive"));
+			assertEquals(3, engineState.catalogFolders().length);
+			// nothing was ever allocated or retired under that layout
+			assertEquals(0, engineState.retiredFolders().length);
+			assertEquals(0, engineState.generationPeaks().length);
+		}
+
+		@Test
+		@DisplayName("Rebinds an existing name rather than leaving the old folder in place")
+		void shouldReplaceBindingOfAlreadyBoundCatalog() {
+			// a rename and a replace both work by rebinding a name that is already in the array - the shared
+			// ordered-array helper inserts only when absent, which would silently keep the stale folder
+			final CatalogFolderBinding[] bindings = {
+				new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_1")),
+				new CatalogFolderBinding("beta", new CatalogFolderId("beta_1"))
+			};
+
+			final CatalogFolderBinding[] rebound = EngineState.withBinding(
+				bindings, new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_2"))
+			);
+
+			assertEquals(2, rebound.length);
+			assertEquals(new CatalogFolderId("alpha_2"), rebound[0].folderId());
+			assertEquals(new CatalogFolderId("beta_1"), rebound[1].folderId());
+			// the input array must not be modified - engine states are shared immutable snapshots
+			assertEquals(new CatalogFolderId("alpha_1"), bindings[0].folderId());
+		}
+
+		@Test
+		@DisplayName("Keeps the binding array ascending when a new name is inserted or one is dropped")
+		void shouldKeepBindingArrayOrderedAcrossInsertAndRemoval() {
+			final CatalogFolderBinding[] bindings = {
+				new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_1")),
+				new CatalogFolderBinding("gamma", new CatalogFolderId("gamma_1"))
+			};
+
+			final CatalogFolderBinding[] inserted = EngineState.withBinding(
+				bindings, new CatalogFolderBinding("beta", new CatalogFolderId("beta_1"))
+			);
+			assertArrayEquals(
+				new String[]{"alpha", "beta", "gamma"},
+				new String[]{inserted[0].catalogName(), inserted[1].catalogName(), inserted[2].catalogName()}
+			);
+
+			final CatalogFolderBinding[] removed = EngineState.withoutBinding(inserted, "beta");
+			assertArrayEquals(
+				new String[]{"alpha", "gamma"},
+				new String[]{removed[0].catalogName(), removed[1].catalogName()}
+			);
+			// dropping a name that was never bound is a no-op rather than an error
+			assertSame(removed, EngineState.withoutBinding(removed, "delta"));
+		}
+
+		@Test
+		@DisplayName("Normalizes builder input into the ordering the record requires")
+		void shouldSortFolderArraysSuppliedOutOfOrder() {
+			// the record asserts strict ascending order in its compact constructor, so the builder has to
+			// normalize whatever a caller hands it rather than pass it straight through
+			final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("zulu", new CatalogFolderId("zulu_1")),
+						new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_1"))
+					}
+				)
+				.retiredFolders(
+					new RetiredFolder[]{
+						new RetiredFolder("zulu", new CatalogFolderId("zulu_9")),
+						new RetiredFolder("alpha", new CatalogFolderId("alpha_2"))
+					}
+				)
+				.generationPeaks(
+					new CatalogGenerationPeak[]{
+						new CatalogGenerationPeak("zulu", 9),
+						new CatalogGenerationPeak("alpha", 2)
+					}
+				)
+				.build();
+
+			assertEquals("alpha", engineState.catalogFolders()[0].catalogName());
+			// tombstones order by folder token, because one catalog may have several folders awaiting deletion
+			assertEquals("alpha_2", engineState.retiredFolders()[0].folderId().id());
+			assertEquals("alpha", engineState.generationPeaks()[0].catalogName());
+		}
+
+		@Test
+		@DisplayName("Carries bindings, tombstones and peaks through a builder copy")
+		void shouldPreserveFolderStateAcrossBuilderCopy() {
+			// a state rewritten for an unrelated reason must not lose its folder mapping - it cannot be
+			// reconstructed from anything else once gone
+			final EngineState<LogFileRecordReference> originalState = EngineState.<LogFileRecordReference>builder()
+				.activeCatalogs(new String[]{"products"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("products", new CatalogFolderId("products_7"))
+					}
+				)
+				.retiredFolders(
+					new RetiredFolder[]{new RetiredFolder("products", new CatalogFolderId("products_6"))}
+				)
+				.generationPeaks(new CatalogGenerationPeak[]{new CatalogGenerationPeak("products", 7)})
+				.build();
+
+			final EngineState<LogFileRecordReference> rewritten = EngineState.builder(originalState)
+				.storageProtocolVersion(9)
+				.build();
+
+			assertEquals(new CatalogFolderId("products_7"), rewritten.boundFolderIdFor("products"));
+			assertArrayEquals(originalState.retiredFolders(), rewritten.retiredFolders());
+			assertArrayEquals(originalState.generationPeaks(), rewritten.generationPeaks());
+		}
+
 	}
 }

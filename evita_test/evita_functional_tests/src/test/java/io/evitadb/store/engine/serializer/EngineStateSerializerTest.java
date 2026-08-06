@@ -27,7 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.store.engine.EngineKryoConfigurer;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.kryo.KryoFactory;
@@ -43,6 +47,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -241,5 +246,109 @@ class EngineStateSerializerTest {
 		// treat pre-Part-C and post-Part-C payloads uniformly.
 		assertNotNull(deserialized.missingCatalogs());
 		assertEquals(0, deserialized.missingCatalogs().length);
+	}
+
+	@Test
+	@DisplayName("EngineState with folder bindings, tombstones and generation peaks")
+	void shouldSerializeAndDeserializeEngineStateWithFolderState() {
+		// The catalog-to-folder mapping is the engine state's sole authority for where a catalog's data lives —
+		// if it does not survive a round trip, a restart silently loses track of every renamed catalog.
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(2L)
+			.activeCatalogs(new String[]{"orders"})
+			.inactiveCatalogs(new String[]{"products"})
+			.readOnlyCatalogs(new String[0])
+			.catalogFolders(
+				new CatalogFolderBinding[]{
+					// `orders` sits in a folder named after the name it had when the folder was allocated —
+					// the case a mapping keyed on the folder name could not represent at all
+					new CatalogFolderBinding("orders", new CatalogFolderId("products_3")),
+					new CatalogFolderBinding("products", new CatalogFolderId("products_5"))
+				}
+			)
+			.retiredFolders(
+				new RetiredFolder[]{
+					new RetiredFolder("products", new CatalogFolderId("products_1")),
+					new RetiredFolder("products", new CatalogFolderId("products_2"))
+				}
+			)
+			.generationPeaks(new CatalogGenerationPeak[]{new CatalogGenerationPeak("products", 5)})
+			.build();
+
+		assertSerializationRound(engineState);
+	}
+
+	@Test
+	@DisplayName("Pre-folder-map payload deserializes with identity bindings substituted")
+	void shouldDeserializePreFolderMapEngineStateAndSubstituteIdentityBindings() {
+		// Verifies the backward-compat path of `EngineStateSerializer_2026_2`: a bootstrap file written by
+		// releases 2026.2.0–2026.2.3 carries the four catalog-name arrays and stops there. Under that format a
+		// catalog's folder *was* its name, so the reader must substitute one identity binding per catalog —
+		// substituting nothing would leave every catalog unbound and defer the question to a later guess.
+		final OffsetDateTime introducedAt = OffsetDateTime.parse("2026-03-15T10:30:00+02:00");
+		final String[] activeCatalogs = {"catalogA", "catalogB"};
+		final String[] inactiveCatalogs = {"catalogC"};
+		final String[] readOnlyCatalogs = {"catalogA"};
+		final String[] missingCatalogs = {"catalogD"};
+
+		// Hand-craft a byte stream matching that layout — the legacy serializer's `write` intentionally throws,
+		// so producing the bytes by hand is the only faithful reproduction of a real bootstrap file.
+		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
+		try (final Output output = new Output(os, 4_096)) {
+			output.writeVarInt(1, true);
+			output.writeVarLong(2L, true);
+			this.kryo.writeObject(output, introducedAt);
+			// no WAL reference
+			output.writeBoolean(false);
+			writeStringArray(output, activeCatalogs);
+			writeStringArray(output, inactiveCatalogs);
+			writeStringArray(output, readOnlyCatalogs);
+			writeStringArray(output, missingCatalogs);
+		}
+
+		final EngineStateSerializer_2026_2 legacySerializer = new EngineStateSerializer_2026_2();
+		final EngineState<?> deserialized;
+		try (final Input input = new Input(os.toByteArray())) {
+			deserialized = legacySerializer.read(this.kryo, input, EngineState.class);
+		}
+
+		// All original fields survive unchanged …
+		assertEquals(1, deserialized.storageProtocolVersion());
+		assertEquals(2L, deserialized.version());
+		assertEquals(introducedAt, deserialized.introducedAt());
+		assertNull(deserialized.walReference());
+		assertArrayEquals(activeCatalogs, deserialized.activeCatalogs());
+		assertArrayEquals(inactiveCatalogs, deserialized.inactiveCatalogs());
+		assertArrayEquals(readOnlyCatalogs, deserialized.readOnlyCatalogs());
+		assertArrayEquals(missingCatalogs, deserialized.missingCatalogs());
+
+		// … and the lookup is total: every name the old format knew about comes back bound to itself. The
+		// read-only array names a catalog already listed as active and must not produce a second binding.
+		assertEquals(4, deserialized.catalogFolders().length);
+		for (final String catalogName : new String[]{"catalogA", "catalogB", "catalogC", "catalogD"}) {
+			assertEquals(
+				new CatalogFolderId(catalogName), deserialized.boundFolderIdFor(catalogName),
+				"Catalog `" + catalogName + "` must be bound to the folder the old format implied."
+			);
+		}
+
+		// Nothing had been allocated or retired under that layout.
+		assertEquals(0, deserialized.retiredFolders().length);
+		assertEquals(0, deserialized.generationPeaks().length);
+	}
+
+	/**
+	 * Writes a length-prefixed array of strings the way every catalog-name section of the on-disk layout is
+	 * encoded.
+	 *
+	 * @param output stream to write to
+	 * @param values values to emit
+	 */
+	private static void writeStringArray(@Nonnull Output output, @Nonnull String[] values) {
+		output.writeVarInt(values.length, true);
+		for (final String value : values) {
+			output.writeString(value);
+		}
 	}
 }

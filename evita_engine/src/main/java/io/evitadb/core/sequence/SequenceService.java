@@ -27,6 +27,7 @@ import io.evitadb.core.collection.EntityCollection;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,9 +114,48 @@ public class SequenceService {
 		return getOrCreateSequenceInternal(catalog, sequenceType, entityType, initialValue);
 	}
 
+	/**
+	 * Discards every sequence attached to the passed catalog, from both the int- and the long-keyed map.
+	 *
+	 * Both maps are otherwise append-only, so without this a service that outlives the catalogs it serves — the
+	 * engine-scoped instance holding {@link SequenceType#CATALOG_GENERATION} counters is the one that does —
+	 * leaks an entry per catalog name across create/drop churn, forever.
+	 *
+	 * Discarding a counter resets it: the next {@link #getOrCreateSequence(String, SequenceType, Integer)} for
+	 * that catalog starts from whatever initial value it is given. A catalog's generation counter may therefore
+	 * only be discarded once nothing that counter protects against still exists — no folder carrying the
+	 * catalog's name prefix left on disk, and no tombstone referencing one. Discarding it while litter survives
+	 * would let a recreated catalog of the same name restart at 1 and walk straight back onto it.
+	 *
+	 * @param catalog name of the catalog whose sequences are to be discarded
+	 * @return number of sequences actually discarded
+	 */
+	public int removeSequences(@Nonnull String catalog) {
+		return removeMatchingKeys(this.intSequences, catalog) + removeMatchingKeys(this.longSequences, catalog);
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Removes every entry of the passed map whose key belongs to the given catalog.
+	 *
+	 * @param sequences map to purge
+	 * @param catalog   name of the catalog whose entries are to be removed
+	 * @return number of entries removed
+	 */
+	private static int removeMatchingKeys(@Nonnull Map<SequenceKey, ?> sequences, @Nonnull String catalog) {
+		int removed = 0;
+		final Iterator<SequenceKey> it = sequences.keySet().iterator();
+		while (it.hasNext()) {
+			if (catalog.equals(it.next().catalog())) {
+				it.remove();
+				removed++;
+			}
+		}
+		return removed;
+	}
 
 	@Nonnull
 	private AtomicInteger getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Integer initialValue) {

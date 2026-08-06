@@ -83,7 +83,10 @@ public class RestoreCatalogSchemaMutationOperator
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		final String catalogName = mutation.getCatalogName();
-		final CatalogFolderId catalogFolder = this.folderContext.folderIdFor(catalogName);
+		// this operator serves three paths and only one of them - recovery from the missing bucket - starts from
+		// a catalog the engine state already knows. A restore from backup and an auto-discovered folder are both
+		// registering a name for the first time, so the binding is established here rather than looked up.
+		final CatalogFolderId catalogFolder = this.folderContext.folderIdForBinding(catalogName);
 
 		Assert.isTrue(
 			this.folderContext.getFolderOperations().catalogFolderExists(catalogFolder),

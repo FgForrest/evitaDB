@@ -595,7 +595,9 @@ public final class Catalog
 				.map(
 					it -> it.createNew(
 						this, this.getSchema().getName(),
-						evita.getCatalogFolderContext().folderIdFor(catalogName),
+						// a brand-new catalog is not in the engine state yet, so this is where its folder
+						// binding is established rather than read
+						evita.getCatalogFolderContext().folderIdForBinding(catalogName),
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,

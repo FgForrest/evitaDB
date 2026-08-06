@@ -26,6 +26,7 @@ package io.evitadb.spi.store.engine.model;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Opaque identity of the directory holding a catalog's data. Carries no path semantics of its own.
@@ -47,7 +48,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public record CatalogFolderId(@Nonnull String id) {
+public record CatalogFolderId(@Nonnull String id) implements Serializable {
 
 	/**
 	 * Validates that the token names a single directory and cannot escape the storage root.

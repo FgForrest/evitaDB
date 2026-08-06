@@ -93,6 +93,10 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 								.withCatalog(
 									DuplicateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 										targetCatalogName,
+										// the duplicate is registered here for the first time, so its folder
+										// binding is established rather than looked up
+										DuplicateCatalogMutationOperator.this.folderContext
+											.folderIdForBinding(targetCatalogName),
 										CatalogState.INACTIVE,
 										CatalogInactiveException::new
 									)

@@ -27,6 +27,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
@@ -159,6 +161,103 @@ class ExpandedEngineStateTest {
 		assertArrayEquals(new String[]{"beta"}, built.engineState().inactiveCatalogs());
 		assertArrayEquals(new String[]{"beta"}, built.engineState().readOnlyCatalogs());
 		assertTrue(built.getCatalog("beta").isPresent());
+	}
+
+	/**
+	 * Verifies that the staging API keeps the engine state's catalog-to-folder mapping in step with the catalog
+	 * buckets it moves names between — see {@link io.evitadb.spi.store.engine.model.CatalogFolderBinding} and
+	 * issue #649.
+	 */
+	@Nested
+	@DisplayName("Catalog folder binding staging")
+	class CatalogFolderBindingStaging {
+
+		@Test
+		@DisplayName("Leaves an existing binding alone when its catalog is re-staged")
+		void shouldPreserveExistingBindingWhenCatalogIsRestaged() {
+			// re-staging happens on every activation, go-live and instance swap. Overwriting the binding with
+			// the catalog's own name at any of those points would silently undo a rename.
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.inactiveCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("products_3"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalog(contract("orders", 5))
+				.build();
+
+			assertEquals(new CatalogFolderId("products_3"), built.boundFolderIdFor("orders"));
+			assertEquals(new CatalogFolderId("products_3"), expanded.boundFolderIdFor("orders"));
+		}
+
+		@Test
+		@DisplayName("Binds a catalog the state has never seen so lookups stay total")
+		void shouldBindPreviouslyUnknownCatalog() {
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[0], new String[0], null
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalog(contract("beta", 1))
+				.build();
+
+			assertEquals(new CatalogFolderId("beta"), built.boundFolderIdFor("beta"));
+		}
+
+		@Test
+		@DisplayName("Drops the binding when a catalog is removed and keeps it when one goes missing")
+		void shouldDropBindingOnRemovalAndKeepItOnMissing() {
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.activeCatalogs(new String[]{"alpha", "beta"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_1")),
+						new CatalogFolderBinding("beta", new CatalogFolderId("beta_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withoutCatalog("alpha")
+				.withMissingCatalog("beta")
+				.build();
+
+			// nothing points at `alpha`'s folder any more
+			assertNull(built.boundFolderIdFor("alpha"));
+			// `beta`'s folder merely vanished - the binding names what a later reappearance must be matched
+			// against, so dropping it would make the recovered folder indistinguishable from a hand-placed one
+			assertEquals(new CatalogFolderId("beta_1"), built.boundFolderIdFor("beta"));
+			assertArrayEquals(new String[]{"beta"}, built.engineState().missingCatalogs());
+		}
+
+		@Test
+		@DisplayName("Binds a catalog introduced through an instance swap")
+		void shouldBindCatalogIntroducedByInstanceSwap() {
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[0], new String[0], null
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState updated = expanded.withUpdatedCatalogInstance(contract("gamma", 1));
+
+			assertEquals(new CatalogFolderId("gamma"), updated.boundFolderIdFor("gamma"));
+		}
+
 	}
 
 	/**

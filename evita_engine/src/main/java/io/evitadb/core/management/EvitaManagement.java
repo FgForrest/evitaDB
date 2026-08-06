@@ -309,7 +309,9 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
 				catalogName,
-				this.evita.getCatalogFolderContext().folderIdFor(catalogName),
+				// the restored catalog is registered only once the restore task completes, so its folder binding
+				// is established here rather than read from the engine state
+				this.evita.getCatalogFolderContext().folderIdForBinding(catalogName),
 				this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),

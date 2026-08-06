@@ -27,6 +27,8 @@ package io.evitadb.core.engine;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
 
@@ -93,6 +95,37 @@ public record ExpandedEngineState(
 	@Nonnull
 	public static Builder builder(@Nonnull ExpandedEngineState base) {
 		return new Builder(base);
+	}
+
+	/**
+	 * Returns the binding array guaranteed to carry an entry for the passed catalog name.
+	 *
+	 * An existing binding is left exactly as it is — a catalog being re-staged (activated, made alive, swapped
+	 * for a newer instance) must keep pointing at the folder it already occupies, and clobbering that with the
+	 * catalog's own name would undo a rename. Only a name the state has never seen gets a binding, and it gets
+	 * the identity one, which is the folder such a catalog is in fact created in today.
+	 *
+	 * That identity default is what this method will lose once folder allocation exists: a brand-new catalog
+	 * will then be handed the token its allocation burned, passed in explicitly at the staging site, and a name
+	 * arriving here unbound will be a bug rather than a new catalog.
+	 *
+	 * @param bindings    bindings currently recorded, strictly ascending by catalog name
+	 * @param catalogName name that must be bound in the result
+	 * @return binding array containing the name; the input array is never modified
+	 */
+	@Nonnull
+	private static CatalogFolderBinding[] bindingsIncluding(
+		@Nonnull CatalogFolderBinding[] bindings,
+		@Nonnull String catalogName
+	) {
+		for (final CatalogFolderBinding binding : bindings) {
+			if (binding.catalogName().equals(catalogName)) {
+				return bindings;
+			}
+		}
+		return EngineState.withBinding(
+			bindings, new CatalogFolderBinding(catalogName, new CatalogFolderId(catalogName))
+		);
 	}
 
 	/**
@@ -206,6 +239,21 @@ public record ExpandedEngineState(
 	}
 
 	/**
+	 * Returns the folder token holding the data of the passed catalog as recorded by the persisted snapshot, or
+	 * `null` when the catalog has no binding.
+	 *
+	 * This is the runtime entry point to the engine state's name-to-folder authority — see
+	 * {@link EngineState#boundFolderIdFor(String)} for why an unbound name is reported rather than guessed at.
+	 *
+	 * @param catalogName name of the catalog to resolve
+	 * @return token identifying the folder bound to the catalog, or `null` when the catalog is unbound
+	 */
+	@Nullable
+	public CatalogFolderId boundFolderIdFor(@Nonnull String catalogName) {
+		return this.engineState.boundFolderIdFor(catalogName);
+	}
+
+	/**
 	 * Determines whether the catalog identified by the specified catalog name is in a read-only state.
 	 *
 	 * @param catalogName the name of the catalog to check, must not be null
@@ -281,7 +329,8 @@ public record ExpandedEngineState(
 
 		final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 			.builder(this.engineState)
-			.version(this.engineState.version());
+			.version(this.engineState.version())
+			.catalogFolders(bindingsIncluding(this.engineState.catalogFolders(), catalog.getName()));
 
 		if (catalog instanceof Catalog) {
 			engineStateBuilder.activeCatalogs(
@@ -336,6 +385,7 @@ public record ExpandedEngineState(
 		@Nonnull private String[] inactiveCatalogs;
 		@Nonnull private String[] readOnlyCatalogs;
 		@Nonnull private String[] missingCatalogs;
+		@Nonnull private CatalogFolderBinding[] catalogFolders;
 
 		/**
 		 * Initializes builder with values from the provided snapshot.
@@ -349,6 +399,7 @@ public record ExpandedEngineState(
 			this.inactiveCatalogs = base.engineState.inactiveCatalogs();
 			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
 			this.missingCatalogs = base.engineState.missingCatalogs();
+			this.catalogFolders = base.engineState.catalogFolders();
 		}
 
 		/**
@@ -367,10 +418,15 @@ public record ExpandedEngineState(
 		/**
 		 * Stages the provided catalog into the snapshot.
 		 * If the catalog is a live Catalog instance it will be marked active, otherwise inactive.
+		 *
+		 * The catalog's folder binding is preserved when it already has one and created identity-shaped when it
+		 * does not — see {@link ExpandedEngineState#bindingsIncluding} for why, and for what replaces the
+		 * identity default once folder allocation exists.
 		 */
 		@Nonnull
 		public Builder withCatalog(@Nonnull CatalogContract catalog) {
 			this.catalogs.put(catalog.getName(), new CatalogWrapper(catalog));
+			this.catalogFolders = bindingsIncluding(this.catalogFolders, catalog.getName());
 			if (catalog instanceof Catalog) {
 				this.activeCatalogs = insertRecordIntoOrderedArray(catalog.getName(), this.activeCatalogs);
 				this.inactiveCatalogs = removeRecordFromOrderedArray(
@@ -413,6 +469,11 @@ public record ExpandedEngineState(
 
 		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
+		 *
+		 * The catalog's folder binding goes with it — nothing points at that folder any more. Recording the
+		 * folder as a tombstone so the engine may later delete it is a separate concern and belongs to whoever
+		 * knows whether the data is meant to survive the removal: a drop retires the folder, whereas a rename
+		 * unbinds the old name while the very same folder stays bound to the new one.
 		 */
 		@Nonnull
 		public Builder withoutCatalog(@Nonnull String catalogName) {
@@ -421,6 +482,7 @@ public record ExpandedEngineState(
 			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
 			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
 			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			this.catalogFolders = EngineState.withoutBinding(this.catalogFolders, catalogName);
 			return this;
 		}
 
@@ -429,6 +491,10 @@ public record ExpandedEngineState(
 		 * active / inactive / read-only arrays and its in-memory `CatalogWrapper` is dropped — MISSING catalogs
 		 * cannot serve any requests. The catalog name is added to the `missingCatalogs` array so it remains visible
 		 * to the engine and can be recovered by auto-discovery in a future release.
+		 *
+		 * The folder binding is deliberately kept. It names the folder that went missing, which is precisely what
+		 * a later reappearance has to be matched against; dropping it would leave the recovered folder
+		 * indistinguishable from one an operator hand-placed.
 		 *
 		 * @param catalogName name of the catalog to mark as missing; must not be null
 		 * @return this builder instance
@@ -489,7 +555,8 @@ public record ExpandedEngineState(
 				.activeCatalogs(this.activeCatalogs)
 				.inactiveCatalogs(this.inactiveCatalogs)
 				.readOnlyCatalogs(this.readOnlyCatalogs)
-				.missingCatalogs(this.missingCatalogs);
+				.missingCatalogs(this.missingCatalogs)
+				.catalogFolders(this.catalogFolders);
 			return new ExpandedEngineState(
 				this.startVersion,
 				engineStateBuilder.build(),

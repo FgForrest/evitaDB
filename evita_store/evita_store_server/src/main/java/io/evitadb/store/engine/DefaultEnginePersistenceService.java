@@ -234,15 +234,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				// Update engine state with new storage protocol version and corrected WAL reference.
 				// Storage protocol version is orthogonal to the logical version counter — a migration
 				// is not a WAL-backed mutation, so the version counter must not advance here.
-				final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
-					STORAGE_PROTOCOL_VERSION,
-					this.engineState.version(),
-					this.engineState.introducedAt(),
-					correctedWalRef != null ? correctedWalRef : this.engineState.walReference(),
-					this.engineState.activeCatalogs(),
-					this.engineState.inactiveCatalogs(),
-					this.engineState.readOnlyCatalogs()
-				);
+				// Everything else is carried forward through the builder rather than re-listed: enumerating the
+				// fields here silently dropped whichever buckets were added after this line was written, and the
+				// catalog-to-folder bindings are one such bucket that cannot be reconstructed once lost.
+				final EngineState<LogFileRecordReference> newEngineState = EngineState.builder(this.engineState)
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.walFileReference(correctedWalRef != null ? correctedWalRef : this.engineState.walReference())
+					.build();
 				rewriteEngineStateInPlace(newEngineState);
 			}
 		} else {
