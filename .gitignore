@@ -128,6 +128,3 @@ mcp-jdwp-inspector.log
 /docs/
 /.claude/scheduled_tasks.lock
 /.codex-sandbox-proxy/
-# In-flight plans are ephemeral working notes; they leave the tree when the work finalizes
-# (as an ADR under documentation/adr/, or deleted outright), so they are not tracked.
-/specifications/649-catalog-folder-decoupling/
