@@ -31,6 +31,7 @@ import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.catalog.task.stream.CountingInputStream;
@@ -61,7 +62,15 @@ import java.util.zip.ZipInputStream;
  */
 @Slf4j
 public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
+	/**
+	 * Storage configuration, supplying the root directory the folder token is resolved against.
+	 */
 	private final StorageOptions storageOptions;
+	/**
+	 * Token identifying the folder the catalog is restored into. Bound by the engine rather than derived from
+	 * the catalog name — see `CatalogFolderId` and issue #649.
+	 */
+	private final CatalogFolderId catalogFolderId;
 
 	/**
 	 * Returns the file name with renaming the files that contain original catalog name.
@@ -100,6 +109,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 
 	public RestoreTask(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
@@ -120,6 +130,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
+		this.catalogFolderId = catalogFolderId;
 	}
 
 	/**
@@ -143,7 +154,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
 		) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectory());
+			final Path storagePath = this.storageOptions.storageDirectory().resolve(this.catalogFolderId.id());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
 			ZipEntry entry = Objects.requireNonNull(zipInputStream.getNextEntry());

@@ -113,6 +113,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
+			storageOptions.storageDirectory().resolve(catalogName),
 			storageOptions
 		).forEach(it -> {
 			System.out.println(
@@ -187,6 +188,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
+			storageSettings.storageDirectory().resolve(catalogName),
 			storageSettings
 		).forEach(it -> {
 			System.out.print(

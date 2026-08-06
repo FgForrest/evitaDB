@@ -30,15 +30,16 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -56,7 +57,7 @@ import java.util.function.Consumer;
  */
 @RequiredArgsConstructor
 public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperator<Void, RemoveCatalogSchemaMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -83,13 +84,11 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withCatalog(
-							new UnusableCatalog(
+							RemoveCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								CatalogState.BEING_DELETED,
-								RemoveCatalogSchemaMutationOperator.this.storageDirectory.resolve(
-									catalogName),
-								(cn, path) -> new CatalogTransitioningException(
-									cn, path, CatalogState.BEING_DELETED)
+								(cn, folderId, root) -> new CatalogTransitioningException(
+									cn, folderId, root, CatalogState.BEING_DELETED)
 							)
 						).build();
 				}

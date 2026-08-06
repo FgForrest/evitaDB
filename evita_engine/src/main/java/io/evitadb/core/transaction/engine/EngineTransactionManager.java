@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.transaction.engine.operators.*;
@@ -59,9 +60,9 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -234,27 +235,56 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService,
 		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
-		final Path storageDirectory = evita.getConfiguration().storage().storageDirectory();
+		// Single choke point for the catalog-name-to-folder mapping (#649). Every operator resolves catalog
+		// folders through this resolver rather than joining the catalog name onto the storage directory, so
+		// that decoupling the folder from the name later touches one implementation instead of every site.
+		// Checked here rather than left to fail at first use: every operator captures the resolver at
+		// construction but only dereferences it when a mutation runs, so a missing one would otherwise
+		// surface as an NPE deep inside an unrelated operator - possibly during WAL replay at boot.
+		final CatalogFolderContext folderContext = Objects.requireNonNull(
+			evita.getCatalogFolderContext(),
+			"Catalog folder resolver is not available on the Evita instance!"
+		);
 
 		this.engineMutationOperators = new HashMap<>(16);
 		// register all engine mutation operators that are used to process specific types of mutations
-		this.engineMutationOperators.put(CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator());
-		this.engineMutationOperators.put(ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator());
-		this.engineMutationOperators.put(RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(RestoreCatalogSchemaMutation.class, new RestoreCatalogSchemaMutationOperator(storageDirectory));
-		this.engineMutationOperators.put(SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationOperator());
-		this.engineMutationOperators.put(SetCatalogStateMutation.class, new SetCatalogStateMutationOperator(storageDirectory));
+		this.engineMutationOperators.put(
+			CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator()
+		);
+		this.engineMutationOperators.put(
+			ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator()
+		);
+		this.engineMutationOperators.put(
+			RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			RestoreCatalogSchemaMutation.class, new RestoreCatalogSchemaMutationOperator(folderContext)
+		);
+		this.engineMutationOperators.put(
+			SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationOperator()
+		);
+		this.engineMutationOperators.put(
+			SetCatalogStateMutation.class, new SetCatalogStateMutationOperator(folderContext)
+		);
 		// Per-catalog format-upgrade infrastructure. The operator drives the state transitions
 		// (`OUT_OF_DATE → BEING_UPGRADED → prior state`); the injected `upgradeExecutor` (production:
 		// `DefaultUpgradeExecutor`; tests/standalone: `NoOpUpgradeExecutor`) performs the actual on-disk migration
 		// during the work phase.
 		this.engineMutationOperators.put(
 			UpgradeCatalogFormatMutation.class,
-			new UpgradeCatalogFormatMutationOperator(storageDirectory, upgradeExecutor)
+			new UpgradeCatalogFormatMutationOperator(folderContext, upgradeExecutor)
 		);
 
 		this.evita = evita;

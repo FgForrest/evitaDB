@@ -94,6 +94,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueL
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.CatalogFolderOperations;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.TimeTravelRetention.CatalogDataFile;
 import io.evitadb.store.catalog.TimeTravelRetention.DataFileInventory;
@@ -519,10 +521,10 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	public static Stream<CatalogBootstrap> getCatalogBootstrapRecordStream(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -632,10 +634,10 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static Optional<CatalogBootstrap> getFirstCatalogBootstrap(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		// the record count and not merely the file's existence: an existing file too short to hold one whole record
@@ -664,6 +666,7 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static CatalogBootstrap getCatalogBootstrapForSpecificMoment(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull OffsetDateTime pastMoment
 	) {
@@ -672,7 +675,7 @@ public class DefaultCatalogPersistenceService
 			() -> new TemporalDataNotAvailableException()
 		);
 
-		return localizeLastCatalogBootstrapNotAfter(catalogName, storageSettings, pastMoment);
+		return localizeLastCatalogBootstrapNotAfter(catalogName, catalogStoragePath, storageSettings, pastMoment);
 	}
 
 	/**
@@ -689,10 +692,13 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	static CatalogBootstrap getCatalogBootstrapForSpecificVersion(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		long catalogVersion
 	) {
-		final Optional<CatalogBootstrap> firstBootstrap = getFirstCatalogBootstrap(catalogName, storageSettings);
+		final Optional<CatalogBootstrap> firstBootstrap = getFirstCatalogBootstrap(
+			catalogName, catalogStoragePath, storageSettings
+		);
 		final long firstCatalogVersion = firstBootstrap.map(CatalogBootstrap::catalogVersion).orElse(0L);
 		Assert.isTrue(
 			firstBootstrap
@@ -703,7 +709,7 @@ public class DefaultCatalogPersistenceService
 
 		try (
 			final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(
-				catalogName, storageSettings
+				catalogName, catalogStoragePath, storageSettings
 			)
 		) {
 			final CatalogBootstrap bootstrapRecord = catalogBootstrapRecordStream
@@ -792,6 +798,7 @@ public class DefaultCatalogPersistenceService
 	 * millisecond - and an equality hit would land on an arbitrary one of them instead of the last.
 	 *
 	 * @param catalogName     The name of the catalog. Must not be null.
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageSettings The storage options containing the storage directory and configuration. Must not be null.
 	 * @param moment          The moment the returned record must not be newer than. Must not be null.
 	 * @return The localized catalog bootstrap record. Will never be null.
@@ -802,11 +809,11 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private static CatalogBootstrap localizeLastCatalogBootstrapNotAfter(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull OffsetDateTime moment
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		if (!bootstrapFilePath.toFile().exists()) {
 			throw new TemporalDataNotAvailableException();
@@ -864,6 +871,7 @@ public class DefaultCatalogPersistenceService
 	 * the catalog bootstrap file.
 	 *
 	 * @param catalogName    the name of the catalog for which the bootstrap file is located (must not be null)
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageSettings the storage options configuration, including the directory where the catalog files are stored (must not be null)
 	 * @param lookedUpValue  the value to search for within the catalog bootstrap records, must be a type that extends {@code Comparable} (must not be null)
 	 * @param comparator     a function that compares a catalog bootstrap record with the looked-up value to assist in locating the desired record (must not be null)
@@ -875,13 +883,13 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private static <T extends Comparable<T>> CatalogBootstrap[] localizeCatalogBootstrapPair(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull T lookedUpValue,
 		@Nonnull ToIntBiFunction<CatalogBootstrap, T> comparator,
 		int delta
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		if (!bootstrapFilePath.toFile().exists()) {
 			throw new TemporalDataNotAvailableException();
@@ -1197,12 +1205,12 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	private static CatalogBootstrap getLastCatalogBootstrapWithAutomaticUpgrade(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageSettings bootstrapStorageSettings,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull ExportService exportService
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
-		final Path catalogStoragePath = bootstrapStorageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
 		if (bootstrapFile.exists()) {
@@ -1275,6 +1283,7 @@ public class DefaultCatalogPersistenceService
 	 * and sets up the WAL and data storage infrastructure.
 	 *
 	 * @param catalogName        the name of the catalog to load
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageOptions     storage configuration including checksum and compression settings
 	 * @param transactionOptions transaction configuration for memory buffers and WAL settings
 	 * @param scheduler          scheduler for background tasks
@@ -1282,6 +1291,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -1300,7 +1310,7 @@ public class DefaultCatalogPersistenceService
 		);
 		this.catalogName = catalogName;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		this.catalogStoragePath = storageOptions.storageDirectory().resolve(catalogFolderId.id());
 		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
@@ -1377,6 +1387,7 @@ public class DefaultCatalogPersistenceService
 	 * {@link CatalogRequiresUpgradeException}.
 	 *
 	 * @param catalogName        the catalog to upgrade
+	 * @param catalogStoragePath directory the catalog data resides in, resolved by the engine
 	 * @param storageOptions     storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler          scheduler for background tasks
@@ -1384,23 +1395,29 @@ public class DefaultCatalogPersistenceService
 	 */
 	public static void runStorageProtocolUpgrade(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
-		final Path catalogFolder = pathForCatalog(catalogName, storageOptions.storageDirectory());
 		final CatalogContract upgradeStub = new UnusableCatalog(
 			catalogName,
 			CatalogState.OUT_OF_DATE,
-			catalogFolder,
-			(cn, path) -> new IllegalStateException(
+			catalogFolderId,
+			storageOptions.storageDirectory(),
+			CatalogFolderOperations.unsupported(
+				"Upgrade stub for catalog `" + catalogName + "` must not perform folder operations — " +
+					"it exists only for the duration of runStorageProtocolUpgrade."
+			),
+			(cn, folderId, root) -> new IllegalStateException(
 				"Upgrade stub for catalog `" + cn + "` should not be queried — " +
 					"only used internally by runStorageProtocolUpgrade."
 			)
 		);
 		try (DefaultCatalogPersistenceService svc = new DefaultCatalogPersistenceService(
-			upgradeStub, catalogName, storageOptions, transactionOptions, scheduler, exportService, true
+			upgradeStub, catalogName, catalogFolderId, storageOptions, transactionOptions,
+			scheduler, exportService, true
 		)) {
 			// ctor already ran the v4→v5 migration inline — try-with-resources releases handles.
 			// The body deliberately has no content; the work is a side effect of construction.
@@ -1424,6 +1441,7 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * @param catalogInstance    the catalog instance to persist
 	 * @param catalogName        the name of the catalog
+	 * @param catalogStoragePath directory the catalog data is stored in, resolved by the engine
 	 * @param storageOptions     storage configuration including checksum and compression settings
 	 * @param transactionOptions transaction configuration for memory buffers and WAL settings
 	 * @param scheduler          scheduler for background tasks
@@ -1432,12 +1450,16 @@ public class DefaultCatalogPersistenceService
 	public DefaultCatalogPersistenceService(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
-		this(catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportService, false);
+		this(
+			catalogInstance, catalogName, catalogFolderId, storageOptions, transactionOptions,
+			scheduler, exportService, false
+		);
 	}
 
 	/**
@@ -1453,6 +1475,7 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * @param catalogInstance          the catalog instance to persist
 	 * @param catalogName              the name of the catalog
+	 * @param catalogStoragePath       directory the catalog data is stored in, resolved by the engine
 	 * @param storageOptions           storage configuration including checksum and compression settings
 	 * @param transactionOptions       transaction configuration for memory buffers and WAL settings
 	 * @param scheduler                scheduler for background tasks
@@ -1464,6 +1487,7 @@ public class DefaultCatalogPersistenceService
 	public DefaultCatalogPersistenceService(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -1483,7 +1507,7 @@ public class DefaultCatalogPersistenceService
 		);
 		this.catalogName = catalogName;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		this.catalogStoragePath = storageOptions.storageDirectory().resolve(catalogFolderId.id());
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1505,7 +1529,7 @@ public class DefaultCatalogPersistenceService
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageSettings, this.storageSettings,
+			verifiedCatalogName, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
@@ -1616,6 +1640,7 @@ public class DefaultCatalogPersistenceService
 
 	private DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
 		@Nonnull DefaultCatalogPersistenceService formerService
 	) {
 		this.storageSettings = formerService.storageSettings;
@@ -1633,7 +1658,9 @@ public class DefaultCatalogPersistenceService
 		);
 		this.catalogName = catalogName;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(catalogName, index);
-		this.catalogStoragePath = pathForCatalog(catalogName, this.storageSettings.storageDirectory());
+		// internal constructor - the caller is inside the storage layer and already holds a concrete
+		// folder, so there is no token to resolve here
+		this.catalogStoragePath = catalogStoragePath;
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			catalogName,
 			this.storageSettings.outputBufferSize(),
@@ -1656,7 +1683,7 @@ public class DefaultCatalogPersistenceService
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageSettings, this.storageSettings,
+			verifiedCatalogName, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
@@ -1737,7 +1764,7 @@ public class DefaultCatalogPersistenceService
 			this.catalogName,
 			catalogHeader.getEntityTypeFileIndexes().size(),
 			FileUtils.getDirectorySize(this.catalogStoragePath),
-			getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+			getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 				.map(CatalogBootstrap::timestamp)
 				.orElse(null),
 			computeRetainedHistoryBytes()
@@ -2072,7 +2099,7 @@ public class DefaultCatalogPersistenceService
 					this.catalogName,
 					entityHeaders.size(),
 					FileUtils.getDirectorySize(this.catalogStoragePath),
-					getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+					getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 						.map(CatalogBootstrap::timestamp)
 						.orElse(null),
 					computeRetainedHistoryBytes()
@@ -2568,7 +2595,7 @@ public class DefaultCatalogPersistenceService
 				.ifPresent(FileUtils::deleteDirectory);
 
 			return new DefaultCatalogPersistenceService(
-				catalogNameToBeReplaced, this
+				catalogNameToBeReplaced, newPath, this
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back
@@ -2931,7 +2958,8 @@ public class DefaultCatalogPersistenceService
 		try {
 			final CatalogBootstrap catalogBootstrap = this.storageSettings.timeTravelEnabled() ?
 				// if time travel is enabled we need to keep all the files that are referenced in the bootstrap file
-				getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings).orElse(this.bootstrapUsed) :
+				getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
+						.orElse(this.bootstrapUsed) :
 				// otherwise we can remove all the files that are not referenced in the current catalog header
 				this.bootstrapUsed;
 
@@ -3009,11 +3037,11 @@ public class DefaultCatalogPersistenceService
 		final CatalogBootstrap bootstrapRecord;
 		if (catalogVersion != null) {
 			bootstrapRecord = getCatalogBootstrapForSpecificVersion(
-				this.catalogName, this.bootstrapStorageSettings, catalogVersion
+				this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings, catalogVersion
 			);
 		} else if (pastMoment != null) {
 			bootstrapRecord = getCatalogBootstrapForSpecificMoment(
-				this.catalogName, this.bootstrapStorageSettings, pastMoment
+				this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings, pastMoment
 			);
 		} else {
 			bootstrapRecord = this.bootstrapUsed;
@@ -5004,6 +5032,7 @@ public class DefaultCatalogPersistenceService
 		for (long catalogVersion : catalogVersions) {
 			final CatalogBootstrap[] catalogBootstraps = localizeCatalogBootstrapPair(
 				this.catalogName,
+				this.catalogStoragePath,
 				this.bootstrapStorageSettings,
 				catalogVersion,
 				(catalogBootstrap, version) -> Long.compare(catalogBootstrap.catalogVersion(), version),
@@ -5087,7 +5116,7 @@ public class DefaultCatalogPersistenceService
 	 */
 	@Nullable
 	private DataFilesBulkInfo fetchOldestRetainedDataFilesInfo() {
-		return getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+		return getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 			.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
 			.orElse(null);
 	}
@@ -5125,7 +5154,7 @@ public class DefaultCatalogPersistenceService
 		final CatalogBootstrap[] catalogBootstraps;
 		if (moment == null) {
 			final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
-			final Path catalogStoragePath = this.bootstrapStorageSettings.storageDirectory().resolve(this.catalogName);
+			final Path catalogStoragePath = this.catalogStoragePath;
 			final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 			final File bootstrapFile = bootstrapFilePath.toFile();
 			if (bootstrapFile.exists()) {
@@ -5146,6 +5175,7 @@ public class DefaultCatalogPersistenceService
 		} else {
 			catalogBootstraps = localizeCatalogBootstrapPair(
 				this.catalogName,
+				this.catalogStoragePath,
 				this.bootstrapStorageSettings,
 				moment,
 				(catalogBootstrap, timestamp) -> catalogBootstrap.timestamp().compareTo(timestamp),

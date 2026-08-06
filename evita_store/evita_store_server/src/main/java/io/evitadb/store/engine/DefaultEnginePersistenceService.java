@@ -37,6 +37,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
@@ -1014,6 +1015,40 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Store the newly created engine state
 		storeEngineState(newEngineState);
 		return newEngineState;
+	}
+
+	/**
+	 * Joins a catalog folder token onto the configured storage root.
+	 *
+	 * This is the only place the join is performed for whole-folder operations, and it is deliberately private
+	 * — the engine hands down opaque tokens and must never learn the join rule. {@link CatalogFolderId}
+	 * validates at construction that a token is a single path segment, so the result cannot escape the root.
+	 *
+	 * @param folderId token identifying the catalog folder
+	 * @return directory the token denotes, which is not guaranteed to exist
+	 */
+	@Nonnull
+	private Path pathOf(@Nonnull CatalogFolderId folderId) {
+		return this.storageSettings.storageDirectory().resolve(folderId.id());
+	}
+
+	@Override
+	public boolean catalogFolderExists(@Nonnull CatalogFolderId folderId) {
+		return pathOf(folderId).toFile().exists();
+	}
+
+	@Override
+	public void dropCatalogFolder(@Nonnull CatalogFolderId folderId) {
+		final Path folder = pathOf(folderId);
+		if (folder.toFile().exists()) {
+			FileUtils.deleteDirectory(folder);
+		}
+	}
+
+	@Override
+	public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
+		final Path folder = pathOf(folderId);
+		return folder.toFile().exists() ? FileUtils.getDirectorySize(folder) : 0L;
 	}
 
 }

@@ -1302,6 +1302,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					try (
 						final Stream<CatalogBootstrap> bootstrapStream = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
 							TEST_CATALOG,
+							restartedEvita.getConfiguration().storage().storageDirectory().resolve(TEST_CATALOG),
 							// bootstrap records must never be compressed
 							new StorageSettings(
 								StorageOptions.builder(restartedEvita.getConfiguration().storage())

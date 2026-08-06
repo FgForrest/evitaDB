@@ -31,14 +31,15 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -58,7 +59,7 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class CreateCatalogMutationOperator
 	implements EngineMutationOperator<CommitVersions, CreateCatalogSchemaMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -86,13 +87,11 @@ public class CreateCatalogMutationOperator
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withCatalog(
-							new UnusableCatalog(
+							CreateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								CatalogState.BEING_CREATED,
-								CreateCatalogMutationOperator.this.storageDirectory.resolve(
-									catalogName),
-								(cn, path) -> new CatalogTransitioningException(
-									cn, path, CatalogState.BEING_CREATED)
+								(cn, folderId, root) -> new CatalogTransitioningException(
+									cn, folderId, root, CatalogState.BEING_CREATED)
 							)
 						).build();
 				}

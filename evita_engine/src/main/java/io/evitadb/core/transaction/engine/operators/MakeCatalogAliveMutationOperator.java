@@ -34,11 +34,13 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMut
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.metric.event.transaction.CatalogGoesLiveEvent;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -59,7 +61,7 @@ import java.util.function.Consumer;
  */
 @RequiredArgsConstructor
 public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<CommitVersions, MakeCatalogAliveMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -79,7 +81,7 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		if (catalog instanceof Catalog theCatalog) {
-			final Path catalogFolder = this.storageDirectory.resolve(catalogName);
+			final CatalogFolderId catalogFolder = this.folderContext.folderIdFor(catalogName);
 			transitionEngineStateUpdater.accept(
 				new AbstractEngineStateUpdater(transactionId, mutation) {
 					@Override
@@ -88,10 +90,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 							.builder(expandedEngineState)
 							.withVersion(version)
 							.withCatalog(
-								new UnusableCatalog(
-									catalogName, CatalogState.GOING_ALIVE,
-									catalogFolder,
-									(cn, path) -> new CatalogGoingLiveException(cn)
+								MakeCatalogAliveMutationOperator.this.folderContext.createUnusableCatalog(
+									catalogName, catalogFolder, CatalogState.GOING_ALIVE,
+									(cn, folderId, root) -> new CatalogGoingLiveException(cn)
 								)
 							)
 							.build();

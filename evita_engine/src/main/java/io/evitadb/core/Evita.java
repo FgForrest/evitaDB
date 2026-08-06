@@ -75,6 +75,8 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.CatalogFolderContext;
+import io.evitadb.core.engine.CatalogFolderResolver;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
@@ -201,6 +203,12 @@ public final class Evita implements EvitaContract {
 	 * Field contains the global - shared configuration for the entire Evita instance.
 	 */
 	@Getter private final EvitaConfiguration configuration;
+	/**
+	 * Resolves the on-disk directory holding a catalog's data. This is the single sanctioned way to answer
+	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} and issue #649 for why the catalog
+	 * name must stop doubling as its on-disk identity.
+	 */
+	@Getter private final CatalogFolderContext catalogFolderContext;
 	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
@@ -468,6 +476,15 @@ public final class Evita implements EvitaContract {
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
+		// Built only once the persistence service exists, because whole-folder operations are performed by the
+		// storage layer on the engine's behalf - the engine binds catalogs to opaque folder tokens and never
+		// joins one onto the storage root itself. See `CatalogFolderId` for the boundary rule.
+		this.catalogFolderContext = new CatalogFolderContext(
+			CatalogFolderResolver.identity(),
+			enginePersistenceService,
+			configuration.storage().storageDirectory()
+		);
+
 		this.management = new EvitaManagement(this);
 		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 
@@ -483,19 +500,17 @@ public final class Evita implements EvitaContract {
 		// `UnusableCatalog(INACTIVE)` placeholder) before the catalog load futures are spawned.
 		Arrays.stream(engineState.inactiveCatalogs())
 		      .map(
-			      it -> new UnusableCatalog(
-				      it, CatalogState.INACTIVE,
-				      this.configuration.storage().storageDirectory().resolve(it),
-				      CatalogInactiveException::new
+			      it -> this.catalogFolderContext.createUnusableCatalog(
+				      it, CatalogState.INACTIVE, CatalogInactiveException::new
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
 		Arrays.stream(engineState.activeCatalogs())
 		      .map(
-			      it -> new UnusableCatalog(
+			      it -> this.catalogFolderContext.createUnusableCatalog(
 				      it, CatalogState.BEING_ACTIVATED,
-				      this.configuration.storage().storageDirectory().resolve(it),
-				      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+				      (cn, folderId, root) ->
+					      new CatalogTransitioningException(cn, folderId, root, CatalogState.BEING_ACTIVATED)
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
@@ -520,7 +535,8 @@ public final class Evita implements EvitaContract {
 			this, this.changeObserver, this.transactionExecutor, enginePersistenceService,
 			new DefaultUpgradeExecutor(
 				this.configuration.storage(), this.configuration.transaction(),
-				this.serviceExecutor, this.management.exportService()
+				this.serviceExecutor, this.management.exportService(),
+				this.catalogFolderContext
 			)
 		);
 
@@ -1494,11 +1510,10 @@ public final class Evita implements EvitaContract {
 					return null;
 				} else {
 					return existingState.withUpdatedCatalogInstance(
-						new UnusableCatalog(
+						this.catalogFolderContext.createUnusableCatalog(
 							catalogName,
 							CatalogState.CORRUPTED,
-							this.configuration.storage().storageDirectory().resolve(catalogName),
-							(tcn, path) -> new CatalogCorruptedException(tcn, path, cause)
+							(tcn, folderId, root) -> new CatalogCorruptedException(tcn, folderId, root, cause)
 						)
 					);
 				}

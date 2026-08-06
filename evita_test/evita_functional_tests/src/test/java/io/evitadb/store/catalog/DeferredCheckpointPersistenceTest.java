@@ -35,6 +35,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.NamingConvention;
@@ -521,6 +522,7 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 	) {
 		return new DefaultCatalogPersistenceService(
 			CATALOG_NAME,
+			new CatalogFolderId(CATALOG_NAME),
 			storageOptions(syncWrites, compactEagerly),
 			transactionOptions(checkpointIntervalMillis),
 			Mockito.mock(Scheduler.class),
@@ -533,6 +535,7 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 		return new DefaultCatalogPersistenceService(
 			Mockito.mock(CatalogContract.class),
 			CATALOG_NAME,
+			new CatalogFolderId(CATALOG_NAME),
 			storageOptions(),
 			transactionOptions(checkpointIntervalMillis),
 			Mockito.mock(Scheduler.class),

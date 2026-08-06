@@ -180,11 +180,11 @@ class ExpandedEngineStateTest {
 		 */
 		@Nonnull
 		private static UnusableCatalog beingUpgradedPlaceholder(@Nonnull String name) {
-			return new UnusableCatalog(
+			return TestCatalogFolderContexts.onDirectory(PLACEHOLDER_PATH).createUnusableCatalog(
 				name,
 				CatalogState.BEING_UPGRADED,
-				PLACEHOLDER_PATH,
-				(cn, p) -> new IllegalStateException("Placeholder `" + cn + "` must not be queried.")
+				(cn, folderId, root) ->
+					new IllegalStateException("Placeholder `" + cn + "` must not be queried.")
 			);
 		}
 

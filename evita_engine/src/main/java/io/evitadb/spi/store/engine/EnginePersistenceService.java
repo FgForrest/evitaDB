@@ -47,7 +47,8 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EnginePersistenceService<T extends LogRecordReference> extends PersistenceService {
+public non-sealed interface EnginePersistenceService<T extends LogRecordReference>
+	extends PersistenceService, CatalogFolderOperations {
 	String ENGINE_NAME = "evitaDB";
 
 	/**

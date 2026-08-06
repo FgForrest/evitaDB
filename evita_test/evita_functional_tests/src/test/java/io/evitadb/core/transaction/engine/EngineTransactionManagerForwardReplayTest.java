@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.TestCatalogFolderContexts;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.ObservableExecutorService;
@@ -142,6 +143,7 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 		when(configuration.server()).thenReturn(server);
 		final Evita evita = mock(Evita.class);
 		when(evita.getConfiguration()).thenReturn(configuration);
+		when(evita.getCatalogFolderContext()).thenReturn(TestCatalogFolderContexts.onDirectory(storageDirectory));
 		when(evita.getEngineState()).thenAnswer(invocation -> lastSetState.get());
 		doAnswer(invocation -> {
 			lastSetState.set(invocation.getArgument(0, ExpandedEngineState.class));

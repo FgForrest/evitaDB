@@ -29,10 +29,12 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -64,7 +66,7 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class RestoreCatalogSchemaMutationOperator
 	implements EngineMutationOperator<Void, RestoreCatalogSchemaMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -81,10 +83,10 @@ public class RestoreCatalogSchemaMutationOperator
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		final String catalogName = mutation.getCatalogName();
-		final Path catalogFolder = this.storageDirectory.resolve(catalogName);
+		final CatalogFolderId catalogFolder = this.folderContext.folderIdFor(catalogName);
 
 		Assert.isTrue(
-			catalogFolder.toFile().exists(),
+			this.folderContext.getFolderOperations().catalogFolderExists(catalogFolder),
 			"Catalog folder `" + catalogFolder + "` does not exist! Please restore the catalog first."
 		);
 
@@ -104,9 +106,8 @@ public class RestoreCatalogSchemaMutationOperator
 								.withVersion(version)
 								.withRestoredFromMissing(catalogName)
 								.withCatalog(
-									new UnusableCatalog(
-										catalogName, CatalogState.INACTIVE,
-										catalogFolder,
+									RestoreCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
+										catalogName, catalogFolder, CatalogState.INACTIVE,
 										CatalogInactiveException::new
 									)
 								)

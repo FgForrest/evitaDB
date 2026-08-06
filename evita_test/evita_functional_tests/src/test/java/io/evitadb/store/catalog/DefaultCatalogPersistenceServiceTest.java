@@ -82,6 +82,7 @@ import io.evitadb.export.file.ExportFileService.ExportFileHandleLocal;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -294,6 +295,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldSerializeAndDeserializeCatalogHeader() {
 		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
+			new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 			getStorageOptions(),
 			getTransactionOptions(),
 			Mockito.mock(Scheduler.class),
@@ -358,6 +360,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					var ignored = new DefaultCatalogPersistenceService(
 						Mockito.mock(CatalogContract.class),
 						RENAMED_CATALOG,
+						new CatalogFolderId(RENAMED_CATALOG),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -379,6 +382,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			var persistenceService = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				RENAMED_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -407,6 +411,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var cps = new DefaultCatalogPersistenceService(
 						SEALED_CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -430,6 +435,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var cps = new DefaultCatalogPersistenceService(
 						SEALED_CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -454,6 +460,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			var ignored1 = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -469,6 +476,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var ignored2 = new DefaultCatalogPersistenceService(
 						CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -489,6 +497,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			var cps = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -507,6 +516,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -533,6 +543,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -561,6 +572,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			var cps = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -617,6 +629,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -671,7 +684,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertNotNull(record.introducedAt());
 			}
 
-			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageSettings);
+			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(
+				catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+			);
 			assertTrue(first.isPresent());
 			assertEquals(0, first.get().catalogVersion());
 
@@ -679,29 +694,40 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertNotNull(last);
 			assertEquals(13, last.catalogVersion());
 
+			final Path catalogFolder = storageSettings.storageDirectory().resolve(catalogName);
 			// a point-in-time lookup resolves the state AS OF the moment - the newest record whose timestamp is not
 			// after it - so it may never return a record stamped later than the requested moment. Versions 2..13
 			// carry the timestamp `startTime + version hours`, versions 0 and 1 both carry `startTime`.
-			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime);
+			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime
+			);
 			assertNotNull(m0);
 			assertEquals(1, m0.catalogVersion());
 
-			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5));
+			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5)
+			);
 			assertNotNull(m1);
 			assertEquals(5, m1.catalogVersion());
 
 			// one minute PAST the version 5 checkpoint: version 6 is still an hour in the future of the requested
 			// moment and must not be handed back
-			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).plusMinutes(1));
+			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5).plusMinutes(1)
+			);
 			assertNotNull(m2);
 			assertEquals(5, m2.catalogVersion());
 
 			// one minute BEFORE the version 5 checkpoint: the state at that moment is still version 4
-			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).minusMinutes(1));
+			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5).minusMinutes(1)
+			);
 			assertNotNull(m3);
 			assertEquals(4, m3.catalogVersion());
 
-			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(15));
+			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(15)
+			);
 			assertNotNull(m4);
 			assertEquals(13, m4.catalogVersion());
 
@@ -742,7 +768,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				Collections.emptyList(),
 				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 			);
-			assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isPresent());
+			assertTrue(
+				getFirstCatalogBootstrap(
+					catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+				).isPresent()
+			);
 		}
 
 		// an existing file with nothing whole in it is what the method's contract calls empty. Answering it with
@@ -753,7 +783,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(getCatalogBootstrapFileName(catalogName));
 		Files.write(bootstrapFilePath, new byte[0]);
 
-		assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isEmpty());
+		assertTrue(
+			getFirstCatalogBootstrap(
+				catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+			).isEmpty()
+		);
 	}
 
 	@Test
@@ -767,6 +801,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -799,6 +834,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -859,6 +895,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -937,6 +974,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -2102,6 +2140,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// the record a point-in-time backup would have resolved just before the budget ran
 				final CatalogBootstrap staleRecord = getFirstCatalogBootstrap(
 					TEST_CATALOG,
+					timeTravelStorageOptions(0L).storageDirectory().resolve(TEST_CATALOG),
 					new StorageSettings(
 						timeTravelStorageOptions(0L), eagerCheckpointTransactionOptions()
 					).modifyForBootstrapFile()

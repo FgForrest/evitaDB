@@ -30,16 +30,17 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -59,7 +60,7 @@ import java.util.function.Consumer;
  */
 @RequiredArgsConstructor
 public class SetCatalogStateMutationOperator implements EngineMutationOperator<Void, SetCatalogStateMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -94,11 +95,11 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withCatalog(
-							new UnusableCatalog(
+							SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								transitionState,
-								SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
-								(cn, path) -> new CatalogTransitioningException(cn, path, transitionState)
+								(cn, folderId, root) ->
+									new CatalogTransitioningException(cn, folderId, root, transitionState)
 							)
 						).build();
 				}
@@ -143,9 +144,8 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 									.builder(expandedEngineState)
 									.withVersion(version)
 									.withCatalog(
-										new UnusableCatalog(
+										SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
 											catalogName, CatalogState.INACTIVE,
-											SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
 											CatalogInactiveException::new
 										)
 									)

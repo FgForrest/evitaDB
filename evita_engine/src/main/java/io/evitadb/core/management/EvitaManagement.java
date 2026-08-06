@@ -308,7 +308,9 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
-				catalogName, this.evita.getConfiguration().storage(),
+				catalogName,
+				this.evita.getCatalogFolderContext().folderIdFor(catalogName),
+				this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
 			new ClientRunnableTask<>(

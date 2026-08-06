@@ -144,6 +144,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -345,7 +346,8 @@ public final class Catalog
 	 * Verifies whether the catalog name could be used for a new catalog.
 	 *
 	 * @param catalogName        the name of the catalog
-	 * @param storageOptions     the storage options
+	 * @param catalogFolderId   token identifying the folder the catalog is to be restored into
+	 * @param storageOptions     storage configuration supplying the root the token resolves against
 	 * @param fileId             The ID of the file to be restored.
 	 * @param pathToFile         the path to the ZIP file with the catalog content
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
@@ -355,6 +357,7 @@ public final class Catalog
 	@Nonnull
 	public static ServerTask<? extends FileIdCarrier, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
@@ -365,8 +368,8 @@ public final class Catalog
 			.findFirst()
 			.map(
 				it -> it.restoreCatalogTo(
-					catalogName, storageOptions, fileId, pathToFile, totalBytesExpected,
-					deleteAfterRestore
+					catalogName, catalogFolderId, storageOptions, fileId, pathToFile,
+					totalBytesExpected, deleteAfterRestore
 				)
 			)
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
@@ -592,6 +595,7 @@ public final class Catalog
 				.map(
 					it -> it.createNew(
 						this, this.getSchema().getName(),
+						evita.getCatalogFolderContext().folderIdFor(catalogName),
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,
@@ -672,6 +676,7 @@ public final class Catalog
 				.map(
 					it -> it.load(
 						this, catalogName,
+						evita.getCatalogFolderContext().folderIdFor(catalogName),
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,

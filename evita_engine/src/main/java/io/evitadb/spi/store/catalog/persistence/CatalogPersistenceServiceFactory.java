@@ -30,6 +30,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaIOException;
 import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
@@ -65,6 +66,7 @@ public interface CatalogPersistenceServiceFactory {
 	 *
 	 * @param catalogInstance the catalog contract instance
 	 * @param catalogName name of the catalog to create
+	 * @param catalogFolderId directory the catalog data is to be stored in, already resolved by the engine
 	 * @param storageOptions storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler scheduler for background tasks
@@ -75,6 +77,7 @@ public interface CatalogPersistenceServiceFactory {
 	CatalogPersistenceService createNew(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -87,6 +90,7 @@ public interface CatalogPersistenceServiceFactory {
 	 *
 	 * @param catalogInstance the existing catalog contract instance to load
 	 * @param catalogName name of the catalog to load
+	 * @param catalogFolderId directory the catalog data resides in, already resolved by the engine
 	 * @param storageOptions storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler scheduler for background tasks
@@ -97,6 +101,7 @@ public interface CatalogPersistenceServiceFactory {
 	CatalogPersistenceService load(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -119,6 +124,7 @@ public interface CatalogPersistenceServiceFactory {
 	 * converted by the operator into an `UpgradeCatalogFormatMutation` work-phase failure.
 	 *
 	 * @param catalogName        name of the catalog to upgrade
+	 * @param catalogFolderId directory the catalog data resides in, already resolved by the engine
 	 * @param storageOptions     storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler          scheduler for background tasks
@@ -126,6 +132,7 @@ public interface CatalogPersistenceServiceFactory {
 	 */
 	void upgradeStorageProtocol(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
@@ -136,7 +143,8 @@ public interface CatalogPersistenceServiceFactory {
 	 * Restores a catalog from a backup file to the storage directory.
 	 *
 	 * @param catalogName name of the catalog to restore
-	 * @param storageOptions storage configuration options
+	 * @param catalogFolderId token identifying the folder the catalog is to be restored into
+	 * @param storageOptions storage configuration supplying the root the token resolves against
 	 * @param fileId the ID of the file to be restored
 	 * @param totalBytesExpected total bytes expected to be read from the backup file
 	 * @param deleteAfterRestore whether to delete the backup file after successful restore
@@ -147,6 +155,7 @@ public interface CatalogPersistenceServiceFactory {
 	@Nonnull
 	ServerTask<? extends FileIdCarrier, Void> restoreCatalogTo(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,

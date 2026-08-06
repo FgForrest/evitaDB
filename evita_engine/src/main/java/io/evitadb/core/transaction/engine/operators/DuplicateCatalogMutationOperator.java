@@ -30,14 +30,15 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -57,7 +58,7 @@ import java.util.function.Consumer;
  */
 @RequiredArgsConstructor
 public class DuplicateCatalogMutationOperator implements EngineMutationOperator<Void, DuplicateCatalogMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -90,11 +91,9 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 								.builder(expandedEngineState)
 								.withVersion(version)
 								.withCatalog(
-									new UnusableCatalog(
+									DuplicateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 										targetCatalogName,
 										CatalogState.INACTIVE,
-										DuplicateCatalogMutationOperator.this.storageDirectory.resolve(
-											targetCatalogName),
 										CatalogInactiveException::new
 									)
 								)

@@ -234,7 +234,9 @@ public class SortAnchorExtractor {
 		@Nonnull StorageSettings storageSettings
 	) {
 		final AtomicReference<CatalogBootstrap> last = new AtomicReference<>();
-		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(CATALOG_NAME, storageSettings)) {
+		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(
+			CATALOG_NAME, storageSettings.storageDirectory().resolve(CATALOG_NAME), storageSettings
+		)) {
 			stream.forEach(last::set);
 		}
 		final CatalogBootstrap bootstrap = last.get();
