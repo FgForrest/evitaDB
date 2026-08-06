@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.engine.model;
 
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
@@ -38,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.EXPORT;
@@ -421,6 +423,25 @@ class EngineStateTest {
 			assertEquals(new CatalogFolderId("products_7"), rewritten.boundFolderIdFor("products"));
 			assertArrayEquals(originalState.retiredFolders(), rewritten.retiredFolders());
 			assertArrayEquals(originalState.generationPeaks(), rewritten.generationPeaks());
+		}
+
+		@Test
+		@DisplayName("Accepts a token containing dots, and refuses one that is a traversal segment")
+		void shouldRejectOnlyTraversalSegments() {
+			// A catalog name may contain `.` anywhere - the classifier format allows it - so `foo..bar` is a
+			// legitimate name whose folder token is either the identity binding a pre-#649 state translates to
+			// or the `foo..bar_1` an allocation produces. Refusing every occurrence of `..` would refuse to boot
+			// such an installation, and buys nothing: without a separator the token is a single segment.
+			assertEquals("foo..bar", new CatalogFolderId("foo..bar").id());
+			assertEquals("foo..bar_1", new CatalogFolderId("foo..bar_1").id());
+
+			// what the check is actually for: a token that escapes the storage root, or names it
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId(".."));
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("."));
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("../sibling"));
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("nested/folder"));
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("nested\\folder"));
+			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("   "));
 		}
 
 	}

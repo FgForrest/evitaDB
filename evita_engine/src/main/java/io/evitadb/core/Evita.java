@@ -1449,7 +1449,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Fast-forwards the engine-scoped folder generation counters to the peaks the persisted state carries.
 	 *
-	 * Both terms of the seed are applied, and they are complementary rather than redundant:
+	 * Two terms are applied and they are complementary rather than redundant:
 	 *
 	 * - the **persisted peaks** carry a number that was handed out for a name which may be unusable yet
 	 *   invisible to a scan — `Files.exists` reports an `AccessDeniedException` as absence, so such a name
@@ -1458,6 +1458,12 @@ public final class Evita implements EvitaContract {
 	 *   no peak knows about.
 	 *
 	 * Neither subsumes the other, so the counter is fast-forwarded past both.
+	 *
+	 * ⚠ **Nothing writes the peaks yet.** No production path records a `CatalogGenerationPeak`, so the peak set
+	 * is empty on every installation and only the disk scan is live today. The scan covers the ordinary case; the
+	 * gap it leaves is exactly the case described above — a generation burned against a name the filesystem then
+	 * refuses to report — which is redrawn after a restart. Recording the peak belongs in the engine-state commit
+	 * of whichever operation drew the number.
 	 *
 	 * @param engineState persisted snapshot whose generation peaks are to be applied
 	 */

@@ -57,11 +57,17 @@ public record CatalogFolderId(@Nonnull String id) implements Serializable {
 	 * the storage root by the storage layer, so a token able to smuggle a path traversal would be a *stored*
 	 * vulnerability — checking once here is cheaper and safer than trusting every join site.
 	 *
+	 * The test is on *segments*, not on substrings. A catalog may legitimately be called `foo..bar` — the
+	 * classifier format allows `.` anywhere — and its folder token inherits that name, either as the identity
+	 * binding a pre-#649 engine state translates to or as the `foo..bar_1` an allocation produces. Rejecting
+	 * every occurrence of `..` would refuse to boot such an installation, while buying nothing: with no
+	 * separator present the token is one segment, and a segment only traverses when it *is* `.` or `..`.
+	 *
 	 * @param id textual form of the token; must be a non-blank single path segment
 	 */
 	public CatalogFolderId {
 		Assert.isPremiseValid(
-			!id.isBlank() && !id.contains("/") && !id.contains("\\") && !id.contains(".."),
+			!id.isBlank() && !id.contains("/") && !id.contains("\\") && !id.equals(".") && !id.equals(".."),
 			() -> "Catalog folder id `" + id + "` is not a valid single directory name!"
 		);
 	}

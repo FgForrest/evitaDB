@@ -65,8 +65,27 @@ public final class TestCatalogFolderContexts {
 	 */
 	@Nonnull
 	public static CatalogFolderContext onDirectory(@Nonnull Path storageDirectory) {
+		return onDirectory(storageDirectory, CatalogFolderResolver.identity());
+	}
+
+	/**
+	 * Creates a context over the passed directory whose bindings come from the supplied resolver.
+	 *
+	 * Needed wherever a test has to reproduce a state in which a catalog's binding and the folder its data is
+	 * actually in disagree — a catalog whose folder vanished, or one that outlived a rename. The identity
+	 * resolver cannot express either.
+	 *
+	 * @param storageDirectory root directory holding the catalog folders
+	 * @param folderResolver   answers which folder each catalog name is bound to
+	 * @return context usable by engine components under test
+	 */
+	@Nonnull
+	public static CatalogFolderContext onDirectory(
+		@Nonnull Path storageDirectory,
+		@Nonnull CatalogFolderResolver folderResolver
+	) {
 		return new CatalogFolderContext(
-			CatalogFolderResolver.identity(),
+			folderResolver,
 			new FileSystemFolderOperations(storageDirectory),
 			storageDirectory,
 			// a real ascending counter rather than a constant, so a test that allocates twice for one name gets

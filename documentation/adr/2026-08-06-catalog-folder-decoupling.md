@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-06 23:40
+updated: 2026-08-07 00:55
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -97,6 +97,7 @@ different operation from replacement, and it would supersede this record.
 |---|---|---|
 | Folder names are `<catalogName>_<generation>`, never opaque UUIDs | Keeps an operator able to identify a folder by eye during disaster recovery, at no correctness cost, because the name part is never trusted | `CatalogFolderAllocator` |
 | Generations come from an engine-scoped `SequenceService`, burned **per attempt** | A number burned only on success hands the same generation back to the retry, which then collides with the folder the failed attempt left behind — the single case the generation exists for | `Evita#catalogGenerationSequences` |
+| Boot seeds the counters from the persisted peaks **and** a disk scan | Neither subsumes the other: a peak knows a number burned against a name a scan cannot see, a scan sees a folder no peak knows about. **Only the scan is live today** — see the follow-up below | `Evita#seedCatalogGenerationSequences` |
 | Boot classification is a six-way, first-match table over unreferenced folders | The rows must be disjoint and ordered, because the alternative is a chain of heuristics that each look reasonable and together delete user data | `CatalogFolderClassifier#classifyOne` |
 | Only **suffix-free** folders are adoptable; suffixed unreferenced ones are reported and never touched | Every folder evitaDB allocates carries a suffix, so a suffixed folder no catalog claims is either our litter or someone's import — and deleting the latter is unrecoverable | `CatalogFolderClassifier`, §3.5 of the plan |
 | Nothing is deleted without **positive evidence of our ownership** — a `.provisional` marker we wrote or a tombstone we recorded | Absence of a reference is not evidence of abandonment | `CatalogFolderCleaner#DRAINED_STATES` |
@@ -144,6 +145,14 @@ different operation from replacement, and it would supersede this record.
   directory whose handles are still open is exactly the failure this work removes.
 - **`holdsNoCatalogData` must exclude every marker this project writes.** A marker it misses reads as
   data and turns a freshly allocated folder into an occupied one.
+- **A folder is validated before adoption touches it.** Adoption renames the folder and only then dispatches
+  the mutation that validates the catalog name, so a folder whose bare name is not a legal catalog name — or is
+  already taken by a registered catalog living elsewhere — must be rejected *before* the rename. Otherwise boot
+  reconciliation fails after the operator's import has been moved.
+- **`folderIdForBinding` prefers a live binding, then a reservation, then a dead binding.** The existence test in
+  the first branch is what makes restoring a backup over a catalog in the missing bucket work: such a catalog
+  keeps its binding by design, so a plain bound-before-reserved order would register the folder that vanished and
+  orphan the one the backup was written into.
 - **Adoption's rename is best-effort and is not retried.** A folder that could not be renamed binds
   under its bare name and works identically; once bound it classifies as `REFERENCED`, which is
   matched before the foreign row, so adoption never revisits it. The plan's claim that the migration
@@ -196,6 +205,16 @@ different operation from replacement, and it would supersede this record.
   classifies as unclaimed: reported, never touched, recoverable by renaming it back to a suffix-free
   name. This is the same window `completeFolder` opens for create and restore. Closing it needs a
   rebind engine mutation.
+- **The persisted generation peaks are never written.** `EngineState.generationPeaks()` is read at boot, carried
+  through the builder and serialized, but no production path constructs a `CatalogGenerationPeak`. So the
+  two-term boot seed runs on one term: the disk scan. That covers the ordinary case, and leaves uncovered the
+  one the peaks exist for — a generation burned against a name the filesystem then reports as absent (an
+  `AccessDeniedException` reads as absence), which is drawn again after a restart. Recording the peak belongs in
+  the engine-state commit of whichever operation drew the number.
+- **Restore reservations are keyed by catalog name only.** Two restores of the same catalog name overlapping in
+  time would have the second allocation overwrite the first's reservation, and the first could then register —
+  and clear the provisional marker of — the second's still-incomplete folder. Making a reservation task-scoped,
+  or refusing a concurrent restore before allocating, is the fix; neither is in place.
 - **The silent default-bootstrap path** at `getLastCatalogBootstrapWithAutomaticUpgrade` turns an empty
   folder into `CatalogBootstrap(0, 0, now, null)` and surfaces much later as "no schema found, the data
   are probably corrupted". It is what turned a one-line defect in this work into a lost session, and is

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
@@ -59,6 +60,7 @@ import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
@@ -968,6 +970,15 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			foldersOnDisk.add(classification.folderName());
 		}
 		final Set<String> removedFolderNames = Set.copyOf(removedFolders);
+		// every name the engine already knows, in any bucket - a folder whose bare name collides with one
+		// of these cannot be adopted under that name, whatever folder the catalog itself lives in
+		final Set<String> registeredCatalogNames = CollectionUtils.createHashSet(
+			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length +
+				engineState.missingCatalogs().length
+		);
+		Collections.addAll(registeredCatalogNames, engineState.activeCatalogs());
+		Collections.addAll(registeredCatalogNames, engineState.inactiveCatalogs());
+		Collections.addAll(registeredCatalogNames, engineState.missingCatalogs());
 
 		// Tombstones whose folder is provably gone. Both terms are needed and neither subsumes the other: the
 		// drain covers a folder removed a moment ago, while the absence check covers one whose removal succeeded
@@ -1016,6 +1027,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					// already accounted for above, through the binding rather than through the folder name
 				}
 				case FOREIGN -> {
+					// Checked *before* the folder is touched. Adoption renames the folder into the shape the
+					// engine allocates and only then dispatches a registration mutation, which validates the
+					// name - so a folder whose name is not a usable catalog name would be moved first and
+					// rejected second, failing boot reconciliation outright and leaving the operator's import
+					// renamed. A folder we cannot adopt must be left exactly as it was found.
+					if (!isAdoptableCatalogName(folderName, registeredCatalogNames)) {
+						continue;
+					}
 					log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}",
 						folderName);
 					// the folder name doubles as the catalog name here, and only here: a FOREIGN folder is
@@ -1055,6 +1074,49 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		Collections.sort(reappeared);
 		autoDiscovered.sort(Comparator.comparing(AdoptableCatalogFolder::catalogName));
 		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered, drainedFolders);
+	}
+
+	/**
+	 * Tells whether a discovered folder may be adopted under its own name.
+	 *
+	 * Two ways it may not. The name may not be a legal catalog name at all — a directory in the storage root is
+	 * whatever an operator called it, while a catalog name has to satisfy the classifier format. Or the name may
+	 * already belong to a registered catalog, which lives in a folder of its own; adopting would then be a second
+	 * catalog claiming a taken name.
+	 *
+	 * Both are reported and the folder is left untouched, because both are situations only a human can resolve —
+	 * and because the alternative is worse than doing nothing: adoption renames the folder before the mutation
+	 * that would reject it ever runs, so the failure would arrive after the import had already been moved.
+	 *
+	 * @param folderName              name of the discovered folder, which doubles as the candidate catalog name
+	 * @param registeredCatalogNames  every catalog name the engine state already knows, in any bucket
+	 * @return true when the folder can be offered for adoption
+	 */
+	private static boolean isAdoptableCatalogName(
+		@Nonnull String folderName,
+		@Nonnull Set<String> registeredCatalogNames
+	) {
+		if (registeredCatalogNames.contains(folderName)) {
+			log.warn(
+				"Storage folder `{}` looks like a catalog placed here by hand, but a catalog of that name is " +
+					"already registered and lives elsewhere — leaving the folder untouched. Rename it to a free " +
+					"catalog name to have it adopted.",
+				folderName
+			);
+			return false;
+		}
+		try {
+			ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, folderName);
+			return true;
+		} catch (RuntimeException ex) {
+			log.warn(
+				"Storage folder `{}` looks like a catalog placed here by hand, but its name cannot be a catalog " +
+					"name ({}) — leaving the folder untouched. Rename it to a valid catalog name to have it " +
+					"adopted.",
+				folderName, ex.getMessage()
+			);
+			return false;
+		}
 	}
 
 	/**

@@ -124,15 +124,22 @@ public class CatalogFolderContext {
 	 * This is the counterpart of {@link #folderIdFor(String)} and covers exactly the moments at which a name
 	 * legitimately has no binding yet. The three branches are not interchangeable:
 	 *
-	 * 1. **Bound** — recovery from the missing bucket lands back in the folder the catalog left, not somewhere
-	 *    new. Also how the create path reads back the folder its own transition phase just allocated.
+	 * 1. **Bound, and the folder is still there** — recovery from the missing bucket lands back in the folder the
+	 *    catalog left, not somewhere new. Also how the create path reads back the folder its own transition
+	 *    phase just allocated.
 	 * 2. **Reserved** — an operation that had to materialise the folder *before* the engine state could record
 	 *    it. A restore writes a whole catalog into its folder before the registering mutation is ever
 	 *    dispatched, so without this branch the mutation would allocate a *second* folder and bind the catalog
 	 *    to it — leaving the restored data in the first one, unreferenced, with nothing reporting a failure.
-	 * 3. **Identity** — a folder discovered on disk under exactly the catalog's own name, which is the only
-	 *    shape boot discovery adopts today. This branch is what step 5's adoption work replaces, at which
-	 *    point discovery carries the folder it found rather than assuming the name.
+	 * 3. **Bound, folder absent, nothing reserved** — the binding is still the best answer there is, and the
+	 *    caller's own existence check reports it in the terms the operator needs.
+	 * 4. **Identity** — a folder discovered on disk under exactly the catalog's own name.
+	 *
+	 * **The existence test in the first branch is what makes restoring over a catalog the engine has marked
+	 * missing work at all.** A missing catalog keeps its binding — deliberately, because that is what a later
+	 * reappearance has to be matched against — so a plain bound-before-reserved order would hand back the
+	 * folder that vanished and ignore the one the backup was just written into. That is the disaster-recovery
+	 * path, and it would have failed exactly when it is needed.
 	 *
 	 * @param catalogName name of the catalog
 	 * @return token identifying the folder the catalog is to be bound to
@@ -140,11 +147,14 @@ public class CatalogFolderContext {
 	@Nonnull
 	public CatalogFolderId folderIdForBinding(@Nonnull String catalogName) {
 		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
-		if (folderId != null) {
+		if (folderId != null && this.folderOperations.catalogFolderExists(folderId)) {
 			return folderId;
 		}
 		final CatalogFolderId reserved = this.reservedFolders.get(catalogName);
-		return reserved == null ? new CatalogFolderId(catalogName) : reserved;
+		if (reserved != null) {
+			return reserved;
+		}
+		return folderId == null ? new CatalogFolderId(catalogName) : folderId;
 	}
 
 	/**

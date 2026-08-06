@@ -36,6 +36,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
@@ -501,6 +502,57 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 				"Both ghost active catalogs must be staged for MISSING transition (alphabetically sorted).");
 			assertTrue(divergence.reappeared().isEmpty());
 			assertTrue(divergence.autoDiscovered().isEmpty());
+		}
+
+		@Test
+		@DisplayName("should leave a discovered folder alone when its name cannot be adopted")
+		void shouldRefuseToAdoptFoldersWhoseNameIsUnusable() throws IOException {
+			// Adoption renames the folder into the shape the engine allocates and only then dispatches the
+			// mutation that validates the name. A folder that cannot be registered under its own name must
+			// therefore be rejected here, before anything is moved - otherwise boot reconciliation fails after
+			// the operator's import has already been renamed out from under them.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			// a name a catalog may not have - the classifier format allows no spaces
+			final Path unusableName = Files.createDirectory(storageDirectory.resolve("not a catalog"));
+			Files.createFile(unusableName.resolve("not a catalog.boot"));
+			// a name that is free on disk but already belongs to a registered catalog living elsewhere
+			final Path takenName = Files.createDirectory(storageDirectory.resolve("present"));
+			Files.createFile(takenName.resolve("present.boot"));
+
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				2L,
+				UUID.randomUUID(),
+				createTestEngineMutation(),
+				txRef -> EngineState.<LogFileRecordReference>builder()
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.version(2L)
+					.introducedAt(OffsetDateTime.now())
+					.walFileReference((LogFileRecordReference) txRef.walReference())
+					.inactiveCatalogs(new String[]{"present"})
+					.catalogFolders(
+						new CatalogFolderBinding[]{
+							new CatalogFolderBinding("present", new CatalogFolderId("present_1"))
+						}
+					)
+					.build()
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				() -> "Neither folder may be offered for adoption, but got: " + divergence.autoDiscovered()
+			);
+			// and both are exactly where the operator left them
+			assertTrue(Files.isDirectory(unusableName), "An unadoptable folder must not be touched!");
+			assertTrue(Files.isDirectory(takenName), "A folder whose name is taken must not be touched!");
 		}
 
 		@Test
