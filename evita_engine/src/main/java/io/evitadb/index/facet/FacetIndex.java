@@ -47,6 +47,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -284,6 +285,30 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 */
 	public boolean isEmpty() {
 		return this.facetingEntities.isEmpty();
+	}
+
+	/**
+	 * Returns the heap every facet index of this entity index occupies, in bytes.
+	 *
+	 * The map's keys contribute their **slot alone**: each is a reference name owned by the entity schema and handed
+	 * to this index, the same instance every {@link FacetReferenceIndex} beneath carries as its own name.
+	 *
+	 * {@link #dirtyIndexes} is excluded on the same standing as the per-index flush bookkeeping: it is filled only by
+	 * mutation, cleared at every commit and thrown away by the merge-copy, so it is empty for the whole lifetime of a
+	 * read-only catalog — which is when a footprint reading is taken.
+	 *
+	 * This walks every facet and its entity bitmap, so it is `O(facet relations)` — it belongs to `MEMORY_FOOTPRINT`
+	 * and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id, then the facetingEntities / dirtyIndexes slots
+		return layout.sizeOfObject(Long.BYTES + 2L * layout.referenceSize())
+			+ this.facetingEntities.getHeapSizeInBytes(
+				referenceName -> 0L, FacetReferenceIndex::getHeapSizeInBytes
+			);
 	}
 
 	@Override

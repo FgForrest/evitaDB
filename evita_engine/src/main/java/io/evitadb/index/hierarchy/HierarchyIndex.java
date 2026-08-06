@@ -35,6 +35,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.array.TransactionalIntArray;
@@ -56,6 +57,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -755,6 +757,51 @@ public class HierarchyIndex
 	@Override
 	public boolean isHierarchyIndexEmpty() {
 		return this.itemIndex.isEmpty();
+	}
+
+	/**
+	 * Returns the heap this hierarchy occupies, in bytes — the node index, the per-parent children index, both id
+	 * arrays and the memoized all-nodes formula.
+	 *
+	 * Every boxed id is charged to the structure holding it, including a node's parent key even where an equal box is
+	 * a key of {@link #itemIndex}: the two are boxed at different sites and are two objects, and rule 1 charges a box
+	 * per holder rather than letting `-XX:AutoBoxCacheMax` decide what the reading says.
+	 *
+	 * {@link #memoizedAllNodeFormula} is the one memo in the index layer whose bitmap **is** charged. It is built by
+	 * writing every node id and removing the orphans, so nothing else in the catalog holds it — unlike a filter
+	 * index's all-records memo, which resolves to the value tree's own bitmap. The formula around it stays
+	 * scaffolding, priced by {@link IndexHeapSize#memoizedFormulaSizeInBytes}; an empty hierarchy memoizes
+	 * {@link EmptyFormula#INSTANCE} and charges nothing at all.
+	 *
+	 * This walks every node, so it is `O(nodes)` — it belongs to `MEMORY_FOOTPRINT` and must never be called from a
+	 * query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// a HierarchyNode is a record of the node's own primary key and a boxed parent key, which is this node's
+		// alone - a root node has none and pays only for the slot
+		final long hierarchyNode = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
+		// id, then the dirty / itemIndex / roots / levelIndex / orphans / memoizedAllNodeFormula slots
+		long size = layout.sizeOfObject(Long.BYTES + 6L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.roots.getHeapSizeInBytes()
+			+ this.orphans.getHeapSizeInBytes()
+			+ this.itemIndex.getHeapSizeInBytes(
+				key -> boxedInteger,
+				node -> node.parentEntityPrimaryKey() == null ? hierarchyNode : hierarchyNode + boxedInteger
+			)
+			+ this.levelIndex.getHeapSizeInBytes(key -> boxedInteger, TransactionalIntArray::getHeapSizeInBytes);
+		final Formula memoizedFormula = this.memoizedAllNodeFormula;
+		size += IndexHeapSize.memoizedFormulaSizeInBytes(memoizedFormula);
+		if (memoizedFormula instanceof final ConstantFormula constantFormula) {
+			// the node-id bitmap this index materialized for the cache - charged here rather than by the formula
+			// pricing, which never follows a delegate because most of them alias data already charged elsewhere
+			size += constantFormula.getDelegate().getHeapSizeInBytes();
+		}
+		return size;
 	}
 
 	/**

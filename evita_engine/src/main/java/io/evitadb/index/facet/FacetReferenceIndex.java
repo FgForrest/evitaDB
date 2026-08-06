@@ -43,6 +43,7 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -293,6 +294,30 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	public int size() {
 		return ofNullable(this.notGroupedFacets.get()).map(FacetGroupIndex::size).orElse(0) +
 			this.groupedFacets.values().stream().mapToInt(FacetGroupIndex::size).sum();
+	}
+
+	/**
+	 * Returns the heap this reference's facet indexes occupy, in bytes — this object, the facet-to-group mapping with
+	 * its group arrays, every grouped {@link FacetGroupIndex} and the non-grouped one.
+	 *
+	 * {@link #referenceName} contributes its **slot alone**: it is the schema's reference name, the very instance the
+	 * enclosing {@link FacetIndex} files this index under. The boxed keys of both maps are charged, and are charged
+	 * separately even where they hold the same facet id — {@link #facetToGroupIndex} and the per-group facet map box
+	 * it at their own registration sites, so they are two objects, and rule 1 charges a box to every holder rather
+	 * than letting `-XX:AutoBoxCacheMax` decide the answer.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// id, then the referenceName / facetToGroupIndex / groupedFacets / notGroupedFacets slots
+		return layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+			+ this.facetToGroupIndex.getHeapSizeInBytes(
+				key -> boxedInteger, groups -> layout.sizeOfArray(groups.length, Integer.BYTES)
+			)
+			+ this.groupedFacets.getHeapSizeInBytes(key -> boxedInteger, FacetGroupIndex::getHeapSizeInBytes)
+			+ this.notGroupedFacets.getHeapSizeInBytes(FacetGroupIndex::getHeapSizeInBytes);
 	}
 
 	/**

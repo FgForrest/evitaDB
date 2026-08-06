@@ -37,6 +37,7 @@ import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -58,6 +59,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLea
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -78,6 +80,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
@@ -135,6 +138,28 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 			return new OrFormula(indexTransactionIds, bitmaps);
 		};
+	/**
+	 * Prices one bucket of the memoized {@link #memoizedRangeHistogramSubSet}, which — unlike a slice off the value
+	 * tree — this index owns outright: {@link #getRangeHistogramOfAllRecords(Class, int)} materializes a fresh
+	 * {@link ValueToRecordBitmap} per range point, carrying a bucket key built from the threshold and a `clone()` of
+	 * the running active set. Both are charged in full.
+	 *
+	 * A bucket of any other shape **throws**: the range sweep builds only this one, so meeting another means the
+	 * memo was populated by a path that does not exist — and a zero would hide that behind a plausible total.
+	 */
+	private static final ToLongFunction<ValueToRecord> RANGE_HISTOGRAM_BUCKET_SIZER = bucket -> {
+		if (bucket instanceof final ValueToRecordBitmap bitmapBucket) {
+			final VMLayout layout = VMLayout.current();
+			// the value / recordIds slots, then the materialized bucket key and the cloned active set
+			return layout.sizeOfObject(2L * layout.referenceSize())
+				+ IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(bitmapBucket.getValue())
+				+ bitmapBucket.getRecordIds().getHeapSizeInBytes();
+		}
+		throw new GenericEvitaInternalError(
+			"Range histogram bucket of type `" + bucket.getClass().getName() + "` is not one the range sweep " +
+				"builds - its heap footprint cannot be priced."
+		);
+	};
 
 	/**
 	 * Contains key identifying the attribute.
@@ -510,6 +535,71 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * views delegate to the shared tree's dirty flag.
 	 */
 	public abstract boolean isDirty();
+
+	/**
+	 * Returns the heap this index occupies, in bytes.
+	 *
+	 * The two variants answer differently by design: an {@link OwnerFilterIndex} owns its value tree and range
+	 * companion and charges both, while a {@link FilterIndexView} charges neither — those belong to the
+	 * {@link AttributeIndex} that maintains them, which charges each exactly once, and a collection has one view per
+	 * filterable attribute pointing at them.
+	 *
+	 * Like every walk over a value tree this is `O(distinct values)` rather than `O(1)`, so it belongs to
+	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Prices everything both variants hold, given how many bytes of fields the concrete subclass adds.
+	 *
+	 * A subclass's fields live in the **same allocation** as the base's — one header, one round of padding — so the
+	 * subclass passes its field bytes in rather than sizing a second object, which would charge a phantom header and
+	 * round twice.
+	 *
+	 * Of the base's own references only the two query memos carry anything. {@link #attributeIndexKey} belongs to the
+	 * enclosing {@link AttributeIndex}, {@link #attributeType} is a `Class` the JVM owns for the lifetime of its class
+	 * loader, and {@link #normalizer} / {@link #comparator} are scaffolding chosen by the attribute type and shared by
+	 * every index of it — all four contribute their slot alone, the same call {@code SortIndex} and
+	 * {@code UniqueIndex} make. {@link #invertedIndex} and {@link #rangeIndex} are the subclass's decision and are
+	 * deliberately left to it.
+	 *
+	 * The memos are charged where they hold something nothing else does:
+	 *
+	 * - {@link #memoizedAllRecordsFormula} contributes its scaffolding (see
+	 *   {@link IndexHeapSize#memoizedFormulaSizeInBytes}) plus the union it wraps — but only once the value tree
+	 *   holds **more than one** bucket. With exactly one, the aggregation short-circuits and the union IS that
+	 *   bucket's own bitmap, charged already by the tree; with more, it is a bitmap this index materialized and
+	 *   nothing else holds. Leaving it out would be a shortfall that grows with the data, which is the one shape a
+	 *   deliberate divergence must never have.
+	 * - {@link #memoizedRangeHistogramSubSet} contributes **in full**, buckets included. Unlike a slice off the value
+	 *   tree, the range histogram materializes a fresh {@link ValueToRecordBitmap} per range point, each carrying a
+	 *   `clone()` of the running active-set bitmap, and nothing else in the catalog holds those. On a range
+	 *   attribute that has answered one histogram query this is the largest thing a filter index carries.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the heap footprint in bytes of everything both variants share, including alignment padding
+	 */
+	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// the attributeIndexKey / invertedIndex / rangeIndex / attributeType / normalizer / comparator /
+		// memoizedAllRecordsFormula / memoizedRangeHistogramSubSet slots, then the indexedDecimalPlaces int
+		long size = layout.sizeOfObject(
+			8L * layout.referenceSize() + Integer.BYTES + ownFieldBytes
+		);
+		size += IndexHeapSize.memoizedFormulaSizeInBytes(this.memoizedAllRecordsFormula);
+		if (this.memoizedAllRecordsFormula instanceof final ConstantFormula unionFormula
+			&& this.invertedIndex.getBucketCount() > 1) {
+			// more than one bucket, so the memoized union was computed rather than short-circuited to a bucket's own
+			// bitmap - this index materialized it and nothing else in the catalog holds it
+			size += unionFormula.getDelegate().getHeapSizeInBytes();
+		}
+		if (this.memoizedRangeHistogramSubSet != null) {
+			size += this.memoizedRangeHistogramSubSet.getHeapSizeInBytes(RANGE_HISTOGRAM_BUCKET_SIZER);
+		}
+		return size;
+	}
 
 	/**
 	 * Returns the declared attribute type backing this filter index (array-aware). Exposed so {@link AttributeIndex} can

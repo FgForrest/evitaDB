@@ -23,11 +23,15 @@
 
 package io.evitadb.index;
 
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.function.ToLongFunction;
 
@@ -73,6 +77,46 @@ public final class IndexHeapSize {
 				"an index tree is verified to be - its heap footprint cannot be priced."
 		);
 	};
+
+	/**
+	 * Prices a {@link Formula} an index memoized, as **scaffolding alone** — never the bitmaps it holds, and never
+	 * its inner formulas.
+	 *
+	 * # Why a memoized formula is charged this shallowly
+	 *
+	 * A memoized formula is a query answer an index kept, and every bitmap reachable from one is in exactly one of two
+	 * states, neither of which this figure may follow:
+	 *
+	 * - **an alias of index data already charged** — a single-bucket union short-circuits to the bucket's own bitmap,
+	 *   and a formula's `memoizedResult` resolves to its own delegate. Following either would charge one bitmap twice
+	 *   for an index that has answered a single query, which rule 1 forbids outright.
+	 * - **a recomputable union**, dropped the moment the index is mutated and rebuilt on the next read.
+	 *
+	 * Following an arbitrary formula tree would additionally need a heap API across the whole query algebra — a query
+	 * concern, not an index one. What an index owns here is the cache slot and the node, and that is what is charged.
+	 * Data a memo materializes that nothing else holds — the cloned bucket bitmaps of a range histogram, for one —
+	 * is NOT a formula and is charged in full by whoever holds it.
+	 *
+	 * The node is priced at its **upper bound**: twelve reference fields (the widest shape in play, an
+	 * {@link io.evitadb.core.query.algebra.base.OrFormula} — nine inherited plus a computation callback, a bitmap
+	 * array and a transactional-id array), all five boxed `Long` memos whether or not they have been computed, and a
+	 * one-element transactional-id array. Which of them are populated cannot be read from outside, so the higher of
+	 * the defensible figures is the answer — a fixed handful of bytes per memo, never a term that grows.
+	 *
+	 * {@link EmptyFormula#INSTANCE} is a JVM-wide constant every empty index resolves to and contributes nothing.
+	 *
+	 * @param formula the memoized formula, or `null` when the cache is cold
+	 * @return the owned heap footprint of the formula's own scaffolding in bytes
+	 */
+	public static long memoizedFormulaSizeInBytes(@Nullable Formula formula) {
+		if (formula == null || formula == EmptyFormula.INSTANCE) {
+			return 0L;
+		}
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(12L * layout.referenceSize())
+			+ 5L * layout.sizeOfObject(Long.BYTES)
+			+ layout.sizeOfArray(1, Long.BYTES);
+	}
 
 	private IndexHeapSize() {
 		// utility class, never instantiated

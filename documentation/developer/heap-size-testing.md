@@ -38,6 +38,12 @@ they are the same rules the production estimators follow:
 4. **Ownership is static per class.** No traversal order, no global already-counted set — each class charges what its
    own fields hold, so a figure never depends on who asked first.
 
+A handful of instances are shared by the **whole JVM** rather than by two structures in the catalog — the zero-length
+arrays, `Map.of()`, `EmptyBitmap.INSTANCE`, `EmptyFormula.INSTANCE`. Every empty structure in the catalog parks a field
+on one of them, so charging one would bill the same object to all of them. They are subtracted centrally by
+`IndexHeapSizeAssertions.SHARED_EMPTY_ARRAYS` and need no naming at a call site; add to that list rather than naming a
+new one per test.
+
 Borrowed subgraphs are named at the call site, by field name, and handed to the walker as shared roots so they are
 subtracted **by identity**:
 
@@ -133,6 +139,29 @@ seeded fixture — which is the tell that separates this from a real per-element
 120 of the 128 bytes missing across the first run of the price-index suite; the remaining 8 were a genuine defect (an
 inherited `long` id that the arithmetic never charged). Expect this to grow with nesting depth: a container index owns
 far more sub-structures than a leaf one.
+
+An owner inherits its sub-structures' **divergences** along with their exclusions, and past a certain depth that makes
+exactness unattainable: a seeded attribute index carries the pre-sized bucket tables of its two derived view maps
+(~384 bytes the entry count cannot reveal — see Trap 1's cousin in `MapHeapSize`) plus every known gap of the seven
+sub-index families beneath it. Do not chase that to zero. Assert **scale and slope** instead — a shortfall bounded by
+a stated constant, and unmoved when the data grows by a factor of eight — because the defect worth catching is a
+per-element term, and at any realistic fixture size that is tens of kilobytes rather than hundreds of bytes. Where a
+single component can be isolated, isolate it and assert it exactly: the leaf-page snapshots of an attribute index are
+pinned by reading the figure with and without them, which leaves nothing else in the difference.
+
+## Trap 6 — reading a map materializes what you are about to measure
+
+`HashMap.keySet()`, `values()` and `entrySet()` allocate their view object on first call and **cache it in the map**.
+A test that resolves sub-indexes through an accessor backed by one of them grows the very structure it is measuring,
+by sixteen bytes per map, and the arithmetic cannot see it — the field is behind the same blocked reflection as the
+bucket table.
+
+It looks exactly like a missing charge. It cost 64 phantom bytes in the container suite before the fixture switched to
+resolving each sub-index **by its schema** (`getFilterIndex(referenceSchema, attributeSchema, locale)` — a plain `get`)
+instead of iterating `getFilterIndexes()`. `MapHeapSize` walks a map with `forEach` for precisely this reason; a test
+has to obey the same rule.
+
+The same applies to anything else lazily built on first read. Measure cold, or warm deliberately and say so.
 
 ## Trap 5 — state every divergence with its magnitude and its slope
 

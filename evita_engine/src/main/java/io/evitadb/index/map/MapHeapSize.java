@@ -81,7 +81,7 @@ import java.util.function.ToLongFunction;
  *
  * @author Claude (heap-size accounting), FG Forrest a.s. (c) 2026
  */
-final class MapHeapSize {
+public final class MapHeapSize {
 	/**
 	 * Smallest table **organic growth** allocates once something is put into a map. The copy constructor goes below
 	 * it — two slots for a single-entry source — which is exactly why this is applied as a floor rather than as the
@@ -116,6 +116,12 @@ final class MapHeapSize {
 	 * every call site; two sizers say what each side is at the point where the caller already knows. Either may
 	 * return `0` for a key or value the map only borrows.
 	 *
+	 * The two decorators in this package are not the only callers: an index holding a **plain** map of its own — the
+	 * per-family on-disk leaf-page snapshots of {@code AttributeIndex}, for one — prices it through here too, so that
+	 * a `HashMap` costs the same wherever it is reached from. An immutable `Map.of()` is deliberately **not** accepted:
+	 * an empty one is a JVM-wide singleton nobody owns, and its caller is expected to skip it rather than have this
+	 * method quietly answer for a shape it cannot price.
+	 *
 	 * @param map         the map to price; must be a plain {@link HashMap} or a {@link ChampMap}
 	 * @param keySizer    prices one key, or returns `0` when the map does not own it
 	 * @param valueSizer  prices one value, or returns `0` when the map does not own it
@@ -124,7 +130,7 @@ final class MapHeapSize {
 	 * @return the heap footprint in bytes, including alignment padding
 	 */
 	@SuppressWarnings("unchecked")
-	static <K, V> long sizeOf(
+	public static <K, V> long sizeOf(
 		@Nonnull Map<K, V> map,
 		@Nonnull ToLongFunction<? super K> keySizer,
 		@Nonnull ToLongFunction<? super V> valueSizer

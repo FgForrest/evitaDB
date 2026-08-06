@@ -23,7 +23,9 @@
 
 package io.evitadb.index;
 
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.JolHeapSize;
 
@@ -33,6 +35,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -58,7 +61,8 @@ public final class IndexHeapSizeAssertions {
 	public static final int AUTOBOX_CACHE_CEILING = 1_000;
 
 	/**
-	 * The JVM-wide zero-length arrays every empty structure in the codebase parks its fields on.
+	 * The JVM-wide zero-length arrays — and the empty singletons beside them — that every empty structure in the
+	 * codebase parks its fields on.
 	 *
 	 * They are shared by contract, not by luck: an empty {@code FrontCodedStringColumn} points both of its arrays at
 	 * these, and a childless hierarchy node its children. Charging one would bill the same sixteen bytes to every
@@ -67,7 +71,12 @@ public final class IndexHeapSizeAssertions {
 	 */
 	public static final Object[] SHARED_EMPTY_ARRAYS = {
 		ArrayUtils.EMPTY_INT_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_LONG_ARRAY,
-		ArrayUtils.EMPTY_OBJECT_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
+		ArrayUtils.EMPTY_OBJECT_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_SERIALIZABLE_ARRAY,
+		// the same reasoning one step up: an index with nothing to say parks the field on a singleton instead of
+		// allocating. `Map.of()` is one immutable instance for the whole JVM (every empty leaf-page snapshot of every
+		// attribute index in the catalog is that object), and the two empty singletons are the codebase's own
+		// equivalents - charging any of them would bill one object to every index that has nothing there
+		Map.of(), EmptyBitmap.INSTANCE, EmptyFormula.INSTANCE
 	};
 
 	private IndexHeapSizeAssertions() {
@@ -276,9 +285,35 @@ public final class IndexHeapSizeAssertions {
 		@Nonnull Object large,
 		@Nonnull String... excludedFields
 	) {
+		assertDivergenceDoesNotGrowWithTheData(
+			smallReported, small, new Object[0], largeReported, large, new Object[0], excludedFields
+		);
+	}
+
+	/**
+	 * As above, for indexes that also reach shared objects no single field points at — a container index reaches the
+	 * scaffolding of every sub-index it owns, and each fixture has its own instances of it.
+	 *
+	 * @param smallReported   the smaller index's own figure
+	 * @param small           the smaller index
+	 * @param smallExtraRoots the smaller index's borrowed objects
+	 * @param largeReported   the larger index's own figure
+	 * @param large           the larger index, holding materially more data
+	 * @param largeExtraRoots the larger index's borrowed objects
+	 * @param excludedFields  the fields holding objects neither index charges
+	 */
+	public static void assertDivergenceDoesNotGrowWithTheData(
+		long smallReported,
+		@Nonnull Object small,
+		@Nonnull Object[] smallExtraRoots,
+		long largeReported,
+		@Nonnull Object large,
+		@Nonnull Object[] largeExtraRoots,
+		@Nonnull String... excludedFields
+	) {
 		assertEquals(
-			smallReported - measuredHeapOf(small, excludedFields),
-			largeReported - measuredHeapOf(large, excludedFields),
+			smallReported - measuredHeapOf(small, smallExtraRoots, excludedFields),
+			largeReported - measuredHeapOf(large, largeExtraRoots, excludedFields),
 			"the gap between arithmetic and measurement must not grow with the data"
 		);
 	}
