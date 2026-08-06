@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-07 00:55
+updated: 2026-08-07 01:55
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -211,6 +211,15 @@ different operation from replacement, and it would supersede this record.
   one the peaks exist for — a generation burned against a name the filesystem then reports as absent (an
   `AccessDeniedException` reads as absence), which is drawn again after a restart. Recording the peak belongs in
   the engine-state commit of whichever operation drew the number.
+- **A bootstrap-less start registers only adoptable folders**, so a storage root full of allocated
+  `<name>_<gen>` folders comes up with no catalogs until an operator renames them suffix-free. Reading the real
+  name out of each folder's `.catalogname` marker would recover them automatically and is the obvious next step;
+  it was not taken because two folders can legitimately claim one name — the survivor of a replace and the
+  orphan it superseded — and nothing in that path can currently tell them apart.
+- **Tombstone coverage stops short at both ends.** Nothing proves end-to-end that a persisted tombstone is acted
+  on at boot: the replay test defers to the drain, and the accumulation test covers only the in-run discharge.
+  `EngineState.withRetiredFolder` / `withoutRetiredFolders` have no direct unit tests either, so the backwards
+  walk that makes a multi-entry drain correct is held in place by a comment alone.
 - **Restore reservations are keyed by catalog name only.** Two restores of the same catalog name overlapping in
   time would have the second allocation overwrite the first's reservation, and the first could then register —
   and clear the provisional marker of — the second's still-incomplete folder. Making a reservation task-scoped,
