@@ -159,11 +159,97 @@ message GrpcQueryTelemetry {
   repeated GrpcQueryTelemetry steps = 3;
   // Arguments of the processing phase.
   repeated string arguments = 4;
-  // Duration in nanoseconds.
+  // Duration in nanoseconds, covering this step and everything nested below it.
   int64 spentTime = 5;
   // Wall-clock instant at which the query began. Set only on the root step - it anchors the whole tree in time,
   // so the wall-clock position of any other node is startedAt plus that node's start offset.
   GrpcOffsetDateTime startedAt = 6;
+  // Duration in nanoseconds this step spent on its own work - its spentTime less the time accounted for by its
+  // direct children. A parent's spentTime is not the sum of its children's, so this is the number that says how
+  // much of a phase is the phase itself rather than the phases inside it.
+  //
+  // This is a server-derived convenience, not part of the telemetry object's identity: the engine does not track
+  // it, and the Java driver does not reconstruct it when it rebuilds the tree from this message. It is emitted so
+  // that clients which consume the wire format directly do not each have to sum the children themselves.
+  int64 selfTime = 7;
+  // Typed numeric measurements recorded for this step - cardinalities, costs and I/O counters the engine computed
+  // while answering the query. Unlike `arguments`, which is prose, these are values a client can compare and chart
+  // without parsing English. Absent when nothing was measured for this step, which is the case for every step but
+  // the root.
+  optional GrpcQueryTelemetryMetrics metrics = 8;
+  // Structure of the formula this phase built or ran. Present only when the query asked for it with
+  // queryTelemetry(PLAN), and then only on the phases that own a formula: each PLANNING_FILTER_ALTERNATIVE step
+  // carries the candidate it costed - including the ones that lost - and the root carries the plan that ran.
+  optional GrpcFormulaPlan plan = 9;
+}
+
+// One node of the formula plan a query phase was carried out with - the structural counterpart of the timings.
+//
+// The plan is a DAG rather than a tree: a formula's result is memoized per instance, so a subtree reachable by two
+// paths is computed once and every later occurrence of it is free. `refTo` is what keeps a reader from counting such
+// a subtree twice - the first occurrence is described in full, and every later one is a bare node pointing back at
+// it by id, with no children of its own.
+//
+// actualCost and resultCount are absent whenever the formula was not computed, which is the normal state for a
+// rejected plan alternative and for a short-circuited branch of the winning one. They are absent rather than 0
+// because the plan is rendered without ever computing anything: filling them in would make asking for the plan
+// change what the query does.
+message GrpcFormulaPlan {
+  // Identity of the formula instance this node stands for, unique within the plan and stable across its
+  // occurrences - it is what makes "computed once, reused twice" visible.
+  int32 id = 1;
+  // Absent on the occurrence that describes the instance; equal to `id` on every later occurrence, which carries no
+  // detail and no children and means "see the node with this id".
+  optional int32 refTo = 2;
+  // Structural hash of the formula, i.e. what the cache keys on. Two nodes with the same hash are interchangeable
+  // computations, whereas two nodes with the same id are the same object - the two answer different questions.
+  int64 hash = 3;
+  // Human readable description of the formula. Absent on a back-reference node.
+  optional string description = 4;
+  // Cost the planner estimated for this formula before running anything.
+  int64 estimatedCost = 5;
+  // Cost the formula really incurred. Absent when it was never computed.
+  optional int64 actualCost = 6;
+  // Number of records the formula produced. Absent when it was never computed.
+  optional int32 resultCount = 7;
+  // Inner formulas. Always empty on a back-reference node.
+  repeated GrpcFormulaPlan children = 8;
+}
+
+// Typed numeric measurements recorded for a single query telemetry step.
+//
+// Every field is optional and absence is meaningful: a metric is recorded where the engine happens to compute the
+// number, so a missing one means "not measured for this phase". That is deliberately distinct from a measured 0,
+// which recordsReturned, ioFetchCount, ioFetchedSizeBytes and prefetched can all legitimately be - which is also
+// why these are `optional` rather than plain scalars, since proto3 implicit presence cannot tell the two apart.
+message GrpcQueryTelemetryMetrics {
+  // How many records the planner expected the filtering formula to match. Compare against actualCardinality - an
+  // estimate that is orders of magnitude off is why the engine chose the index it chose, and it is the usual
+  // explanation for a plan that looks wrong.
+  optional int64 estimatedCardinality = 1;
+  // How many records the filtering formula really matched, before the requested page was cut out of them. This
+  // counts what the filter found, not what was returned - recordsReturned is the latter.
+  optional int64 actualCardinality = 2;
+  // Cost the planner estimated for the filtering formula it chose. This is the unitless scale candidate indexes are
+  // ranked on - comparable between plans of the same query, meaningless in absolute terms. Absent when the estimate
+  // overflowed.
+  optional int64 estimatedCost = 3;
+  // Cost the filtering formula really incurred, computed from the real cardinalities once it ran. Compare against
+  // estimatedCost on the same scale. Absent when the formula was never computed.
+  optional int64 actualCost = 4;
+  // How many records were actually handed back, i.e. the size of the page cut out of actualCardinality.
+  // Legitimately 0 for a query whose requested page lies past the end of the result.
+  optional int64 recordsReturned = 5;
+  // How many times the storage was read while assembling the response. Legitimately 0 - a query answered entirely
+  // from indexes, or one returning bare primary keys, never touches storage.
+  optional int64 ioFetchCount = 6;
+  // How many bytes were read from the storage while assembling the response. Reported alongside ioFetchCount
+  // because many small reads and one large read cost very differently.
+  optional int64 ioFetchedSizeBytes = 7;
+  // Whether the planner prefetched entity bodies and filtered over them instead of consulting indexes. It explains
+  // the shape of the rest of the profile rather than measuring anything: a prefetched query spends its time in
+  // EXECUTION_PREFETCH and barely touches the index phases.
+  optional bool prefetched = 8;
 }
 
 // This DTO contains extra results that are computed based on the query results.

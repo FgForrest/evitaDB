@@ -61,7 +61,44 @@ class QueryTelemetryTest {
 			final QueryTelemetry telemetry = queryTelemetry();
 
 			assertNotNull(telemetry);
-			assertEquals(0, telemetry.getArguments().length);
+			// the default level is stored rather than left absent, so no call site has to distinguish
+			// "unspecified" from "the default" - it is implicit in the string form only
+			assertEquals(1, telemetry.getArguments().length);
+			assertEquals(QueryTelemetryContent.TIMINGS, telemetry.getContent());
+			assertFalse(telemetry.isPlanRequested());
+		}
+
+		@Test
+		@DisplayName("should treat a null level as the default")
+		void shouldTreatNullLevelAsDefault() {
+			assertEquals(queryTelemetry(), queryTelemetry(null));
+		}
+
+		@Test
+		@DisplayName("should create instance asking for the formula plan")
+		void shouldCreateInstanceAskingForTheFormulaPlan() {
+			final QueryTelemetry telemetry = queryTelemetry(QueryTelemetryContent.PLAN);
+
+			assertEquals(QueryTelemetryContent.PLAN, telemetry.getContent());
+			assertTrue(telemetry.isPlanRequested());
+		}
+	}
+
+	@Nested
+	@DisplayName("Implicit arguments")
+	class ImplicitArgumentTest {
+
+		@Test
+		@DisplayName("should treat the default level as implicit and any other as explicit")
+		void shouldTreatDefaultLevelAsImplicit() {
+			final QueryTelemetry defaultLevel = queryTelemetry();
+			assertTrue(defaultLevel.isArgumentImplicit(QueryTelemetryContent.TIMINGS));
+			assertFalse(defaultLevel.isArgumentImplicit(QueryTelemetryContent.PLAN));
+			assertEquals(0, defaultLevel.getArgumentsExcludingDefaults().length);
+
+			final QueryTelemetry planLevel = queryTelemetry(QueryTelemetryContent.PLAN);
+			assertEquals(1, planLevel.getArgumentsExcludingDefaults().length);
+			assertEquals(QueryTelemetryContent.PLAN, planLevel.getArgumentsExcludingDefaults()[0]);
 		}
 	}
 
@@ -110,9 +147,24 @@ class QueryTelemetryTest {
 		@DisplayName("should clone with new arguments")
 		void shouldCloneWithNewArguments() {
 			final QueryTelemetry original = queryTelemetry();
-			final RequireConstraint cloned = original.cloneWithArguments(new Serializable[0]);
+			final RequireConstraint cloned = original.cloneWithArguments(
+				new Serializable[]{QueryTelemetryContent.PLAN}
+			);
 
 			assertInstanceOf(QueryTelemetry.class, cloned);
+			assertTrue(((QueryTelemetry) cloned).isPlanRequested());
+		}
+
+		@Test
+		@DisplayName("should clone an empty argument array back to the default level")
+		void shouldCloneEmptyArgumentsToDefaultLevel() {
+			// a generic rewriting visitor hands over whatever it computed, and the default form serializes to no
+			// arguments at all - so an empty array has to come back as the default rather than as a constraint
+			// with nothing to report
+			final RequireConstraint cloned = queryTelemetry().cloneWithArguments(new Serializable[0]);
+
+			assertEquals(queryTelemetry(), cloned);
+			assertEquals(QueryTelemetryContent.TIMINGS, ((QueryTelemetry) cloned).getContent());
 		}
 	}
 
