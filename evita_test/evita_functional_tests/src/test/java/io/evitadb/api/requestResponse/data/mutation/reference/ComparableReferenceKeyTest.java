@@ -122,7 +122,7 @@ class ComparableReferenceKeyTest {
 		}
 
 		@Test
-		@DisplayName("should not be equivalent when one side is new and the other is known with a different internal primary key")
+		@DisplayName("should not be equivalent when a new reference differs from a known one by internal primary key")
 		void shouldNotBeEquivalentWhenOneIsNewAndOtherIsKnownWithDifferentInternalPrimaryKeys() {
 			// "new" (negative internal PK) is not "unknown" (zero internal PK) - the carve-out does not apply,
 			// so this is the discriminating case between the two concepts
