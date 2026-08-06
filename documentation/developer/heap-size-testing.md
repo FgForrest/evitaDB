@@ -2,7 +2,7 @@
 
 Any structure that reports its own memory footprint needs a test that compares that report against what the object
 *actually* weighs on the heap. This document is for the person adding such a structure. It covers how to write the
-test, the ownership rules the arithmetic must follow, and four traps that make a correct implementation look broken —
+test, the ownership rules the arithmetic must follow, and five traps that make a correct implementation look broken —
 or, worse, let a broken one pass.
 
 The tooling is `io.evitadb.utils.JolHeapSize` (test scope), built on
@@ -114,7 +114,27 @@ mvn -o -pl evita_test/evita_functional_tests test -P unitAndFunctional \
 A flaky measurement does not merely add noise — it holds wrong assertions in place, because the run that would have
 falsified them is the one that happens to agree.
 
-## Trap 4 — state every divergence with its magnitude and its slope
+## Trap 4 — an owned sub-structure's exclusions become the owner's exclusions
+
+A structure that excludes scaffolding *for itself* still reaches that scaffolding when somebody else owns it. A
+`RangeIndex` does not charge its own `pageStreamRegistry` or `ranges.transactionalLayerWrapper`, and an element-keyed
+B+ tree does not charge its `keyExtractor` lambda — so an index holding either must name them again, through the
+nested path:
+
+```java
+private static final String[] EXCLUSIONS = {
+    "validityIndex.pageStreamRegistry", "validityIndex.ranges.transactionalLayerWrapper",
+    "priceRecords.keyExtractor"
+};
+```
+
+Miss one and the owner appears to **under**-report by a fixed amount, with the shortfall identical for an empty and a
+seeded fixture — which is the tell that separates this from a real per-element bug. Four of these accounted for
+120 of the 128 bytes missing across the first run of the price-index suite; the remaining 8 were a genuine defect (an
+inherited `long` id that the arithmetic never charged). Expect this to grow with nesting depth: a container index owns
+far more sub-structures than a leaf one.
+
+## Trap 5 — state every divergence with its magnitude and its slope
 
 Where the reported figure legitimately differs from the measurement, assert **how much**, never merely the direction:
 
@@ -132,10 +152,11 @@ leaf boundary. Both were invisible at one leaf and both grew.
 1. Implement `getHeapSizeInBytes` following the four ownership rules; charge what your own fields hold.
 2. Write the test against `JolHeapSize.ownedSize`, naming borrowed subgraphs by field name.
 3. Seed fixtures above `AUTOBOX_CACHE_CEILING` unless the case under test is genuinely empty.
-4. Assert **exact** equality first. Only accept a divergence you can explain, and then assert its magnitude.
-5. Add a second fixture an order of magnitude larger and assert the gap did not grow.
-6. If the structure lazily builds a cache, measure cold **and** warm — the step up on first read is real occupancy.
-7. Run the wide suite, not just your class.
+4. Name the exclusions of every sub-structure you own, through their nested paths (Trap 4).
+5. Assert **exact** equality first. Only accept a divergence you can explain, and then assert its magnitude.
+6. Add a second fixture an order of magnitude larger and assert the gap did not grow.
+7. If the structure lazily builds a cache, measure cold **and** warm — the step up on first read is real occupancy.
+8. Run the wide suite, not just your class.
 
 ## Where the pieces live
 

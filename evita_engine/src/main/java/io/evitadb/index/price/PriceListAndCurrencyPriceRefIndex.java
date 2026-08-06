@@ -40,6 +40,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -296,6 +297,28 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Override
 	public String toString() {
 		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " " + this.priceIndexKey.toString() + (isTerminated() ? " (TERMINATED)" : "");
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its tree **spine only**, never the price record bodies.
+	 *
+	 * This is the canonical borrowed-structure case. A reference index is built by copying references out of the
+	 * {@link PriceListAndCurrencyPriceSuperIndex} for its price list and currency, so its `priceRecords` tree holds the
+	 * very same {@link io.evitadb.index.price.model.priceRecord.PriceRecordContract} instances the super index owns and
+	 * charges. Pricing them here as well would bill every price record once more for each scope and reduced index that
+	 * references it — a figure that would grow with the number of *views* of the data rather than with the data.
+	 *
+	 * {@link #scope} is an enum constant owned by the JVM for the lifetime of its class loader, so it contributes its
+	 * slot alone.
+	 *
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and must never
+	 * be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		// the scope slot, on top of the base's own fields
+		return getBaseHeapSizeInBytes(priceRecord -> 0L, VMLayout.current().referenceSize());
 	}
 
 	@Nonnull

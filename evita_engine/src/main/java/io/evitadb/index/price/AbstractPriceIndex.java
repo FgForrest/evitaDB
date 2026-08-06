@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Map;
+import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.notNull;
@@ -63,6 +65,22 @@ import static io.evitadb.utils.Assert.notNull;
 abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> implements IndexDataStructure, Serializable, PriceIndexContract {
 	@Serial private static final long serialVersionUID = 7715100845881804377L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+
+	/**
+	 * Prices one {@link PriceIndexKey} used as a key of the per-combination index map.
+	 *
+	 * The key object is the map's own — it is created per price-list / currency combination and handed to the
+	 * sub-index constructor, which keeps only a reference slot to it. What the key *points at* is not: its
+	 * `recordHandling` is an enum constant and its `currency` a {@link Currency} interned by the JVM, both owned for
+	 * the lifetime of their class loader; the price list name comes from the entity schema's price definitions and is
+	 * held by every key of that price list, so it is scaffolding rather than this map's content. All three therefore
+	 * contribute their slot alone, exactly as an injected comparator does elsewhere.
+	 */
+	protected static final ToLongFunction<PriceIndexKey> PRICE_INDEX_KEY_SIZER = key -> {
+		final VMLayout layout = VMLayout.current();
+		// the recordHandling, currency and priceList slots, plus the memoized hash code
+		return layout.sizeOfObject(3L * layout.referenceSize() + Integer.BYTES);
+	};
 
 	@Nonnull
 	@Override
