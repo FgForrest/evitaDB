@@ -122,13 +122,25 @@ In-flight plans, assignments and investigation notes live in **`specifications/`
 line of work. That folder holds *intent*, never outcome: nothing in it is evidence of what shipped,
 and it must never be read as such.
 
-**Every plan must leave that folder when its work finalizes** — merged, abandoned, or decided
-against. There are exactly two exits, and no third:
+**Plans are never committed.** `/specifications/` is git-ignored, so a plan is working notes on disk
+and nothing more. This is mechanical rather than a matter of discipline on purpose: `git add -A` is
+how plans got committed before, and a rule that a routine command silently violates is not a rule.
+Folders tracked before this convention stay tracked — git-ignore does not untrack — and they leave
+the tree the same way any other plan does.
 
-1. **It becomes a record**, if the work clears the bar above. Delete the plan in the **same commit**
-   that adds the record.
-2. **It is deleted outright**, if the work does not. The commit message carries anything worth
-   keeping.
+**Every plan must leave the disk when its work finalizes** — merged, abandoned, or decided against.
+There are exactly two exits, and no third:
+
+1. **It becomes a record**, if the work clears the bar above. Write the ADR, then delete the plan
+   folder from disk.
+2. **It is deleted outright**, if the work does not. The commit message of the last change carries
+   anything worth keeping.
+
+**Because the plan is not in git, deleting it is irreversible.** Nothing can be recovered from
+history afterwards, so everything of lasting value must be inside the record *before* the folder
+goes — the rejected options and why they lost, measurements that cannot be regenerated, ordering
+hazards a future step could trip over. Read the plan through once against the finished record and
+ask what would be unrecoverable, rather than deleting on the assumption it was all captured.
 
 **A plan left behind is worse than no plan at all.** It reads as current intent, and the next reader
 cannot tell whether it shipped, half-shipped, or was dropped — they have to re-derive that from git,
