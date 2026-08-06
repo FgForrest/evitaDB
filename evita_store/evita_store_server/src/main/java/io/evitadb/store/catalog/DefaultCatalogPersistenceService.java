@@ -552,6 +552,14 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Check whether target directory exists and whether it is really directory.
 	 *
+	 * `requireEmpty` means *"holds no catalog data"*, not *"holds no directory entries"*. A folder handed to a
+	 * create or a restore has normally just been allocated, and allocation marks it
+	 * {@link CatalogPersistenceService#PROVISIONAL_FLAG} the instant it exists so a crash cannot leave
+	 * unexplained litter — so the marker is present precisely on the folders this check is expected to accept.
+	 * Counting it would reject every freshly allocated folder; ignoring the emptiness rule altogether would
+	 * drop the protection that stops a restore from being written over a populated catalog. Excluding our own
+	 * marker keeps that protection and nothing else.
+	 *
 	 * @return name of the directory (e.g. catalog name)
 	 */
 	@Nonnull
@@ -577,7 +585,7 @@ public class DefaultCatalogPersistenceService
 
 		if (requireEmpty) {
 			Assert.isTrue(
-				ofNullable(storageDirectoryFile.listFiles()).map(it -> it.length).orElse(0) == 0,
+				holdsNoCatalogData(storageDirectoryFile),
 				() -> new DirectoryNotEmptyException(storageDirectory.toString())
 			);
 		}
@@ -1256,7 +1264,9 @@ public class DefaultCatalogPersistenceService
 				return oldBootstrap;
 			}
 		} else {
-			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
+			// an allocation marker is not catalog data - see `holdsNoCatalogData`; a folder that has only just
+			// been allocated is exactly the "brand-new catalog" case this branch exists for
+			if (holdsNoCatalogData(catalogStoragePath.toFile())) {
 				return new CatalogBootstrap(
 					0,
 					0,
@@ -1267,6 +1277,25 @@ public class DefaultCatalogPersistenceService
 				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
 			}
 		}
+	}
+
+	/**
+	 * Tells whether a catalog folder holds no catalog data yet.
+	 *
+	 * Deliberately *not* the same question as "has no directory entries". Allocation creates a folder and marks
+	 * it {@link CatalogPersistenceService#PROVISIONAL_FLAG} in the same breath, so that a crash between the two
+	 * cannot leave a directory nothing on disk explains. Every check that wants to know "has anything been
+	 * written here" therefore has to look past that marker — counting it would make a folder report itself
+	 * occupied from the instant it existed, which is the opposite of what it is for.
+	 *
+	 * @param folder folder to inspect; need not exist
+	 * @return true when the folder holds nothing but, at most, evitaDB's own allocation marker
+	 */
+	private static boolean holdsNoCatalogData(@Nonnull File folder) {
+		final String[] entries = folder.list(
+			(dir, name) -> !CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
+		);
+		return entries == null || entries.length == 0;
 	}
 
 	/**
@@ -1284,6 +1313,12 @@ public class DefaultCatalogPersistenceService
 	 * will carry exactly that prefix. A folder that holds files but no bootstrap file is corruption and throws
 	 * rather than silently adopting the fallback, which would bind the service to a prefix no file on disk uses.
 	 *
+	 * "Empty" here means *holding no catalog data*. A freshly allocated folder always carries the
+	 * {@link CatalogPersistenceService#PROVISIONAL_FLAG} marker — allocation writes it before anything else, so a
+	 * crash cannot leave unexplained litter — and the very first thing that happens to such a folder is this
+	 * lookup. Counting our own marker as data would make every catalog creation report the folder it just
+	 * allocated as corrupt.
+	 *
 	 * @param catalogStoragePath folder holding the catalog's files
 	 * @param catalogName        name of the catalog, used as the prefix when the folder is still empty
 	 * @return prefix shared by the folder's files
@@ -1299,9 +1334,8 @@ public class DefaultCatalogPersistenceService
 		}
 		final String[] bootstrapFiles = folder.list((dir, name) -> name.endsWith(BOOT_FILE_SUFFIX));
 		if (bootstrapFiles == null || bootstrapFiles.length == 0) {
-			final String[] anyFiles = folder.list();
 			Assert.isPremiseValid(
-				anyFiles == null || anyFiles.length == 0,
+				holdsNoCatalogData(folder),
 				() -> new GenericEvitaInternalError(
 					"Catalog folder `" + catalogStoragePath + "` contains files but no bootstrap file - " +
 						"the storage prefix of catalog `" + catalogName + "` cannot be determined!"

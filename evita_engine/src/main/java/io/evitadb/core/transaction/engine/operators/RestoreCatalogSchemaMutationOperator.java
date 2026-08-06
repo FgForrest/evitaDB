@@ -83,9 +83,11 @@ public class RestoreCatalogSchemaMutationOperator
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		final String catalogName = mutation.getCatalogName();
-		// this operator serves three paths and only one of them - recovery from the missing bucket - starts from
-		// a catalog the engine state already knows. A restore from backup and an auto-discovered folder are both
-		// registering a name for the first time, so the binding is established here rather than looked up.
+		// This operator serves three paths and none of them allocates: the folder always exists by now.
+		// - recovery from the missing bucket reads the binding the engine state already holds;
+		// - a restore from backup reads the reservation `EvitaManagement` made before writing into the folder;
+		// - an auto-discovered folder falls through to the identity token, which is the only shape boot
+		//   discovery adopts today.
 		final CatalogFolderId catalogFolder = this.folderContext.folderIdForBinding(catalogName);
 
 		Assert.isTrue(
@@ -97,6 +99,11 @@ public class RestoreCatalogSchemaMutationOperator
 		return new ProgressingFuture<>(
 			0,
 			__ -> {
+				// Declare the folder complete BEFORE the binding is committed below - see
+				// `CatalogFolderContext#completeFolder` for why that order is load-bearing. A no-op for the
+				// missing-bucket and auto-discovery paths, which never allocated and so wear no marker.
+				RestoreCatalogSchemaMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
+
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
@@ -112,7 +119,12 @@ public class RestoreCatalogSchemaMutationOperator
 									RestoreCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
 										catalogName, catalogFolder, CatalogState.INACTIVE,
 										CatalogInactiveException::new
-									)
+									),
+									// A restore and an auto-discovery both register a name the state has never
+									// seen, so the folder travels with it. Only the flapping-recovery path
+									// arrives already bound, and there this token is ignored in favour of the
+									// binding the catalog left behind.
+									catalogFolder
 								)
 								.build();
 						}

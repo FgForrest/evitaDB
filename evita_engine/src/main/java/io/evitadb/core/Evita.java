@@ -132,6 +132,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -496,7 +497,12 @@ public final class Evita implements EvitaContract {
 		this.catalogFolderContext = new CatalogFolderContext(
 			catalogName -> this.engineState.get().boundFolderIdFor(catalogName),
 			enginePersistenceService,
-			configuration.storage().storageDirectory()
+			configuration.storage().storageDirectory(),
+			// one number per allocation *attempt* - a name that could not be created is never redrawn, which is
+			// what stops a folder the filesystem refuses to clear from making the catalog unallocatable forever
+			catalogName -> this.catalogGenerationSequences
+				.getOrCreateSequence(catalogName, SequenceType.CATALOG_GENERATION, 0)
+				.incrementAndGet()
 		);
 
 		this.management = new EvitaManagement(this);
@@ -1441,19 +1447,30 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Fast-forwards the engine-scoped folder generation counters to the peaks the persisted state carries.
 	 *
-	 * This is only half of the seed the design calls for — the other half is the highest `<name>_N` suffix
-	 * actually present under the storage directory, which is the term that observes litter a crash left behind
-	 * before its peak could be persisted. That scan arrives together with folder allocation; until then no
-	 * suffixed folder exists to find, so seeding from the persisted peaks alone is complete.
+	 * Both terms of the seed are applied, and they are complementary rather than redundant:
+	 *
+	 * - the **persisted peaks** carry a number that was handed out for a name which may be unusable yet
+	 *   invisible to a scan — `Files.exists` reports an `AccessDeniedException` as absence, so such a name
+	 *   would be drawn again after every restart;
+	 * - the **disk scan** observes a folder an operation created before dying without persisting anything, which
+	 *   no peak knows about.
+	 *
+	 * Neither subsumes the other, so the counter is fast-forwarded past both.
 	 *
 	 * @param engineState persisted snapshot whose generation peaks are to be applied
 	 */
 	private void seedCatalogGenerationSequences(@Nonnull EngineState<LogRecordReference> engineState) {
 		// `getOrCreateSequence` only ever fast-forwards, so seeding is idempotent and can never walk a counter
-		// back onto a number it has already handed out.
+		// back onto a number it has already handed out - which also makes the order of the two terms irrelevant.
 		for (final CatalogGenerationPeak peak : engineState.generationPeaks()) {
 			this.catalogGenerationSequences.getOrCreateSequence(
 				peak.catalogName(), SequenceType.CATALOG_GENERATION, peak.peak()
+			);
+		}
+		for (final Entry<String, Integer> observed :
+			this.catalogFolderContext.getFolderOperations().observedFolderGenerationPeaks().entrySet()) {
+			this.catalogGenerationSequences.getOrCreateSequence(
+				observed.getKey(), SequenceType.CATALOG_GENERATION, observed.getValue()
 			);
 		}
 	}

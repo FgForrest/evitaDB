@@ -35,6 +35,9 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.ToIntFunction;
 
 /**
  * Everything the engine is allowed to know about catalog storage folders, in one place.
@@ -64,6 +67,20 @@ public class CatalogFolderContext {
 	 * Configured root directory holding all catalog folders — reported in diagnostics, never joined.
 	 */
 	private final Path storageRoot;
+	/**
+	 * Draws the next folder generation for a catalog name. Backed by the engine-scoped sequence service, which
+	 * is engine state rather than storage state — the storage layer only turns the number into a directory.
+	 */
+	private final ToIntFunction<String> generationSupplier;
+	/**
+	 * Folders allocated for catalogs the engine state does not reference yet, keyed by catalog name.
+	 *
+	 * Deliberately *not* persisted. A reservation only has to outlive the gap between materialising a folder
+	 * and committing its binding, which is always within one engine run; losing it to a crash is the same
+	 * outcome as the operation never having happened, and the folder it named is reclaimed by boot
+	 * classification because it still wears its provisional marker.
+	 */
+	private final Map<String, CatalogFolderId> reservedFolders = new ConcurrentHashMap<>(8);
 
 	/**
 	 * Returns the folder token the passed catalog is currently bound to.
@@ -90,18 +107,21 @@ public class CatalogFolderContext {
 	}
 
 	/**
-	 * Returns the folder token to bind the passed catalog to — its current binding when it has one, and
-	 * otherwise the folder a catalog the engine state does not know yet is to occupy.
+	 * Returns the folder token to bind the passed catalog to — its current binding when it has one, the folder
+	 * an in-flight operation already allocated for it when there is one, and otherwise the identity token.
 	 *
 	 * This is the counterpart of {@link #folderIdFor(String)} and covers exactly the moments at which a name
-	 * legitimately has no binding: a catalog being created, a backup being restored into a fresh name, and a
-	 * folder just discovered on disk. Returning the existing binding when there is one is what makes recovery
-	 * from the missing bucket land back in the folder the catalog left, rather than somewhere new.
+	 * legitimately has no binding yet. The three branches are not interchangeable:
 	 *
-	 * The unbound branch answers with the identity token, which is where such a catalog is in fact
-	 * materialised today. Once folders carry an allocated generation this is where that allocation happens —
-	 * burning a number per attempt and marking the folder provisional before anything is written into it —
-	 * which is why the decision lives here rather than at each of the three call sites.
+	 * 1. **Bound** — recovery from the missing bucket lands back in the folder the catalog left, not somewhere
+	 *    new. Also how the create path reads back the folder its own transition phase just allocated.
+	 * 2. **Reserved** — an operation that had to materialise the folder *before* the engine state could record
+	 *    it. A restore writes a whole catalog into its folder before the registering mutation is ever
+	 *    dispatched, so without this branch the mutation would allocate a *second* folder and bind the catalog
+	 *    to it — leaving the restored data in the first one, unreferenced, with nothing reporting a failure.
+	 * 3. **Identity** — a folder discovered on disk under exactly the catalog's own name, which is the only
+	 *    shape boot discovery adopts today. This branch is what step 5's adoption work replaces, at which
+	 *    point discovery carries the folder it found rather than assuming the name.
 	 *
 	 * @param catalogName name of the catalog
 	 * @return token identifying the folder the catalog is to be bound to
@@ -109,7 +129,65 @@ public class CatalogFolderContext {
 	@Nonnull
 	public CatalogFolderId folderIdForBinding(@Nonnull String catalogName) {
 		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
-		return folderId == null ? new CatalogFolderId(catalogName) : folderId;
+		if (folderId != null) {
+			return folderId;
+		}
+		final CatalogFolderId reserved = this.reservedFolders.get(catalogName);
+		return reserved == null ? new CatalogFolderId(catalogName) : reserved;
+	}
+
+	/**
+	 * Allocates a fresh folder for the passed catalog, marks it provisional, and reserves it under the
+	 * catalog's name so the operation that later registers the catalog binds to *this* folder.
+	 *
+	 * Every path that materialises a catalog goes through here — create, restore and duplicate — so that a
+	 * generation is drawn, the directory is created and the marker is written in one place rather than three.
+	 * The reservation exists because those paths differ in *when* the engine state learns about the folder: a
+	 * create records its binding in the same transition phase that allocates, while a restore populates the
+	 * folder long before its registering mutation runs. Reading {@link #folderIdForBinding(String)} answers
+	 * both without the caller having to know which case it is in.
+	 *
+	 * The caller must call {@link #completeFolder(String, CatalogFolderId)} once the folder is fully written
+	 * and **before** the engine-state commit that binds it.
+	 *
+	 * **A failed operation needs no cleanup here.** Its reservation is simply overwritten by the next
+	 * allocation for the same name — every path that materialises a catalog allocates unconditionally, so a
+	 * stale reservation can never be read by anything except an allocation that is about to replace it. The
+	 * folder it named is left alone deliberately: it still wears its provisional marker, so boot classification
+	 * recognises it as abandoned and removes it. Deleting it here would mean succeeding on a filesystem that
+	 * has just demonstrated it is misbehaving, and failing at that would replace the operation's real error
+	 * with a cleanup error.
+	 *
+	 * @param catalogName name of the catalog the folder is being allocated for
+	 * @return token naming the freshly created, still-provisional folder
+	 */
+	@Nonnull
+	public CatalogFolderId allocateFolderFor(@Nonnull String catalogName) {
+		final CatalogFolderId allocated = this.folderOperations.allocateCatalogFolder(
+			catalogName, () -> this.generationSupplier.applyAsInt(catalogName)
+		);
+		this.reservedFolders.put(catalogName, allocated);
+		return allocated;
+	}
+
+	/**
+	 * Declares an allocated folder complete: clears its provisional marker and drops the reservation.
+	 *
+	 * **Call this before the engine-state commit that binds the catalog**, never after. The boot
+	 * classification table is a first-match lookup whose rows must stay disjoint, and a folder that is both
+	 * referenced and provisional matches *referenced* first — so it would be loaded while still declaring its
+	 * own contents untrustworthy. Clearing first makes that overlap unreachable: a crash in the window leaves
+	 * an unreferenced, marker-free folder, which classifies as unclaimed and is reported rather than touched.
+	 *
+	 * The reservation is dropped only after the marker is gone, so a failure to clear leaves the reservation
+	 * in place and a retry still finds the same folder rather than allocating a second one.
+	 *
+	 * @param catalogName name of the catalog whose folder is complete
+	 * @param folderId    token naming the folder, as returned by {@link #allocateFolderFor(String)}
+	 */
+	public void completeFolder(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
+		this.folderOperations.clearProvisionalCatalogFolderMarker(folderId);
+		this.reservedFolders.remove(catalogName, folderId);
 	}
 
 	/**

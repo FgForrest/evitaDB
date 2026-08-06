@@ -87,19 +87,21 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+							// The duplicate is registered here for the first time, so its folder binding is
+							// established rather than looked up. Resolved once and used twice: the placeholder
+							// and the binding must name the same folder, and `duplicateTo` has already written
+							// the data into whichever one this answers with.
+							final CatalogFolderId targetFolder = DuplicateCatalogMutationOperator.this
+								.folderContext.folderIdForBinding(targetCatalogName);
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
 								.withCatalog(
 									DuplicateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
-										targetCatalogName,
-										// the duplicate is registered here for the first time, so its folder
-										// binding is established rather than looked up
-										DuplicateCatalogMutationOperator.this.folderContext
-											.folderIdForBinding(targetCatalogName),
-										CatalogState.INACTIVE,
+										targetCatalogName, targetFolder, CatalogState.INACTIVE,
 										CatalogInactiveException::new
-									)
+									),
+									targetFolder
 								)
 								.build();
 						}

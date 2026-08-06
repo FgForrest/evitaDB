@@ -25,11 +25,16 @@ package io.evitadb.core.engine;
 
 import io.evitadb.spi.store.engine.CatalogFolderOperations;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.store.engine.CatalogFolderAllocator;
 import io.evitadb.utils.FileUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 /**
  * Builds {@link CatalogFolderContext} instances for tests that exercise engine components in isolation, without
@@ -43,6 +48,11 @@ import java.nio.file.Path;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class TestCatalogFolderContexts {
+
+	/**
+	 * Per-catalog folder generation counters, standing in for the engine-scoped sequence service.
+	 */
+	private static final Map<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<>(8);
 
 	private TestCatalogFolderContexts() {
 	}
@@ -58,7 +68,10 @@ public final class TestCatalogFolderContexts {
 		return new CatalogFolderContext(
 			CatalogFolderResolver.identity(),
 			new FileSystemFolderOperations(storageDirectory),
-			storageDirectory
+			storageDirectory,
+			// a real ascending counter rather than a constant, so a test that allocates twice for one name gets
+			// two distinct folders exactly as production does
+			catalogName -> GENERATIONS.computeIfAbsent(catalogName, __ -> new AtomicInteger()).incrementAndGet()
 		);
 	}
 
@@ -86,6 +99,26 @@ public final class TestCatalogFolderContexts {
 		public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
 			final Path folder = this.storageDirectory.resolve(folderId.id());
 			return folder.toFile().exists() ? FileUtils.getDirectorySize(folder) : 0L;
+		}
+
+		@Nonnull
+		@Override
+		public CatalogFolderId allocateCatalogFolder(
+			@Nonnull String catalogName,
+			@Nonnull IntSupplier generationSupplier
+		) {
+			return CatalogFolderAllocator.allocate(this.storageDirectory, catalogName, generationSupplier);
+		}
+
+		@Override
+		public void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId) {
+			CatalogFolderAllocator.clearProvisionalMarker(this.storageDirectory.resolve(folderId.id()));
+		}
+
+		@Nonnull
+		@Override
+		public Map<String, Integer> observedFolderGenerationPeaks() {
+			return CatalogFolderAllocator.observedPeaks(this.storageDirectory);
 		}
 
 	}

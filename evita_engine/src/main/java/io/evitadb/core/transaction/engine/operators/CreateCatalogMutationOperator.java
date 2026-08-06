@@ -78,6 +78,12 @@ public class CreateCatalogMutationOperator
 	) {
 		final String catalogName = mutation.getCatalogName();
 
+		// A brand-new catalog gets its folder here, before the transition rather than inside it: allocation
+		// touches the filesystem, and the transition updater runs under the engine-state lock. The work phase
+		// below reads the binding back rather than deciding again, so the folder is settled once, before
+		// anything is written into it.
+		final CatalogFolderId catalogFolder = this.folderContext.allocateFolderFor(catalogName);
+
 		// transition the engine state to new with catalog in state BEING_CREATED
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -89,14 +95,14 @@ public class CreateCatalogMutationOperator
 						.withCatalog(
 							CreateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
-								// this transition is where a brand-new catalog gets its folder binding: the work
-								// phase below then reads that binding back rather than deciding again, so the
-								// folder is settled once, before anything is written into it
-								CreateCatalogMutationOperator.this.folderContext.folderIdForBinding(catalogName),
+								catalogFolder,
 								CatalogState.BEING_CREATED,
 								(cn, folderId, root) -> new CatalogTransitioningException(
 									cn, folderId, root, CatalogState.BEING_CREATED)
-							)
+							),
+							// the name is registered here for the first time, so the folder it was allocated
+							// in has to travel into the state - nothing downstream can re-derive it
+							catalogFolder
 						).build();
 				}
 			}
@@ -110,6 +116,12 @@ public class CreateCatalogMutationOperator
 					Objects.requireNonNull(mutation.mutate(null))
 					       .updatedCatalogSchema()
 				);
+
+				// The folder is fully written, so declare it complete BEFORE the binding is committed below.
+				// A crash in the window this opens leaves an unreferenced, marker-free folder that boot
+				// classification reports and leaves alone; the reverse order would leave a *referenced* folder
+				// still declaring its own contents untrustworthy, which classification would load anyway.
+				CreateCatalogMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
 
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {

@@ -26,6 +26,8 @@ package io.evitadb.spi.store.engine;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.function.IntSupplier;
 
 /**
  * Whole-folder operations the engine needs to perform on a catalog's storage folder without knowing where —
@@ -76,6 +78,55 @@ public interface CatalogFolderOperations {
 	long catalogFolderSize(@Nonnull CatalogFolderId folderId);
 
 	/**
+	 * Creates a fresh, empty folder for the named catalog and marks it provisional.
+	 *
+	 * The generation numbers come from the caller because the counter is engine state, not storage state — the
+	 * storage layer only turns a number into a directory. `generationSupplier` must never hand out the same
+	 * number twice within a run: a number is burned per *attempt*, so a name that cannot be created is never
+	 * retried, which is what stops a folder the filesystem refuses to clear from making the catalog
+	 * permanently unallocatable.
+	 *
+	 * The returned folder is **provisional** — it carries a marker declaring its contents untrustworthy, and
+	 * boot classification will delete it if it is still unreferenced at the next start. The caller must call
+	 * {@link #clearProvisionalCatalogFolderMarker(CatalogFolderId)} once the folder is fully populated and
+	 * **before** the engine state commits the binding pointing at it.
+	 *
+	 * @param catalogName        name of the catalog the folder is allocated for; only cosmetic, never authoritative
+	 * @param generationSupplier source of generation numbers, one drawn per attempt
+	 * @return token naming the freshly created folder
+	 */
+	@Nonnull
+	CatalogFolderId allocateCatalogFolder(@Nonnull String catalogName, @Nonnull IntSupplier generationSupplier);
+
+	/**
+	 * Reports the highest folder generation actually present on storage, per catalog name.
+	 *
+	 * This is the second half of the boot seed for the generation counters, and it covers a failure the
+	 * persisted peaks cannot: a folder an operation created before dying without persisting anything. The peak
+	 * knows nothing of such a folder, so seeding from peaks alone would hand its number out again.
+	 *
+	 * The two terms are complementary rather than redundant — the peak covers the opposite case, a name that is
+	 * unusable but invisible to a scan, which is why both are applied.
+	 *
+	 * @return highest generation seen per catalog name; names with no suffixed folder are absent, never null
+	 */
+	@Nonnull
+	Map<String, Integer> observedFolderGenerationPeaks();
+
+	/**
+	 * Declares the contents of a folder complete by removing its provisional marker.
+	 *
+	 * Must run **before** the engine-state commit that binds a catalog to this folder. The reverse order leaves
+	 * a referenced folder wearing an "incomplete" marker, and the boot classification table is a first-match
+	 * lookup whose rows must stay disjoint — such a folder would match *referenced* and be loaded despite the
+	 * marker saying it must not be. A crash in the window this ordering opens leaves an unreferenced,
+	 * marker-free folder instead, which classifies as unclaimed: reported and left alone.
+	 *
+	 * @param folderId token identifying the catalog folder
+	 */
+	void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId);
+
+	/**
 	 * Returns operations that refuse every call, for placeholders that must never perform folder work.
 	 *
 	 * Used where a `CatalogContract` stub is constructed purely to satisfy a signature and is not reachable by
@@ -101,6 +152,26 @@ public interface CatalogFolderOperations {
 
 			@Override
 			public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
+				throw new IllegalStateException(reason);
+			}
+
+			@Nonnull
+			@Override
+			public CatalogFolderId allocateCatalogFolder(
+				@Nonnull String catalogName,
+				@Nonnull IntSupplier generationSupplier
+			) {
+				throw new IllegalStateException(reason);
+			}
+
+			@Nonnull
+			@Override
+			public Map<String, Integer> observedFolderGenerationPeaks() {
+				throw new IllegalStateException(reason);
+			}
+
+			@Override
+			public void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId) {
 				throw new IllegalStateException(reason);
 			}
 

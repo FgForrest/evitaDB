@@ -76,11 +76,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
@@ -1110,6 +1112,28 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
 		final Path folder = pathOf(folderId);
 		return folder.toFile().exists() ? FileUtils.getDirectorySize(folder) : 0L;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogFolderId allocateCatalogFolder(
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	) {
+		return CatalogFolderAllocator.allocate(
+			this.storageSettings.storageDirectory(), catalogName, generationSupplier
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, Integer> observedFolderGenerationPeaks() {
+		return CatalogFolderAllocator.observedPeaks(this.storageSettings.storageDirectory());
+	}
+
+	@Override
+	public void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId) {
+		CatalogFolderAllocator.clearProvisionalMarker(pathOf(folderId));
 	}
 
 }

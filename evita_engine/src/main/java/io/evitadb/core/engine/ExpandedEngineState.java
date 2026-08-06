@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
@@ -98,23 +99,53 @@ public record ExpandedEngineState(
 	}
 
 	/**
-	 * Returns the binding array guaranteed to carry an entry for the passed catalog name.
+	 * Returns the binding array guaranteed to carry an entry for the passed catalog name, binding it to the
+	 * passed folder when it has none yet.
 	 *
 	 * An existing binding is left exactly as it is — a catalog being re-staged (activated, made alive, swapped
-	 * for a newer instance) must keep pointing at the folder it already occupies, and clobbering that with the
-	 * catalog's own name would undo a rename. Only a name the state has never seen gets a binding, and it gets
-	 * the identity one, which is the folder such a catalog is in fact created in today.
+	 * for a newer instance) must keep pointing at the folder it already occupies, and overwriting it would undo
+	 * a rename. Only a name the state has never seen is bound, and it is bound to the token the caller supplies.
 	 *
-	 * That identity default is what this method will lose once folder allocation exists: a brand-new catalog
-	 * will then be handed the token its allocation burned, passed in explicitly at the staging site, and a name
-	 * arriving here unbound will be a bug rather than a new catalog.
+	 * **The token is never derived here.** This method used to invent `new CatalogFolderId(catalogName)` for an
+	 * unbound name, which silently discarded the folder an allocation had just created: the folder was written,
+	 * the catalog was bound to a *different*, identity-named directory, and nothing reported a failure. Deciding
+	 * a folder is `CatalogFolderContext`'s job — see `folderIdForBinding`, whose identity branch is the one
+	 * legitimate source of an identity token (a folder discovered on disk under the catalog's own name).
 	 *
 	 * @param bindings    bindings currently recorded, strictly ascending by catalog name
 	 * @param catalogName name that must be bound in the result
+	 * @param folderId    folder to bind the name to when it carries no binding yet
 	 * @return binding array containing the name; the input array is never modified
 	 */
 	@Nonnull
 	private static CatalogFolderBinding[] bindingsIncluding(
+		@Nonnull CatalogFolderBinding[] bindings,
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId folderId
+	) {
+		for (final CatalogFolderBinding binding : bindings) {
+			if (binding.catalogName().equals(catalogName)) {
+				return bindings;
+			}
+		}
+		return EngineState.withBinding(bindings, new CatalogFolderBinding(catalogName, folderId));
+	}
+
+	/**
+	 * Returns the binding array unchanged, having verified it already binds the passed catalog name.
+	 *
+	 * Used by every staging path that re-stages a catalog the engine state already knows — a transition
+	 * placeholder, a catalog going live, a freshly loaded instance. Such a path has no business choosing a
+	 * folder, and an unbound name reaching it means the catalog was never registered, which is a programming
+	 * error rather than something to paper over with a default.
+	 *
+	 * @param bindings    bindings currently recorded, strictly ascending by catalog name
+	 * @param catalogName name expected to be bound already
+	 * @return the input array, unmodified
+	 * @throws GenericEvitaInternalError when the name carries no binding
+	 */
+	@Nonnull
+	private static CatalogFolderBinding[] bindingsRequiring(
 		@Nonnull CatalogFolderBinding[] bindings,
 		@Nonnull String catalogName
 	) {
@@ -123,8 +154,10 @@ public record ExpandedEngineState(
 				return bindings;
 			}
 		}
-		return EngineState.withBinding(
-			bindings, new CatalogFolderBinding(catalogName, new CatalogFolderId(catalogName))
+		throw new GenericEvitaInternalError(
+			"Catalog `" + catalogName + "` is being staged without a folder binding! Only a path that " +
+				"registers a catalog for the first time may establish one, and it must pass the folder token " +
+				"explicitly."
 		);
 	}
 
@@ -330,7 +363,7 @@ public record ExpandedEngineState(
 		final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 			.builder(this.engineState)
 			.version(this.engineState.version())
-			.catalogFolders(bindingsIncluding(this.engineState.catalogFolders(), catalog.getName()));
+			.catalogFolders(bindingsRequiring(this.engineState.catalogFolders(), catalog.getName()));
 
 		if (catalog instanceof Catalog) {
 			engineStateBuilder.activeCatalogs(
@@ -416,17 +449,77 @@ public record ExpandedEngineState(
 
 
 		/**
-		 * Stages the provided catalog into the snapshot.
+		 * Stages a catalog the engine state already knows.
 		 * If the catalog is a live Catalog instance it will be marked active, otherwise inactive.
 		 *
-		 * The catalog's folder binding is preserved when it already has one and created identity-shaped when it
-		 * does not — see {@link ExpandedEngineState#bindingsIncluding} for why, and for what replaces the
-		 * identity default once folder allocation exists.
+		 * The catalog keeps the folder binding it already has. A name arriving here unbound is a programming
+		 * error — use {@link #withCatalog(CatalogContract, CatalogFolderId)} to register a name for the first
+		 * time, which is the only way a binding is ever established.
+		 *
+		 * @param catalog catalog to stage; must already be bound to a folder
+		 * @return this builder instance
 		 */
 		@Nonnull
 		public Builder withCatalog(@Nonnull CatalogContract catalog) {
+			this.catalogFolders = bindingsRequiring(this.catalogFolders, catalog.getName());
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Stages a catalog the engine state does not know yet, binding it to the passed folder.
+		 *
+		 * This is the only entry point that establishes a binding, and it is deliberately separate from
+		 * {@link #withCatalog(CatalogContract)}: the folder a new catalog occupies is decided by whoever
+		 * materialised it — a create and a restore allocate one, boot discovery adopts the one it found — and
+		 * that decision must travel to the state rather than being re-derived from the catalog's name here.
+		 *
+		 * Re-staging a name that *is* already bound leaves its binding untouched, so passing a token for a
+		 * catalog that turns out to be known is harmless rather than a silent relocation.
+		 *
+		 * @param catalog  catalog to stage
+		 * @param folderId folder the catalog occupies, used only when the name carries no binding yet
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withCatalog(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
+			this.catalogFolders = bindingsIncluding(this.catalogFolders, catalog.getName(), folderId);
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Stages a catalog whose data has physically moved into a different folder, rebinding it unconditionally.
+		 *
+		 * This is the one entry point that overwrites an existing binding, and it exists for exactly one caller:
+		 * the rename/replace path, whose `replaceWith` renames the whole directory onto a name-derived path
+		 * before handing the catalog back. The binding has to follow the bytes, or the engine state describes a
+		 * folder that no longer holds the catalog — which is silent, because the loader would then open a
+		 * directory that either does not exist or holds the *previous* occupant.
+		 *
+		 * **Step 7 deletes this method along with the directory move it compensates for.** Once a rename is a
+		 * pointer swap the folder never moves, so the binding never needs to chase it, and every remaining
+		 * caller of the builder either introduces a name or re-stages one.
+		 *
+		 * @param catalog  catalog whose data has moved
+		 * @param folderId folder the catalog now occupies
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withRelocatedCatalog(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
+			this.catalogFolders = EngineState.withBinding(
+				this.catalogFolders, new CatalogFolderBinding(catalog.getName(), folderId)
+			);
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Moves the catalog into the bucket its type implies, leaving folder bindings alone.
+		 *
+		 * @param catalog catalog to stage
+		 * @return this builder instance
+		 */
+		@Nonnull
+		private Builder stageCatalog(@Nonnull CatalogContract catalog) {
 			this.catalogs.put(catalog.getName(), new CatalogWrapper(catalog));
-			this.catalogFolders = bindingsIncluding(this.catalogFolders, catalog.getName());
 			if (catalog instanceof Catalog) {
 				this.activeCatalogs = insertRecordIntoOrderedArray(catalog.getName(), this.activeCatalogs);
 				this.inactiveCatalogs = removeRecordFromOrderedArray(

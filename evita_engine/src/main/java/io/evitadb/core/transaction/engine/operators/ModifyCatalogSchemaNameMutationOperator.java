@@ -38,6 +38,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -166,10 +167,21 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
 							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+								// `replace(...)` has just renamed the whole directory onto a path derived from
+								// the target's name, so that name-derived folder is where the data now is -
+								// whatever either catalog was bound to a moment ago. The binding follows the
+								// bytes rather than the other way round, which is why this rebinds instead of
+								// establishing a binding: on a replace the target name is already bound, to
+								// the folder that has just been superseded.
+								//
+								// Step 7 turns this into a pointer swap and removes both the directory move
+								// and this rebinding with it.
 								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState
 									.builder(expandedEngineState)
 									.withVersion(version)
-									.withCatalog(replacedCatalog);
+									.withRelocatedCatalog(
+										replacedCatalog, new CatalogFolderId(catalogNameToBeReplaced)
+									);
 								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {
 									stateAfterAddingRenamedCatalog.withoutCatalog(catalogNameToBeReplacedWith);
 								}

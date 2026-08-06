@@ -26,6 +26,7 @@ package io.evitadb.store.engine;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.utils.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,8 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.IntSupplier;
 
 /**
@@ -121,6 +124,42 @@ public class CatalogFolderAllocator {
 			}
 		}
 		throw allocationFailed(storageDirectory, catalogName, lastFailure);
+	}
+
+	/**
+	 * Scans the storage directory and reports the highest generation observed per catalog name.
+	 *
+	 * Parsing lives here because this class owns the `<catalogName>_<generation>` convention that produced the
+	 * names — a second parser elsewhere would be free to disagree with the formatter about what a suffix is.
+	 *
+	 * Folder names carrying no numeric suffix are skipped: they are legacy or hand-placed folders, which by
+	 * definition never came from this allocator and so say nothing about which numbers it has handed out.
+	 *
+	 * @param storageDirectory root directory catalogs are stored under
+	 * @return highest generation seen per catalog name; never null, possibly empty
+	 */
+	@Nonnull
+	public static Map<String, Integer> observedPeaks(@Nonnull Path storageDirectory) {
+		final Map<String, Integer> peaks = new HashMap<>();
+		for (final Path directory : FileUtils.listDirectories(storageDirectory)) {
+			final String folderName = directory.getFileName().toString();
+			final int lastUnderscore = folderName.lastIndexOf('_');
+			if (lastUnderscore <= 0 || lastUnderscore == folderName.length() - 1) {
+				// no separator, nothing before it, or nothing after it - not a name this allocator produced
+				continue;
+			}
+			final int generation;
+			try {
+				generation = Integer.parseInt(folderName.substring(lastUnderscore + 1));
+			} catch (NumberFormatException ex) {
+				// a catalog legitimately named `my_catalog` lands here - not our shape, and not an error
+				continue;
+			}
+			if (generation > 0) {
+				peaks.merge(folderName.substring(0, lastUnderscore), generation, Math::max);
+			}
+		}
+		return peaks;
 	}
 
 	/**

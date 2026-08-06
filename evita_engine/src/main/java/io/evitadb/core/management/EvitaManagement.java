@@ -309,9 +309,11 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
 				catalogName,
-				// the restored catalog is registered only once the restore task completes, so its folder binding
-				// is established here rather than read from the engine state
-				this.evita.getCatalogFolderContext().folderIdForBinding(catalogName),
+				// The restore writes a whole catalog into its folder before the registering mutation ever runs,
+				// so the folder has to exist now. Allocating reserves it under the catalog's name; the mutation
+				// dispatched by `registerRestoredCatalog` below then binds to *this* folder instead of
+				// allocating a second one and leaving the restored data unreferenced in the first.
+				this.evita.getCatalogFolderContext().allocateFolderFor(catalogName),
 				this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),

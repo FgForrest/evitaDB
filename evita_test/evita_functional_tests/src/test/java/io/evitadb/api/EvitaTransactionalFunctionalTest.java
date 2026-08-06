@@ -622,6 +622,23 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
+	 *
+	 * A catalog's folder is not named after it — folders are allocated and carry a generation, and one that
+	 * outlives a rename keeps its old name (see issue #649). Joining the storage root with the catalog name
+	 * therefore addresses a directory that need not exist. Must be called while the engine is still open.
+	 *
+	 * @param evita       running engine holding the binding
+	 * @param catalogName name of the catalog whose folder is wanted
+	 * @return path of the catalog's storage folder
+	 */
+	@Nonnull
+	private static Path catalogFolder(@Nonnull Evita evita, @Nonnull String catalogName) {
+		return evita.getConfiguration().storage().storageDirectory()
+			.resolve(evita.getCatalogFolderContext().folderIdFor(catalogName).id());
+	}
+
+	/**
 	 * Returns the number of Write-Ahead Log (WAL) files in the catalog directory.
 	 * WAL files have the suffix defined by {@link CatalogPersistenceService#WAL_FILE_SUFFIX}.
 	 *
@@ -775,9 +792,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final EvitaConfiguration cfg = evita.getConfiguration();
 		final SealedCatalogSchema catalogSchema = evita.getCatalogInstance(TEST_CATALOG).orElseThrow().getSchema();
 		final EntitySchemaContract productSchema = catalogSchema.getEntitySchema(Entities.PRODUCT).orElseThrow();
+		// resolved before the engine closes - the binding is the only thing that knows which folder this is
+		final Path catalogDirectory = catalogFolder(evita, TEST_CATALOG);
 		evita.close();
-
-		final Path catalogDirectory = cfg.storage().storageDirectory().resolve(TEST_CATALOG);
 		final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
@@ -3625,7 +3642,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		log.info("Waiting for the WAL to be cleaned up.");
 
 		// we need to wait for the WAL to be cleaned up
-		final Path catalogPath = evita.getConfiguration().storage().storageDirectory().resolve(TEST_CATALOG);
+		final Path catalogPath = catalogFolder(evita, TEST_CATALOG);
 		final long start = System.currentTimeMillis();
 		do {
 			synchronized (this) {

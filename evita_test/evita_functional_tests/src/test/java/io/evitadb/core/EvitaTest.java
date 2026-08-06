@@ -1439,9 +1439,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1480,9 +1479,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldRenameEntityCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1519,9 +1517,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1549,9 +1546,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1610,9 +1606,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -3769,13 +3764,18 @@ class EvitaTest implements EvitaTestSupport {
 
 		assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(TEST_CATALOG + "_1").orElseThrow());
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -3922,13 +3922,18 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -4022,13 +4027,18 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -4991,6 +5001,58 @@ class EvitaTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 			}
 		);
+	}
+
+	@Test
+	@DisplayName("Bind a created catalog to the very folder its allocation created")
+	void shouldBindCreatedCatalogToTheFolderItWasAllocated() {
+		setupCatalogWithProductAndCategory();
+
+		// The binding has to name the folder the data was actually written into. When it does not, nothing
+		// fails: the folder is written, the catalog is bound to a different directory, and the mismatch only
+		// surfaces later as "no schema found, the data are probably corrupted" (see issue #649). The check that
+		// catches it is *counting* the folders, not reading the bound one - a create whose allocated token
+		// never reached the engine state leaves its empty allocation behind as a second directory.
+		final Path boundFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(boundFolder.toFile().isDirectory(), "The bound folder must exist!");
+		assertTrue(
+			boundFolder.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX
+			).toFile().exists(),
+			"The bound folder must be the one the catalog's data was written into!"
+		);
+
+		final File[] siblings = getEvitaTestDirectory().toFile().listFiles(
+			(dir, name) -> name.equals(TEST_CATALOG) || name.startsWith(TEST_CATALOG + "_")
+		);
+		assertNotNull(siblings);
+		assertEquals(
+			1, siblings.length,
+			() -> "Exactly one folder may exist for `" + TEST_CATALOG + "`, found: " +
+				Arrays.toString(Arrays.stream(siblings).map(File::getName).toArray(String[]::new))
+		);
+		assertEquals(boundFolder.toFile().getName(), siblings[0].getName());
+	}
+
+	/**
+	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
+	 *
+	 * A catalog's folder is no longer named after it — folders are allocated and carry a generation, and one
+	 * that outlives a rename keeps its old name (see issue #649). A test that joins the storage root with the
+	 * catalog name therefore addresses a directory that may not exist, or worse, may belong to *another*
+	 * catalog: with allocation in place, the folder of a catalog called `testCatalog` is literally
+	 * `testCatalog_1`, which is also the name of a catalog these tests create.
+	 *
+	 * Must be called while the engine is open, and the generation must never be hard-coded — allocation burns
+	 * a number per attempt, so the suffix is not predictable.
+	 *
+	 * @param catalogName name of the catalog whose folder is wanted
+	 * @return path of the catalog's storage folder
+	 */
+	@Nonnull
+	private Path catalogFolder(@Nonnull String catalogName) {
+		return getEvitaTestDirectory()
+			.resolve(this.evita.getCatalogFolderContext().folderIdFor(catalogName).id());
 	}
 
 	@Nonnull
