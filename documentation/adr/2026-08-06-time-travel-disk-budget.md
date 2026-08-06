@@ -1,11 +1,11 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 19:15
+updated: 2026-08-06 19:30
 status: accepted
 kind: feature
 issues: [761]
-prs: []
+prs: [1402]
 areas:
   - evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog
   - evita_store/evita_store_server/src/main/java/io/evitadb/store/wal
