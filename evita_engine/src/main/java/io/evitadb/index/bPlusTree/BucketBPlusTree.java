@@ -132,4 +132,18 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	 */
 	boolean contains(@Nullable K value);
 
+	/**
+	 * Returns the heap this tree occupies in bytes, **excluding the boxed keys its slots point at**.
+	 *
+	 * Unlike every other statistics reading, this one is **not** `O(1)`: it walks every node, so the cost is
+	 * `O(entries / blockSize)`. It belongs to `MEMORY_FOOTPRINT`, which is opt-in and documented expensive, and must
+	 * never be called from a query path. Measured at production block sizes, a 10M-bucket tree of single-record
+	 * buckets walks in ~2 ms; the same tree with a multi-record overflow bitmap per bucket takes ~300 ms, where
+	 * roughly three quarters of the time is cache misses reaching 10M scattered bitmaps rather than the arithmetic
+	 * itself (see `BucketBPlusTreeHeapSizeBenchmark` and `BitmapHeapSizeCostBenchmark`).
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
 }

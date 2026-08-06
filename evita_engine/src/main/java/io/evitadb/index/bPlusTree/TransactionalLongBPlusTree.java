@@ -34,6 +34,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -52,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.PrimitiveIterator.OfLong;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -824,6 +826,54 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 		return new BPlusInternalTreeNode(keys, childArray, childCount - 1, true);
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes, **excluding the values its leaves point at**.
+	 *
+	 * Like every heap-footprint reading over a tree this is `O(entries / blockSize)` rather than `O(1)`, so it
+	 * belongs to `MEMORY_FOOTPRINT` and never to a query path — see {@link BucketBPlusTree#getHeapSizeInBytes()}
+	 * for the measured cost and where it goes.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		return getHeapSizeInBytes(element -> 0L);
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes, **including the values its leaves point at**, each priced by
+	 * `elementSizer`.
+	 *
+	 * The caller owns the policy: return `0` for a value this tree merely borrows, and its real footprint for one
+	 * it owns. A {@link io.evitadb.index.range.RangeIndex} owns its range points and prices them; an index holding
+	 * values another structure maintains would not.
+	 *
+	 * @param elementSizer prices a single stored value; must return `0` for values this tree does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final VMLayout layout = VMLayout.current();
+		// id + four block-size ints + valueType/wrapper/root/size slots, then the two TransactionalReference
+		// holders with their AtomicReferences and the boxed size counter
+		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 4L * layout.referenceSize());
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts except the
+	 * tree object itself. Split out for the same reason as in {@link TransactionalBucketBPlusTree}: the tree holds a
+	 * lambda field, and a lambda is a hidden class whose field offsets JOL cannot read, so only the node graph can
+	 * be asserted against a real measurement.
+	 *
+	 * @param elementSizer prices a single stored value
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		return getRoot().getHeapSizeInBytes(elementSizer);
 	}
 
 	/**
@@ -1772,6 +1822,31 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			}
 		}
 
+		/**
+		 * Returns the heap this node and the whole subtree beneath it occupy, in bytes.
+		 *
+		 * Both backing arrays are charged at their **allocated** length. The separator `keys` are `long` values
+		 * rather than boxed objects here, so — unlike the bucket tree — there is nothing in an internal node for
+		 * the element sizer to price. Children carried over unchanged from a superseded version are charged in
+		 * full: the predecessor is garbage-in-waiting and this version becomes their sole owner.
+		 *
+		 * @param elementSizer prices one stored value; passed through to the leaves
+		 * @return the owned heap footprint of this subtree in bytes
+		 */
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + keys/children slots + peek
+			long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			final int childCount = keyCount() + 1;
+			for (int i = 0; i < childCount; i++) {
+				size += this.children[i].getHeapSizeInBytes(elementSizer);
+			}
+			return size;
+		}
+
 		@Override
 		public int keyCount() {
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
@@ -2603,6 +2678,35 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 					}
 				}
 			}
+		}
+
+		/**
+		 * Returns the heap this leaf occupies, in bytes.
+		 *
+		 * Charges its own object and both backing arrays at their allocated length, then prices the live values
+		 * through `elementSizer`. The values are genuine objects — for a {@link io.evitadb.index.range.RangeIndex}
+		 * they are its range points — so unlike the primitive columns this leaf really can own a payload, and
+		 * whether it does is the caller's policy rather than this leaf's. `transactionalLayerWrapper` is a lambda
+		 * every node of the tree receives, so only its slot is charged.
+		 *
+		 * @param elementSizer prices one stored value; must return `0` for values this tree does not own
+		 * @return the owned heap footprint of this leaf in bytes
+		 */
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + dirty + wrapper/keys/values slots + peek + pageSequence
+			long size = layout.sizeOfObject(Long.BYTES + 2L + 3L * layout.referenceSize() + 2L * Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, Long.BYTES);
+			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
+			final int liveCount = keyCount();
+			for (int i = 0; i < liveCount; i++) {
+				final V value = this.values[i];
+				if (value != null) {
+					size += elementSizer.applyAsLong(value);
+				}
+			}
+			return size;
 		}
 
 		@Override

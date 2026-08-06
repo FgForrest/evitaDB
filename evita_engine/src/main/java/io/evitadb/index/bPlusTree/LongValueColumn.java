@@ -24,12 +24,14 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfLongInOrderedArray;
 
@@ -150,6 +152,21 @@ final class LongValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 			boxed[i] = this.codec.decode(this.keys[i]);
 		}
 		return boxed;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// `codec` addresses a LongKeyCodec enum constant - a JVM-wide singleton shared by every column of this key
+		// type, so only the reference slot belongs here
+		return layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfArray(this.keys.length, Long.BYTES);
+	}
+
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		// keys are `long` values inside the array, decoded on demand - there is nothing for the sizer to price
+		return getHeapSizeInBytes();
 	}
 
 	/**

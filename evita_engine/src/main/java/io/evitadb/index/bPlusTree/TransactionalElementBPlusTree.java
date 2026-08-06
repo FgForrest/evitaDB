@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -50,6 +51,7 @@ import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.ToIntFunction;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
 import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
@@ -942,6 +944,53 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
+	 * Returns the heap this tree occupies in bytes, **excluding the elements its leaves point at**.
+	 *
+	 * This is the spine-only figure, and it is the one a
+	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex} must use: that index holds the very same
+	 * `PriceRecord` instances as the super index of its price-list / currency combination, so it owns this tree's
+	 * nodes and reference slots while the **bodies belong to the super index alone**. Counting them here too would
+	 * multiply the whole price payload by the number of reference-reduced indexes.
+	 *
+	 * Like every tree walk this is `O(nodes)`, not `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes()}.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		return getHeapSizeInBytes(element -> 0L);
+	}
+
+	/**
+	 * Returns the heap this tree occupies in bytes, **including the elements** its leaves point at, each priced by
+	 * `elementSizer`. This is the figure a {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} uses:
+	 * it is the owner of the price bodies, so it is the one that charges them.
+	 *
+	 * @param elementSizer prices a single stored element; must return `0` for elements this tree does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final VMLayout layout = VMLayout.current();
+		// id + four block-size ints + elementType/keyExtractor/root/size slots
+		long ownSize = layout.sizeOfObject(Long.BYTES + 4L * Integer.BYTES + 4L * layout.referenceSize());
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone. Split out because the tree object holds a lambda field and
+	 * a lambda is a hidden class JOL cannot read field offsets from, so only the node graph can be asserted against
+	 * a real measurement.
+	 *
+	 * @param elementSizer prices a single stored element
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		return getRoot().getHeapSizeInBytes(elementSizer);
+	}
+
+	/**
 	 * Inserts an element into the B+ tree. The ordering / identity key is derived from the element via the tree's key
 	 * extractor; if an element with the same key already exists it is replaced. If the owning leaf overflows it is split
 	 * to maintain the properties of the tree.
@@ -1558,6 +1607,27 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 					}
 				}
 			}
+		}
+
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + dirty + keyExtractor/values slots + peek + pageSequence. There is no key
+			// array at all - this leaf derives each key from its element through the extractor, which is one lambda
+			// shared by every node of the tree and so contributes only its slot
+			long size = layout.sizeOfObject(Long.BYTES + 2L + 2L * layout.referenceSize() + 2L * Integer.BYTES);
+			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
+			// the elements are exactly the case the sizer exists for: a PriceListAndCurrencyPriceRefIndex holds the
+			// very same PriceRecord instances as the super index, so it sizes this tree spine-only (sizer -> 0)
+			// while the super index, their real owner, charges the bodies
+			final int liveCount = keyCount();
+			for (int i = 0; i < liveCount; i++) {
+				final E value = this.values[i];
+				if (value != null) {
+					size += elementSizer.applyAsLong(value);
+				}
+			}
+			return size;
 		}
 
 		@Override

@@ -34,6 +34,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjTriFunction;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -1348,6 +1350,28 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 		}
 
 		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + keys/children slots + peek
+			long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
+			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			// separator keys are boxed here, and are often the very instances the leaves below hold, so they go
+			// through the caller's sizer rather than being charged unconditionally
+			final int keyCount = keyCount();
+			for (int i = 0; i < keyCount; i++) {
+				final M key = this.keys[i];
+				if (key != null) {
+					size += elementSizer.applyAsLong(key);
+				}
+			}
+			for (int i = 0; i < keyCount + 1; i++) {
+				size += this.children[i].getHeapSizeInBytes(elementSizer);
+			}
+			return size;
+		}
+
+		@Override
 		public int keyCount() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
@@ -2168,6 +2192,28 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 					}
 				}
 			}
+		}
+
+		@Override
+		public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + wrapper/keys/values slots + peek
+			long size = layout.sizeOfObject(Long.BYTES + 1L + 3L * layout.referenceSize() + Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
+			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
+			// both the boxed keys and the stored values are the caller's to price
+			final int liveCount = keyCount();
+			for (int i = 0; i < liveCount; i++) {
+				final M key = this.keys[i];
+				if (key != null) {
+					size += elementSizer.applyAsLong(key);
+				}
+				final N value = this.values[i];
+				if (value != null) {
+					size += elementSizer.applyAsLong(value);
+				}
+			}
+			return size;
 		}
 
 		@Override

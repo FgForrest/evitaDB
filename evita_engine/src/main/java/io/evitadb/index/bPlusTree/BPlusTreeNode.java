@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.function.ToLongFunction;
 
 /**
  * Common, key-type-agnostic contract of a node in any B+ tree of the family. It is the seam through which
@@ -120,5 +121,36 @@ public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	 * Merges the current leaf node with the right sibling leaf node.
 	 */
 	void mergeWithRight(@Nonnull N nextNode);
+
+	/**
+	 * Returns the heap this node — and, for an internal node, the whole subtree beneath it — occupies in bytes.
+	 *
+	 * # What is counted
+	 *
+	 * The node object and every backing array it owns, each at its **allocated** length: a node is allocated at its
+	 * block size and keeps it, so the slots past the live tail are paid for regardless. Structure carried over
+	 * unchanged from a **superseded** version is charged in full — the predecessor is garbage-in-waiting and this
+	 * version becomes its sole owner, so discounting it would under-report whichever one survives.
+	 *
+	 * Objects the node merely reaches are not charged: a comparator or key-extractor handed down by the tree, and a
+	 * `Class` the JVM owns, contribute only the reference slot already inside the node's own object.
+	 *
+	 * # The sizer
+	 *
+	 * `elementSizer` prices whatever the node *stores* — boxed separator keys, or a leaf's payload — and it exists
+	 * because ownership of those objects is not the node's to decide. A `PriceListAndCurrencyPriceRefIndex` holds
+	 * the very same `PriceRecord` instances as the super index, so its tree must be sized **spine-only** while the
+	 * super index charges the bodies; pass a sizer returning `0` for the first and a real one for the second.
+	 * Nodes whose keys and values are primitives ignore the sizer entirely.
+	 *
+	 * # Cost
+	 *
+	 * `O(nodes)` beneath this one — not `O(1)`. This belongs to `MEMORY_FOOTPRINT`, which is opt-in and documented
+	 * expensive, and must never be reached from a query path.
+	 *
+	 * @param elementSizer prices one stored element; must return `0` for elements this node does not own
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer);
 
 }

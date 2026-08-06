@@ -40,6 +40,7 @@ import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.*;
 
@@ -1153,6 +1155,82 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public int size() {
 		return Objects.requireNonNull(this.size.get());
+	}
+
+	/**
+	 * Returns the heap this tree occupies, in bytes, **excluding the boxed keys its slots point at**.
+	 *
+	 * # Cost
+	 *
+	 * This is the first figure in the statistics work that is **not** `O(1)`: answering it walks every node, so the
+	 * cost is `O(entries / blockSize)` rather than a counter read. It is therefore a `MEMORY_FOOTPRINT` operation -
+	 * opt-in and documented expensive - never something a query path may call. `BucketBPlusTreeHeapSizeBenchmark`
+	 * measures the real number at production block sizes.
+	 *
+	 * # What is counted
+	 *
+	 * Every node, both columns of every leaf, and each overflow bitmap, all at **allocated** capacity. Structure
+	 * carried over unchanged from a superseded version is charged in full. The tree's `keyType` and `comparator`
+	 * are shared - a `Class` object and one comparator instance handed to every node - so only their slots count.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		return getHeapSizeInBytes(element -> 0L);
+	}
+
+	/**
+	 * Returns the heap this tree occupies, in bytes, **including the boxed keys** its leaf columns point at, each
+	 * priced by `elementSizer`.
+	 *
+	 * Only a tree whose keys are boxed (see {@link BoxedObjectColumn}) can differ from {@link #getHeapSizeInBytes()};
+	 * primitive and front-coded columns store their keys as values and ignore the sizer. The caller owns the policy:
+	 * return `0` for a key this tree merely borrows, and its real footprint for one it owns.
+	 *
+	 * @param elementSizer prices a single boxed key; must return `0` for keys this tree does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final VMLayout layout = VMLayout.current();
+		// id + four block-size ints + longPayload + six reference slots: keyType, comparator, the two column
+		// factories, size and root. The factories are lambdas the caller supplied and every tree of this key type
+		// receives the same pair, so only their slots belong here
+		long ownSize = layout.sizeOfObject(
+			Long.BYTES + 4L * Integer.BYTES + 1L + 6L * layout.referenceSize()
+		);
+		// the two TransactionalReference holders are the tree's own, and each wraps an AtomicReference. The `root`
+		// holder addresses the node walked below; the `size` holder addresses a boxed Integer, charged in full -
+		// whether the JVM happens to hand back a cached instance is an implementation detail that moves with
+		// -XX:AutoBoxCacheMax and must not decide what this reports
+		final long transactionalReference = layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize());
+		ownSize += 2L * transactionalReference + layout.sizeOfObject(Integer.BYTES);
+		return ownSize + getNodeGraphHeapSizeInBytes(elementSizer);
+	}
+
+	/**
+	 * Returns the heap of this tree's node graph alone — everything {@link #getHeapSizeInBytes()} counts *except*
+	 * the tree object itself.
+	 *
+	 * The split exists because the tree object cannot be measured against JOL: it holds two column-factory lambdas,
+	 * and a lambda is a **hidden class** whose field offsets JOL refuses to read ("Cannot get the field offset").
+	 * No `--add-opens` lifts that — it is not a package-access restriction. Everything beneath the root, which is
+	 * all of the recursion and all of the risk, stays measurable, so the tests assert against this.
+	 *
+	 * @param elementSizer prices a single boxed key; must return `0` for keys this tree does not own
+	 * @return the heap footprint of every node in this tree, in bytes
+	 */
+	long getNodeGraphHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final BPlusTreeNode<K, ?> rootNode = getRoot();
+		if (rootNode instanceof BPlusInternalTreeNode<?> internal) {
+			return internal.getHeapSizeInBytes(elementSizer);
+		} else if (rootNode instanceof BPlusLeafTreeNode<?> leaf) {
+			return leaf.getHeapSizeInBytes(elementSizer);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected B+ tree root node kind: " + rootNode.getClass().getName()
+			);
+		}
 	}
 
 	/**
@@ -3092,6 +3170,55 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.pageSequence = pageSequence;
 		}
 
+		/**
+		 * Returns the heap this node and the whole subtree beneath it occupy, in bytes.
+		 *
+		 * Charges its own two backing arrays at their **allocated** length (an internal node is allocated at the block
+		 * size and keeps it), then recurses into every live child. The separator `keys` are boxed and are frequently
+		 * the very same instances the leaves below hold, so only their reference slots are charged here - pricing
+		 * them would count one key twice within a single tree. `comparator` is supplied by the tree and shared by
+		 * every node in it, so it too contributes only its slot.
+		 *
+		 * Children carried over unchanged from a superseded version are charged in full: the predecessor is
+		 * garbage-in-waiting and this version becomes their sole owner.
+		 *
+		 * @param elementSizer prices one stored record payload, as in {@link ValueColumn#getHeapSizeInBytes}
+		 * @return the owned heap footprint of this subtree in bytes
+		 */
+		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + comparator/keys/children slots + peek + pageSequence
+			long size = layout.sizeOfObject(Long.BYTES + 1L + 3L * layout.referenceSize() + 2L * Integer.BYTES);
+			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
+			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+			// separator keys go through the SAME sizer the leaf columns use, and for the same reason: whether a
+			// separator is this node's own object or the very instance a leaf below already holds depends on the
+			// column kind underneath, which only the caller knows. A primitive or front-coded leaf keeps no boxed
+			// key, so the separator here is owned outright; a BoxedObjectColumn leaf may hold the identical
+			// instance, and pricing it in both places would count one key twice inside a single tree
+			final int keyCount = keyCount();
+			for (int i = 0; i < keyCount; i++) {
+				final M key = this.keys[i];
+				if (key != null) {
+					size += elementSizer.applyAsLong(key);
+				}
+			}
+			final int childCount = keyCount + 1;
+			for (int i = 0; i < childCount; i++) {
+				final BPlusTreeNode<M, ?> child = this.children[i];
+				if (child instanceof BPlusInternalTreeNode<?> internal) {
+					size += internal.getHeapSizeInBytes(elementSizer);
+				} else if (child instanceof BPlusLeafTreeNode<?> leaf) {
+					size += leaf.getHeapSizeInBytes(elementSizer);
+				} else {
+					throw new GenericEvitaInternalError(
+						"Unexpected B+ tree node kind: " + (child == null ? "null" : child.getClass().getName())
+					);
+				}
+			}
+			return size;
+		}
+
 		@Override
 		public int keyCount() {
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
@@ -4007,6 +4134,34 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				layer.dirty = false;
 			}
+		}
+
+		/**
+		 * Returns the heap this leaf occupies, in bytes.
+		 *
+		 * Charges its own object, both columns and - when it has one - the lazy overflow array together with every
+		 * bitmap in it. `comparator` is the tree's and shared by every node, so only its slot is charged; the
+		 * `overflow` array is `null` until the leaf's first multi-record bucket and costs nothing until then.
+		 *
+		 * @param elementSizer prices one boxed key, for the columns that store references
+		 * @return the owned heap footprint of this leaf in bytes
+		 */
+		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+			final VMLayout layout = VMLayout.current();
+			// id + transactionalLayer + dirty + comparator/keys/records/overflow slots + peek + pageSequence
+			long size = layout.sizeOfObject(Long.BYTES + 2L + 4L * layout.referenceSize() + 2L * Integer.BYTES);
+			size += this.keys.getHeapSizeInBytes(elementSizer);
+			size += this.records.getHeapSizeInBytes();
+			if (this.overflow != null) {
+				size += layout.sizeOfArray(this.overflow.length, layout.referenceSize());
+				for (int i = 0; i < this.overflow.length; i++) {
+					final TransactionalBitmap bitmap = this.overflow[i];
+					if (bitmap != null) {
+						size += bitmap.getHeapSizeInBytes();
+					}
+				}
+			}
+			return size;
 		}
 
 		@Override

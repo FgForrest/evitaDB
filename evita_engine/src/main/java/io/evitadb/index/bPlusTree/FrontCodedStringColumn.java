@@ -25,12 +25,14 @@ package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_INT_ARRAY;
@@ -524,6 +526,32 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final String[] decoded = decodeAll();
 		System.arraycopy(decoded, 0, boxed, 0, this.size);
 		return (M[]) boxed;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// three ints, two references and two booleans
+		long size = layout.sizeOfObject(3L * Integer.BYTES + 2L * layout.referenceSize() + 2L);
+		// an empty or cleared column parks both fields on the JVM-wide shared empty arrays (see the constructor and
+		// `clear`), which cost it nothing beyond the slots already counted above
+		if (this.data != EMPTY_BYTES) {
+			size += layout.sizeOfArray(this.data.length, Byte.BYTES);
+		}
+		if (this.restartOffsets != EMPTY_OFFSETS) {
+			size += layout.sizeOfArray(this.restartOffsets.length, Integer.BYTES);
+		}
+		// `DecodeScratch` is thread-local scratch shared by every column on the thread - never charged here.
+		// Both arrays above are read at their ALLOCATED length: `encode` trims them to the live length today, so
+		// this equals `dataLength`, but reading the allocation keeps the figure honest if slack is ever retained
+		return size;
+	}
+
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		// keys live as front-coded bytes inside `data`; no String is retained, so there is nothing for the sizer to
+		// price. This is exactly why String keys never reach BoxedObjectColumn
+		return getHeapSizeInBytes();
 	}
 
 	/**

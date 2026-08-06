@@ -24,12 +24,14 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
 import static io.evitadb.utils.ArrayUtils.insertRecordIntoSameArrayOnIndex;
@@ -193,6 +195,48 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 */
 	@Nonnull
 	M[] asBoxedArray();
+
+	/**
+	 * Returns the heap this column occupies in bytes, **excluding whatever its slots point at**.
+	 *
+	 * The figure covers the column object and every backing array it owns, each at its *allocated* length rather than
+	 * its live entry count: a column keeps the capacity it was allocated with, so the slots in `[size, capacity)` are
+	 * paid for even while they hold nothing. That is the honest number for a leaf block, which is sized once and then
+	 * fills up — so for these columns the figure does **not** move as keys are inserted.
+	 *
+	 * {@link FrontCodedStringColumn} is the one exception, and deliberately so: it allocates no per-slot storage at
+	 * all, encoding its keys into a variable-length blob that is re-trimmed on every write. Its figure therefore
+	 * *does* grow with the content it holds. Do not assume uniformity across the family here.
+	 *
+	 * For the primitive-backed columns this is the whole story - their keys are values living inside the array. Only
+	 * {@link BoxedObjectColumn} stores references, and here it charges the reference slots alone; use
+	 * {@link #getHeapSizeInBytes(ToLongFunction)} to add the referenced objects where this column owns them.
+	 *
+	 * Backing state aliased with a **superseded** version of this column is charged in full - see
+	 * {@link FrontCodedStringColumn#duplicate()}, the one structural share in this family. The predecessor is
+	 * garbage-in-waiting and the survivor becomes its sole owner, so discounting it would under-report every
+	 * committed column.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
+	/**
+	 * Returns the heap this column occupies in bytes, **including the objects its slots point at**, each priced by
+	 * `elementSizer`.
+	 *
+	 * The sizer decides ownership and the caller decides the sizer: return `0` for an element this column merely
+	 * borrows - a JVM-cached {@link java.util.Locale} or {@link java.util.Currency}, or a value another index owns -
+	 * and its real footprint for one this column owns. Nothing here hard-codes which elements are shared, because
+	 * that answer belongs to the structure doing the asking rather than to the column.
+	 *
+	 * Only {@link BoxedObjectColumn} can differ from {@link #getHeapSizeInBytes()}. Every other implementation stores
+	 * keys as primitive values or as encoded bytes, has no referenced elements at all, and ignores the sizer.
+	 *
+	 * @param elementSizer prices a single element; must return `0` for elements this column does not own
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer);
 }
 
 /**
@@ -308,6 +352,36 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Override
 	public M[] asBoxedArray() {
 		return this.keys;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the column itself: the `keyType` and `keys` references. `keyType` addresses a Class object, which the JVM
+		// owns for the lifetime of its class loader and shares with every other holder - only the slot is charged
+		return layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfArray(this.keys.length, layout.referenceSize());
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Unlike the primitive columns, which answer in `O(1)`, this one scans the backing array: the column does not
+	 * track its own live count, so the null slots are what distinguishes the tail. That makes the cost `O(capacity)`
+	 * — one leaf block, not one index — and it **depends on the leaf nulling the truncated tail** through
+	 * {@link #fillEmpty}. Should `peek` ever shrink without that call, stale references would survive past the live
+	 * range and be priced here, over-charging the column.
+	 */
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		long size = getHeapSizeInBytes();
+		for (int i = 0; i < this.keys.length; i++) {
+			final M key = this.keys[i];
+			if (key != null) {
+				size += elementSizer.applyAsLong(key);
+			}
+		}
+		return size;
 	}
 
 	/**

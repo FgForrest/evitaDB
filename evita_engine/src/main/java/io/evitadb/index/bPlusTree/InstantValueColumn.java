@@ -24,12 +24,14 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 /**
  * Primitive {@link ValueColumn} backed by **two** parallel arrays — a {@code long[]} of epoch-seconds and an
@@ -195,6 +197,22 @@ final class InstantValueColumn<M extends Comparable<M>> implements ValueColumn<M
 			boxed[i] = Instant.ofEpochSecond(this.seconds[i], this.nanos[i]);
 		}
 		return (M[]) boxed;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// two parallel arrays, both allocated at the leaf block size and always the same length
+		return layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfArray(this.seconds.length, Long.BYTES)
+			+ layout.sizeOfArray(this.nanos.length, Integer.BYTES);
+	}
+
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		// keys decompose into primitive (seconds, nanos) slots - the Instant is materialized on demand and never
+		// retained, so there is nothing for the sizer to price
+		return getHeapSizeInBytes();
 	}
 
 	/**

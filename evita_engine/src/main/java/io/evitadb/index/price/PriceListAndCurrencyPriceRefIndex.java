@@ -54,8 +54,18 @@ import java.util.Objects;
  *
  * RefIndex attempts to store minimal data set in order to save memory on heap. For memory expensive objects such as
  * {@link PriceRecord} and {@link EntityPrices} it relies on the {@link PriceListAndCurrencyPriceSuperIndex} of the same
- * combination, which the caller supplies per operation - this index keeps no pointer to it, so it carries no
- * catalog-version pin and can be forwarded across catalog versions by reference.
+ * combination, which the caller supplies per operation. This index keeps no pointer to *the super index object*, so it
+ * carries no catalog-version pin and can be forwarded across catalog versions by reference.
+ *
+ * **That is a statement about the super index, not about the records.** This index does hold the shared payload:
+ * {@link AbstractPriceListAndCurrencyPriceIndex#priceRecords} is its own tree, but its elements are the very same
+ * {@link PriceRecord} instances the super index owns - created once on the add-price path, carried forward by the copy
+ * constructor, and reconstructed onto those same instances by
+ * {@link #restorePriceRecordsFrom(PriceListAndCurrencyPriceSuperIndex)} after a disk-load attach. Reading "keeps no
+ * pointer" as "shares nothing" is the trap, and it is load-bearing for heap accounting: a reduced index owns its tree
+ * **spine** - the nodes and the reference slots - while the price bodies belong to the super index alone, so only the
+ * super index may ever charge them. Counting them here too would multiply the whole price payload by the number of
+ * reference-reduced indexes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
