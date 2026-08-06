@@ -30,23 +30,15 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.query.require.ManagedReferencesBehaviour;
-import io.evitadb.api.query.require.PriceContent;
-import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.query.require.Require;
-import io.evitadb.api.query.require.StatisticsBase;
-import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
@@ -58,10 +50,12 @@ import static io.evitadb.api.query.require.FacetRelationType.NEGATION;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.COUNTS;
 import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link EvitaQLRequireConstraintVisitor}
@@ -3170,12 +3164,12 @@ class EvitaQLRequireConstraintVisitorTest {
 		// when a histogramStatistics child is present the constraint's toString() emits the
 		// `withHistograms` suffix alias; when it is absent the plain `referenceSummary` is emitted
 		final String withHistogramsString = constraint3.toString();
-		assertEquals(true, withHistogramsString.startsWith("referenceSummaryWithHistograms("));
+		assertTrue(withHistogramsString.startsWith("referenceSummaryWithHistograms("));
 
 		final RequireConstraint plainConstraint = parseRequireConstraintUnsafe("referenceSummary(IMPACT, entityFetch(attributeContentAll()))");
 		final String plainString = plainConstraint.toString();
-		assertEquals(true, plainString.startsWith("referenceSummary("));
-		assertEquals(false, plainString.startsWith("referenceSummaryWithHistograms("));
+		assertTrue(plainString.startsWith("referenceSummary("));
+		assertFalse(plainString.startsWith("referenceSummaryWithHistograms("));
 
 		// roundtrip: parsing the toString output of a with-histograms constraint yields an equal
 		// constraint tree back
@@ -3304,15 +3298,15 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		// verify the toString suffix alias is emitted and that the output roundtrips through the parser
 		final String withHistogramsString = constraint2.toString();
-		assertEquals(true, withHistogramsString.startsWith("referenceSummaryOfReferenceWithHistograms("));
+		assertTrue(withHistogramsString.startsWith("referenceSummaryOfReferenceWithHistograms("));
 		final RequireConstraint roundtripped = parseRequireConstraintUnsafe(withHistogramsString);
 		assertEquals(constraint2, roundtripped);
 
 		final RequireConstraint plainConstraint = parseRequireConstraintUnsafe(
 			"referenceSummaryOfReference('parameter', IMPACT, entityFetch(attributeContentAll()))"
 		);
-		assertEquals(true, plainConstraint.toString().startsWith("referenceSummaryOfReference("));
-		assertEquals(false, plainConstraint.toString().startsWith("referenceSummaryOfReferenceWithHistograms("));
+		assertTrue(plainConstraint.toString().startsWith("referenceSummaryOfReference("));
+		assertFalse(plainConstraint.toString().startsWith("referenceSummaryOfReferenceWithHistograms("));
 	}
 
 	@Test
@@ -4251,12 +4245,28 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint2 = parseRequireConstraint("queryTelemetry (  )");
 		assertEquals(queryTelemetry(), constraint2);
+
+		// the argument-carrying form; the argument-less one above must keep parsing, which is why the grammar
+		// admits both rather than replacing one with the other
+		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("queryTelemetry(PLAN)");
+		assertEquals(queryTelemetry(QueryTelemetryContent.PLAN), constraint3);
+		assertTrue(((QueryTelemetry) constraint3).isPlanRequested());
+		assertFalse(((QueryTelemetry) constraint1).isPlanRequested());
+
+		// spelling the default out is equivalent to omitting it, and prints back in the omitted form - the whole
+		// point of the constraint carrying an implicit argument rather than an absent one
+		final RequireConstraint constraint4 = parseRequireConstraintUnsafe("queryTelemetry(TIMINGS)");
+		assertEquals(queryTelemetry(), constraint4);
+		assertEquals("queryTelemetry()", constraint4.toString());
+		assertEquals(QueryTelemetryContent.TIMINGS, ((QueryTelemetry) constraint1).getContent());
 	}
 
 	@Test
 	void shouldNotParseQueryTelemetryConstraint() {
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraint("queryTelemetry"));
 		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry('a','b')"));
+		// the level is a single value, not a set - asking for both is contradictory rather than cumulative
+		assertThrows(EvitaSyntaxException.class, () -> parseRequireConstraintUnsafe("queryTelemetry(TIMINGS,PLAN)"));
 	}
 
 	@Test

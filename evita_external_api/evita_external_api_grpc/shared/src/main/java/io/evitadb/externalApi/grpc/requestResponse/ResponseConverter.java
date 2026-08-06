@@ -50,7 +50,9 @@ import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
@@ -68,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -541,7 +544,7 @@ public class ResponseConverter {
 	 */
 	@Nonnull
 	private static QueryTelemetry toQueryTelemetry(@Nonnull GrpcQueryTelemetry grpcQueryTelemetry) {
-		return new QueryTelemetry(
+		final QueryTelemetry result = new QueryTelemetry(
 			toQueryPhase(grpcQueryTelemetry.getOperation()),
 			grpcQueryTelemetry.getStart(),
 			grpcQueryTelemetry.getSpentTime(),
@@ -550,6 +553,91 @@ public class ResponseConverter {
 			grpcQueryTelemetry.getArgumentsList().toArray(String[]::new),
 			grpcQueryTelemetry.getStepsList().stream().map(ResponseConverter::toQueryTelemetry).toArray(QueryTelemetry[]::new)
 		);
+		// unlike selfTime, which the server derives and the client can derive just as well, metrics are measured -
+		// so they are restored here rather than dropped, which is what keeps a telemetry tree read through the
+		// driver equal to the one an embedded caller would have got for the same query
+		if (grpcQueryTelemetry.hasMetrics()) {
+			restoreMetrics(result, grpcQueryTelemetry.getMetrics());
+		}
+		// the plan is measured rather than derived too, so it is restored for the same reason - a driver caller
+		// asking for `queryTelemetry(PLAN)` gets the same tree an embedded caller would
+		if (grpcQueryTelemetry.hasPlan()) {
+			result.recordPlan(restorePlan(grpcQueryTelemetry.getPlan()));
+		}
+		return result;
+	}
+
+	/**
+	 * Rebuilds a formula plan node, and everything below it, from its gRPC representation.
+	 *
+	 * Each optional field maps back to `null`, which is the value that means "not computed" - restoring an absent
+	 * `actualCost` as `0` would turn a formula the engine deliberately never ran into one that reportedly ran for
+	 * free. The recursion terminates at back-reference nodes of its own accord, since they carry no children.
+	 *
+	 * @param plan the plan node as it arrived on the wire
+	 * @return the rebuilt node together with everything nested below it
+	 */
+	@Nonnull
+	private static FormulaPlan restorePlan(@Nonnull GrpcFormulaPlan plan) {
+		final List<FormulaPlan> children = new ArrayList<>(plan.getChildrenCount());
+		for (final GrpcFormulaPlan child : plan.getChildrenList()) {
+			children.add(restorePlan(child));
+		}
+		return new FormulaPlan(
+			plan.getId(),
+			plan.hasRefTo() ? plan.getRefTo() : null,
+			plan.getHash(),
+			plan.hasDescription() ? plan.getDescription() : null,
+			plan.getEstimatedCost(),
+			plan.hasActualCost() ? plan.getActualCost() : null,
+			plan.hasResultCount() ? plan.getResultCount() : null,
+			children
+		);
+	}
+
+	/**
+	 * Restores the metrics carried by a {@link GrpcQueryTelemetryMetrics} message onto the telemetry step rebuilt
+	 * from it.
+	 *
+	 * They are recorded after construction rather than passed to the constructor because recording is a plain
+	 * mutation with no lifecycle attached to it - a step accepts metrics whether or not it has been finished - and
+	 * threading eight optional values through an already six-argument deserialization constructor would obscure it.
+	 *
+	 * Each field is restored only when the message actually carries it: the metrics are `optional` precisely because
+	 * several of them are legitimately `0`, so reading them unconditionally would invent measurements that were
+	 * never taken.
+	 *
+	 * @param queryTelemetry the rebuilt step to record onto
+	 * @param metrics        the measurements as they arrived on the wire
+	 */
+	private static void restoreMetrics(
+		@Nonnull QueryTelemetry queryTelemetry,
+		@Nonnull GrpcQueryTelemetryMetrics metrics
+	) {
+		if (metrics.hasEstimatedCardinality()) {
+			queryTelemetry.recordMetric(StepMetric.ESTIMATED_CARDINALITY, metrics.getEstimatedCardinality());
+		}
+		if (metrics.hasActualCardinality()) {
+			queryTelemetry.recordMetric(StepMetric.ACTUAL_CARDINALITY, metrics.getActualCardinality());
+		}
+		if (metrics.hasEstimatedCost()) {
+			queryTelemetry.recordMetric(StepMetric.ESTIMATED_COST, metrics.getEstimatedCost());
+		}
+		if (metrics.hasActualCost()) {
+			queryTelemetry.recordMetric(StepMetric.ACTUAL_COST, metrics.getActualCost());
+		}
+		if (metrics.hasRecordsReturned()) {
+			queryTelemetry.recordMetric(StepMetric.RECORDS_RETURNED, metrics.getRecordsReturned());
+		}
+		if (metrics.hasIoFetchCount()) {
+			queryTelemetry.recordMetric(StepMetric.IO_FETCH_COUNT, metrics.getIoFetchCount());
+		}
+		if (metrics.hasIoFetchedSizeBytes()) {
+			queryTelemetry.recordMetric(StepMetric.IO_FETCHED_SIZE_BYTES, metrics.getIoFetchedSizeBytes());
+		}
+		if (metrics.hasPrefetched()) {
+			queryTelemetry.recordMetric(StepMetric.PREFETCHED, metrics.getPrefetched());
+		}
 	}
 
 	/**

@@ -35,6 +35,7 @@ filename date that disagrees with `date:`.
 |------|--------|------|--------|------|
 | 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390, PR #1395 |
 | 2026-08-05 | [Never decorate a streaming gRPC channel with RetryingClient](2026-08-05-streaming-calls-must-not-be-retry-decorated.md) | fix | accepted | #1388, PR #1389 |
+| 2026-08-04 | [Turn query telemetry into an actionable profile, and render the formula plan without ever computing it](2026-08-04-query-telemetry-actionable-profile.md) | feature | accepted | #1341, PR #1385 |
 | 2026-08-04 | [Report HTTP/2 RST_STREAM floods instead of enforcing against them, and turn the Rapid-Reset defence off by default](2026-08-04-http2-connection-teardown-observability.md) | fix | accepted | #1369, PR #1383 |
 | 2026-08-04 | [Fail fast on client pool saturation and never run consumer callbacks on the submitting thread](2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation.md) | fix | accepted | #1387, PR #1389 |
 | 2026-08-03 | [Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR](2026-08-03-readiness-discovery-log-level.md) | fix | proposed | #1364, PR #1366 |

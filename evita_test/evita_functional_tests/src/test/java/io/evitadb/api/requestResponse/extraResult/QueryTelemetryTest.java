@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.extraResult;
 
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -321,6 +322,109 @@ class QueryTelemetryTest implements EvitaTestSupport {
 		void shouldResolveFromName() {
 			assertEquals(QueryPhase.OVERALL, QueryPhase.valueOf("OVERALL"));
 			assertEquals(QueryPhase.PLANNING, QueryPhase.valueOf("PLANNING"));
+		}
+	}
+
+	@Nested
+	@DisplayName("step metrics")
+	class StepMetrics {
+
+		@Test
+		@DisplayName("should report no metrics on a step nothing was recorded on")
+		void shouldReportNoMetricsOnUntouchedStep() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL);
+			// this is the zero-cost guarantee in its smallest observable form: a step nobody measured allocates no
+			// metric storage at all, which is what a query that did not ask for telemetry produces at every node
+			assertFalse(telemetry.hasMetrics());
+			for (final StepMetric metric : StepMetric.values()) {
+				assertTrue(telemetry.getMetric(metric).isEmpty(), metric + " should not be reported");
+			}
+		}
+
+		@Test
+		@DisplayName("should read back a recorded metric")
+		void shouldReadBackRecordedMetric() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.ACTUAL_CARDINALITY, 4200L);
+			assertTrue(telemetry.hasMetrics());
+			assertEquals(4200L, telemetry.getMetric(StepMetric.ACTUAL_CARDINALITY).orElseThrow());
+		}
+
+		@Test
+		@DisplayName("should keep other metrics unset when one is recorded")
+		void shouldKeepOtherMetricsUnsetWhenOneIsRecorded() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.ACTUAL_CARDINALITY, 1L);
+			// recording allocates storage for every metric at once, so this is what proves the slots the caller did
+			// not write stay unset rather than defaulting to the array's zero fill
+			for (final StepMetric metric : StepMetric.values()) {
+				if (metric != StepMetric.ACTUAL_CARDINALITY) {
+					assertTrue(telemetry.getMetric(metric).isEmpty(), metric + " should not be reported");
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("should distinguish a metric measured as zero from one never measured")
+		void shouldDistinguishMeasuredZeroFromUnmeasured() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.IO_FETCH_COUNT, 0L);
+			// a query answered entirely from indexes really does perform zero storage reads, and that is a different
+			// statement from the engine not having counted them - collapsing the two would make "no I/O" and "no
+			// data" indistinguishable to a client
+			assertTrue(telemetry.getMetric(StepMetric.IO_FETCH_COUNT).isPresent());
+			assertEquals(0L, telemetry.getMetric(StepMetric.IO_FETCH_COUNT).orElseThrow());
+			assertTrue(telemetry.getMetric(StepMetric.RECORDS_RETURNED).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should overwrite a metric recorded twice")
+		void shouldOverwriteMetricRecordedTwice() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.ESTIMATED_COST, 10L)
+				.recordMetric(StepMetric.ESTIMATED_COST, 20L);
+			// unlike finish(String...), recording carries no one-shot rule - the last measurement wins
+			assertEquals(20L, telemetry.getMetric(StepMetric.ESTIMATED_COST).orElseThrow());
+		}
+
+		@Test
+		@DisplayName("should pack a flag metric into the numeric container")
+		void shouldPackFlagMetric() {
+			final QueryTelemetry prefetched = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.PREFETCHED, true);
+			final QueryTelemetry notPrefetched = new QueryTelemetry(QueryPhase.OVERALL)
+				.recordMetric(StepMetric.PREFETCHED, false);
+			assertEquals(1L, prefetched.getMetric(StepMetric.PREFETCHED).orElseThrow());
+			// false must be a recorded 0 rather than an absent metric - "the planner did not prefetch" is a fact
+			// worth publishing, and the external APIs turn it back into a boolean
+			assertEquals(0L, notPrefetched.getMetric(StepMetric.PREFETCHED).orElseThrow());
+		}
+
+		@Test
+		@DisplayName("should record metrics independently of the step lifecycle")
+		void shouldRecordMetricsIndependentlyOfLifecycle() {
+			final QueryTelemetry telemetry = new QueryTelemetry(QueryPhase.OVERALL, "description");
+			telemetry.finish();
+			telemetry.recordMetric(StepMetric.RECORDS_RETURNED, 20L);
+			// metrics are attached to the query-level root *after* the response has been assembled, so recording
+			// onto an already finished step has to work - it is the normal path, not an edge case
+			assertEquals(20L, telemetry.getMetric(StepMetric.RECORDS_RETURNED).orElseThrow());
+			assertArrayEquals(new String[]{"description"}, telemetry.getArguments());
+			assertTrue(telemetry.getSpentTime() > 0);
+		}
+
+		@Test
+		@DisplayName("should distinguish steps that differ only in metrics")
+		void shouldDistinguishStepsDifferingOnlyInMetrics() {
+			final QueryTelemetry one = new QueryTelemetry(
+				QueryPhase.OVERALL, 100L, 500L, new String[]{}, new QueryTelemetry[0]
+			).recordMetric(StepMetric.ACTUAL_CARDINALITY, 1L);
+			final QueryTelemetry two = new QueryTelemetry(
+				QueryPhase.OVERALL, 100L, 500L, new String[]{}, new QueryTelemetry[0]
+			).recordMetric(StepMetric.ACTUAL_CARDINALITY, 2L);
+			// metrics are part of what a step *is*, not a derived view of it, so equality has to see them - this is
+			// what makes a round trip through the gRPC driver checkable by comparing trees
+			assertNotEquals(one, two);
 		}
 	}
 }

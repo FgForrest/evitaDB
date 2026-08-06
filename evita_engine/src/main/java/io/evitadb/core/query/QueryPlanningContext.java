@@ -92,9 +92,25 @@ import static java.util.Optional.ofNullable;
  * Query context aggregates references to all the instances that are required to process the {@link EvitaRequest}.
  * The object serves as single "go to" object while preparing or executing {@link QueryPlan}.
  *
+ * The context covers the **planning** phase - index lookup, formula tree construction, cost estimation and
+ * telemetry of all of that. The **execution** phase gets its own short-lived {@link QueryExecutionContext}
+ * fabricated by {@link #createExecutionContext(boolean, byte[])}; one planning context may spawn several of
+ * them (the plan is executed repeatedly when a debug mode verifies alternative plans against each other).
+ *
+ * Nested (sub-)queries receive their own child context linked through {@link #parentContext}. A child inherits
+ * the parent's {@link PlanningPolicy}, delegates {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}
+ * to the root context, and can never prefetch - see {@link #isPrefetchPossible()}.
+ *
+ * The instance is **not** thread safe and is bound to a single query evaluation - most of its state is lazily
+ * initialized on first use and mutated in place.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyResolver {
+	/**
+	 * Pre-computed {@link EntityIndexKey} of the global entity index for each {@link Scope}. The keys are immutable
+	 * and looked up on every query, so they are shared instead of being allocated over and over again.
+	 */
 	private static final EnumMap<Scope, EntityIndexKey> GLOBAL_INDEX_KEY = new EnumMap<>(
 		Map.of(
 			Scope.LIVE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
@@ -104,19 +120,31 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
+	 *
+	 * Its presence is what distinguishes a nested query from the outer one: a context with a parent inherits
+	 * the parent {@link #planningPolicy}, has {@link #prefetchPossible} forced to false and forwards
+	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)} up the chain so that the memoization
+	 * of nested formulas is shared by the entire query.
 	 */
 	@Nullable private final QueryPlanningContext parentContext;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
+	 *
+	 * Translators register here the {@link EntityContentRequire} they will need on a prefetched entity body, so that
+	 * a single prefetch can satisfy all of them at once instead of each translator fetching on its own.
 	 */
 	@Nonnull @Getter
 	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
+	 * It is picked once for the outer query (debug modes may force a non-caching variant) and inherited unchanged by
+	 * every nested context, so a single query never mixes two policies.
 	 */
 	@Nonnull private final PlanningPolicy planningPolicy;
 	/**
-	 * Internal event to be fired when the query was finished.
+	 * Internal event to be fired when the query was finished. It is created only for the top level context created
+	 * by the public "entry" constructor - nested contexts leave it NULL, because a sub-query is not a query from
+	 * the metrics point of view and must not be reported as one.
 	 */
 	@Nullable @Getter private final FinishedEvent queryFinishedEvent;
 	/**
@@ -133,7 +161,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Getter
 	@Nullable private final String entityType;
 	/**
-	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest} is executed.
+	 * Contains reference to the enveloping {@link EvitaSessionContract} within which the {@link #evitaRequest}
+	 * is executed.
+	 *
+	 * The reference is NULL when the query is evaluated outside any session (WAL replay re-evaluating a facet
+	 * expression, for example) or when the passed session is not the internal {@link EvitaSession} implementation.
+	 * Everything that genuinely needs a session degrades gracefully in that case: {@link #analyse(Formula)} skips
+	 * the cache, {@link #isRequiresBinaryForm()} answers false and entity proxy creation throws.
 	 */
 	@Getter
 	@Nullable private final EvitaSession evitaSession;
@@ -145,14 +179,24 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Contains {@link QueryTelemetry} information that measures the costs of each {@link #evitaRequest} processing
 	 * phases.
+	 *
+	 * **An empty stack means telemetry was not requested.** The stack is seeded in the constructor only when a root
+	 * {@link QueryTelemetry} node is passed in, and every telemetry method here starts by testing the stack for
+	 * emptiness - so when the query did not ask for telemetry, the whole mechanism collapses into a series of no-ops
+	 * and costs a single reference check per call. The bottom of the stack is the root node, the head is the
+	 * innermost step that is still open.
 	 */
 	@Nonnull private final Deque<QueryTelemetry> telemetryStack;
 	/**
-	 * Collection of search indexes prepared to handle queries.
+	 * Collection of search indexes prepared to handle queries, keyed by their {@link IndexKey}. This is the map
+	 * the query planner consults when it translates a constraint into an index lookup.
 	 */
 	@Nonnull private final Map<IndexKey, Index<?>> indexes;
 	/**
-	 * Collection of search indexes prepared to handle queries.
+	 * The very same indexes as in {@link #indexes}, keyed by the index primary key (the id the index is stored
+	 * under in the persistent data store) instead. This is the lookup direction needed when
+	 * {@link ReferencedTypeEntityIndex} hands out the primary keys of all reduced indexes belonging to
+	 * a particular referenced entity - see {@link #getEntityIndexByPrimaryKey(int, Class)}.
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
@@ -166,13 +210,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull private final CacheSupervisor cacheSupervisor;
 	/**
 	 * This flag signalizes that the entity prefetching is not possible within this context. I.e. it means that
-	 * the entities wil be never prefetched. Prefetching is not possible for nested queries since
+	 * the entities will be never prefetched. Prefetching is not possible for nested queries since
 	 * the prefetched entities wouldn't ever be used in the output and it would also force us to eagerly evaluate
 	 * the created formula.
+	 *
+	 * The flag alone does not make prefetching happen - {@link #isPrefetchPossible()} also consults
+	 * the {@link PlanningPolicy}, which may forbid prefetch even on the outer query.
 	 */
 	private final boolean prefetchPossible;
 	/**
 	 * Internal execution context used for execution of formulas evaluated in planning phase.
+	 *
+	 * Planning is supposed to be cheap, but a few decisions have to compute a formula eagerly to be made at all -
+	 * hierarchy and facet group resolution, and everything memoized by
+	 * {@link #computeOnlyOnce(List, FilterConstraint, Supplier, long...)}. They all initialize their formulas with
+	 * this one context, so the memoized results stay valid for the whole planning phase instead of being
+	 * recomputed per candidate plan.
 	 */
 	@Getter @Nonnull
 	private final QueryExecutionContext internalExecutionContext;
@@ -180,46 +233,80 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
 	 * virtual entity primary key.
+	 *
+	 * A non-zero value is therefore also the signal that primary keys flowing through the formula tree are masked
+	 * and must be translated back before they leave the query - see {@link #isAtLeastOneMaskedPrimaryAssigned()}.
 	 */
 	private int entityReferencePkSequence;
 	/**
 	 * Contains index of virtual entity primary keys to {@link EntityReference} that was used to generate them.
+	 *
+	 * Lazily allocated together with {@link #entityReferencePkReverseIndex} on the first
+	 * {@link #translateEntityReference(EntityReferenceContract...)} call and left NULL for the vast majority of
+	 * queries that never mask anything - readers must tolerate the NULL.
 	 */
 	private IntObjectHashMap<EntityReferenceContract> entityReferencePkIndex;
 	/**
 	 * Contains index of {@link EntityReference} to their virtual primary keys. This index is exact opposite to
-	 * {@link #entityReferencePkIndex}.
+	 * {@link #entityReferencePkIndex} and shares its lazy initialization.
 	 */
 	private Map<EntityReferenceContract, Integer> entityReferencePkReverseIndex;
 	/**
-	 * Cached version of {@link EntitySchema} for {@link #entityType}.
+	 * Cached version of {@link EntitySchema} for {@link #entityType}. Resolved on the first {@link #getSchema()}
+	 * call, because a context created for a catalog-wide query may never need it at all.
 	 */
 	private EntitySchema entitySchema;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
 	 * that should be included/excluded from traversal.
+	 *
+	 * It is resolved by the filtering phase and handed over to the requirement phase, so that hierarchy statistics
+	 * observe exactly the same node visibility as the filter did. It can be set only once per context - see
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilteringPredicate)}.
 	 */
 	@Getter
 	private HierarchyFilteringPredicate hierarchyHavingPredicate;
 	/**
 	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
-	 * the query result to be reused in other query evaluation phases (require).
+	 * the query result to be reused in other query evaluation phases (require). Shares the write-once contract of
+	 * {@link #hierarchyHavingPredicate} and is read through {@link #getRootHierarchyNodes()}.
 	 */
 	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
 	 * to mark the group id involved in special relation handling.
+	 *
+	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
+	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
 	/**
-	 * Internal cache currently server sor caching the computed formulas of nested queries.
+	 * Internal cache that serves for caching the computed formulas of nested queries.
+	 *
+	 * Only the root context ever allocates it - nested contexts delegate to their parent - so a formula computed
+	 * for one candidate plan is reused by all the others.
 	 *
 	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier, long...) for more details
 	 */
 	private Map<InternalCacheKey, Formula> internalCache;
 
 
+	/**
+	 * Creates the context of a **top level** query - the one that produces the response handed back to the client.
+	 * This is the only constructor that fabricates the {@link FinishedEvent}, so exactly one metric event is
+	 * emitted per client query regardless of how many nested queries it spawns.
+	 *
+	 * @param catalog          the catalog the query is executed against
+	 * @param entityCollection collection targeted by the query, NULL for catalog-wide queries
+	 * @param evitaSession     the enveloping session, must be an {@link EvitaSession} instance
+	 * @param evitaRequest     the request describing the query
+	 * @param telemetry        pre-created root telemetry node, NULL when the query did not request telemetry -
+	 *                         passing NULL turns the whole telemetry collection into a no-op
+	 * @param indexes          indexes available for the query, keyed by their {@link IndexKey}
+	 * @param indexesByPk      the very same indexes keyed by their primary key
+	 * @param cacheSupervisor  supervisor deciding which formulas get their results memoized in the shared cache
+	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nonnull Catalog catalog,
 		@Nullable EntityCollection entityCollection,
@@ -244,6 +331,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
 
+	/**
+	 * Creates the context of a **nested** query - a sub-query planned while the outer query is being planned
+	 * (a filter targeting another collection, a hierarchy statistics base, ...). No {@link FinishedEvent} is
+	 * created here, and the child inherits the parent's planning policy while losing the ability to prefetch.
+	 *
+	 * Passing NULL as `parentQueryContext` produces a top level context **without** the metric event, which is
+	 * what internal, non-client-facing evaluations want.
+	 *
+	 * @param parentQueryContext context of the enclosing query, NULL for a standalone internal evaluation
+	 * @param catalog            the catalog the query is executed against
+	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
+	 * @param evitaSession       the enveloping session, must be an {@link EvitaSession} instance whenever
+	 *                           the parent has one
+	 * @param evitaRequest       the request describing the query
+	 * @param telemetry          root telemetry node of this nested tree, NULL when telemetry is not collected
+	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
+	 * @param indexesByPk        the very same indexes keyed by their primary key
+	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 */
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
 		@Nonnull Catalog catalog,
@@ -270,8 +376,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Creates a session-optional context for internal index-only evaluation (e.g., facet expression re-evaluation
 	 * during WAL replay where no session is available). The session is nullable — cache analysis and binary format
-	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, telemetry) work
-	 * normally.
+	 * checks gracefully degrade when absent. All other query planning features (indexes, schema, formula
+	 * construction) work normally.
+	 *
+	 * No telemetry is collected by such a context - there is no client to report it to - and no {@link FinishedEvent}
+	 * is emitted, because this evaluation is not a client query.
+	 *
+	 * The raw `Map` parameters are deliberate: the caller of this path holds the indexes in a differently
+	 * parameterized map and the generic signature of the sibling constructors would force an unchecked cast on
+	 * the call site instead of here.
 	 *
 	 * **Do not use for normal query processing** — use the public constructors that enforce a non-null session.
 	 *
@@ -279,7 +392,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param entityCollection  the entity collection being queried (nullable for catalog-level queries)
 	 * @param evitaSession      the session, or null when no session context is available (WAL replay)
 	 * @param evitaRequest      the request describing the query
-	 * @param indexes           the index map for formula resolution
+	 * @param indexes           the index map for formula resolution, keyed by {@link IndexKey}
 	 * @param indexesByPk       the index map keyed by primary key
 	 * @param cacheSupervisor   the cache supervisor (tolerates null session)
 	 */
@@ -296,6 +409,29 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor, null);
 	}
 
+	/**
+	 * The single constructor every public one funnels into - the only place where the context state is actually
+	 * assembled. Two things happening here are relied upon everywhere else in this class:
+	 *
+	 * - **telemetry is opt-in.** The stack is seeded only when a root `telemetry` node is passed in; when it is
+	 *   NULL the stack stays empty forever and every `pushStep`/`popStep` call degenerates into a no-op. Telemetry
+	 *   thus imposes no cost on queries that did not ask for it.
+	 * - **a session that is not an {@link EvitaSession} is downgraded to no session at all.** The public
+	 *   constructors assert against that, but the assertion can only run *after* this constructor completed
+	 *   (Java requires the `this(...)` call to come first), so this method must cope with the value on its own.
+	 *
+	 * @param parentQueryContext context of the enclosing query, NULL for a top level one
+	 * @param catalog            the catalog the query is executed against
+	 * @param entityCollection   collection targeted by the query, NULL for catalog-wide queries
+	 * @param evitaSession       the enveloping session, NULL when the query runs outside any session
+	 * @param evitaRequest       the request describing the query
+	 * @param telemetry          root telemetry node, NULL disables telemetry collection entirely
+	 * @param indexes            indexes available for the query, keyed by their {@link IndexKey}
+	 * @param indexesByPk        the very same indexes keyed by their primary key
+	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
+	 * @param event              metric event to be completed when the query finishes, NULL for nested and
+	 *                           internal evaluations that must not be reported as client queries
+	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
 		@Nonnull Catalog catalog,
@@ -372,11 +508,21 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns true if the input {@link #evitaRequest} contains specification of the entity collection.
+	 *
+	 * When it does not, the query may match entities of several collections whose primary keys overlap, and
+	 * the whole primary key masking machinery around
+	 * {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)} kicks in.
 	 */
 	public boolean isEntityTypeKnown() {
 		return this.entityType != null;
 	}
 
+	/**
+	 * Prefetching is possible only when **both** conditions hold: this context is not a nested one (a sub-query
+	 * result never reaches the output, so prefetching for it would be wasted work forcing eager evaluation), and
+	 * the {@link PlanningPolicy} in effect allows it - some debug policies deliberately forbid prefetch to force
+	 * the query through the index resolution path.
+	 */
 	@Override
 	public boolean isPrefetchPossible() {
 		return this.prefetchPossible && this.planningPolicy.getPrefetchPolicy() == PrefetchPolicy.ALLOW;
@@ -407,6 +553,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
+	 *
+	 * Unlike {@link #getIndexIfExists(IndexKey, Class)}, which is limited to the indexes this query was set up
+	 * with, this method resolves the owning collection by name and can therefore reach into a **different**
+	 * collection than the query targets. A missing index is a legal outcome (nothing was indexed for that key
+	 * yet) and yields an empty result; an index of unexpected type is a programming error and fails the premise
+	 * check.
+	 *
+	 * @param entityType     entity type owning the requested index
+	 * @param entityIndexKey key of the requested index
+	 * @param indexType      expected index implementation, verified at runtime
+	 * @return the index or empty result when the collection holds no index of that key
+	 * @throws EntityCollectionRequiredException when there is no collection of the passed entity type
 	 */
 	@Nonnull
 	public <T extends EntityIndex> Optional<T> getEntityIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
@@ -422,6 +580,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns {@link EntityIndex} of external entity type by its primary key.
+	 *
+	 * The primary key is expected to come from an index that already knows the index exists (typically
+	 * {@link ReferencedTypeEntityIndex} listing its reduced indexes), therefore a missing index is treated as
+	 * a programming error rather than an ordinary "not found" outcome.
+	 *
+	 * @param indexPrimaryKey primary key of the requested index
+	 * @param indexType       expected index implementation, verified at runtime
+	 * @return the requested index, never NULL
 	 */
 	@Nonnull
 	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
@@ -435,7 +601,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} by its key.
+	 * Returns {@link EntityIndex} by its key, looked up among the indexes this query was set up with.
+	 *
+	 * A {@link CatalogIndexKey} is special-cased: catalog indexes are not part of the per-query index map (they
+	 * are not owned by any collection), so they are fetched straight from the catalog by scope. Note that
+	 * the `indexType` is **not** verified on that branch.
+	 *
+	 * @param indexKey  key of the requested index
+	 * @param indexType expected index implementation, verified at runtime for non-catalog indexes
+	 * @return the index or empty result when no index of that key is available to this query
 	 */
 	@Nonnull
 	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndexIfExists(@Nonnull S indexKey, @Nonnull Class<T> indexType) {
@@ -457,11 +631,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced
 	 * entity ID, entity schema, reference schema, and a supplier for handling missing indexes.
 	 *
+	 * The lookup path depends on the reference cardinality. When duplicates are allowed, a single referenced
+	 * entity may be covered by several reduced indexes, so they have to be enumerated through
+	 * the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one and it is addressed directly by
+	 * the `REFERENCED_ENTITY` key built from the reference key.
+	 *
 	 * @param scope the scope within which the entity indexes are retrieved
 	 * @param referencedEntityId the ID of the referenced entity
 	 * @param entitySchema the schema of the entity used for configuration
 	 * @param referenceSchema the schema of the reference defining the relationship to the referenced entity
-	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing
+	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
+	 *                             it may return NULL, in which case an empty stream is produced
 	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
 	 */
 	@Nonnull
@@ -504,18 +684,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Retrieves a stream of {@link AbstractReducedEntityIndex} instances corresponding to the group entity
-	 * identified by `groupEntityId` within the given scope. This method mirrors
-	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}
-	 * but uses group-specific index types (`REFERENCED_GROUP_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY`)
-	 * instead of entity-level ones.
+	 * Retrieves a stream of {@link ReducedGroupEntityIndex} instances corresponding to the group entity
+	 * identified by `groupEntityId` within the given scope. This is the group-level counterpart of
+	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}.
+	 *
+	 * It differs from that sibling in one important aspect: **there is no cardinality branch here.** A single
+	 * group is routinely shared by many references, so the group indexes are always looked up through
+	 * the `REFERENCED_GROUP_ENTITY_TYPE` index, which resolves one group primary key to all reduced group
+	 * indexes built for it - the direct `REFERENCED_GROUP_ENTITY` key would only ever find one of them.
 	 *
 	 * @param scope the scope within which the group entity indexes are retrieved
 	 * @param groupEntityId the ID of the group entity
 	 * @param entitySchema the schema of the entity used for configuration
 	 * @param referenceSchema the schema of the reference defining the relationship to the group entity
-	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing
-	 * @return a stream of {@link AbstractReducedEntityIndex} corresponding to the specified query criteria
+	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
+	 *                             it may return NULL, in which case an empty stream is produced
+	 * @return a stream of {@link ReducedGroupEntityIndex} corresponding to the specified query criteria
 	 */
 	@Nonnull
 	public Stream<ReducedGroupEntityIndex> getReducedGroupEntityIndexes(
@@ -547,6 +731,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Adds new step of query evaluation.
+	 *
+	 * The new step becomes a child of the currently open one and the new innermost step, so the sequence of
+	 * `pushStep` / `popStep` calls made while planning builds the telemetry tree. **When telemetry was not
+	 * requested the stack is empty and this method does nothing** - which also means the paired
+	 * {@link #popStep()} does nothing, so the two stay balanced without the caller ever testing for it.
+	 * Callers are still expected to pop in a `finally` block: a step that is never popped is closed only by
+	 * {@link #finalizeTelemetry()}, and its reported duration then stretches all the way to the end of the query.
+	 *
+	 * @param phase phase of the query evaluation the new step measures
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
 		if (!this.telemetryStack.isEmpty()) {
@@ -557,18 +750,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Adds new step of query evaluation.
-	 */
-	public void pushStep(@Nonnull QueryPhase phase, @Nonnull String message) {
-		if (!this.telemetryStack.isEmpty()) {
-			this.telemetryStack.push(
-				this.telemetryStack.peek().addStep(phase, message)
-			);
-		}
-	}
-
-	/**
-	 * Adds new step of query evaluation.
+	 * Adds new step of query evaluation, described by a message that tells the reader *which* concrete piece of
+	 * work the step covers (which index, which nested filter, ...).
+	 *
+	 * The message is resolved only when telemetry is actually being collected. There is deliberately no overload
+	 * taking a plain `String` - it would let the caller build the message before this guard is reached, which is
+	 * exactly the cost telemetry must not impose on a query that did not ask for it.
+	 *
+	 * @param phase           phase of the query evaluation the new step measures
+	 * @param messageSupplier description of the step, invoked only when telemetry is being collected
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
 		if (!this.telemetryStack.isEmpty()) {
@@ -579,7 +769,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns current step of the evaluation.
+	 * Returns the innermost step that is currently open, i.e. the node any measurement taken right now belongs to.
+	 * Used by code that wants to annotate the running step with a value it just computed rather than open
+	 * a step of its own.
+	 *
+	 * @return the open step, or NULL when telemetry is not being collected - callers must handle the NULL
+	 *         instead of assuming telemetry is on
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
@@ -590,7 +785,23 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Finishes current query evaluation step.
+	 * Returns true when telemetry is being collected **and** the query asked for the formula plan - the guard a
+	 * caller must consult before walking a formula tree to describe it.
+	 *
+	 * Both halves are load-bearing. The stack test is what makes it false for a query without telemetry (and for
+	 * a dry run, whose planning context is never seeded with a root); the request test is what keeps plain
+	 * `queryTelemetry()` from paying for a structure it did not ask for.
+	 *
+	 * @return true when a plan recorded on the current step ends up in the response
+	 */
+	public boolean isTelemetryPlanCollected() {
+		return !this.telemetryStack.isEmpty() && this.evitaRequest.isQueryTelemetryPlanRequested();
+	}
+
+	/**
+	 * Finishes current query evaluation step, recording the time spent in it and making its parent the current
+	 * step again. Does nothing when telemetry is not being collected, which is what allows call sites to pop
+	 * unconditionally in a `finally` block.
 	 */
 	public void popStep() {
 		if (!this.telemetryStack.isEmpty()) {
@@ -599,11 +810,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Finishes current query evaluation step.
+	 * Finishes current query evaluation step, describing the outcome it arrived at. This is what distinguishes
+	 * it from {@link #popStep()}: the description is only known *after* the work is done (the index that won,
+	 * the estimated cost that decided it), so it cannot be supplied at push time.
+	 *
+	 * The message is resolved only when telemetry is actually being collected - see {@link #pushStep(QueryPhase,
+	 * Supplier)} for why no plain `String` overload exists.
+	 *
+	 * @param messageSupplier description of the outcome, invoked only when telemetry is being collected
 	 */
-	public void popStep(@Nonnull String message) {
+	public void popStep(@Nonnull Supplier<String> messageSupplier) {
 		if (!this.telemetryStack.isEmpty()) {
-			this.telemetryStack.pop().finish(message);
+			this.telemetryStack.pop().finish(messageSupplier.get());
 		}
 	}
 
@@ -614,6 +832,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * an {@link ArrayDeque} is `addFirst()`, so the head of the deque is the innermost still-open step
 	 * (that is what {@link #getCurrentStep()} returns); reading the head here would hand out whichever step
 	 * happens to be open at the time of the call rather than the root of the tree.
+	 *
+	 * @return the root of the telemetry tree, with all steps collected so far hanging beneath it
+	 * @throws GenericEvitaInternalError when telemetry is not being collected, or has already been drained by
+	 *                                   {@link #finalizeTelemetry()}
 	 */
 	@Nonnull
 	public QueryTelemetry getTelemetryRoot() {
@@ -624,6 +846,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Finalizes {@link QueryTelemetry} or throws an exception. This method can be called only once, because it
 	 * empties the internal telemetry stack.
+	 *
+	 * Steps are still open at this point - extra results are fabricated from within the execution phase, so
+	 * the phases enclosing that fabrication cannot have been popped yet. All of them are closed here, innermost
+	 * first, which is why their measured durations include the extra result computation itself.
+	 *
+	 * Retrieve the tree with {@link #getTelemetryRoot()} **before** calling this method: afterwards the stack is
+	 * empty and both methods fail their premise check.
+	 *
+	 * @throws GenericEvitaInternalError when telemetry is not being collected, or was already finalized
 	 */
 	public void finalizeTelemetry() {
 		Assert.isPremiseValid(!this.telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
@@ -645,7 +876,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getOrderBy()} ()}.
+	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getOrderBy()}.
 	 */
 	@Nullable
 	public OrderConstraint getOrderBy() {
@@ -653,7 +884,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getRequire()} ()}.
+	 * Shorthand for {@link EvitaRequest#getQuery()} and {@link Query#getRequire()}.
 	 */
 	@Nullable
 	public RequireConstraint getRequire() {
@@ -696,7 +927,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns entity schema.
+	 * Returns the internal schema of the collection this query targets, resolving and caching it on first use.
+	 *
+	 * @return internal schema of the target collection
+	 * @throws EntityCollectionRequiredException when the query does not target a single known collection - check
+	 *                                           {@link #isEntityTypeKnown()} first if that is a possibility
 	 */
 	@Nonnull
 	public EntitySchema getSchema() {
@@ -740,7 +975,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} by its key and entity type.
+	 * Returns the global {@link GlobalEntityIndex} of **another** collection in the given scope - the sibling of
+	 * {@link #getGlobalEntityIndexIfExists(Scope)} for entity types this query does not target itself.
+	 *
+	 * @param entityType entity type whose global index is requested
+	 * @param scope      scope the index belongs to
+	 * @return the global index or empty result when the collection has none in that scope
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType, @Nonnull Scope scope) {
@@ -750,6 +990,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Analyzes the input formula for cacheable / cached formulas and replaces them with appropriate counterparts (only
 	 * if cache is enabled).
+	 *
+	 * The formula is returned untouched when there is no session or the query targets no particular entity type -
+	 * the cache is keyed per entity type and accounted per session, so neither can be skipped. Callers therefore
+	 * must not assume the returned tree differs from the input one.
+	 *
+	 * @param formula formula tree to be analysed
+	 * @return the same tree, or an equivalent one with cacheable / cached counterparts substituted in
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
@@ -764,6 +1011,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Analyzes the input extra result computer for cacheable / cached extra result computers and replaces them with
 	 * appropriate counterparts (only if cache is enabled).
+	 *
+	 * Unlike {@link #analyse(Formula)}, the substitution is routed through the {@link PlanningPolicy}, which is what
+	 * lets a debug run force caching on or off for extra results. The computer is returned untouched when there is
+	 * no session or no target entity type.
+	 *
+	 * @param computer extra result computer to be analysed
+	 * @return the same computer, or its cacheable / cached counterpart
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
@@ -842,9 +1096,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * Formulas are expected to be invoked in planning phase and share the same {@link #internalExecutionContext}.
 	 *
-	 * @param constraint      caching key for which the lambda should be invoked only once
-	 * @param formulaSupplier the lambda that creates the formula
-	 * @return created formula
+	 * The cache always lives on the **root** context - a nested context forwards the call to its parent - so
+	 * a formula computed while planning one candidate index is reused by every other candidate and by every
+	 * sub-query of the same client query.
+	 *
+	 * @param entityIndexes       indexes the formula is going to be evaluated against; their ids form part of
+	 *                            the cache key, because the very same constraint yields a different result on
+	 *                            a different index set
+	 * @param constraint          caching key for which the lambda should be invoked only once
+	 * @param formulaSupplier     the lambda that creates the formula
+	 * @param additionalCacheKeys extra discriminators for callers whose result depends on something beyond
+	 *                            the index set and the constraint; they are negated before being merged with
+	 *                            the index ids, so that they land in the negative half of the key space and
+	 *                            do not collide with the (positive) index ids
+	 * @return created formula, already initialized with {@link #internalExecutionContext}
 	 */
 	@Nonnull
 	public Formula computeOnlyOnce(
@@ -884,6 +1149,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns bitmap with newly generated virtual primary keys using masking function
 	 * {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)}.
 	 *
+	 * This is the single entry point into the masking machinery and the place that lazily allocates both
+	 * reference indexes - which is why the masking function itself is not exposed.
+	 *
+	 * @param entityReferences references to be translated into (possibly virtual) primary keys
+	 * @return bitmap of primary keys usable in the formula tree
 	 * @see #getOrRegisterEntityReferenceMaskId(EntityReferenceContract) for more information
 	 */
 	@Nonnull
@@ -901,6 +1171,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Method returns requested {@link EntityReference} by specifying its primary key (either virtual or real).
+	 *
+	 * This is the inverse of the masking done during filtering and the last step before primary keys leave
+	 * the query. A key that was never masked (or a query that masked nothing at all) is paired with the target
+	 * collection's entity type, which is the only sensible interpretation in that case.
+	 *
+	 * @param primaryKey virtual or real primary key
+	 * @return entity reference the key stands for
 	 */
 	@Nonnull
 	public EntityReference translateToEntityReference(int primaryKey) {
@@ -914,7 +1191,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns true if at least one primary key was masked by {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)}.
+	 * Returns true if at least one primary key was masked by
+	 * {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)}, i.e. whether the primary keys travelling
+	 * through the formula tree are virtual and have to be translated back before they leave the query.
 	 *
 	 * @return true if at least one primary key was masked
 	 */
@@ -936,8 +1215,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns virtual id assigned by {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)} or real primary key
-	 * from {@link EntityContract#getPrimaryKey()}.
+	 * Returns virtual id assigned by {@link #getOrRegisterEntityReferenceMaskId(EntityReferenceContract)} or real
+	 * primary key from {@link EntityContract#getPrimaryKey()}.
+	 *
+	 * Used when a prefetched entity body has to be matched against the bitmaps the formula tree works with. While
+	 * masking is active the entity **must** already be registered - an unknown entity means the formula tree and
+	 * the prefetched set disagree, and it fails loudly rather than silently producing a wrong key.
+	 *
+	 * @param entity entity to be translated
+	 * @return primary key under which the entity is known inside this query
 	 */
 	public int translateEntity(@Nonnull EntityContract entity) {
 		final int primaryKey = Objects.requireNonNull(entity.getPrimaryKey());
@@ -954,6 +1240,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Method returns requested entity primary key by specifying its primary key (either virtual or real).
+	 *
+	 * Unlike {@link #translateToEntityReference(int)} it drops the entity type, so it is only usable where
+	 * the collection is already known from the context. An unrecognized key is passed through unchanged.
+	 *
+	 * @param primaryKey virtual or real primary key
+	 * @return real primary key of the entity
 	 */
 	public int translateToEntityPrimaryKey(int primaryKey) {
 		if (this.entityReferencePkSequence > 0) {
@@ -966,7 +1258,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 
 	/**
-	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase.
+	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase. Can be called
+	 * only once per context - two different root sets within one query would mean the filter and the hierarchy
+	 * statistics disagree about what the hierarchy is.
+	 *
+	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
 	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
 		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
@@ -974,7 +1270,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
+	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase. Setting
+	 * it repeatedly is tolerated as long as the predicate is equal to the one already stored - the same constraint
+	 * may legitimately be resolved by more than one translator - but a *different* predicate is rejected.
+	 *
+	 * @param hierarchyHavingPredicate predicate deciding which hierarchy nodes are traversable
 	 */
 	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
 		Assert.isPremiseValid(
@@ -1065,13 +1365,26 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Determines whether the specified relation type matches the given facet group relation criteria.
+	 * Determines whether the specified relation type matches the given facet group relation criteria. Shared
+	 * implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask about
+	 * and the request accessor that carries the settings for it.
+	 *
+	 * The decision has three outcomes worth knowing about:
+	 *
+	 * - the query says nothing about this relation for this reference - the request-wide default for the given
+	 *   `level` decides
+	 * - the query requests the relation **without** a filter - it applies to every group, hence `true`
+	 * - the query requests the relation **with** a filter - the filter is planned into a predicate (memoized in
+	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested
+	 *   against it; a facet with no group at all cannot match such a filter and gets `false`
 	 *
 	 * @param relationType the type of the facet relation to be checked
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
 	 * @param groupId the identifier of the group being considered; can be null if no group is specified
 	 * @param level the level of facet group relation that should be considered in the evaluation
-	 * @return {@code true} if the relation type matches the facet group relation criteria, {@code false} otherwise
+	 * @param facetSettingsRetriever accessor pulling the settings of `relationType` for a reference name out of
+	 *                               the request - this is what binds the shared implementation to one relation
+	 * @return `true` if the relation type matches the facet group relation criteria, `false` otherwise
 	 */
 	private boolean isFacetGroupRelationType(
 		@Nonnull FacetRelationType relationType,
@@ -1155,6 +1468,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Creates new {@link QueryExecutionContext} that can be used to execute the query plan.
 	 * This overload allows to pass frozen random bytes that will be used for the query execution.
 	 *
+	 * Freezing the randomness is what makes the debug modes able to compare two plans for equality - a query
+	 * ordering entities randomly would otherwise legitimately produce a different result on every run.
+	 *
+	 * When this context has no session, the created execution context is given an entity proxy factory that
+	 * throws: a session-less evaluation may compute over indexes, but it can never materialize client-facing
+	 * proxy instances.
+	 *
 	 * @param prefetchExecution flag that signalizes if the prefetching was executed and filtering should occur on
 	 *                          prefetched entities
 	 * @param frozenRandom      frozen random bytes to be used for the query execution
@@ -1176,6 +1496,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * situation when no target entity collection is specified and filters targeting global attributes retrieves
 	 * entities from various collections - their ids may overlap, and we need to keep them separated during computation.
 	 * That's why we use such virtual ids during entire filtering and sorting process.
+	 *
+	 * When the entity type **is** known there is nothing to disambiguate, so the real primary key is returned
+	 * unchanged and {@link #entityReferencePkSequence} stays at zero - which is exactly how the rest of the class
+	 * recognizes that no translation back is needed.
+	 *
+	 * **Reachable only through {@link #translateEntityReference(EntityReferenceContract...)}**, which is what
+	 * allocates the two reference indexes; calling it on a context where that never happened would hit a NULL
+	 * index. Keep it package private for that reason.
+	 *
+	 * @param entityReference reference to be masked
+	 * @return virtual primary key representing the reference within this query, or the real primary key when
+	 *         the query targets a single known collection
 	 */
 	int getOrRegisterEntityReferenceMaskId(@Nonnull EntityReferenceContract entityReference) {
 		if (this.isEntityTypeKnown()) {
@@ -1205,9 +1537,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Creates a list of global entity indexes for the given non-managed entity type. Global indexes contains only
 	 * primary keys of groups retrieved from {@link FacetIndex} of the given reference.
 	 *
+	 * A non-managed group type has no collection and therefore no real index of its own, yet the facet group
+	 * filter still has to be planned against *something*. The stubs returned here know the set of existing group
+	 * ids and nothing else - anything beyond that throws `EntityNotManagedException`, which is the intended way to
+	 * tell the client that such a filter cannot be satisfied for a non-managed group.
+	 *
 	 * @param referenceName       name of the reference to retrieve groups from
 	 * @param referencedGroupType type of the referenced group
-	 * @return list of fake global entity indexes
+	 * @return list of fake global entity indexes, one per requested scope that actually facets this reference
 	 */
 	@Nonnull
 	private List<GlobalEntityIndex> getThrowingGlobalIndexesForNonManagedEntityTypeGroup(
@@ -1247,6 +1584,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelationType} into one object used as
 	 * the {@link #facetRelationTuples} key.
+	 *
+	 * @param referenceName name of the reference the facet group belongs to
+	 * @param relation      relation type the memoized predicate decides about
 	 */
 	private record FacetRelationTuple(
 		@Nonnull String referenceName,
@@ -1257,6 +1597,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * The internal caching key.
+	 *
+	 * `equals` and `hashCode` are overridden on purpose: the record's generated implementations compare array
+	 * components by identity, which would make every key unique and turn the cache into a memory leak that never
+	 * hits.
 	 *
 	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes
