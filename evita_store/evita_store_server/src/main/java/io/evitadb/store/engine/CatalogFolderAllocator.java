@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -124,6 +125,95 @@ public class CatalogFolderAllocator {
 			}
 		}
 		throw allocationFailed(storageDirectory, catalogName, lastFailure);
+	}
+
+	/**
+	 * Brings a folder that arrived from outside into the canonical `<catalogName>_<generation>` shape, by renaming
+	 * it in place.
+	 *
+	 * This runs at boot, before any catalog is opened, which is the only moment a folder rename is genuinely safe:
+	 * every handle is closed, so the move cannot fail for the reason folder moves usually fail. It serves both a
+	 * folder an operator hand-placed and one an older evitaDB left behind in the bare-name layout — the two are
+	 * indistinguishable on disk and deliberately take one code path, so each is exercised by the other's tests.
+	 *
+	 * **Failing to rename is not an error.** The caller binds whichever token comes back, so an unrenamed folder is
+	 * simply bound under its bare name and works exactly as well; the classification table tolerates a referenced
+	 * suffix-free folder because the referenced row is matched before the foreign row.
+	 *
+	 * What it costs is that the folder stays outside the generation scheme **permanently**, not until the next
+	 * boot: once bound it classifies as referenced, which is matched first, so adoption never sees it again. The
+	 * retry the design imagines is the boot-time rename of *referenced* folders whose name no longer matches their
+	 * catalog — the same pass that brings a renamed catalog's folder back in line — and that does not exist yet.
+	 * A cosmetic debt either way, and far cheaper than refusing to adopt a catalog whose data is perfectly
+	 * readable.
+	 *
+	 * A generation is burned per attempt, exactly as in {@link #allocate(Path, String, IntSupplier)} and for the
+	 * same reason: retrying the same name after every restart would wedge the migration forever on a name the
+	 * filesystem refuses to free.
+	 *
+	 * @param storageDirectory   root directory catalogs are stored under
+	 * @param folderId           token naming the folder as it currently exists on disk
+	 * @param catalogName        name of the catalog whose data the folder holds — the new name's cosmetic half
+	 * @param generationSupplier source of generation numbers, one drawn per attempt
+	 * @return token naming the folder afterwards: the renamed one on success, the original one otherwise
+	 */
+	@Nonnull
+	public static CatalogFolderId adopt(
+		@Nonnull Path storageDirectory,
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	) {
+		final Path source = storageDirectory.resolve(folderId.id());
+		IOException lastFailure = null;
+		for (int attempt = 1; attempt <= MAX_ALLOCATION_ATTEMPTS; attempt++) {
+			final String folderName = catalogName + '_' + generationSupplier.getAsInt();
+			try {
+				// no REPLACE_EXISTING: an occupied target must fail the attempt rather than destroy whatever
+				// holds the name, which is the same atomic test-and-set `createDirectory` gives the allocator
+				Files.move(source, storageDirectory.resolve(folderName));
+				log.info(
+					"Adopted storage folder `{}` for catalog `{}` and renamed it to `{}`.",
+					folderId.id(), catalogName, folderName
+				);
+				return new CatalogFolderId(folderName);
+			} catch (IOException ex) {
+				log.debug("Folder `{}` could not be renamed to `{}` ({}), trying the next generation.",
+					folderId.id(), folderName, ex.getMessage());
+				lastFailure = ex;
+			}
+		}
+		log.warn(
+			"Storage folder `{}` holding catalog `{}` could not be renamed into the `{}_<generation>` shape after " +
+				"{} attempts - adopting it under its current name instead. The catalog is fully usable; only the " +
+				"folder's name is off-convention, and nothing will rename it later.",
+			folderId.id(), catalogName, catalogName, MAX_ALLOCATION_ATTEMPTS, lastFailure
+		);
+		return folderId;
+	}
+
+	/**
+	 * Records which catalog a folder belongs to, in a marker file inside the folder itself.
+	 *
+	 * Written on a best-effort basis and never propagated as a failure: nothing in the engine reads this file to
+	 * make a decision — the engine state is the sole authority on where a catalog lives — so a folder without it
+	 * is fully functional. It exists for the operator doing disaster recovery against a bare storage directory
+	 * with no server to ask, and failing a catalog operation over a file that only humans read would be the wrong
+	 * trade entirely.
+	 *
+	 * @param catalogFolder folder to write the marker into
+	 * @param catalogName   name of the catalog the folder holds
+	 */
+	public static void writeCatalogNameMarker(@Nonnull Path catalogFolder, @Nonnull String catalogName) {
+		final Path marker = catalogFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG);
+		try {
+			Files.writeString(marker, catalogName, StandardCharsets.UTF_8);
+		} catch (IOException ex) {
+			log.warn(
+				"Failed to record catalog name `{}` in `{}` - the folder stays unlabelled, which affects only " +
+					"manual inspection of the storage directory.", catalogName, marker.toAbsolutePath(), ex
+			);
+		}
 	}
 
 	/**

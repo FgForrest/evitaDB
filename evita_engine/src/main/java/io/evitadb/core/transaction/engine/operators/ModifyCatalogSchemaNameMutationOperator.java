@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.Cata
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.engine.ExpandedEngineState.Builder;
 import io.evitadb.core.session.SessionRegistry;
@@ -40,6 +41,7 @@ import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,7 +62,9 @@ import static io.evitadb.utils.Assert.isTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@RequiredArgsConstructor
 public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOperator<CommitVersions, ModifyCatalogSchemaNameMutation> {
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -188,6 +192,14 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 								return stateAfterAddingRenamedCatalog.build();
 							}
 						}
+					);
+
+					// The folder now holds a different catalog than it did a moment ago, so its label has to
+					// move with it or disaster recovery reads the previous occupant's name. Written after the
+					// commit rather than inside it: the state updater runs under the engine-state lock, and a
+					// file only humans read has no business being written while every other mutation waits.
+					this.folderContext.recordCatalogName(
+						catalogNameToBeReplaced, this.folderContext.folderIdFor(catalogNameToBeReplaced)
 					);
 
 					// notify callback that it's now a live snapshot

@@ -44,8 +44,13 @@ import java.util.List;
  * - **reappeared** — names previously listed in `missingCatalogs` whose storage has reappeared. Drained as
  *   `RestoreCatalogSchemaMutation` (the operator removes them from the missing bucket and registers them as
  *   `INACTIVE`).
- * - **autoDiscovered** — names whose storage is present but unknown to the engine state. Drained as
- *   `RestoreCatalogSchemaMutation` (the operator registers them as `INACTIVE`).
+ * - **autoDiscovered** — folders present on disk that no catalog is bound to and that classification found
+ *   adoptable. Drained as `RestoreCatalogSchemaMutation` (the operator registers them as `INACTIVE`).
+ *
+ * `autoDiscovered` carries the folder token beside the name rather than the name alone. The two coincide today —
+ * only a suffix-free folder is adoptable, and the name is read from the folder — but deriving one from the other
+ * is precisely the assumption this line of work removes, and the derivation would silently break the moment
+ * adoption starts taking the catalog name from the folder's own header instead of its directory name.
  *
  * All lists are deterministically ordered (alphabetically) so the divergence record itself is reproducible across
  * boots over the same backing-store inventory. The WAL trail produced by draining is only partially ordered:
@@ -56,7 +61,7 @@ import java.util.List;
  *
  * @param becomeMissing  catalogs to mark as missing, alphabetically ordered; never null
  * @param reappeared     catalogs to move from missing back to inactive, alphabetically ordered; never null
- * @param autoDiscovered catalogs newly discovered in the backing store, alphabetically ordered; never null
+ * @param autoDiscovered folders offered for adoption, ordered by catalog name; never null
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -65,7 +70,7 @@ import java.util.List;
 public record CatalogInventoryDivergence(
 	@Nonnull List<String> becomeMissing,
 	@Nonnull List<String> reappeared,
-	@Nonnull List<String> autoDiscovered
+	@Nonnull List<AdoptableCatalogFolder> autoDiscovered
 ) {
 	/**
 	 * Shared empty divergence — used by services that detect no inventory divergence at boot.
@@ -78,7 +83,7 @@ public record CatalogInventoryDivergence(
 	public CatalogInventoryDivergence(
 		@Nonnull List<String> becomeMissing,
 		@Nonnull List<String> reappeared,
-		@Nonnull List<String> autoDiscovered
+		@Nonnull List<AdoptableCatalogFolder> autoDiscovered
 	) {
 		this.becomeMissing = List.copyOf(becomeMissing);
 		this.reappeared = List.copyOf(reappeared);

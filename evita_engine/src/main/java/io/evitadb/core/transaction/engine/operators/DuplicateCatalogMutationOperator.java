@@ -108,6 +108,14 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 					}
 				);
 
+				// Label the folder once the binding above is committed: the duplicate never went through
+				// `completeFolder`, because it never allocated. Deliberately after the commit rather than
+				// inside it - the state updater runs under the engine-state lock, and a file only humans
+				// read has no business being written while every other engine mutation waits.
+				this.folderContext.recordCatalogName(
+					targetCatalogName, this.folderContext.folderIdFor(targetCatalogName)
+				);
+
 				// Emit the host event AFTER the engine state update so the freshly-duplicated
 				// (and INACTIVE-by-default) target catalog is observable on the system stream
 				// strictly after the underlying mutation.

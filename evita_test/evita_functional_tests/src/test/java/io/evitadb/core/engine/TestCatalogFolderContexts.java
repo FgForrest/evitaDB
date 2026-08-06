@@ -110,6 +110,25 @@ public final class TestCatalogFolderContexts {
 			return CatalogFolderAllocator.allocate(this.storageDirectory, catalogName, generationSupplier);
 		}
 
+		@Nonnull
+		@Override
+		public CatalogFolderId adoptCatalogFolder(
+			@Nonnull CatalogFolderId folderId,
+			@Nonnull String catalogName,
+			@Nonnull IntSupplier generationSupplier
+		) {
+			return CatalogFolderAllocator.adopt(
+				this.storageDirectory, folderId, catalogName, generationSupplier
+			);
+		}
+
+		@Override
+		public void recordCatalogNameInFolder(@Nonnull CatalogFolderId folderId, @Nonnull String catalogName) {
+			CatalogFolderAllocator.writeCatalogNameMarker(
+				this.storageDirectory.resolve(folderId.id()), catalogName
+			);
+		}
+
 		@Override
 		public void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId) {
 			CatalogFolderAllocator.clearProvisionalMarker(this.storageDirectory.resolve(folderId.id()));

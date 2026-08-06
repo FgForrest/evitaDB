@@ -171,6 +171,40 @@ public class CatalogFolderContext {
 	}
 
 	/**
+	 * Takes ownership of a folder that arrived from outside, renaming it into the shape the engine allocates and
+	 * reserving it so the mutation that registers the catalog binds to it.
+	 *
+	 * Unlike {@link #allocateFolderFor(String)} this creates nothing — the data is already there, put there by an
+	 * operator or by an older evitaDB version, and adoption's whole job is to start referring to it. The rename is
+	 * cosmetic and may fail without consequence; whichever token comes back is the one reserved, so a folder that
+	 * could not be moved is simply bound under its bare name.
+	 *
+	 * Callable only at boot, before any catalog is opened. Every handle into the folder is closed at that point,
+	 * which is what makes moving a directory a reasonable thing to do at all — and it is why no `completeFolder`
+	 * call follows: an adopted folder never wore a provisional marker, because nothing was ever mid-write in it.
+	 *
+	 * The name marker is refreshed *before* the rename rather than after. A crash between the two leaves a folder
+	 * that still carries its original name and now says which catalog it holds, which is strictly more recoverable
+	 * than the reverse.
+	 *
+	 * @param catalogName       name the catalog is to be registered under
+	 * @param discoveredFolder  token naming the folder as boot classification found it
+	 * @return token the catalog is to be bound to
+	 */
+	@Nonnull
+	public CatalogFolderId adoptFolderFor(
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId discoveredFolder
+	) {
+		this.folderOperations.recordCatalogNameInFolder(discoveredFolder, catalogName);
+		final CatalogFolderId adopted = this.folderOperations.adoptCatalogFolder(
+			discoveredFolder, catalogName, () -> this.generationSupplier.applyAsInt(catalogName)
+		);
+		this.reservedFolders.put(catalogName, adopted);
+		return adopted;
+	}
+
+	/**
 	 * Declares an allocated folder complete: clears its provisional marker and drops the reservation.
 	 *
 	 * **Call this before the engine-state commit that binds the catalog**, never after. The boot
@@ -182,12 +216,35 @@ public class CatalogFolderContext {
 	 * The reservation is dropped only after the marker is gone, so a failure to clear leaves the reservation
 	 * in place and a retry still finds the same folder rather than allocating a second one.
 	 *
+	 * Labelling the folder with its catalog's name comes last, and cannot fail the call — see
+	 * {@link #recordCatalogName(String, CatalogFolderId)}.
+	 *
 	 * @param catalogName name of the catalog whose folder is complete
 	 * @param folderId    token naming the folder, as returned by {@link #allocateFolderFor(String)}
 	 */
 	public void completeFolder(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
 		this.folderOperations.clearProvisionalCatalogFolderMarker(folderId);
 		this.reservedFolders.remove(catalogName, folderId);
+		recordCatalogName(catalogName, folderId);
+	}
+
+	/**
+	 * Labels a folder with the name of the catalog whose data it holds, for whoever reads the storage directory
+	 * without a server to ask.
+	 *
+	 * Folder names are cosmetic and go stale the moment a catalog is renamed, so the label is what keeps a bare
+	 * storage directory interpretable during disaster recovery. Nothing in the engine reads it back — the engine
+	 * state is the sole authority on where a catalog lives — which is exactly why writing it is best-effort and
+	 * never throws: failing a catalog operation over a file only humans read would be the wrong trade.
+	 *
+	 * Call it wherever a binding is established or moved. `completeFolder` covers the paths that materialise a
+	 * folder first; a path that binds an existing folder calls it directly.
+	 *
+	 * @param catalogName name of the catalog the folder holds
+	 * @param folderId    token naming the folder
+	 */
+	public void recordCatalogName(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
+		this.folderOperations.recordCatalogNameInFolder(folderId, catalogName);
 	}
 
 	/**

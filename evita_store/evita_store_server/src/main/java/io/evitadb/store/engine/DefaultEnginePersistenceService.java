@@ -37,6 +37,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
@@ -74,6 +75,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -958,7 +960,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		final ArrayList<String> becomeMissing = new ArrayList<>(16);
 		final ArrayList<String> reappeared = new ArrayList<>(16);
-		final ArrayList<String> autoDiscovered = new ArrayList<>(16);
+		final ArrayList<AdoptableCatalogFolder> autoDiscovered = new ArrayList<>(16);
 
 		// Active / inactive catalogs whose bound folder vanished while the engine was down.
 		for (final String catalog : engineState.activeCatalogs()) {
@@ -994,7 +996,12 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				case FOREIGN -> {
 					log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}",
 						folderName);
-					autoDiscovered.add(folderName);
+					// the folder name doubles as the catalog name here, and only here: a FOREIGN folder is
+					// suffix-free by definition, so the two are the same string. Reading the name from the
+					// catalog's own header instead — which is what would let a folder/header mismatch be
+					// *detected* rather than silently accepted — needs an open offset index, and boot
+					// classification has no persistence service to get one from. Recorded as a known gap.
+					autoDiscovered.add(new AdoptableCatalogFolder(folderName, new CatalogFolderId(folderName)));
 				}
 				case UNCLAIMED -> log.warn(
 					"Storage folder `{}` is shaped like one evitaDB allocated but no catalog claims it — leaving " +
@@ -1024,7 +1031,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Sort each bucket so the WAL trail is deterministic across reboots over the same on-disk shape.
 		Collections.sort(becomeMissing);
 		Collections.sort(reappeared);
-		Collections.sort(autoDiscovered);
+		autoDiscovered.sort(Comparator.comparing(AdoptableCatalogFolder::catalogName));
 		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered);
 	}
 
@@ -1123,6 +1130,23 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		return CatalogFolderAllocator.allocate(
 			this.storageSettings.storageDirectory(), catalogName, generationSupplier
 		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogFolderId adoptCatalogFolder(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	) {
+		return CatalogFolderAllocator.adopt(
+			this.storageSettings.storageDirectory(), folderId, catalogName, generationSupplier
+		);
+	}
+
+	@Override
+	public void recordCatalogNameInFolder(@Nonnull CatalogFolderId folderId, @Nonnull String catalogName) {
+		CatalogFolderAllocator.writeCatalogNameMarker(pathOf(folderId), catalogName);
 	}
 
 	@Nonnull

@@ -99,6 +99,45 @@ public interface CatalogFolderOperations {
 	CatalogFolderId allocateCatalogFolder(@Nonnull String catalogName, @Nonnull IntSupplier generationSupplier);
 
 	/**
+	 * Brings a folder that arrived from outside into the shape the engine allocates, by renaming it in place.
+	 *
+	 * Serves the folder an operator hand-placed and the bare-name folder an older evitaDB left behind alike — on
+	 * disk the two are indistinguishable, so they deliberately share one code path. May only be called at boot,
+	 * before any catalog is opened: that is the one moment every handle into the folder is closed, which is what
+	 * makes moving it safe rather than a coin flip.
+	 *
+	 * **A failed rename is not an error.** The caller binds whichever token comes back, and a folder bound under
+	 * its bare name works exactly as well — it merely stays outside the generation scheme, and does so
+	 * permanently: once bound it classifies as referenced, which adoption never revisits. Refusing to adopt a
+	 * catalog whose data is perfectly readable would be the worse outcome by far.
+	 *
+	 * @param folderId           token naming the folder as it currently exists on disk
+	 * @param catalogName        name of the catalog whose data the folder holds; only cosmetic, never authoritative
+	 * @param generationSupplier source of generation numbers, one drawn per attempt
+	 * @return token naming the folder afterwards: the renamed one on success, the original one otherwise
+	 */
+	@Nonnull
+	CatalogFolderId adoptCatalogFolder(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	);
+
+	/**
+	 * Records which catalog a folder belongs to, in a marker file inside the folder itself.
+	 *
+	 * Best-effort by contract: implementations must not propagate a failure. Nothing in the engine reads the
+	 * marker to make a decision — the engine state is the sole authority on where a catalog lives — so a folder
+	 * without one is fully functional. It exists for the operator doing disaster recovery against a bare storage
+	 * directory with no server to ask, and failing a catalog operation over a file only humans read would be the
+	 * wrong trade.
+	 *
+	 * @param folderId    token identifying the catalog folder
+	 * @param catalogName name of the catalog the folder holds
+	 */
+	void recordCatalogNameInFolder(@Nonnull CatalogFolderId folderId, @Nonnull String catalogName);
+
+	/**
 	 * Reports the highest folder generation actually present on storage, per catalog name.
 	 *
 	 * This is the second half of the boot seed for the generation counters, and it covers a failure the
@@ -160,6 +199,24 @@ public interface CatalogFolderOperations {
 			public CatalogFolderId allocateCatalogFolder(
 				@Nonnull String catalogName,
 				@Nonnull IntSupplier generationSupplier
+			) {
+				throw new IllegalStateException(reason);
+			}
+
+			@Nonnull
+			@Override
+			public CatalogFolderId adoptCatalogFolder(
+				@Nonnull CatalogFolderId folderId,
+				@Nonnull String catalogName,
+				@Nonnull IntSupplier generationSupplier
+			) {
+				throw new IllegalStateException(reason);
+			}
+
+			@Override
+			public void recordCatalogNameInFolder(
+				@Nonnull CatalogFolderId folderId,
+				@Nonnull String catalogName
 			) {
 				throw new IllegalStateException(reason);
 			}

@@ -108,6 +108,7 @@ import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
 import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
@@ -1491,7 +1492,15 @@ public final class Evita implements EvitaContract {
 	 *    phase boundaries is what makes the ordering invariant load-bearing.
 	 * 2. Phase 2 — `reappeared` + `autoDiscovered`: `RestoreCatalogSchemaMutation` for each name. The two groups
 	 *    operate on disjoint name sets (a name cannot simultaneously reappear from the MISSING bucket and be newly
-	 *    auto-discovered), so they run in parallel.
+	 *    auto-discovered), so they run in parallel. Each auto-discovered folder is adopted first — renamed into
+	 *    the shape the engine allocates and reserved — so the mutation binds the catalog to the folder that
+	 *    rename produced.
+	 *
+	 * A crash between an adoption and its binding leaves a renamed, unreferenced folder, which classifies as
+	 * unclaimed: reported, never touched, and recoverable by renaming it back to a suffix-free name. That is the
+	 * same window `CatalogFolderContext#completeFolder` opens for create and restore, accepted here for the same
+	 * reason — closing it would need the binding to be committed before the folder is in its final place, which
+	 * trades a cosmetic gap for a live binding pointing at a directory that is about to move.
 	 *
 	 * Each phase awaits its `onCompletion` futures so the engine state is stable by the time we exit. Failures wedge
 	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
@@ -1535,10 +1544,19 @@ public final class Evita implements EvitaContract {
 							.onCompletion().toCompletableFuture()
 					);
 				}
-				for (final String name : divergence.autoDiscovered()) {
+				for (final AdoptableCatalogFolder discovered : divergence.autoDiscovered()) {
+					// Adopt before dispatching, never after: the operator reads the folder to bind from the
+					// reservation this call leaves behind, and it must already name the folder the rename
+					// produced. Doing it the other way round would bind the pre-rename name and then move the
+					// folder out from under a live binding.
+					//
+					// Adoption is deliberately sequential while the mutations that follow are parallel — these
+					// are directory renames drawing from a shared generation counter, and there is nothing to
+					// win by overlapping them.
+					this.catalogFolderContext.adoptFolderFor(discovered.catalogName(), discovered.folderId());
 					phase2.add(
 						this.engineTransactionManager
-							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.applyMutation(new RestoreCatalogSchemaMutation(discovered.catalogName()), null)
 							.onCompletion().toCompletableFuture()
 					);
 				}

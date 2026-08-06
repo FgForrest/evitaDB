@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingM
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.store.engine.DefaultEnginePersistenceService;
@@ -219,6 +221,57 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 			);
 			assertEquals(Set.of("c", "d"), phase2Names,
 				"Phase 2 must restore both 'c' (auto-discovered) and 'd' (reappeared); their WAL order is racy by design.");
+		}
+	}
+
+	@Test
+	@DisplayName("should rename an adopted folder into the generation shape and bind the catalog to it")
+	void shouldRenameAdoptedFolderIntoGenerationShape() throws IOException {
+		// A bare `c` folder is what an older evitaDB leaves behind and what an operator hand-copies in; the
+		// two are indistinguishable on disk and take the same path. Adoption brings it into the canonical
+		// shape so it participates in the generation scheme from then on.
+		createDiscoverableCatalogFolder("c");
+		seedEngineState(
+			2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY
+		);
+
+		try (final Evita evita = bootEvita()) {
+			evita.waitUntilFullyInitialized();
+
+			// asserted through the binding rather than against the string `c_1`: what has to be true is that
+			// the engine points at the folder holding the data, not that a particular name was produced
+			final CatalogFolderId bound = evita.getCatalogFolderContext().folderIdFor("c");
+			assertEquals(new CatalogFolderId("c_1"), bound);
+			assertTrue(Files.notExists(this.storageDirectory.resolve("c")));
+			assertTrue(Files.exists(this.storageDirectory.resolve(bound.id()).resolve("c.boot")));
+			assertEquals(
+				"c",
+				Files.readString(
+					this.storageDirectory.resolve(bound.id())
+						.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG)
+				)
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("should not adopt onto a generation a folder already on disk has taken")
+	void shouldSkipGenerationsAlreadyPresentOnDiskWhenAdopting() throws IOException {
+		// `c_4` is litter from an operation that died before persisting its generation peak, so nothing in
+		// the engine state knows the number was handed out. The disk scan is the term that catches it — and
+		// if it did not, adoption would try to rename onto an occupied name.
+		createDiscoverableCatalogFolder("c");
+		Files.createDirectory(this.storageDirectory.resolve("c_4"));
+		seedEngineState(
+			2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY
+		);
+
+		try (final Evita evita = bootEvita()) {
+			evita.waitUntilFullyInitialized();
+
+			assertEquals(new CatalogFolderId("c_5"), evita.getCatalogFolderContext().folderIdFor("c"));
+			assertTrue(Files.isDirectory(this.storageDirectory.resolve("c_4")),
+				"Adoption must not disturb the folder whose name it skipped past!");
 		}
 	}
 

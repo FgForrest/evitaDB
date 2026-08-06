@@ -1288,12 +1288,17 @@ public class DefaultCatalogPersistenceService
 	 * written here" therefore has to look past that marker — counting it would make a folder report itself
 	 * occupied from the instant it existed, which is the opposite of what it is for.
 	 *
+	 * {@link CatalogPersistenceService#CATALOG_NAME_FLAG} is excluded for the same reason: it is a label evitaDB
+	 * writes about the folder, not content anybody stored in it. **Every marker this project writes belongs in
+	 * this filter** — one that is missed reads as data and silently turns a fresh folder into an occupied one.
+	 *
 	 * @param folder folder to inspect; need not exist
-	 * @return true when the folder holds nothing but, at most, evitaDB's own allocation marker
+	 * @return true when the folder holds nothing but, at most, evitaDB's own markers
 	 */
 	private static boolean holdsNoCatalogData(@Nonnull File folder) {
 		final String[] entries = folder.list(
 			(dir, name) -> !CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
+				&& !CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
 		);
 		return entries == null || entries.length == 0;
 	}

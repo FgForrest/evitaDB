@@ -5034,6 +5034,22 @@ class EvitaTest implements EvitaTestSupport {
 		assertEquals(boundFolder.toFile().getName(), siblings[0].getName());
 	}
 
+	@Test
+	@DisplayName("Label a created catalog's folder with the catalog's name")
+	void shouldLabelCreatedCatalogFolderWithItsCatalogName() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		// Folder names are cosmetic and go stale the moment a catalog is renamed, so the label is what makes a
+		// bare storage directory interpretable during disaster recovery - the one case where there is no server
+		// left to ask which folder holds which catalog.
+		assertEquals(
+			TEST_CATALOG,
+			Files.readString(
+				catalogFolder(TEST_CATALOG).resolve(CatalogPersistenceService.CATALOG_NAME_FLAG)
+			)
+		);
+	}
+
 	/**
 	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
 	 *

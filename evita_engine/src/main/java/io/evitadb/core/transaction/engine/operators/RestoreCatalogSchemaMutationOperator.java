@@ -86,8 +86,8 @@ public class RestoreCatalogSchemaMutationOperator
 		// This operator serves three paths and none of them allocates: the folder always exists by now.
 		// - recovery from the missing bucket reads the binding the engine state already holds;
 		// - a restore from backup reads the reservation `EvitaManagement` made before writing into the folder;
-		// - an auto-discovered folder falls through to the identity token, which is the only shape boot
-		//   discovery adopts today.
+		// - an auto-discovered folder reads the reservation boot-time adoption made when it renamed the folder
+		//   into the shape the engine allocates.
 		final CatalogFolderId catalogFolder = this.folderContext.folderIdForBinding(catalogName);
 
 		Assert.isTrue(

@@ -261,7 +261,7 @@ public class EngineTransactionManager implements Closeable {
 			MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(folderContext)
 		);
 		this.engineMutationOperators.put(
-			ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator()
+			ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator(folderContext)
 		);
 		this.engineMutationOperators.put(
 			ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator()

@@ -245,4 +245,149 @@ class CatalogFolderAllocatorTest {
 			assertTrue(Files.isDirectory(storageDirectory.resolve("products_1")));
 		}
 	}
+
+	@Nested
+	@DisplayName("Adopting a folder that arrived from outside")
+	class Adoption {
+
+		@Test
+		@DisplayName("Renames a bare folder into the generation shape, contents and all")
+		void shouldRenameBareFolderIntoGenerationShape(@TempDir Path storageDirectory) throws IOException {
+			occupy(storageDirectory, "products", "products.boot");
+
+			final CatalogFolderId adopted = CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "products", ascendingGenerations()
+			);
+
+			assertEquals(new CatalogFolderId("products_1"), adopted);
+			assertTrue(Files.notExists(storageDirectory.resolve("products")));
+			// the point of the move is that the data comes with it - a rename that emptied the folder would
+			// pass a name-only assertion while destroying the catalog it was adopting
+			assertTrue(Files.exists(storageDirectory.resolve("products_1").resolve("products.boot")));
+		}
+
+		@Test
+		@DisplayName("Never marks an adopted folder provisional")
+		void shouldNotMarkAdoptedFolderProvisional(@TempDir Path storageDirectory) {
+			// the marker means "incomplete, safe to delete" - writing it onto a folder full of somebody's data
+			// would arm boot-time cleanup against a catalog that was never mid-write
+			occupy(storageDirectory, "products", "products.boot");
+
+			final CatalogFolderId adopted = CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "products", ascendingGenerations()
+			);
+
+			assertTrue(
+				Files.notExists(
+					storageDirectory.resolve(adopted.id()).resolve(CatalogPersistenceService.PROVISIONAL_FLAG)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Burns a generation whose name is taken and takes the next")
+		void shouldBurnGenerationWhenTargetNameIsTaken(@TempDir Path storageDirectory) {
+			occupy(storageDirectory, "products", "products.boot");
+			occupy(storageDirectory, "products_1", "products.boot");
+
+			final CatalogFolderId adopted = CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "products", ascendingGenerations()
+			);
+
+			assertEquals(new CatalogFolderId("products_2"), adopted);
+		}
+
+		@Test
+		@DisplayName("Leaves the folder occupying the target name completely untouched")
+		void shouldNotClobberTheFolderOccupyingTheTargetName(@TempDir Path storageDirectory) {
+			// `Files.move` without REPLACE_EXISTING is what makes this true, and it is the whole reason the
+			// flag is absent: adopting one catalog must never overwrite another
+			occupy(storageDirectory, "products", "new.boot");
+			occupy(storageDirectory, "products_1", "incumbent.boot");
+
+			CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "products", ascendingGenerations()
+			);
+
+			assertTrue(Files.exists(storageDirectory.resolve("products_1").resolve("incumbent.boot")));
+		}
+
+		@Test
+		@DisplayName("Hands back the original token when every candidate name is taken")
+		void shouldFallBackToTheOriginalTokenWhenRenameCannotSucceed(@TempDir Path storageDirectory) {
+			// adoption must never fail: a folder that could not be renamed is bound under its bare name and
+			// works exactly as well, where refusing would take a readable catalog out of service over cosmetics
+			occupy(storageDirectory, "products", "products.boot");
+			for (int generation = 1; generation <= CatalogFolderAllocator.MAX_ALLOCATION_ATTEMPTS; generation++) {
+				occupy(storageDirectory, "products_" + generation);
+			}
+
+			final CatalogFolderId adopted = CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "products", ascendingGenerations()
+			);
+
+			assertEquals(new CatalogFolderId("products"), adopted);
+			assertTrue(Files.exists(storageDirectory.resolve("products").resolve("products.boot")));
+		}
+
+		@Test
+		@DisplayName("Renames onto the catalog name, not the folder name it came from")
+		void shouldRenameOntoTheCatalogNameRatherThanTheFolderName(@TempDir Path storageDirectory) {
+			// the two are equal wherever adoption is reached today, because the name is read from the
+			// directory. They stop being equal the moment it is read from the catalog header instead, and the
+			// rename has to follow the catalog rather than the directory it happened to be sitting in.
+			occupy(storageDirectory, "products", "products.boot");
+
+			final CatalogFolderId adopted = CatalogFolderAllocator.adopt(
+				storageDirectory, new CatalogFolderId("products"), "orders", ascendingGenerations()
+			);
+
+			assertEquals(new CatalogFolderId("orders_1"), adopted);
+		}
+	}
+
+	@Nested
+	@DisplayName("Labelling a folder with its catalog name")
+	class NameMarker {
+
+		@Test
+		@DisplayName("Writes the catalog name into the folder")
+		void shouldWriteCatalogNameMarker(@TempDir Path storageDirectory) throws IOException {
+			occupy(storageDirectory, "products_1");
+			final Path folder = storageDirectory.resolve("products_1");
+
+			CatalogFolderAllocator.writeCatalogNameMarker(folder, "orders");
+
+			assertEquals(
+				"orders",
+				Files.readString(folder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+			);
+		}
+
+		@Test
+		@DisplayName("Overwrites a stale label rather than appending to it")
+		void shouldOverwriteStaleCatalogNameMarker(@TempDir Path storageDirectory) throws IOException {
+			// a folder outlives renames and replaces, so the label is rewritten far more often than written
+			occupy(storageDirectory, "products_1");
+			final Path folder = storageDirectory.resolve("products_1");
+			CatalogFolderAllocator.writeCatalogNameMarker(folder, "products");
+
+			CatalogFolderAllocator.writeCatalogNameMarker(folder, "orders");
+
+			assertEquals(
+				"orders",
+				Files.readString(folder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+			);
+		}
+
+		@Test
+		@DisplayName("Swallows a failure rather than failing the operation that asked for it")
+		void shouldNotThrowWhenMarkerCannotBeWritten(@TempDir Path storageDirectory) {
+			// nothing in the engine reads this file, so a catalog operation must never die because it could
+			// not be written - the folder simply stays unlabelled
+			CatalogFolderAllocator.writeCatalogNameMarker(
+				storageDirectory.resolve("folder-that-does-not-exist"), "products"
+			);
+		}
+	}
 }

@@ -35,6 +35,8 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
@@ -542,7 +544,12 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			final CatalogInventoryDivergence divergence = DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
 			assertTrue(divergence.becomeMissing().isEmpty());
 			assertEquals(List.of("flapping"), divergence.reappeared());
-			assertEquals(List.of("discovered"), divergence.autoDiscovered());
+			// the folder token travels beside the name: the two coincide for an adoptable folder, which is
+			// suffix-free by definition, but the drain must not have to re-derive one from the other
+			assertEquals(
+				List.of(new AdoptableCatalogFolder("discovered", new CatalogFolderId("discovered"))),
+				divergence.autoDiscovered()
+			);
 
 			// Engine state must remain untouched — the persistence service does not rewrite the
 			// bootstrap; `Evita` will drain the divergence through WAL-backed mutations.
