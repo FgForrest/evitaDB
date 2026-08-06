@@ -36,6 +36,7 @@ import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
@@ -93,6 +94,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final AtomicReference<LongConsumer> onComplete;
+	/**
+	 * Holds the catalog folder while a warm-up snapshot is being copied, `null` outside warm-up where the version pin
+	 * is sufficient on its own. Released by {@link #tearDown()}.
+	 */
+	@Nullable private final CatalogDirectoryReadHold directoryReadHold;
 
 	public BackupTask(
 		@Nonnull String catalogName,
@@ -126,6 +132,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.exportFileService = new AtomicReference<>(exportService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.onComplete = new AtomicReference<>(onComplete);
+		// this task reads everything through the bootstrap record it captured, so the version pin below is normally the
+		// whole protection it needs - the trim is clamped to that version, so the record stays retained and the sweep
+		// only ever removes what it cannot reach. Warm-up is the exception: every flush rewrites the bootstrap file
+		// down to a single record, so the record captured here can be stranded while the task still holds it, and the
+		// sweep - which re-derives its threshold from whatever record is oldest *now* - would take its files
+		this.directoryReadHold = bootstrapRecord.catalogVersion() == 0L ?
+			catalogPersistenceService.acquireDirectoryReadHold() : null;
 		if (onStart != null) {
 			final long backedUpVersion = this.bootstrapRecord.catalogVersion();
 			onStart.accept(backedUpVersion);
@@ -278,6 +291,10 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// free references to expensive resources
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
+		if (this.directoryReadHold != null) {
+			// idempotent, so the paths that reach this method twice give the folder back exactly once
+			this.directoryReadHold.close();
+		}
 		final LongConsumer onComplete = this.onComplete.getAndSet(null);
 		if (onComplete != null) {
 			onComplete.accept(this.bootstrapRecord.catalogVersion());

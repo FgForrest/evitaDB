@@ -32,6 +32,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.FullBackupTask.BackupSettings;
 import io.evitadb.utils.Assert;
@@ -71,6 +72,11 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
 	private final long pinnedCatalogVersion;
+	/**
+	 * Holds the catalog folder against every deletion for as long as this task is walking it. Released by
+	 * {@link #tearDown()}, which every completion path - success, failure and cancellation - routes through.
+	 */
+	private final CatalogDirectoryReadHold directoryReadHold;
 
 	public FullBackupTask(
 		@Nonnull String catalogName,
@@ -99,6 +105,11 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// a no-op and history is free to be reclaimed halfway through the copy, leaving an archive whose bootstrap
 		// references files that were deleted before the data pass reached them
 		this.pinnedCatalogVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
+		// the version pin above holds the *reachable* history, but this task copies whatever `Files.walk` finds, which
+		// includes files no retained bootstrap record points at - stranded generations from warm-up compactions above
+		// all. Those are exactly what the unreachable-file sweep exists to delete, and no version can describe them,
+		// so the folder itself has to be held for as long as the walk is running
+		this.directoryReadHold = catalogPersistenceService.acquireDirectoryReadHold();
 		if (onStart != null) {
 			onStart.accept(this.pinnedCatalogVersion);
 		}
@@ -239,7 +250,9 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// free references to expensive resources
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
-		this.catalogPersistenceService.set(null);
+		// the lease is idempotent, so the paths that reach this method twice - a cancellation racing the finally block
+		// of the backup itself - give the folder back exactly once
+		this.directoryReadHold.close();
 		final LongConsumer onComplete = this.onComplete.getAndSet(null);
 		if (onComplete != null) {
 			// must release exactly what was pinned in the constructor, or the catalog keeps its entire history forever

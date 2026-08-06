@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 14:00
+updated: 2026-08-06 16:00
 status: accepted
 kind: feature
 issues: [761]
@@ -163,24 +163,57 @@ to "I cannot configure my fleet uniformly".
   is what a catalog goes live with and what a full backup pins before any history has been given up
   — while the departure-driven reader floor uses `0` for "no reader". Collapsing the two makes a pin
   at version `0` a silent no-op and lets the purge run unclamped over the files that consumer is
-  reading. `effectivePurgeVersion` therefore tests `>= 0`, and it is the clamp for **both** drivers —
+  reading. `clampToRetentionFloor` therefore tests `>= 0`, and it is the clamp for **both** drivers —
   the write-ahead log purge is frozen by a version-`0` pin exactly as the size guard is.
-- **The unreachable-file sweep yields to any pin at all, and that is not the same rule as the version
-  clamp.** A version pin protects a consumer that reaches its data *through a bootstrap record*. A
-  full backup does not: it copies the catalog folder by listing the directory, so it reads files no
-  record points at — and during warm-up it reads nothing else, because every flush rewrites the
-  bootstrap down to a single record and strands the previous generation. "No retained record reaches
-  this file" therefore does **not** imply "nobody is reading it", which is the assumption the sweep
-  was built on. Both doors into the sweep (`reclaimUnreachableFiles` and the WAL purge callback) now
-  route through the same pin gate. It gives up nothing: the sweep is opportunistic and releasing a
-  pin reschedules it.
-- **A horizon request the floor refused is remembered and retried on release.** Only the write-ahead
-  log driver needs this, and the asymmetry is the whole point: `removeWalFiles` deletes its files
-  *before* reporting the floor they imply and then forgets them, so a request clamped away by a pin
-  is gone for good — no later rotation reports it, and the bootstrap records pointing at those
-  deleted log files would be retained for the life of the catalog. The budget driver needs nothing
-  of the sort, because it re-derives its horizon from scratch on every run. Only the refusal *under
-  the lock* is remembered; the cheap pre-check means the horizon already covers the request.
+- **The clamp is independent of `timeTravelEnabled`, and that is load-bearing.** It used to be reached
+  through `WalPurgeCallback.effectivePurgeVersion`, which is `NO_OP` when time travel is off — and
+  `NO_OP` inherited an identity default, so in the **default configuration** the seam ran with no
+  floor at all. That is not a time-travel concern: `trimBootstrapFile` closes the persistence services
+  below the floor in *both* modes, and `getStoragePartPersistenceService` resolves a version to the
+  closest service at or below it, so a service closed under a reader takes that reader's reads down
+  with it. The clamp now reads `ObsoleteFileMaintainer.getRetentionFloor()` directly and
+  `effectivePurgeVersion` was **removed from the interface** rather than left as a trap for the next
+  person to hang a guard on.
+- **The unreachable-file sweep answers to a directory hold, never to version pins.** A version pin
+  protects a consumer that reaches its data *through a bootstrap record*. A full backup does not: it
+  copies the catalog folder by listing the directory, so it reads files no record points at — and
+  during warm-up it reads little else, because every flush rewrites the bootstrap down to a single
+  record and strands the previous generation. "No retained record reaches this file" therefore does
+  **not** imply "nobody is reading it". The guard for that is `CatalogDirectoryReadHold`, taken by
+  `FullBackupTask` always and by `BackupTask` during warm-up. Gating the sweep on *pins* instead was
+  tried and reverted in the same line of work: every session pins, so it stopped reclamation for as
+  long as anything was connected — and warm-up permits one session held across a whole bulk import,
+  which is exactly when the leak the sweep exists to fix accumulates. Covered by
+  `shouldReclaimWarmUpLeftoversWhileAVersionIsPinned`.
+- **Sessions are safe from that sweep without gating it, and the argument has two preconditions.** A
+  session resolves its reads through the bootstrap record serving its version; the trim that decides
+  which records are retained is clamped by that session's own pin; so every file it can reach stays
+  reachable from a retained record, and the sweep deletes only files that are not. This holds only
+  while (a) the clamp is mode-independent, and (b) **every** session takes a pin, read-only ones
+  included. Both are recorded at their sites, because either one silently disappearing breaks the
+  argument with no test failing.
+- **Holds are leases, not paired void calls.** `CatalogDirectoryReadHold` is an idempotent
+  `AutoCloseable` that captures the maintainer it was taken on. Acquisition and release are separated
+  by a whole backup, and the pairing has failed twice already — a task that acquired in its
+  constructor and was never scheduled leaked for the catalog's lifetime, and a release routed through
+  a mutable catalog reference can reach a different instance than the acquisition did, drifting a
+  counter that nothing reconciles. Both are closed structurally.
+- **A backup pins without registering as a session.** `CatalogConsumerControl.pinCatalogVersion`
+  exists precisely so the backup gets retention and nothing else. Routing it through
+  `registerConsumerOfCatalogInVersion` also counted it as a read-write consumer, and since a full
+  backup holds the *oldest* retained version that phantom consumer held back conflict-key release and
+  offset-index purging for the whole copy.
+- **A horizon request the floor refused is remembered and retried through one seam.** Only the
+  write-ahead log driver needs the memory, and the asymmetry is the whole point: `removeWalFiles`
+  deletes its files *before* reporting the floor they imply and then forgets them, so a request
+  clamped away by a pin is gone for good — no later rotation reports it, and the bootstrap records
+  pointing at those deleted log files would be retained for the life of the catalog. The budget driver
+  needs nothing of the sort, because it re-derives its horizon on every run. The refusal is recorded
+  whenever the clamp lowered the request **at all**, not only when it blocked it outright: a request
+  that advances the horizon partway and is then dropped loses the remainder just as permanently.
+  `retentionStateChanged` is the single place it is drained, reached from both events that can lower
+  the floor — a pin released and the last reader of a version leaving. Three scattered retry sites
+  would be the next defect of this shape.
 - **A backup task pins in its constructor, so a task that is never run leaks that pin.** `Catalog`
   cancels the task if `scheduler.submit` rejects it, which routes through the task's own tear-down.
   This was harmless while a full backup pinned the newest version; now that it pins the oldest, a
@@ -205,6 +238,40 @@ to "I cannot configure my fleet uniformly".
   swallows it.
 - **`enforceTimeTravelSizeLimit` and `computeRetainedHistoryBytes` are package-private on purpose** —
   tests drive them synchronously instead of racing the scheduler. Do not "fix" the visibility.
+
+### The deleter × guard matrix
+
+Four separate code paths remove something from the catalog folder, and each answers to a different
+set of guards. **Every defect found on this line of work is one of them failing to consult one of
+these** — which is why the matrix is the artifact worth keeping, not the prose around it. A cell
+reading *none* must be a decision somebody wrote down, never an omission nobody noticed. Restate it
+in the description of any change that touches a deleter or a guard.
+
+**1. `DefaultCatalogPersistenceService.trimBootstrapFile`** — drops bootstrap records and closes the
+catalog persistence services that fall below the new floor. Runs in **both** time-travel modes.
+- *Version floor:* the retention floor, via `clampToRetentionFloor`, in both modes.
+- *Directory hold:* **not consulted, deliberately.** It unlinks no data file, and a consumer walking
+  the folder resolves nothing through the services it closes. A full backup additionally pins the
+  oldest retained version, which freezes this path anyway.
+
+**2. `ObsoleteFileMaintainer.purgeObsoleteFiles` → `purgeFile`** — deletes a retired data file when
+time travel is off; in both modes it runs the removal lambda that closes the file's persistence
+service.
+- *Version floor:* `lastKnownMinimalActiveVersion` only — the departure-reported floor, **not** the
+  pins. See the open follow-up below; this is a documented gap, not a settled decision.
+- *Directory hold:* consulted.
+
+**3. `ObsoleteFileMaintainer.reclaimUnreachableFiles`** — deletes catalog and entity-collection files
+that no retained bootstrap record can reach. Time travel **on** only; with it off nothing is ever
+left behind to reclaim.
+- *Version floor:* **none, by necessity.** It is reachability-keyed rather than version-keyed — see
+  the section below for why that cannot be changed — and it needs no floor of its own, because its
+  threshold is re-derived from the oldest record left after a trim that was already clamped.
+- *Directory hold:* consulted. This is the path the hold exists for.
+
+**4. `AbstractMutationLog.removeWalFiles`** — deletes write-ahead log files. Runs in both modes.
+- *Version floor:* **none.** Pre-existing and unchanged by this work; see the open follow-up.
+- *Directory hold:* **none.** Same follow-up.
 
 ### The unreachable-file sweep, and why it is not an eager delete
 
@@ -237,7 +304,7 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   `shouldProbeLogarithmically` asserts ≤ 20 header reads across 32,768 bootstrap records;
   `shouldCollapseRecordsSharingOneGeneration` covers the case that makes generations, not records,
   the unit.
-- `DefaultCatalogPersistenceServiceTest.TimeTravelSizeGuardTest` — nine end-to-end tests against a
+- `DefaultCatalogPersistenceServiceTest.TimeTravelSizeGuardTest` — 28 end-to-end tests against a
   real catalog forced to compact every round (`fileSizeCompactionThresholdBytes(1)`,
   `minimalActiveRecordShare`/`maxWasteActiveShare` at 0.99, `minCompactionIntervalMilliseconds(0)`,
   and `TransactionOptions.checkpointIntervalInMillis(0)`, which makes `checkpointCoordinator` null so
@@ -245,10 +312,24 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
 - Each end-to-end test was calibrated by reverting the code it guards. Without the guard, a zero
   budget leaves 10 catalog data files instead of 1. Without the sweep, 9 warm-up leftovers survive
   instead of 1. Without the task being bound under an unlimited budget, 9 survive instead of 1.
-- `ObsoleteFileMaintainerTest.PinnedCatalogVersions` — five tests over the retention floor, including
+- `ObsoleteFileMaintainerTest.PinnedCatalogVersions` — six tests over the retention floor, including
   the data-loss case: with the reader floor already at version 100 and a consumer pinning version 20,
-  `effectivePurgeVersion(50)` must return 20. Calibrated against the unfixed code, where it returns
-  50 — that is a point-in-time backup reading version 20 while the purge deletes up to 50.
+  the floor must report 20 rather than 100 — the difference between a point-in-time backup reading
+  version 20 and a purge deleting up to 50 underneath it.
+- `HistoryHorizonClampTest.shouldClampTheHorizonToTheRetentionFloorWithTimeTravelDisabled` — the
+  default-configuration case. A pinned version, then log rotation reporting a floor far above it,
+  then the pinned version must still resolve its persistence service. Calibrated against the code
+  before the clamp moved off `WalPurgeCallback`: `Catalog version 2 not found in the catalog
+  persistence service versions!` — the trim had closed and de-registered the service serving the
+  reader. No other test in the suite noticed.
+- `shouldReclaimWarmUpLeftoversWhileAVersionIsPinned` and
+  `shouldFreezeTheFolderWhileADirectoryReadHoldIsOpen` — the two halves of the guard split, calibrated
+  together by restoring the pin gate on the sweep: the first fails with 9 files instead of 1 (a single
+  held version freezing reclamation entirely), the second with 1 instead of 9 (a folder walker losing
+  the files underneath it).
+- `shouldRetryTheRemainderOfAPartiallyClampedHorizonRequest` — a request the floor lowered *partway*
+  is still owed. Calibrated by recording the refusal only on the no-progress path: the horizon
+  advances to the pin and the remainder is never asked for again by anyone.
 - `shouldHoldTheWholeRetainedWindowWhileAFullBackupRuns` — a full backup must pin the *oldest*
   retained version, and a zero budget must not reclaim anything while it holds it. Calibrated twice:
   reverting the pinned value fails with `expected: <0> but was: <8>` (the newest version instead of
@@ -287,6 +368,28 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   `close()`. Left as-is; it predates this work and has no observed symptom.
 - The knob is deliberately absent from `EngineSettings` and therefore from the gRPC management API,
   which by convention exposes capabilities rather than tuning knobs.
+- **Open — the maintained-file purge does not consult the pins** (matrix row 2). It is driven by the
+  departure-reported `lastKnownMinimalActiveVersion` alone, so a consumer holding a version in the
+  past is invisible to it. Widening it to the full retention floor was considered and **declined for
+  now**: that floor includes every open session's pin, and this path is the deleter that runs on
+  every session close with time travel *off*, so honouring live pins there would retain files for as
+  long as anything is connected — the same failure the directory hold was introduced to undo, moved
+  to a different deleter. The exposure that remains is a point-in-time backup with time travel off,
+  which is already of marginal value because retired files are unlinked eagerly in that mode. Revisit
+  by measuring what the tightened floor actually retains before changing it.
+- **Open — write-ahead log removal is gated by nothing at all** (matrix row 4). `removeWalFiles`
+  deletes its files consulting neither the retention floor nor the directory hold, in either mode, so
+  a rotation during a full backup can remove a log file mid-walk. Not fixed here because the current
+  failure is loud (`Files.copy` throws and the backup fails) rather than silent, and the deferral has
+  a real cost: log removal would have to be held back behind a backup that may run for minutes.
+  Closing it is natural once wanted — the deletions are already queued in `pendingRemovals`, so the
+  drain simply must not run while a hold is up.
+- **Follow-up — shrink the folder hold to a hardlink snapshot.** A full backup currently holds the
+  folder for the whole of its copy. Hard-linking the catalog folder into a sibling directory
+  (`Files.createLink`, same volume, works on POSIX and NTFS), releasing the hold, and zipping from the
+  snapshot would reduce the hold from *O(backup duration)* to *O(file count)* and make the filesystem
+  the reference counter. Not a precondition for anything above: a global hold is an honest contract
+  for an operation that is rare and bounded.
 
 ## Timeline
 

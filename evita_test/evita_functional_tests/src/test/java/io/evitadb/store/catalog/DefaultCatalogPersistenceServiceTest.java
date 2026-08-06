@@ -975,6 +975,107 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Number of catalog versions written by {@link #writeSeveralGenerations(DefaultCatalogPersistenceService)} - each
+	 * one rewrites the catalog schema part and the catalog header, so every round leaves the previous copies as waste
+	 * and trips the compaction thresholds set by {@link #eagerCompactionStorageOptions(boolean, long)}.
+	 */
+	private static final int VERSIONS_WRITTEN = 8;
+
+	/**
+	 * Storage options that compact on every round, so that each round registers its own catalog persistence service
+	 * and leaves the previous data file behind. The time-travel mode is a parameter rather than a constant because
+	 * the reclamation seam is shared by both modes and its guards must hold in each.
+	 *
+	 * @param timeTravelEnabled        whether compacted-away files are kept as history instead of deleted
+	 * @param timeTravelSizeLimitBytes the history budget - irrelevant when time travel is off
+	 * @return the storage options
+	 */
+	@Nonnull
+	private StorageOptions eagerCompactionStorageOptions(boolean timeTravelEnabled, long timeTravelSizeLimitBytes) {
+		return StorageOptions.builder()
+			.storageDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+			.workDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+			.computeCRC32(true)
+			// compact whatever the file size, as soon as a single record of waste appears
+			.fileSizeCompactionThresholdBytes(1L)
+			.minimalActiveRecordShare(0.99)
+			.maxWasteActiveShare(0.99)
+			.minCompactionIntervalMilliseconds(0L)
+			.timeTravelEnabled(timeTravelEnabled)
+			.timeTravelSizeLimitBytes(timeTravelSizeLimitBytes)
+			.build();
+	}
+
+	/**
+	 * Transaction options with checkpointing at the end of every round, so each version publishes its bootstrap
+	 * record immediately instead of deferring it behind the checkpoint interval.
+	 *
+	 * @return the transaction options
+	 */
+	@Nonnull
+	private TransactionOptions eagerCheckpointTransactionOptions() {
+		return TransactionOptions.builder()
+			.transactionWorkDirectory(getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+			.checkpointIntervalInMillis(0L)
+			.build();
+	}
+
+	/**
+	 * Writes {@link #VERSIONS_WRITTEN} catalog versions, each leaving the previous catalog data file behind.
+	 *
+	 * @param ioService the service under test
+	 */
+	private void writeSeveralGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
+		final UUID catalogId = UUIDUtil.randomUUID();
+		long catalogVersion = 0L;
+		for (int i = 0; i < VERSIONS_WRITTEN; i++) {
+			ioService.getStoragePartPersistenceService(catalogVersion)
+				.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+			ioService.storeHeader(
+				catalogId,
+				CatalogState.ALIVE,
+				catalogVersion,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(catalogVersion))
+			);
+			// the first round transitions the catalog to ALIVE and lands on version 1 internally
+			catalogVersion = catalogVersion == 0L ? 2L : catalogVersion + 1L;
+		}
+	}
+
+	/**
+	 * Lists the catalog data files present in the catalog folder, newest index last.
+	 *
+	 * @return the catalog data files sorted by their file index
+	 */
+	@Nonnull
+	private List<File> listCatalogDataFiles() {
+		return listCatalogDataFiles(TEST_CATALOG);
+	}
+
+	/**
+	 * Lists the catalog data files of the named catalog, newest index last.
+	 *
+	 * @param catalogName name of the catalog whose folder should be listed
+	 * @return the catalog data files sorted by their file index
+	 */
+	@Nonnull
+	private List<File> listCatalogDataFiles(@Nonnull String catalogName) {
+		final Path catalogDirectory = getTestDirectory()
+			.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
+			.resolve(catalogName);
+		return Arrays.stream(
+				Objects.requireNonNull(
+					catalogDirectory.toFile().listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+				)
+			)
+			.sorted(Comparator.comparingInt(file -> getIndexFromCatalogFileName(file.getName())))
+			.toList();
+	}
+
 	@Nonnull
 	private EntityCollection constructEntityCollectionWithSomeEntities(
 		@Nonnull CatalogPersistenceService ioService,
@@ -1139,12 +1240,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	class TimeTravelSizeGuardTest {
 
 		/**
-		 * Number of catalog versions written - each one rewrites the catalog schema part and the catalog header, so
-		 * every round leaves the previous copies as waste and trips the compaction thresholds set below.
-		 */
-		private static final int VERSIONS_WRITTEN = 8;
-
-		/**
 		 * Storage options that compact on every round and keep the compacted-away file for time travel.
 		 *
 		 * @param timeTravelSizeLimitBytes the history budget under test
@@ -1152,32 +1247,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 */
 		@Nonnull
 		private StorageOptions timeTravelStorageOptions(long timeTravelSizeLimitBytes) {
-			return StorageOptions.builder()
-				.storageDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
-				.workDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
-				.computeCRC32(true)
-				// compact whatever the file size, as soon as a single record of waste appears
-				.fileSizeCompactionThresholdBytes(1L)
-				.minimalActiveRecordShare(0.99)
-				.maxWasteActiveShare(0.99)
-				.minCompactionIntervalMilliseconds(0L)
-				.timeTravelEnabled(true)
-				.timeTravelSizeLimitBytes(timeTravelSizeLimitBytes)
-				.build();
-		}
-
-		/**
-		 * Transaction options with checkpointing at the end of every round, so each version publishes its bootstrap
-		 * record immediately instead of deferring it behind the checkpoint interval.
-		 *
-		 * @return the transaction options
-		 */
-		@Nonnull
-		private TransactionOptions eagerCheckpointTransactionOptions() {
-			return TransactionOptions.builder()
-				.transactionWorkDirectory(getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
-				.checkpointIntervalInMillis(0L)
-				.build();
+			return eagerCompactionStorageOptions(true, timeTravelSizeLimitBytes);
 		}
 
 		/**
@@ -1196,31 +1266,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				.transactionWorkDirectory(getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
 				.checkpointIntervalInMillis(60_000L)
 				.build();
-		}
-
-		/**
-		 * Writes {@link #VERSIONS_WRITTEN} catalog versions, each leaving the previous catalog data file behind.
-		 *
-		 * @param ioService the service under test
-		 */
-		private void writeSeveralGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
-			final UUID catalogId = UUIDUtil.randomUUID();
-			long catalogVersion = 0L;
-			for (int i = 0; i < VERSIONS_WRITTEN; i++) {
-				ioService.getStoragePartPersistenceService(catalogVersion)
-					.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
-				ioService.storeHeader(
-					catalogId,
-					CatalogState.ALIVE,
-					catalogVersion,
-					1,
-					null,
-					Collections.emptyList(),
-					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(catalogVersion))
-				);
-				// the first round transitions the catalog to ALIVE and lands on version 1 internally
-				catalogVersion = catalogVersion == 0L ? 2L : catalogVersion + 1L;
-			}
 		}
 
 		/**
@@ -1247,36 +1292,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 				);
 			}
-		}
-
-		/**
-		 * Lists the catalog data files present in the catalog folder, newest index last.
-		 *
-		 * @return the catalog data files sorted by their file index
-		 */
-		@Nonnull
-		private List<File> listCatalogDataFiles() {
-			return listCatalogDataFiles(TEST_CATALOG);
-		}
-
-		/**
-		 * Lists the catalog data files of the named catalog, newest index last.
-		 *
-		 * @param catalogName name of the catalog whose folder should be listed
-		 * @return the catalog data files sorted by their file index
-		 */
-		@Nonnull
-		private List<File> listCatalogDataFiles(@Nonnull String catalogName) {
-			final Path catalogDirectory = getTestDirectory()
-				.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
-				.resolve(catalogName);
-			return Arrays.stream(
-					Objects.requireNonNull(
-						catalogDirectory.toFile().listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
-					)
-				)
-				.sorted(Comparator.comparingInt(file -> getIndexFromCatalogFileName(file.getName())))
-				.toList();
 		}
 
 		@Test
@@ -1347,6 +1362,86 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertEquals(
 					beforeGuard.get(beforeGuard.size() - 1).getName(),
 					afterGuard.get(0).getName()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should freeze the whole catalog folder while a directory read hold is open")
+		void shouldFreezeTheFolderWhileADirectoryReadHoldIsOpen() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				// warm-up leftovers are the case a version cannot describe: no bootstrap record reaches them, so the
+				// sweep is right to take them, and a consumer walking the folder is nonetheless reading them
+				writeSeveralWarmUpGenerations(ioService);
+				final List<File> beforeHold = listCatalogDataFiles();
+				assertTrue(beforeHold.size() > 2);
+
+				final CatalogDirectoryReadHold hold = ioService.acquireDirectoryReadHold();
+				ioService.enforceTimeTravelSizeLimit();
+
+				assertEquals(
+					beforeHold.stream().map(File::getName).toList(),
+					listCatalogDataFiles().stream().map(File::getName).toList(),
+					"a directory read hold must freeze the folder, unreachable files included"
+				);
+
+				hold.close();
+				ioService.enforceTimeTravelSizeLimit();
+				assertEquals(
+					1, listCatalogDataFiles().size(),
+					"releasing the hold must let the deferred sweep through"
+				);
+
+				// closing a lease twice must not decrement the counter below zero and leave the folder permanently
+				// unheld while a second consumer is still walking it
+				hold.close();
+				final CatalogDirectoryReadHold secondHold = ioService.acquireDirectoryReadHold();
+				writeSeveralWarmUpGenerations(ioService);
+				final List<File> beforeSecondSweep = listCatalogDataFiles();
+				assertTrue(beforeSecondSweep.size() > 1);
+				ioService.enforceTimeTravelSizeLimit();
+				assertEquals(
+					beforeSecondSweep.stream().map(File::getName).toList(),
+					listCatalogDataFiles().stream().map(File::getName).toList(),
+					"a double release of an earlier lease must not cancel a hold someone else is relying on"
+				);
+				secondHold.close();
+			}
+		}
+
+		@Test
+		@DisplayName("should still reclaim warm-up leftovers while an ordinary session holds a version")
+		void shouldReclaimWarmUpLeftoversWhileAVersionIsPinned() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralWarmUpGenerations(ioService);
+				assertTrue(listCatalogDataFiles().size() > 2);
+
+				// every open session pins the version it reads, so gating the sweep on "is anything pinned" gates it on
+				// "is anyone connected". Warm-up is where that bites hardest: it permits a single session at a time and
+				// a bulk import holds it for the whole import, which is exactly when these leftovers pile up
+				ioService.catalogVersionPinned(0L);
+				ioService.enforceTimeTravelSizeLimit();
+
+				assertEquals(
+					1, listCatalogDataFiles().size(),
+					"a held version must not stop the sweep - it protects data reachable from a record, and these " +
+						"leftovers are reachable from none"
 				);
 			}
 		}
@@ -1480,14 +1575,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.catalogVersionPinned(1L);
 				ioService.enforceTimeTravelSizeLimit();
 
-				// nothing at all may go while the pin is held - not even the files no bootstrap record can reach.
-				// "Unreachable from the oldest retained record" would be a safe thing to sweep only if every consumer
-				// reached its data through a record; a full backup reads the folder itself, so a pin has to freeze the
-				// whole of it. The sweep is opportunistic, and the release below gets it back
-				assertEquals(
-					beforeGuard.stream().map(File::getName).toList(),
-					listCatalogDataFiles().stream().map(File::getName).toList(),
-					"a pinned version must freeze the catalog folder, unreachable files included"
+				// the reachable history survives. The file count may still drop by the files no bootstrap record can
+				// reach at all - a pin cannot make an unreachable file reachable, and a consumer holding a version
+				// reads through the record that serves it, never through the folder. The consumers that *do* read the
+				// folder hold it directly instead, which is what keeps this sweep from being gated on pins
+				assertTrue(
+					listCatalogDataFiles().size() > 1,
+					"a zero budget must still not pull reachable data out from under a pinned version"
 				);
 				assertTrue(
 					ioService.computeRetainedHistoryBytes() > 0L,
@@ -1646,6 +1740,56 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertTrue(
 					listCatalogDataFiles().size() < afterFirstAdvance.size(),
 					"the horizon the pin refused must be retried once the pin is released"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should retry the remainder of a horizon a pin only partly allowed")
+		void shouldRetryTheRemainderOfAPartiallyClampedHorizonRequest() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// unlimited budget, so nothing but the request under test can move the horizon
+					timeTravelStorageOptions(-1L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(listCatalogDataFiles().size() > 3);
+
+				// the horizon itself is the observable here rather than the file count, because a pinned version also
+				// holds the unreachable-file sweep off - the trim and the sweep would otherwise be indistinguishable
+				ioService.advanceHistoryHorizon(3L);
+				final long afterFirstAdvance = ioService.getOldestRetainedCatalogVersion();
+
+				// the pin sits *above* the horizon this time, which is what makes the clamp partial rather than total:
+				// the request is lowered to the pin and still does real work, so the "nothing moved" branch that used
+				// to be the only place a refusal was recorded is never reached
+				ioService.catalogVersionPinned(5L);
+				final long requestedHorizon = ioService.getLastCatalogVersion();
+				ioService.advanceHistoryHorizon(requestedHorizon);
+
+				final long afterPartialAdvance = ioService.getOldestRetainedCatalogVersion();
+				assertTrue(
+					afterPartialAdvance > afterFirstAdvance,
+					"the clamped request must still advance the horizon as far as the pin allows, got " +
+						afterPartialAdvance + " after " + afterFirstAdvance
+				);
+				assertTrue(
+					afterPartialAdvance < requestedHorizon,
+					"the pin must still be holding history back, otherwise there is no remainder to retry"
+				);
+
+				// the write-ahead log deleted the files behind that request before reporting it and has forgotten them,
+				// so the part the pin refused is owed and nobody will ask for it again
+				ioService.catalogVersionReleased(5L);
+
+				assertTrue(
+					ioService.getOldestRetainedCatalogVersion() > afterPartialAdvance,
+					"the part of the request the pin refused must be retried once the pin is released"
 				);
 			}
 		}
@@ -1824,6 +1968,58 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertEquals(
 					afterGuard.stream().map(File::getName).toList(),
 					listCatalogDataFiles().stream().map(File::getName).toList()
+				);
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("History horizon clamp")
+	class HistoryHorizonClampTest {
+
+		@Test
+		@DisplayName("should keep serving a pinned version after log rotation reports a newer floor")
+		void shouldClampTheHorizonToTheRetentionFloorWithTimeTravelDisabled() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// time travel OFF - the default configuration, and the one where nothing used to clamp the seam
+					eagerCompactionStorageOptions(false, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				// precondition - the rounds really did register a generation of their own, otherwise there is nothing
+				// below the floor for the trim to close and the assertion at the end would hold vacuously
+				final long pinnedVersion = 2L;
+				final CatalogOffsetIndexStoragePartPersistenceService servingThePin =
+					ioService.getStoragePartPersistenceService(pinnedVersion);
+				assertNotSame(
+					servingThePin, ioService.getStoragePartPersistenceService(ioService.getLastCatalogVersion()),
+					"the fixture must register more than one generation, otherwise nothing can be closed under a reader"
+				);
+
+				// a live session reads at a version well behind the head. Every session pins the version it reads -
+				// that pin is the only thing standing between this reader and the trim below
+				ioService.catalogVersionPinned(pinnedVersion);
+
+				// write-ahead log rotation reports a floor far above the pin. Rotation deletes its log files *before*
+				// reporting the floor they imply, so this is the only moment the floor can still be honoured
+				ioService.advanceHistoryHorizon(ioService.getLastCatalogVersion());
+
+				// the session must still resolve to the generation that serves it. Unclamped, the trim closes every
+				// service below the floor and this resolution either fails outright or lands on a different generation
+				assertSame(
+					servingThePin, ioService.getStoragePartPersistenceService(pinnedVersion),
+					"a pinned version must keep the persistence service that serves it"
+				);
+				// and the service must still be usable - being registered is not the same as being open
+				assertNotNull(
+					ioService.getStoragePartPersistenceService(pinnedVersion).getCatalogHeader(pinnedVersion),
+					"the persistence service serving a pinned version must still be readable"
 				);
 			}
 		}

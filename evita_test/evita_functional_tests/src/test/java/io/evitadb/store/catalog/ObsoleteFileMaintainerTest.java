@@ -31,7 +31,6 @@ import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.shared.model.FileLocation;
-import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -232,7 +231,6 @@ class ObsoleteFileMaintainerTest {
 		@DisplayName("A version pinned below an already advanced reader floor still blocks the purge")
 		void shouldNotPurgeBelowAVersionPinnedInThePast() {
 			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
-				final WalPurgeCallback purgeCallback = maintainer.createWalPurgeCallback();
 				// readers have moved on and the floor has risen accordingly
 				maintainer.catalogConsumersLeft(100L, 100L);
 				assertEquals(100L, maintainer.getRetentionFloor());
@@ -241,7 +239,6 @@ class ObsoleteFileMaintainerTest {
 				maintainer.catalogVersionPinned(20L);
 
 				assertEquals(20L, maintainer.getRetentionFloor());
-				assertEquals(20L, purgeCallback.effectivePurgeVersion(50L));
 			}
 		}
 
@@ -249,15 +246,30 @@ class ObsoleteFileMaintainerTest {
 		@DisplayName("Releasing the pin lets the purge proceed again")
 		void shouldReleaseThePinOnceTheConsumerIsDone() {
 			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
-				final WalPurgeCallback purgeCallback = maintainer.createWalPurgeCallback();
 				maintainer.catalogConsumersLeft(100L, 100L);
 				maintainer.catalogVersionPinned(20L);
-				assertEquals(20L, purgeCallback.effectivePurgeVersion(50L));
+				assertEquals(20L, maintainer.getRetentionFloor());
 
 				maintainer.catalogVersionReleased(20L);
 
 				assertEquals(100L, maintainer.getRetentionFloor());
-				assertEquals(50L, purgeCallback.effectivePurgeVersion(50L));
+			}
+		}
+
+		@Test
+		@DisplayName("Nothing held at all is reported as absent, never as a pin at version zero")
+		void shouldReportAbsentFloorAsNegative() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				// `0` is a pinnable version - it is what a catalog goes live with, and what a full backup holds before
+				// any history has been given up. Reporting "nothing is held" as `0` makes such a pin a silent no-op,
+				// so the absent case has to be a value no consumer can ever hold
+				assertEquals(-1L, maintainer.getRetentionFloor(), "an unheld catalog must report no floor at all");
+
+				maintainer.catalogVersionPinned(0L);
+				assertEquals(0L, maintainer.getRetentionFloor(), "version zero is a floor like any other");
+
+				maintainer.catalogVersionReleased(0L);
+				assertEquals(-1L, maintainer.getRetentionFloor());
 			}
 		}
 

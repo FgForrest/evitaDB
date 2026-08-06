@@ -2293,6 +2293,11 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Interface that allows to look up for the active files for the given catalog version and to remove the files up to
 	 * the given active files.
+	 *
+	 * The version reaching {@link #purgeFilesUpTo(long)} has **already** been clamped to the retention floor by the
+	 * caller. Do not re-introduce a clamp here: this callback is `NO_OP` whenever time travel is off, so a guard living
+	 * on it is silently absent in the default configuration - which is precisely how a persistence service came to be
+	 * closed under a live reader.
 	 */
 	@SuppressWarnings("InterfaceWithOnlyOneDirectInheritor")
 	public interface WalPurgeCallback {
@@ -2300,18 +2305,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		WalPurgeCallback NO_OP = __ -> {
 			// do nothing
 		};
-
-		/**
-		 * Clamps the requested first-version-to-be-kept so that neither the bootstrap-record trimming nor the catalog
-		 * data file purge ever removes data still needed by an active reader. The default implementation performs no
-		 * clamping; implementations that track active readers narrow the version down to the active-reader floor.
-		 *
-		 * @param requestedFirstVersionToBeKept the first catalog version that WAL retention would keep
-		 * @return the first catalog version that may actually be kept once active readers are taken into account
-		 */
-		default long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
-			return requestedFirstVersionToBeKept;
-		}
 
 		/**
 		 * Purges the files up to the given active files.

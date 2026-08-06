@@ -3243,6 +3243,10 @@ public class DefaultCatalogPersistenceService
 					lastKnownMinimalActiveVersionWritten
 				)
 			);
+		// the departure just published a new active-reader floor, which is the other half of the retention floor. This
+		// is reported *after* the maintainer has recorded it, so the drained request is clamped against the new value
+		// rather than the one that refused it
+		retentionStateChanged();
 	}
 
 	@Override
@@ -3262,22 +3266,8 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Returns the catalog version of the oldest bootstrap record still retained on disk - the lower end of the window
-	 * time travel can currently reach. Read under the horizon lock, because the driver that trims history replaces the
-	 * very file this reads.
-	 *
-	 * A consumer that needs the whole retained window rather than one particular version - a full backup copies every
-	 * file in the catalog folder - pins this value for its lifetime, which clamps
-	 * {@link WalPurgeCallback#effectivePurgeVersion(long)} down to it and so freezes reclamation entirely until the pin
-	 * is released. Reading it a moment before the pin is taken errs in the safe direction: the horizon only ever rises,
-	 * so a stale value can only be lower than the truth, and pinning lower merely holds back more than necessary.
-	 *
-	 * @return the oldest retained catalog version, or {@link #getLastCatalogVersion()} when no bootstrap record can be
-	 * read at all
-	 */
-	/**
-	 * Returns the lowest catalog version any consumer still holds - the floor every reclamation is clamped to. Zero
-	 * when nothing is held at all.
+	 * Returns the lowest catalog version any consumer still holds - the floor every reclamation is clamped to, or
+	 * `-1` when nothing is held at all.
 	 *
 	 * Package-private so a test can assert that a pin was taken and released without reaching into the maintainer.
 	 *
@@ -3287,6 +3277,20 @@ public class DefaultCatalogPersistenceService
 		return this.obsoleteFileMaintainer.getRetentionFloor();
 	}
 
+	/**
+	 * Returns the catalog version of the oldest bootstrap record still retained on disk - the lower end of the window
+	 * time travel can currently reach. Read under the horizon lock, because the driver that trims history replaces the
+	 * very file this reads.
+	 *
+	 * A consumer that needs the whole retained window rather than one particular version - a full backup copies every
+	 * file in the catalog folder - pins this value for its lifetime, which clamps every reclamation down to it through
+	 * {@link #clampToRetentionFloor(long)} and so freezes the history the backup is walking. Reading it a moment before
+	 * the pin is taken errs in the safe direction: the horizon only ever rises, so a stale value can only be lower than
+	 * the truth, and pinning lower merely holds back more than necessary.
+	 *
+	 * @return the oldest retained catalog version, or {@link #getLastCatalogVersion()} when no bootstrap record can be
+	 * read at all
+	 */
 	public long getOldestRetainedCatalogVersion() {
 		this.historyHorizonLock.lock();
 		try {
@@ -3301,14 +3305,8 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public void catalogVersionReleased(long catalogVersion) {
 		this.obsoleteFileMaintainer.catalogVersionReleased(catalogVersion);
-		// retry whatever the floor refused while this pin was held. If another pin still holds it back the retry
-		// simply records it again, so this converges rather than losing the request on the first release
-		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
-		if (owedRequest > -1L) {
-			advanceHistoryHorizon(owedRequest);
-		}
-		// a released pin can only lower what is in use, so the budget may now be able to give up what it deferred
-		scheduleTimeTravelSizeGuard();
+		// a released pin can only lower what is in use, so whatever the floor refused may now be affordable
+		retentionStateChanged();
 	}
 
 	@Override
@@ -3734,6 +3732,73 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Takes a hold on the catalog folder for a consumer that reads it **by listing the directory** rather than by
+	 * following a bootstrap record - today that is a full backup, and a point-in-time backup taken during warm-up.
+	 * While the returned lease is open no file is removed from the folder.
+	 *
+	 * A version pin cannot stand in for this. The reclamation that removes unreachable files is keyed on
+	 * *reachability*, and a folder walker reads files that no retained record reaches - so no value of the retention
+	 * floor describes what it needs. The two guards are deliberately separate: pins are taken by every session and
+	 * gating the folder on them stops reclamation for as long as anything is connected.
+	 *
+	 * The lease is idempotent and captures the maintainer it was taken on, so closing it twice, or after the catalog
+	 * has been replaced underneath it, is a no-op rather than a counter that drifts and never recovers.
+	 *
+	 * @return the lease, to be closed by the consumer that took it - ideally through try-with-resources
+	 */
+	@Nonnull
+	public CatalogDirectoryReadHold acquireDirectoryReadHold() {
+		final ObsoleteFileMaintainer maintainer = this.obsoleteFileMaintainer;
+		maintainer.acquireDirectoryReadHold();
+		return new CatalogDirectoryReadHold(maintainer, this::retentionStateChanged);
+	}
+
+	/**
+	 * Lowers a requested history floor to the version below which nothing may be reclaimed - the oldest version any
+	 * live consumer still holds, be it an open session or a backup pinning a version in the past.
+	 *
+	 * This clamp is deliberately **independent of {@link StorageOptions#timeTravelEnabled()}**. It used to be reached
+	 * through the write-ahead log purge callback, which is `NO_OP` whenever time travel is off - and `NO_OP` inherits
+	 * an identity default, so in the default configuration the seam ran with no floor at all. That is not a
+	 * time-travel concern: {@link #trimBootstrapFile(long)} closes the persistence services below the floor in **both**
+	 * modes, and {@link #getStoragePartPersistenceService(long)} resolves a version to the closest service at or below
+	 * it - so a service closed under a reader takes that reader's reads down with it. The maintainer tracks the floor
+	 * regardless of the mode, so the clamp reads it directly and cannot be switched off by configuration.
+	 *
+	 * @param requestedFirstVersionToBeKept the first catalog version a driver would like to keep
+	 * @return the request, lowered to the retention floor when any consumer holds an older version
+	 */
+	private long clampToRetentionFloor(long requestedFirstVersionToBeKept) {
+		final long retentionFloor = this.obsoleteFileMaintainer.getRetentionFloor();
+		// a floor of zero is a real floor and must clamp - only the negative "nothing is held" report leaves
+		// the request alone. Version `0` is what a catalog goes live with and is perfectly pinnable
+		return retentionFloor >= 0L ?
+			Math.min(requestedFirstVersionToBeKept, retentionFloor) :
+			requestedFirstVersionToBeKept;
+	}
+
+	/**
+	 * The single seam through which a lowered retention floor is acted upon. Every event that can lower the floor -
+	 * a pin released, the last reader of a version leaving - routes through here.
+	 *
+	 * It exists because the two things that have to happen are easy to wire to only one of those events. Draining the
+	 * owed request matters most for the write-ahead log driver: {@link AbstractMutationLog#removeWalFiles()} deletes
+	 * its files *before* reporting the floor they imply and then forgets them, so a request the floor refused is never
+	 * made again by anyone, and the bootstrap records pointing at those deleted log files would be retained for the
+	 * rest of the catalog's life. The budget driver needs no such thing - it re-derives its horizon on every run - but
+	 * it does need waking, because a floor that just dropped may have been the only reason it deferred.
+	 */
+	private void retentionStateChanged() {
+		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
+		if (owedRequest > -1L) {
+			// if a lower pin still holds it back, `advanceHistoryHorizon` simply records it again - this converges
+			// rather than losing the request on the first release that happens not to be the blocking one
+			advanceHistoryHorizon(owedRequest);
+		}
+		scheduleTimeTravelSizeGuard();
+	}
+
+	/**
 	 * The single seam through which catalog history is given up. Trims the bootstrap file down to the requested
 	 * version and reclaims every data file that no retained record can reach any more.
 	 *
@@ -3762,15 +3827,15 @@ public class DefaultCatalogPersistenceService
 			// then finds the horizon already moved. Sampling before the lock leaves exactly the window a point-in-time
 			// backup falls into - it pins the version it resolved, the sample taken moments earlier never sees the pin,
 			// and this call deletes the files the backup is about to read
-			final long effectiveVersionToBeKept = this.walPurgeCallback.effectivePurgeVersion(
-				requestedFirstVersionToBeKept);
+			final long effectiveVersionToBeKept = clampToRetentionFloor(requestedFirstVersionToBeKept);
+			// whatever the floor refused is still owed, whether this call made partial progress or none at all.
+			// Recording it only on the no-progress path loses every partially clamped request: with the horizon at 10,
+			// a pin at 20 and a request for 50, the horizon moves to 20 and the last 30 versions are never asked again
+			if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
+				this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
+			}
 			// re-check under the lock, the competing driver may have moved past us while we were waiting for it
 			if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
-				if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
-					// the floor - not the other driver - is what refused this, so the request is still owed. Kept at
-					// the highest value asked for, and retried when the pin holding it back goes away
-					this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
-				}
 				return;
 			}
 			// first trim the bootstrap records, then reclaim the files the remaining records cannot reach
@@ -3881,7 +3946,7 @@ public class DefaultCatalogPersistenceService
 			if (horizonCatalogVersion > -1L) {
 				// an active reader still holding an older version outranks the budget - give it up for this round and
 				// let the next compaction try again, rather than pulling data out from under a running session
-				if (this.walPurgeCallback.effectivePurgeVersion(horizonCatalogVersion) < horizonCatalogVersion) {
+				if (clampToRetentionFloor(horizonCatalogVersion) < horizonCatalogVersion) {
 					log.info(
 						"Retained history of catalog `{}` exceeds `timeTravelSizeLimitBytes` ({} > {} bytes) but an " +
 							"active reader still needs it - deferring until the reader leaves.",

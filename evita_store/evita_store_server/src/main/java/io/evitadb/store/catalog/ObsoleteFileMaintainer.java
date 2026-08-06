@@ -50,9 +50,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -115,6 +115,16 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * bootstrap record it copies - and it drops back as consumers finish.
 	 */
 	private final ConcurrentHashMap<Long, Integer> pinnedCatalogVersions = CollectionUtils.createConcurrentHashMap(16);
+	/**
+	 * Number of consumers currently reading the catalog folder **by listing it** rather than by following a bootstrap
+	 * record. While any of them is running no file may be removed from the folder at all.
+	 *
+	 * This is deliberately not expressed as a pinned catalog version, because the thing being protected is not a
+	 * version: a full backup copies whatever `Files.walk` finds, so it reads files that no bootstrap record points at -
+	 * and during warm-up it reads little else, since every flush rewrites the bootstrap down to a single record and
+	 * strands the generation before it. No value of {@link #getRetentionFloor()} can describe that need.
+	 */
+	private final AtomicInteger directoryReadHolds = new AtomicInteger();
 	/**
 	 * The supplier of the catalog header and bootstrap record for the oldest catalog version that is still retained on
 	 * disk (the first record in the bootstrap file). The catalog data file referenced by this bootstrap is, by
@@ -296,8 +306,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		if (this.timeTravelEnabled) {
 			return new ObsoleteWalPurgeCallback(
 				this::purgeMaintainedFilesOlderThan,
-				this::reclaimUnreachableFiles,
-				this::getRetentionFloor
+				this::reclaimUnreachableFiles
 			);
 		} else {
 			return WalPurgeCallback.NO_OP;
@@ -342,6 +351,14 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * @return the next scheduled time for the purge task (always -1L - i.e. do not schedule again)
 	 */
 	private long purgeObsoleteFiles() {
+		if (isCatalogDirectoryHeld()) {
+			// with time travel off this is the deleter that actually unlinks a retired data file, and it is driven
+			// purely by the departure-reported active version - it never looks at pins. A consumer walking the folder
+			// is therefore invisible to it, which today is masked only by a full backup registering itself as if it
+			// were a read-write session. The hold is what makes that registration removable.
+			// Nothing is lost by deferring: `releaseDirectoryReadHold` reschedules this task
+			return -1L;
+		}
 		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
 		/* TOBEDONE JNO - this is only for debugging purposes, we should rely on events instead */
 		if (!this.maintainedFiles.isEmpty()) {
@@ -387,28 +404,52 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			// without time travel nothing is ever left behind to reclaim - files go as soon as their last reader leaves
 			return;
 		}
-		if (isAnyVersionPinned()) {
-			// "no retained bootstrap record reaches this file" is not the same as "nobody is reading it". A full backup
-			// copies the whole catalog folder by listing the directory, so it reads files no record points at - and
-			// during warm-up it reads nothing else, because every flush rewrites the bootstrap down to one record and
-			// strands the previous generation. A version pin cannot express that need, so the sweep yields to any pin
-			// at all. It gives up nothing: this is opportunistic housekeeping, and releasing a pin reschedules it
+		if (isCatalogDirectoryHeld()) {
+			// "no retained bootstrap record reaches this file" is not the same as "nobody is reading it" - a consumer
+			// that walks the folder reads files no record points at. It gives up nothing to wait: this is opportunistic
+			// housekeeping and releasing the hold reschedules it.
+			//
+			// Note this gate is *not* the one protecting ordinary sessions, and must never be widened into one. A
+			// session resolves its reads through the bootstrap record serving its version; the trim that decides which
+			// records are retained is clamped by the retention floor, which includes that session's own pin; so every
+			// file a session can reach is still reachable from a retained record, and this sweep deletes only files
+			// that are not. Gating here on pins instead - which every session takes - stops reclamation for as long as
+			// anything is connected, and during warm-up that is the whole of a bulk import
 			return;
 		}
 		reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
 	}
 
 	/**
-	 * Tells whether any consumer currently holds an explicit pin.
-	 *
-	 * Distinct from {@link #getRetentionFloor()} being set: the active-reader floor also raises the floor, but a reader
-	 * reaches its data through a bootstrap record, so a version is enough to protect it. A pin can additionally stand
-	 * for a consumer reading the folder itself, which nothing version-keyed can describe.
-	 *
-	 * @return true when at least one version is pinned
+	 * Records that a consumer started reading the catalog folder by listing it. Every acquisition must be matched by
+	 * exactly one {@link #releaseDirectoryReadHold()}.
 	 */
-	public boolean isAnyVersionPinned() {
-		return !this.pinnedCatalogVersions.isEmpty();
+	void acquireDirectoryReadHold() {
+		this.directoryReadHolds.incrementAndGet();
+	}
+
+	/**
+	 * Releases one hold taken by {@link #acquireDirectoryReadHold()}. The last release reschedules the purge that the
+	 * hold turned away - the deferred work would otherwise wait for the next unrelated event to drive it.
+	 */
+	void releaseDirectoryReadHold() {
+		if (this.directoryReadHolds.decrementAndGet() == 0 && !this.closed.get()) {
+			this.purgeTask.schedule();
+		}
+	}
+
+	/**
+	 * Tells whether a consumer is currently reading the catalog folder by listing it.
+	 *
+	 * Distinct from {@link #getRetentionFloor()} being set, and the distinction is the whole point: a reader that
+	 * reaches its data through a bootstrap record is fully described by the version it holds, and the floor protects
+	 * it. A consumer that reads the folder itself is not described by any version, so it gets its own guard - and
+	 * conflating the two is what made every open session freeze reclamation.
+	 *
+	 * @return true when at least one consumer is reading the folder
+	 */
+	boolean isCatalogDirectoryHeld() {
+		return this.directoryReadHolds.get() > 0;
 	}
 
 	/**
@@ -552,35 +593,10 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		private final Runnable unreachableFileSweep;
 		/**
-		 * Supplier of the retention floor - the minimal catalog version that still has active readers or is explicitly
-		 * pinned by a consumer. The purge is clamped by this floor so that files needed by a live consumer, including
-		 * a point-in-time backup reading a version in the past, are never deleted.
-		 */
-		private final LongSupplier retentionFloorSupplier;
-		/**
 		 * The last catalog version that was observed. This variable is used to ignore calls with lower catalog version
 		 * than were already processed.
 		 */
 		private long lastObservedCatalogVersion = -1L;
-
-		/**
-		 * Clamps the requested keep-version down to the active-reader floor (when the floor is greater than {@code 0})
-		 * so the time-travel purge never deletes catalog data still needed by an active reader. This narrows the
-		 * inherited identity default, which would otherwise keep exactly the requested version.
-		 *
-		 * @param requestedFirstVersionToBeKept the first catalog version the WAL purge intends to keep
-		 * @return the requested version, lowered to the active-reader floor when a floor is set
-		 */
-		@Override
-		public long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
-			final long retentionFloor = this.retentionFloorSupplier.getAsLong();
-			// never purge beyond the minimal version still in use by a reader or pinned by a consumer such as
-			// a point-in-time backup, which holds a version in the past (time-travel invariant). A floor of zero is
-			// a real floor and must clamp - only the negative "nothing is held" report leaves the request alone
-			return retentionFloor >= 0L ?
-				Math.min(requestedFirstVersionToBeKept, retentionFloor) :
-				requestedFirstVersionToBeKept;
-		}
 
 		@Override
 		public void purgeFilesUpTo(long firstActiveCatalogVersion) {

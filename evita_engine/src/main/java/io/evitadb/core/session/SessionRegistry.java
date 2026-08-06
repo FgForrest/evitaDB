@@ -546,6 +546,14 @@ public final class SessionRegistry {
 			// answer "is anyone still here" on departure, which can only ever report a rising minimum. A consumer
 			// that starts on a version in the past - a point-in-time backup pins the bootstrap record it copies -
 			// is invisible to that, so retention has to be told about the arrival, not only about the departure.
+			//
+			// INVARIANT - *every* session pins, read-only ones included, and this must not be "optimized" away.
+			// Reclamation of files no bootstrap record can reach runs without asking about pins at all, and the only
+			// thing making that safe is that a session reads exclusively through the record serving its version,
+			// while the trim deciding which records are retained is clamped by this very pin. Drop the pin for
+			// read-only sessions and that argument collapses silently - no test fails, and a reader loses the
+			// generation underneath it. See the deleter matrix in
+			// `documentation/adr/2026-08-06-time-travel-disk-budget.md`.
 			try {
 				final Catalog theCatalog = catalog.get();
 				// in rare cases (catalog replacement) the catalog might not be available already
@@ -716,6 +724,31 @@ public final class SessionRegistry {
 		@Override
 		public void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
 			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, traits, this.catalog);
+		}
+
+		@Override
+		public void pinCatalogVersion(long version) {
+			try {
+				final Catalog theCatalog = this.catalog.get();
+				// in rare cases (catalog replacement) the catalog might not be available already
+				if (theCatalog != null) {
+					theCatalog.catalogVersionPinned(version);
+				}
+			} catch (CatalogTransitioningException ignored) {
+				// catalog is transitioning, we cannot notify it anyway
+			}
+		}
+
+		@Override
+		public void unpinCatalogVersion(long version) {
+			try {
+				final Catalog theCatalog = this.catalog.get();
+				if (theCatalog != null) {
+					theCatalog.catalogVersionReleased(version);
+				}
+			} catch (CatalogTransitioningException ignored) {
+				// catalog is transitioning, we cannot notify it anyway
+			}
 		}
 
 	}
