@@ -2038,6 +2038,20 @@ public final class Catalog
 		}
 	}
 
+	@Override
+	public void catalogVersionPinned(long catalogVersion) {
+		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
+			cvbthl.catalogVersionPinned(catalogVersion);
+		}
+	}
+
+	@Override
+	public void catalogVersionReleased(long catalogVersion) {
+		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
+			cvbthl.catalogVersionReleased(catalogVersion);
+		}
+	}
+
 	/**
 	 * Retrieves the effective conflict resolution associated with the transaction configuration.
 	 *

@@ -33,6 +33,7 @@ import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -107,6 +109,12 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * purge can be clamped by it and never delete a catalog data file that an active reader still needs.
 	 */
 	private final AtomicLong activeReaderFloor = new AtomicLong(0L);
+	/**
+	 * Catalog versions explicitly pinned by a live consumer, to the number of consumers holding each. Unlike
+	 * {@link #activeReaderFloor} this can point into the past - a point-in-time backup pins the version of the
+	 * bootstrap record it copies - and it drops back as consumers finish.
+	 */
+	private final ConcurrentHashMap<Long, Integer> pinnedCatalogVersions = CollectionUtils.createConcurrentHashMap(16);
 	/**
 	 * The supplier of the catalog header and bootstrap record for the oldest catalog version that is still retained on
 	 * disk (the first record in the bootstrap file). The catalog data file referenced by this bootstrap is, by
@@ -221,6 +229,56 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	}
 
 	/**
+	 * Records that a consumer started using the given catalog version. The version is held against reclamation until
+	 * as many {@link #catalogVersionReleased(long)} calls have arrived as pins.
+	 *
+	 * Counting rather than tracking a single minimum is what makes this race-free: two consumers pinning and releasing
+	 * different versions concurrently each touch their own map entry, whereas any single accumulated value can be
+	 * overwritten by a competing update and silently drop the lower pin - which is the exact failure this guards.
+	 *
+	 * @param catalogVersion the catalog version that must remain readable
+	 */
+	public void catalogVersionPinned(long catalogVersion) {
+		this.pinnedCatalogVersions.merge(catalogVersion, 1, Integer::sum);
+	}
+
+	/**
+	 * Releases one pin previously recorded by {@link #catalogVersionPinned(long)}.
+	 *
+	 * @param catalogVersion the catalog version that no longer needs to remain readable
+	 */
+	public void catalogVersionReleased(long catalogVersion) {
+		this.pinnedCatalogVersions.computeIfPresent(
+			catalogVersion,
+			(version, pinCount) -> pinCount <= 1 ? null : pinCount - 1
+		);
+	}
+
+	/**
+	 * Returns the lowest catalog version below which nothing may be reclaimed - the minimum of the active-reader floor
+	 * and of every version explicitly pinned by a consumer, or {@code 0} when neither is known.
+	 *
+	 * The two are combined rather than one replacing the other because they answer different questions: the floor is
+	 * the newest *departure* report and only ever rises, while the pins are the versions consumers hold **right now**
+	 * and can sit arbitrarily far in the past.
+	 *
+	 * @return the retention floor, or {@code 0} when nothing is known to be in use
+	 */
+	public long getRetentionFloor() {
+		final long readerFloor = this.activeReaderFloor.get();
+		long pinFloor = Long.MAX_VALUE;
+		for (Long pinnedVersion : this.pinnedCatalogVersions.keySet()) {
+			if (pinnedVersion < pinFloor) {
+				pinFloor = pinnedVersion;
+			}
+		}
+		if (pinFloor == Long.MAX_VALUE) {
+			return readerFloor;
+		}
+		return readerFloor > 0L ? Math.min(readerFloor, pinFloor) : pinFloor;
+	}
+
+	/**
 	 * Creates the WAL purge callback that is used to remove all files that are no longer used. The callback is used
 	 * when the WAL history is purged.
 	 *
@@ -234,7 +292,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				this.catalogStoragePath,
 				this::purgeMaintainedFilesOlderThan,
 				this.oldestDataFilesInfoSupplier,
-				this::getActiveReaderFloor
+				this::getRetentionFloor
 			);
 		} else {
 			return WalPurgeCallback.NO_OP;
@@ -472,10 +530,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		private final Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier;
 		/**
-		 * Supplier of the active-reader floor - the minimal catalog version that still has active readers. The purge is
-		 * clamped by this floor so that files needed by an active reader are never deleted.
+		 * Supplier of the retention floor - the minimal catalog version that still has active readers or is explicitly
+		 * pinned by a consumer. The purge is clamped by this floor so that files needed by a live consumer, including
+		 * a point-in-time backup reading a version in the past, are never deleted.
 		 */
-		private final LongSupplier activeReaderFloorSupplier;
+		private final LongSupplier retentionFloorSupplier;
 		/**
 		 * The last catalog version that was observed. This variable is used to ignore calls with lower catalog version
 		 * than were already processed.
@@ -492,10 +551,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		 */
 		@Override
 		public long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
-			final long readerFloor = this.activeReaderFloorSupplier.getAsLong();
-			// never purge beyond the minimal version that still has active readers (time-travel invariant)
-			return readerFloor > 0L ?
-				Math.min(requestedFirstVersionToBeKept, readerFloor) :
+			final long retentionFloor = this.retentionFloorSupplier.getAsLong();
+			// never purge beyond the minimal version still in use by a reader or pinned by a consumer such as
+			// a point-in-time backup, which holds a version in the past (time-travel invariant)
+			return retentionFloor > 0L ?
+				Math.min(requestedFirstVersionToBeKept, retentionFloor) :
 				requestedFirstVersionToBeKept;
 		}
 

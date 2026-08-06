@@ -3236,6 +3236,18 @@ public class DefaultCatalogPersistenceService
 	}
 
 	@Override
+	public void catalogVersionPinned(long catalogVersion) {
+		this.obsoleteFileMaintainer.catalogVersionPinned(catalogVersion);
+	}
+
+	@Override
+	public void catalogVersionReleased(long catalogVersion) {
+		this.obsoleteFileMaintainer.catalogVersionReleased(catalogVersion);
+		// a released pin can only lower what is in use, so the budget may now be able to give up what it deferred
+		scheduleTimeTravelSizeGuard();
+	}
+
+	@Override
 	public boolean isNew() {
 		// if the service is new (not yet stored) there should be only one value in the map
 		return this.catalogStoragePartPersistenceService.values()
@@ -3686,10 +3698,13 @@ public class DefaultCatalogPersistenceService
 			if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
 				return;
 			}
-			this.historyHorizon.set(effectiveVersionToBeKept);
 			// first trim the bootstrap records, then reclaim the files the remaining records cannot reach
 			trimBootstrapFile(effectiveVersionToBeKept);
 			this.walPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
+			// the marker is set only once both steps have succeeded. Setting it first would make a failed trim
+			// permanent: the retry arrives with the same version, the monotonicity check above swallows it, and the
+			// bootstrap file stays untrimmed for the rest of the catalog's life
+			this.historyHorizon.set(effectiveVersionToBeKept);
 		} finally {
 			this.historyHorizonLock.unlock();
 		}
@@ -3865,6 +3880,8 @@ public class DefaultCatalogPersistenceService
 	 *
 	 * Costs one directory listing plus two catalog header reads, next to the full-tree walk the same event already
 	 * performs for its occupied-disk-space gauge.
+	 *
+	 * Package-private so a test can measure without going through a statistics event.
 	 *
 	 * @return retained history in bytes; `0` when time travel is off, when no history exists, or when the measurement
 	 * itself failed - a statistics event must never be the thing that breaks
@@ -4205,6 +4222,14 @@ public class DefaultCatalogPersistenceService
 						"Failed to replace the bootstrap write handle in a critical section!")
 				);
 			}
+
+			// A retired generation only becomes history once the record that supersedes it is published, and that
+			// publication may be deferred long after the compaction that scheduled the guard from `retireDataFile`.
+			// Until then the newest published record still pins the retired file, so the guard counts it as active
+			// and sees no new history at all. Scheduling here - at the one point every bootstrap record passes
+			// through, deferred checkpoints included - is what makes the budget observe the generation that
+			// scheduling on retirement alone would skip.
+			scheduleTimeTravelSizeGuard();
 
 			return bootstrapRecord;
 		} catch (InterruptedException e) {

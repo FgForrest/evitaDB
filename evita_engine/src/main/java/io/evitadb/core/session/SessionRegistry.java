@@ -317,7 +317,8 @@ public final class SessionRegistry {
 					this.activeSessions.put(newSession.getId(), sessionTuple);
 					this.sessionsFifoQueue.add(sessionTuple);
 					this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-						.registerSessionConsumingCatalogInVersion(catalogVersion, newSession.getSessionTraits());
+						.registerSessionConsumingCatalogInVersion(
+						catalogVersion, newSession.getSessionTraits(), this.catalogSupplier);
 					this.sharedDataStore.addSession(sessionTuple);
 				}
 			);
@@ -527,7 +528,11 @@ public final class SessionRegistry {
 		 *
 		 * @param version the version of the catalog
 		 */
-		void registerSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+		void registerSessionConsumingCatalogInVersion(
+			long version,
+			@Nonnull SessionTraits traits,
+			@Nonnull Supplier<Catalog> catalog
+		) {
 			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
 				this.versionConsumingReadWriteSessions :
 				this.versionConsumingReadOnlySessions;
@@ -536,6 +541,20 @@ public final class SessionRegistry {
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
+
+			// Pin the version against reclamation. This is not symmetrical bookkeeping with the maps above: those
+			// answer "is anyone still here" on departure, which can only ever report a rising minimum. A consumer
+			// that starts on a version in the past - a point-in-time backup pins the bootstrap record it copies -
+			// is invisible to that, so retention has to be told about the arrival, not only about the departure.
+			try {
+				final Catalog theCatalog = catalog.get();
+				// in rare cases (catalog replacement) the catalog might not be available already
+				if (theCatalog != null) {
+					theCatalog.catalogVersionPinned(version);
+				}
+			} catch (CatalogTransitioningException ignored) {
+				// catalog is transitioning, we cannot notify it anyway
+			}
 		}
 
 		/**
@@ -557,6 +576,17 @@ public final class SessionRegistry {
 				version,
 				(k, v) -> v == null || v == 1 ? null : v - 1
 			);
+
+			// release the pin taken on registration - paired and counted, so the version stays held until the last
+			// consumer of it has gone, independently of the last-reader notification below
+			try {
+				final Catalog pinnedCatalog = catalog.get();
+				if (pinnedCatalog != null) {
+					pinnedCatalog.catalogVersionReleased(version);
+				}
+			} catch (CatalogTransitioningException ignored) {
+				// catalog is transitioning, we cannot notify it anyway
+			}
 
 			// the minimal active catalog version used by another session now
 			final OptionalLong minimalActiveCatalogVersion;
@@ -680,7 +710,7 @@ public final class SessionRegistry {
 
 		@Override
 		public void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
-			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits);
+			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits, this.catalog);
 		}
 
 		@Override

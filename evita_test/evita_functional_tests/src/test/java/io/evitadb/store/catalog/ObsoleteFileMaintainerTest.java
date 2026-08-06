@@ -31,6 +31,7 @@ import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -212,6 +213,101 @@ class ObsoleteFileMaintainerTest {
 			timeTravelEnabled,
 			oldestDataFilesInfoSupplier
 		);
+	}
+
+	/**
+	 * Verifies that a catalog version explicitly pinned by a live consumer is never purged.
+	 *
+	 * The active-reader floor alone cannot express this. It is fed by `catalogConsumersLeft`, which fires only when
+	 * the *last* reader of a version leaves, and it only ever rises - so a consumer that starts on a version in the
+	 * **past** is invisible to it. A point-in-time backup is exactly that consumer: `BackupTask` pins the catalog
+	 * version of the bootstrap record it is about to copy. Without the pin the purge sees a floor above that version,
+	 * concludes nothing is in use down there, and deletes the files the backup is still reading.
+	 */
+	@Nested
+	@DisplayName("Pinned catalog versions")
+	class PinnedCatalogVersions {
+
+		@Test
+		@DisplayName("A version pinned below an already advanced reader floor still blocks the purge")
+		void shouldNotPurgeBelowAVersionPinnedInThePast() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				final WalPurgeCallback purgeCallback = maintainer.createWalPurgeCallback();
+				// readers have moved on and the floor has risen accordingly
+				maintainer.catalogConsumersLeft(100L, 100L);
+				assertEquals(100L, maintainer.getRetentionFloor());
+
+				// a point-in-time backup now starts reading a version far in the past
+				maintainer.catalogVersionPinned(20L);
+
+				assertEquals(20L, maintainer.getRetentionFloor());
+				assertEquals(20L, purgeCallback.effectivePurgeVersion(50L));
+			}
+		}
+
+		@Test
+		@DisplayName("Releasing the pin lets the purge proceed again")
+		void shouldReleaseThePinOnceTheConsumerIsDone() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				final WalPurgeCallback purgeCallback = maintainer.createWalPurgeCallback();
+				maintainer.catalogConsumersLeft(100L, 100L);
+				maintainer.catalogVersionPinned(20L);
+				assertEquals(20L, purgeCallback.effectivePurgeVersion(50L));
+
+				maintainer.catalogVersionReleased(20L);
+
+				assertEquals(100L, maintainer.getRetentionFloor());
+				assertEquals(50L, purgeCallback.effectivePurgeVersion(50L));
+			}
+		}
+
+		@Test
+		@DisplayName("A version stays pinned until the last of several consumers releases it")
+		void shouldHoldTheVersionUntilTheLastConsumerReleasesIt() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				maintainer.catalogConsumersLeft(100L, 100L);
+				maintainer.catalogVersionPinned(20L);
+				maintainer.catalogVersionPinned(20L);
+
+				maintainer.catalogVersionReleased(20L);
+				assertEquals(20L, maintainer.getRetentionFloor(), "one consumer is still reading version 20");
+
+				maintainer.catalogVersionReleased(20L);
+				assertEquals(100L, maintainer.getRetentionFloor());
+			}
+		}
+
+		@Test
+		@DisplayName("The retention floor is the lowest of the reader floor and every pin")
+		void shouldReportTheLowestOfReaderFloorAndPins() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				maintainer.catalogVersionPinned(70L);
+				// nothing else is known yet, so the only pin decides
+				assertEquals(70L, maintainer.getRetentionFloor());
+
+				maintainer.catalogConsumersLeft(40L, 40L);
+				assertEquals(40L, maintainer.getRetentionFloor(), "the reader floor is now lower than the pin");
+
+				maintainer.catalogVersionPinned(15L);
+				assertEquals(15L, maintainer.getRetentionFloor());
+
+				// releasing the lowest pin falls back to the next lowest constraint
+				maintainer.catalogVersionReleased(15L);
+				assertEquals(40L, maintainer.getRetentionFloor());
+			}
+		}
+
+		@Test
+		@DisplayName("Releasing a version that was never pinned is harmless")
+		void shouldIgnoreReleaseOfUnpinnedVersion() {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(true)) {
+				maintainer.catalogConsumersLeft(100L, 100L);
+
+				maintainer.catalogVersionReleased(20L);
+
+				assertEquals(100L, maintainer.getRetentionFloor());
+			}
+		}
 	}
 
 	/**

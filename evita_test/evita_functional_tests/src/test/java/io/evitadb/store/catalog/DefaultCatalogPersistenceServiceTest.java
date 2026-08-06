@@ -1230,9 +1230,20 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 */
 		@Nonnull
 		private List<File> listCatalogDataFiles() {
+			return listCatalogDataFiles(TEST_CATALOG);
+		}
+
+		/**
+		 * Lists the catalog data files of the named catalog, newest index last.
+		 *
+		 * @param catalogName name of the catalog whose folder should be listed
+		 * @return the catalog data files sorted by their file index
+		 */
+		@Nonnull
+		private List<File> listCatalogDataFiles(@Nonnull String catalogName) {
 			final Path catalogDirectory = getTestDirectory()
 				.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
-				.resolve(TEST_CATALOG);
+				.resolve(catalogName);
 			return Arrays.stream(
 					Objects.requireNonNull(
 						catalogDirectory.toFile().listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
@@ -1355,6 +1366,112 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertEquals(
 					beforeGuard.get(beforeGuard.size() - 1).getName(),
 					afterGuard.get(0).getName()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should keep exactly as much history as the budget affords")
+		void shouldKeepAsMuchHistoryAsTheBudgetAffords() {
+			// the sibling tests pin only the extremes - a zero budget and an unlimited one. This is the mode an
+			// operator actually runs in, and the only one where the horizon search has to land on a record that is
+			// neither the oldest nor the newest.
+			//
+			// The budget has to be derived from a real catalog's history size, and a service cannot be reopened on a
+			// non-empty folder, so the measurement runs against a second catalog written by the identical sequence.
+			final String measuredCatalog = TEST_CATALOG + "Measured";
+			final long fullHistory;
+			try (
+				final DefaultCatalogPersistenceService measuringService = new DefaultCatalogPersistenceService(
+					measuredCatalog,
+					timeTravelStorageOptions(Long.MAX_VALUE),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(measuringService);
+				assertTrue(listCatalogDataFiles(measuredCatalog).size() > 3);
+				fullHistory = measuringService.computeRetainedHistoryBytes();
+				assertTrue(fullHistory > 0L);
+			}
+
+			// a budget that can hold part of the history but not all of it
+			final long budget = fullHistory / 2L;
+			assertTrue(budget > 0L, "the catalog must be big enough for half its history to be a real budget");
+
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(budget),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				final List<File> beforeGuard = listCatalogDataFiles();
+				assertTrue(beforeGuard.size() > 3, "expected several generations, got " + beforeGuard.size());
+
+				ioService.enforceTimeTravelSizeLimit();
+
+				final long retained = ioService.computeRetainedHistoryBytes();
+				assertTrue(retained <= budget, "history must fit the budget, was " + retained + " > " + budget);
+				// and it must not have thrown the baby out - some history has to survive a budget that affords it
+				assertTrue(retained > 0L, "a budget holding several generations must keep some history");
+
+				final List<File> afterGuard = listCatalogDataFiles();
+				assertTrue(
+					afterGuard.size() > 1 && afterGuard.size() < beforeGuard.size(),
+					"expected a horizon strictly between the extremes, kept " + afterGuard.size() +
+						" of " + beforeGuard.size() + " files"
+				);
+				// the newest generation always survives - reclaiming from the wrong end would destroy the catalog
+				assertEquals(
+					beforeGuard.get(beforeGuard.size() - 1).getName(),
+					afterGuard.get(afterGuard.size() - 1).getName()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should defer giving up history that a pinned catalog version still needs")
+		void shouldDeferWhenAPinnedVersionStillNeedsTheHistory() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				final List<File> beforeGuard = listCatalogDataFiles();
+				assertTrue(beforeGuard.size() > 2);
+
+				// a point-in-time consumer starts reading the oldest retained version - the budget must yield to it
+				ioService.catalogVersionPinned(1L);
+				ioService.enforceTimeTravelSizeLimit();
+
+				// the reachable history survives. The file count may still drop by the files no bootstrap record can
+				// reach at all - a pin cannot make an unreachable file reachable, so the sweep is right to take them.
+				assertTrue(
+					listCatalogDataFiles().size() > 1,
+					"a zero budget must still not pull reachable data out from under a pinned version"
+				);
+				assertTrue(
+					ioService.computeRetainedHistoryBytes() > 0L,
+					"history pinned by a live consumer must not be given up"
+				);
+
+				// once the consumer is done the very same budget reclaims everything it deferred
+				ioService.catalogVersionReleased(1L);
+				ioService.enforceTimeTravelSizeLimit();
+
+				assertEquals(
+					1, listCatalogDataFiles().size(),
+					"the deferred reclamation must happen once the pin is released"
 				);
 			}
 		}
