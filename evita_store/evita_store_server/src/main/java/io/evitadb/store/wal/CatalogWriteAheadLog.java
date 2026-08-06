@@ -169,7 +169,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	/**
 	 * Creates a new CatalogWriteAheadLog for internal use only.
-	 * This constructor creates a WAL without bootstrap file trimming or purge callbacks,
+	 * This constructor creates a WAL without a history horizon advancer, so rotating its files reclaims nothing -
 	 * typically used for testing or specific internal scenarios.
 	 *
 	 * @param catalogVersion         the last processed catalog version number

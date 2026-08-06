@@ -99,7 +99,10 @@ import static java.util.Optional.ofNullable;
  *                                           behavior where retention was bounded only by the write-ahead log
  *                                           (`walFileSizeBytes` × `walFileCountKept`) - which bounds WAL bytes, not
  *                                           disk bytes, and is the unbounded-growth characteristic this limit exists
- *                                           to remove. A value of `0` keeps no history at all.
+ *                                           to remove. A value of `0` keeps no history at all. Switching the limit
+ *                                           off does not switch off housekeeping: data files no retained point in
+ *                                           time can reach are reclaimed whatever the value here, because nothing
+ *                                           can travel to them and no budget is a reason to keep them.
  *                                           Two properties follow from how compaction works and cannot be configured
  *                                           away: the limit **cannot bound peak usage below one generation** (a
  *                                           compaction writes the full new copy before the old file may be dropped),
