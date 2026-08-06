@@ -1293,16 +1293,29 @@ public class EvitaDataTypes {
 	 * ranges). The estimation is NOT precise and should not be relied upon for exact memory
 	 * accounting.
 	 *
+	 * **Only objects this value owns are counted.** A shared instance - a JVM singleton, an interned value, a
+	 * structure maintained elsewhere - belongs to its owner and is charged there, never here. Counting it in both
+	 * places would make the parts stop summing to the whole, which is a wrong answer rather than a cautious one.
+	 * Where an estimate is genuinely uncertain the larger reading is taken instead, so a caller is never told a
+	 * structure is cheap when it is the expensive one.
+	 *
+	 * Every object size is rounded up to the VM's allocation granularity, since a heap object always occupies a whole
+	 * number of allocation units.
+	 *
 	 * Size estimation rules (using {@link MemoryMeasuringConstants}):
 	 * - null: 0 bytes
-	 * - Arrays: base size + element reference sizes + recursive size of each element
+	 * - Arrays: header + inline element slots, plus the recursive size of each element for **reference** arrays only
+	 *   (a primitive array stores its values inline and owns nothing further)
 	 * - String: computed via `MemoryMeasuringConstants.computeStringSize()`
-	 * - Primitive wrappers: object header + primitive size
-	 * - BigDecimal: object header + constant size
-	 * - Date/time types: object header + component sizes
+	 * - Primitive wrappers: object header + primitive size, aligned
+	 * - BigDecimal: object header + field payload; an over-`long` magnitude's `BigInteger` is not included
+	 * - LocalDate / LocalTime: object header + component fields, aligned
+	 * - LocalDateTime: its own object plus the LocalDate and LocalTime it owns
+	 * - OffsetDateTime: its own object plus its LocalDateTime; the **ZoneOffset is excluded** - it is interned and
+	 *   drags the shared timezone-rules database with it, so it belongs to the JVM rather than to this value
 	 * - DateTimeRange: object header + 2 OffsetDateTime sizes + 2 longs
 	 * - NumberRange: object header + 2 number sizes + reference + int + 2 longs
-	 * - Locale, Currency, Enum: 0 (assumed flyweight/singleton)
+	 * - Locale, Currency, Enum: 0 - flyweights owned by the JVM
 	 * - UUID: object header + 2 longs
 	 * - Predecessor, ReferencedEntityPredecessor: object header + int
 	 * - ComplexDataObject, DataItem: delegates to instance's `estimateSize()` method
@@ -1315,40 +1328,50 @@ public class EvitaDataTypes {
 		if (unknownObject == null) {
 			return 0;
 		} else if (unknownObject.getClass().isArray()) {
-			final int elementSize = getElementSize(unknownObject.getClass().getComponentType());
-			int size = ARRAY_BASE_SIZE + Array.getLength(unknownObject) * elementSize;
-			for (int i = 0; i < Array.getLength(unknownObject); i++) {
-				size += EvitaDataTypes.estimateSize((Serializable) Array.get(unknownObject, i));
+			final Class<?> componentType = unknownObject.getClass().getComponentType();
+			final int length = Array.getLength(unknownObject);
+			long size = MemoryMeasuringConstants.align(ARRAY_BASE_SIZE + (long) length * getElementSize(componentType));
+			// only a reference array owns anything beyond its slots. Recursing into a PRIMITIVE array would box every
+			// element through `Array.get` and then charge that throw-away wrapper's header - 20 bytes per int on top
+			// of the 4 already counted inline, which over-reported an `int[]` by 6x
+			if (!componentType.isPrimitive()) {
+				for (int i = 0; i < length; i++) {
+					size += EvitaDataTypes.estimateSize((Serializable) Array.get(unknownObject, i));
+				}
 			}
-			return size;
+			return (int) size;
 		} else if (unknownObject instanceof String s) {
 			return computeStringSize(s);
 		} else if (unknownObject instanceof Byte) {
-			return OBJECT_HEADER_SIZE + BYTE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BYTE_SIZE);
 		} else if (unknownObject instanceof Short) {
-			return OBJECT_HEADER_SIZE + SMALL_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + SMALL_SIZE);
 		} else if (unknownObject instanceof Integer) {
-			return OBJECT_HEADER_SIZE + INT_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + INT_SIZE);
 		} else if (unknownObject instanceof Long) {
-			return OBJECT_HEADER_SIZE + LONG_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LONG_SIZE);
 		} else if (unknownObject instanceof Boolean) {
-			return OBJECT_HEADER_SIZE + BYTE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BYTE_SIZE);
 		} else if (unknownObject instanceof Character) {
-			return OBJECT_HEADER_SIZE + CHAR_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + CHAR_SIZE);
 		} else if (unknownObject instanceof BigDecimal) {
-			return OBJECT_HEADER_SIZE + BIG_DECIMAL_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + BIG_DECIMAL_SIZE);
 		} else if (unknownObject instanceof OffsetDateTime) {
-			return OBJECT_HEADER_SIZE + LOCAL_DATE_TIME_SIZE + REFERENCE_SIZE;
+			// the ZoneOffset is NOT counted: `ZoneOffset.ofTotalSeconds` interns the common offsets and each one drags
+			// the shared timezone-rules database behind it, so charging it here would bill one global structure to
+			// every timestamp. Only the reference slot pointing at it belongs to this object
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE)
+				+ LOCAL_DATE_TIME_SIZE;
 		} else if (unknownObject instanceof LocalDateTime) {
-			return OBJECT_HEADER_SIZE+ LOCAL_DATE_TIME_SIZE;
+			return LOCAL_DATE_TIME_SIZE;
 		} else if (unknownObject instanceof LocalDate) {
-			return OBJECT_HEADER_SIZE+ LOCAL_DATE_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LOCAL_DATE_SIZE);
 		} else if (unknownObject instanceof LocalTime) {
-			return OBJECT_HEADER_SIZE + LOCAL_TIME_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + LOCAL_TIME_SIZE);
 		} else if (unknownObject instanceof DateTimeRange) {
-			return OBJECT_HEADER_SIZE
-				+ 2 * (OBJECT_HEADER_SIZE + LOCAL_DATE_TIME_SIZE + REFERENCE_SIZE)
-				+ 2 * (LONG_SIZE);
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE + 2L * LONG_SIZE)
+				+ 2 * ((int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE)
+					+ LOCAL_DATE_TIME_SIZE);
 		} else if (unknownObject instanceof final NumberRange<?> numberRange) {
 			final Number innerDataType;
 			if (numberRange.getPreciseFrom() != null) {
@@ -1358,9 +1381,9 @@ public class EvitaDataTypes {
 			} else {
 				innerDataType = null;
 			}
-			return OBJECT_HEADER_SIZE
-				+ 2 * (innerDataType == null ? 0 : estimateSize(innerDataType))
-				+ REFERENCE_SIZE + INT_SIZE + 2 * (LONG_SIZE);
+			return (int) MemoryMeasuringConstants.align(
+				OBJECT_HEADER_SIZE + 3L * REFERENCE_SIZE + INT_SIZE + 2L * LONG_SIZE
+			) + 2 * (innerDataType == null ? 0 : estimateSize(innerDataType));
 		} else if (unknownObject instanceof Locale) {
 			return 0;
 		} else if (unknownObject instanceof Enum) {
@@ -1368,9 +1391,9 @@ public class EvitaDataTypes {
 		} else if (unknownObject instanceof Currency) {
 			return 0;
 		} else if (unknownObject instanceof UUID) {
-			return OBJECT_HEADER_SIZE + 2 * LONG_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + 2L * LONG_SIZE);
 		} else if (unknownObject instanceof Predecessor || unknownObject instanceof ReferencedEntityPredecessor) {
-			return OBJECT_HEADER_SIZE + INT_SIZE;
+			return (int) MemoryMeasuringConstants.align(OBJECT_HEADER_SIZE + INT_SIZE);
 		} else if (unknownObject instanceof final ComplexDataObject complexDataObject) {
 			return REFERENCE_SIZE + complexDataObject.estimateSize();
 		} else if (unknownObject instanceof final DataItem dataItem) {
