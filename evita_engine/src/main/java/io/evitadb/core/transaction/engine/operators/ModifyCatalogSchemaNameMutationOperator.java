@@ -39,6 +39,7 @@ import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -158,6 +159,21 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			final CatalogFolderId prevailingFolderId = this.folderContext.folderIdFor(catalogNameToBeReplacedWith);
 			final CatalogFolderId supersededFolderId = replaceOperation && catalogToBeReplaced != null ?
 				this.folderContext.folderIdFor(catalogNameToBeReplaced) : null;
+			// The one failure in this operation that destroys data rather than merely failing: if the two names
+			// resolved to the same folder, the commit below would tombstone the folder it has just bound the
+			// surviving catalog to, and the delete that follows would take the live data with it. Two names
+			// cannot share a binding by construction - `withoutCatalog` drops the old one in the same build that
+			// installs the new one - so reaching this is a broken invariant, and asserting is far cheaper than
+			// discovering it from an empty catalog.
+			Assert.isPremiseValid(
+				supersededFolderId == null || !supersededFolderId.equals(prevailingFolderId),
+				() -> new GenericEvitaInternalError(
+					"Refusing to replace catalog `" + catalogNameToBeReplaced + "` with `" +
+						catalogNameToBeReplacedWith + "`: both resolve to storage folder `" +
+						prevailingFolderId.id() + "`, so retiring the superseded folder would destroy the " +
+						"surviving catalog!"
+				)
+			);
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
 			if (replaceOperation) {
 				removedCatalogSessionRegistry
