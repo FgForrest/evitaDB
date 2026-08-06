@@ -413,6 +413,16 @@ public class DefaultCatalogPersistenceService
 	 */
 	private final ReentrantLock historyHorizonLock = new ReentrantLock();
 	/**
+	 * The highest history-horizon request a retention floor clamped away, or `-1` when none is outstanding.
+	 *
+	 * Only the write-ahead log driver needs this. It deletes its files *before* reporting the floor they imply and
+	 * then forgets them, so a request refused because a consumer pinned an older version is gone for good - nothing
+	 * will ever report it again, and the bootstrap records pointing at those deleted log files would be retained for
+	 * the rest of the catalog's life. Remembering it lets the release of the pin retry it. The budget driver needs no
+	 * such thing: it re-derives its horizon from scratch on every run.
+	 */
+	private final AtomicLong pendingHistoryHorizonRequest = new AtomicLong(-1L);
+	/**
 	 * Enforces {@link StorageOptions#timeTravelSizeLimitBytes()} off the commit thread. `null` when the limit cannot
 	 * bind - either time travel is off, or the operator asked for no limit at all.
 	 */
@@ -3291,6 +3301,12 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public void catalogVersionReleased(long catalogVersion) {
 		this.obsoleteFileMaintainer.catalogVersionReleased(catalogVersion);
+		// retry whatever the floor refused while this pin was held. If another pin still holds it back the retry
+		// simply records it again, so this converges rather than losing the request on the first release
+		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
+		if (owedRequest > -1L) {
+			advanceHistoryHorizon(owedRequest);
+		}
 		// a released pin can only lower what is in use, so the budget may now be able to give up what it deferred
 		scheduleTimeTravelSizeGuard();
 	}
@@ -3750,6 +3766,11 @@ public class DefaultCatalogPersistenceService
 				requestedFirstVersionToBeKept);
 			// re-check under the lock, the competing driver may have moved past us while we were waiting for it
 			if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
+				if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
+					// the floor - not the other driver - is what refused this, so the request is still owed. Kept at
+					// the highest value asked for, and retried when the pin holding it back goes away
+					this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
+				}
 				return;
 			}
 			// first trim the bootstrap records, then reclaim the files the remaining records cannot reach

@@ -72,7 +72,11 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.task.ServerTask;
+import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.export.file.ExportFileService;
+import io.evitadb.export.file.ExportFileService.ExportFileHandleLocal;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -121,6 +125,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.io.ByteArrayOutputStream;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -133,6 +138,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -1474,11 +1480,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.catalogVersionPinned(1L);
 				ioService.enforceTimeTravelSizeLimit();
 
-				// the reachable history survives. The file count may still drop by the files no bootstrap record can
-				// reach at all - a pin cannot make an unreachable file reachable, so the sweep is right to take them.
-				assertTrue(
-					listCatalogDataFiles().size() > 1,
-					"a zero budget must still not pull reachable data out from under a pinned version"
+				// nothing at all may go while the pin is held - not even the files no bootstrap record can reach.
+				// "Unreachable from the oldest retained record" would be a safe thing to sweep only if every consumer
+				// reached its data through a record; a full backup reads the folder itself, so a pin has to freeze the
+				// whole of it. The sweep is opportunistic, and the release below gets it back
+				assertEquals(
+					beforeGuard.stream().map(File::getName).toList(),
+					listCatalogDataFiles().stream().map(File::getName).toList(),
+					"a pinned version must freeze the catalog folder, unreachable files included"
 				);
 				assertTrue(
 					ioService.computeRetainedHistoryBytes() > 0L,
@@ -1561,6 +1570,131 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertTrue(
 					listCatalogDataFiles().size() < beforePublish.size(),
 					"a zero budget must reclaim the history the publication just revealed"
+				);
+			}
+		}
+
+		/**
+		 * Builds an export service whose handle writes the archive into memory, so a backup task can be run all the
+		 * way to completion without touching the export storage.
+		 *
+		 * @return the export service
+		 */
+		@Nonnull
+		private ExportFileService inMemoryExportService() {
+			final UUID fileId = UUIDUtil.randomUUID();
+			final ExportFileHandleLocal exportFileHandle = new ExportFileHandleLocal(
+				fileId,
+				CompletableFuture.completedFuture(
+					new FileForFetch(
+						fileId, "backup.zip", null, "application/zip", 0L, OffsetDateTime.now(), null
+					)
+				),
+				getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST).resolve("backup.zip"),
+				new ByteArrayOutputStream()
+			);
+			final ExportFileService exportFileService = Mockito.mock(ExportFileService.class);
+			Mockito.when(
+				exportFileService.storeFile(
+					Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.any()
+				)
+			).thenReturn(exportFileHandle);
+			return exportFileService;
+		}
+
+		@Test
+		@DisplayName("should retry a write-ahead log horizon that a pin refused, once the pin is gone")
+		void shouldRetryAHorizonRequestThatAPinRefused() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// unlimited budget, so nothing but the request under test can move the horizon
+					timeTravelStorageOptions(-1L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(listCatalogDataFiles().size() > 3);
+
+				// the horizon is first moved on its own, so that the pin taken below sits *under* it. That is what
+				// makes the next request refused outright rather than merely clamped: a clamp landing above the
+				// horizon still does useful work, a clamp landing at or below it returns without doing anything
+				ioService.advanceHistoryHorizon(4L);
+				final List<File> afterFirstAdvance = listCatalogDataFiles();
+				assertTrue(
+					afterFirstAdvance.size() > 1,
+					"the fixture must leave room for a second advance, got " + afterFirstAdvance.size()
+				);
+
+				// now a consumer pins a version below the horizon and write-ahead log rotation reports a much newer
+				// floor. The log files that floor was derived from are already deleted by the time it is reported and
+				// the rotation forgets them, so a request dropped here is never made again by anyone
+				ioService.catalogVersionPinned(1L);
+				ioService.advanceHistoryHorizon(ioService.getLastCatalogVersion());
+				assertEquals(
+					afterFirstAdvance.stream().map(File::getName).toList(),
+					listCatalogDataFiles().stream().map(File::getName).toList(),
+					"the pin must hold the request off entirely"
+				);
+
+				// releasing the pin has to make good on the request that was refused, not merely let the next one
+				// through - there is no next one
+				ioService.catalogVersionReleased(1L);
+
+				assertTrue(
+					listCatalogDataFiles().size() < afterFirstAdvance.size(),
+					"the horizon the pin refused must be retried once the pin is released"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should give the retained window back once the full backup has finished with it")
+		void shouldReleaseTheRetainedWindowWhenTheFullBackupCompletes() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					inMemoryExportService()
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(
+					ioService::catalogVersionPinned, ioService::catalogVersionReleased
+				);
+				assertTrue(
+					ioService.getRetentionFloor() >= 0L,
+					"the full backup must be holding the retained window while it runs"
+				);
+
+				// a freshly built task waits for a precondition until something queues it, and `execute()` silently
+				// does nothing until then - the state assertion below is what keeps this test from passing on a
+				// backup that never ran
+				backupTask.transitionToIssued();
+				backupTask.execute();
+				assertEquals(
+					TaskSimplifiedState.FINISHED, backupTask.getStatus().simplifiedState(),
+					"the backup must have actually run, otherwise this asserts nothing about its tear-down"
+				);
+
+				// the pin is taken in the constructor and given back only by the task's own tear-down. Since a full
+				// backup holds the *oldest* retained version, failing to release it does not merely delay one
+				// reclamation - it freezes every reclamation the catalog would ever do, for the rest of its life
+				assertEquals(
+					-1L, ioService.getRetentionFloor(),
+					"a finished full backup must give the retained window back"
+				);
+
+				// and the budget it was holding off now actually runs
+				ioService.enforceTimeTravelSizeLimit();
+				assertEquals(
+					1, listCatalogDataFiles().size(),
+					"the reclamation deferred for the backup must happen once the backup is done"
 				);
 			}
 		}

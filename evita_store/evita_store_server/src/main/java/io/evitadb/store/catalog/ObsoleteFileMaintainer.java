@@ -295,9 +295,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		assertNotClosed();
 		if (this.timeTravelEnabled) {
 			return new ObsoleteWalPurgeCallback(
-				this.catalogStoragePath,
 				this::purgeMaintainedFilesOlderThan,
-				this.oldestDataFilesInfoSupplier,
+				this::reclaimUnreachableFiles,
 				this::getRetentionFloor
 			);
 		} else {
@@ -388,7 +387,28 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			// without time travel nothing is ever left behind to reclaim - files go as soon as their last reader leaves
 			return;
 		}
+		if (isAnyVersionPinned()) {
+			// "no retained bootstrap record reaches this file" is not the same as "nobody is reading it". A full backup
+			// copies the whole catalog folder by listing the directory, so it reads files no record points at - and
+			// during warm-up it reads nothing else, because every flush rewrites the bootstrap down to one record and
+			// strands the previous generation. A version pin cannot express that need, so the sweep yields to any pin
+			// at all. It gives up nothing: this is opportunistic housekeeping, and releasing a pin reschedules it
+			return;
+		}
 		reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
+	}
+
+	/**
+	 * Tells whether any consumer currently holds an explicit pin.
+	 *
+	 * Distinct from {@link #getRetentionFloor()} being set: the active-reader floor also raises the floor, but a reader
+	 * reaches its data through a bootstrap record, so a version is enough to protect it. A pin can additionally stand
+	 * for a consumer reading the folder itself, which nothing version-keyed can describe.
+	 *
+	 * @return true when at least one version is pinned
+	 */
+	public boolean isAnyVersionPinned() {
+		return !this.pinnedCatalogVersions.isEmpty();
 	}
 
 	/**
@@ -522,19 +542,15 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	@RequiredArgsConstructor
 	private static class ObsoleteWalPurgeCallback implements WalPurgeCallback {
 		/**
-		 * Folder where the catalog files are stored.
-		 */
-		private final Path catalogStoragePath;
-		/**
 		 * The callback that is called when the catalog version is purged.
 		 */
 		private final LongConsumer maintainedFilePurgeCallback;
 		/**
-		 * The supplier of the catalog header and bootstrap record of the oldest catalog version still retained on disk.
-		 * The catalog data file it references is the lowest kept index and is therefore guaranteed to be present, which
-		 * makes the header read resilient against concurrently purged files.
+		 * Sweeps the data files no retained bootstrap record can reach. Routed through the maintainer rather than
+		 * called statically, so that this door into the sweep obeys the same pin gate as the size guard's - the sweep
+		 * is reachability-keyed, and the version clamp above cannot describe a consumer that reads the folder itself.
 		 */
-		private final Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier;
+		private final Runnable unreachableFileSweep;
 		/**
 		 * Supplier of the retention floor - the minimal catalog version that still has active readers or is explicitly
 		 * pinned by a consumer. The purge is clamped by this floor so that files needed by a live consumer, including
@@ -575,7 +591,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				// then purge all obsolete files in the folders - the threshold is derived from the oldest bootstrap
 				// record still retained on disk (whose data file is guaranteed to exist), not from an exact-version
 				// lookup that may reference an already purged file
-				reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
+				this.unreachableFileSweep.run();
 			} else {
 				// this callback was already called with this or newer catalog version
 			}

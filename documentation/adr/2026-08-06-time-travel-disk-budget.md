@@ -165,6 +165,22 @@ to "I cannot configure my fleet uniformly".
   at version `0` a silent no-op and lets the purge run unclamped over the files that consumer is
   reading. `effectivePurgeVersion` therefore tests `>= 0`, and it is the clamp for **both** drivers —
   the write-ahead log purge is frozen by a version-`0` pin exactly as the size guard is.
+- **The unreachable-file sweep yields to any pin at all, and that is not the same rule as the version
+  clamp.** A version pin protects a consumer that reaches its data *through a bootstrap record*. A
+  full backup does not: it copies the catalog folder by listing the directory, so it reads files no
+  record points at — and during warm-up it reads nothing else, because every flush rewrites the
+  bootstrap down to a single record and strands the previous generation. "No retained record reaches
+  this file" therefore does **not** imply "nobody is reading it", which is the assumption the sweep
+  was built on. Both doors into the sweep (`reclaimUnreachableFiles` and the WAL purge callback) now
+  route through the same pin gate. It gives up nothing: the sweep is opportunistic and releasing a
+  pin reschedules it.
+- **A horizon request the floor refused is remembered and retried on release.** Only the write-ahead
+  log driver needs this, and the asymmetry is the whole point: `removeWalFiles` deletes its files
+  *before* reporting the floor they imply and then forgets them, so a request clamped away by a pin
+  is gone for good — no later rotation reports it, and the bootstrap records pointing at those
+  deleted log files would be retained for the life of the catalog. The budget driver needs nothing
+  of the sort, because it re-derives its horizon from scratch on every run. Only the refusal *under
+  the lock* is remembered; the cheap pre-check means the horizon already covers the request.
 - **A backup task pins in its constructor, so a task that is never run leaks that pin.** `Catalog`
   cancels the task if `scheduler.submit` rejects it, which routes through the task's own tear-down.
   This was harmless while a full backup pinned the newest version; now that it pins the oldest, a
