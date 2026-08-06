@@ -1600,11 +1600,16 @@ public class DefaultCatalogPersistenceService
 		);
 		this.walPurgeCallback = this.obsoleteFileMaintainer.createWalPurgeCallback();
 		this.timeTravelSizeGuardTask = createTimeTravelSizeGuardTask(catalogName, this.storageSettings, scheduler);
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		verifyDirectory(this.catalogStoragePath, false);
+		// The bootstrap file is named after the folder's storage prefix, NOT after the directory. The two are the
+		// same string only for as long as a folder is named after its catalog, which stopped being guaranteed
+		// once catalogs became bound to opaque folder tokens (#649) - a folder that outlives a rename keeps its
+		// old name. Deriving the prefix from the directory sends the lookup after a `<folder>.boot` that does not
+		// exist, which surfaces far downstream as "no schema found, the data are probably corrupted".
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
+			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
@@ -1758,11 +1763,13 @@ public class DefaultCatalogPersistenceService
 		this.walPurgeCallback = this.obsoleteFileMaintainer.createWalPurgeCallback();
 		this.timeTravelSizeGuardTask = createTimeTravelSizeGuardTask(
 			catalogName, this.storageSettings, this.scheduler);
-		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		verifyDirectory(this.catalogStoragePath, false);
+		// see the sibling constructor above: the bootstrap is found through the folder's storage prefix, never
+		// through the directory name, which is no longer guaranteed to be the catalog's name
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
+			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
