@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientCallableTask;
@@ -35,6 +36,7 @@ import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
@@ -92,6 +94,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final AtomicReference<LongConsumer> onComplete;
+	/**
+	 * Holds the catalog folder while a warm-up snapshot is being copied, `null` outside warm-up where the version pin
+	 * is sufficient on its own. Released by {@link #tearDown()}.
+	 */
+	@Nullable private final CatalogDirectoryReadHold directoryReadHold;
 
 	public BackupTask(
 		@Nonnull String catalogName,
@@ -125,8 +132,65 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.exportFileService = new AtomicReference<>(exportService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.onComplete = new AtomicReference<>(onComplete);
-		if (onStart != null) {
-			onStart.accept(this.bootstrapRecord.catalogVersion());
+		// this task reads everything through the bootstrap record it captured, so the version pin below is normally the
+		// whole protection it needs - the trim is clamped to that version, so the record stays retained and the sweep
+		// only ever removes what it cannot reach. Warm-up is the exception: every flush rewrites the bootstrap file
+		// down to a single record, so the record captured here can be stranded while the task still holds it, and the
+		// sweep - which re-derives its threshold from whatever record is oldest *now* - would take its files
+		this.directoryReadHold = bootstrapRecord.catalogVersion() == 0L ?
+			catalogPersistenceService.acquireDirectoryReadHold() : null;
+		// everything from here on has to unwind the hold itself. A constructor that throws leaves no object behind:
+		// `tearDown` is unreachable, and the caller's cancel-on-rejected-submission has no task to cancel. A hold left
+		// open by that path is not a delayed reclamation, it is the permanent end of reclamation for this catalog -
+		// silently, because the exception it rides out on looks perfectly handled
+		boolean versionPinned = false;
+		try {
+			if (onStart != null) {
+				final long backedUpVersion = this.bootstrapRecord.catalogVersion();
+				onStart.accept(backedUpVersion);
+				// from here on the pin is registered, and everything below can throw: the reachability check reads the
+				// bootstrap file under the horizon lock. A pin left behind by that throw is not a delayed reclamation
+				// either - it is the retention floor of this catalog frozen at this version for the rest of its life
+				versionPinned = true;
+				// the record was resolved before the pin was taken, and history can be given up in between - by the
+				// time the pin lands, the files this record points at may already have been reclaimed. The pin itself
+				// makes the check conclusive rather than another guess: once it is registered no further advance can
+				// pass this version, so a window that is open now stays open for as long as the task holds it
+				final long oldestRetainedVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
+				if (oldestRetainedVersion > backedUpVersion) {
+					throw new TemporalDataNotAvailableException(oldestRetainedVersion);
+				}
+			}
+		} catch (RuntimeException ex) {
+			try {
+				if (this.directoryReadHold != null) {
+					this.directoryReadHold.close();
+				}
+			} catch (RuntimeException unwindFailure) {
+				// `ex` is the exception that explains why this task does not exist - it must be the one that gets out
+				ex.addSuppressed(unwindFailure);
+			} finally {
+				// in a `finally` for the same reason `tearDown` puts it there: giving the folder back re-drives the
+				// reclamation it deferred, which is real work that can throw
+				if (versionPinned) {
+					releaseVersionPin();
+				}
+			}
+			throw ex;
+		}
+	}
+
+	/**
+	 * Gives back the catalog version pin taken in the constructor, exactly once.
+	 *
+	 * The consumer is read out of the field and cleared in the same operation, so the constructor's unwind path and
+	 * {@link #tearDown()} cannot both fire it - a release that runs twice does not merely no-op, it decrements the pin
+	 * of whichever other consumer holds that version and quietly takes their protection away.
+	 */
+	private void releaseVersionPin() {
+		final LongConsumer theOnComplete = this.onComplete.getAndSet(null);
+		if (theOnComplete != null) {
+			theOnComplete.accept(this.bootstrapRecord.catalogVersion());
 		}
 	}
 
@@ -264,9 +328,15 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// free references to expensive resources
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
-		final LongConsumer onComplete = this.onComplete.getAndSet(null);
-		if (onComplete != null) {
-			onComplete.accept(this.bootstrapRecord.catalogVersion());
+		try {
+			if (this.directoryReadHold != null) {
+				// idempotent, so the paths that reach this method twice give the folder back exactly once
+				this.directoryReadHold.close();
+			}
+		} finally {
+			// in a `finally` because giving the folder back re-drives the reclamation it deferred, which is real work
+			// that can throw - and a pin left behind by that throw freezes the catalog's retention floor for good
+			releaseVersionPin();
 		}
 	}
 

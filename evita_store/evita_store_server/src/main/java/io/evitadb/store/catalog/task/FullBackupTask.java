@@ -32,6 +32,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.store.catalog.CatalogDirectoryReadHold;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.FullBackupTask.BackupSettings;
 import io.evitadb.utils.Assert;
@@ -70,6 +71,12 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	private final AtomicReference<LongConsumer> onComplete;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
+	private final long pinnedCatalogVersion;
+	/**
+	 * Holds the catalog folder against every deletion for as long as this task is walking it. Released by
+	 * {@link #tearDown()}, which every completion path - success, failure and cancellation - routes through.
+	 */
+	private final CatalogDirectoryReadHold directoryReadHold;
 
 	public FullBackupTask(
 		@Nonnull String catalogName,
@@ -92,8 +99,27 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// note the version read here is only as recent as the last checkpoint - the factory that builds this task
 		// settles any outstanding one first, see DefaultCatalogPersistenceService#createFullBackupTask
 		this.lastCatalogVersion = catalogPersistenceService.getLastCatalogVersion();
-		if (onStart != null) {
-			onStart.accept(this.lastCatalogVersion);
+		// this task copies every file in the catalog folder, historical ones included, so it has to hold the whole
+		// retained window - not the version it is nominally taken at. Pinning the newest version protects nothing:
+		// the retention floor is a minimum, so for any candidate horizon at or below the newest version the clamp is
+		// a no-op and history is free to be reclaimed halfway through the copy, leaving an archive whose bootstrap
+		// references files that were deleted before the data pass reached them
+		this.pinnedCatalogVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
+		// the version pin above holds the *reachable* history, but this task copies whatever `Files.walk` finds, which
+		// includes files no retained bootstrap record points at - stranded generations from warm-up compactions above
+		// all. Those are exactly what the unreachable-file sweep exists to delete, and no version can describe them,
+		// so the folder itself has to be held for as long as the walk is running
+		this.directoryReadHold = catalogPersistenceService.acquireDirectoryReadHold();
+		// the pin below can throw - the catalog may have become unusable between the factory call and this line - and
+		// a constructor that throws leaves no object to tear down, so the hold has to be given back here or never.
+		// Leaking it does not delay reclamation for this catalog, it ends it
+		try {
+			if (onStart != null) {
+				onStart.accept(this.pinnedCatalogVersion);
+			}
+		} catch (RuntimeException ex) {
+			this.directoryReadHold.close();
+			throw ex;
 		}
 	}
 
@@ -232,10 +258,20 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// free references to expensive resources
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
-		this.catalogPersistenceService.set(null);
-		final LongConsumer onComplete = this.onComplete.getAndSet(null);
-		if (onComplete != null) {
-			onComplete.accept(this.lastCatalogVersion);
+		// the lease is idempotent, so the paths that reach this method twice - a cancellation racing the finally block
+		// of the backup itself - give the folder back exactly once.
+		// Releasing it can run real work: the last hold going away is what re-drives the reclamation it deferred. The
+		// unpin therefore sits in a `finally`, because a throw from that work must not cost the catalog its retention
+		// floor - this backup holds the *oldest* retained version, so a pin left behind here does not delay one
+		// reclamation, it stops every reclamation this catalog will ever do
+		try {
+			this.directoryReadHold.close();
+		} finally {
+			final LongConsumer onComplete = this.onComplete.getAndSet(null);
+			if (onComplete != null) {
+				// must release exactly what was pinned in the constructor, or the catalog keeps its history forever
+				onComplete.accept(this.pinnedCatalogVersion);
+			}
 		}
 	}
 

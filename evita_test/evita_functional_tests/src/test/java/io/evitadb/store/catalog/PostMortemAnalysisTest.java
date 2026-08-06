@@ -242,8 +242,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 				new LogFileRecordReference(index -> CatalogPersistenceService.getWalFileName(catalogName, index)),
 				storageSettings,
 				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				position -> System.out.println("Trim attempted: " + position),
-				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
+				position -> System.out.println("History horizon advance attempted: " + position),
 				catalogFilePath, catalogKryoPool
 			)
 		) {

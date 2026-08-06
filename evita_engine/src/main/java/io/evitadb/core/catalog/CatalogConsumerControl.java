@@ -52,4 +52,23 @@ public interface CatalogConsumerControl {
 	 */
 	void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits);
 
+	/**
+	 * Holds a catalog version against reclamation without claiming to be a session at that version.
+	 *
+	 * A backup needs exactly the retention half of what a session registration does, and none of the rest of it.
+	 * Routing it through {@link #registerConsumerOfCatalogInVersion(long, SessionTraits)} additionally counts it as a
+	 * read-write consumer of that version - and since a full backup holds the *oldest* retained version, that phantom
+	 * consumer holds back conflict-key release and offset-index purging for the whole duration of the copy.
+	 *
+	 * @param version the version of the catalog that must remain readable
+	 */
+	void pinCatalogVersion(long version);
+
+	/**
+	 * Releases one hold taken by {@link #pinCatalogVersion(long)}.
+	 *
+	 * @param version the version of the catalog that no longer needs to remain readable
+	 */
+	void unpinCatalogVersion(long version);
+
 }
