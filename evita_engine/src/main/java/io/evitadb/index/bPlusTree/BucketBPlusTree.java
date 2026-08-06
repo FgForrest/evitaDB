@@ -32,6 +32,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 /**
  * The payload-agnostic surface shared by both bucket-tree flavours: the read-only navigation, sizing and page-stream
@@ -133,7 +134,34 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	boolean contains(@Nullable K value);
 
 	/**
-	 * Returns the heap this tree occupies in bytes, **excluding the boxed keys its slots point at**.
+	 * Returns the heap this tree occupies, in bytes, **including every boxed key it owns**, each priced by `keySizer`.
+	 *
+	 * # There is deliberately no sizer-less overload
+	 *
+	 * A tree always holds boxed keys: an internal node's separator array is `M[]` whatever the leaves chose, so even
+	 * a tree keeping its keys inline as `long`s boxes one key per separator. A sizer-less form would have to price
+	 * those at zero, and would then under-report by one box per separator — a shortfall that **grows with the tree**,
+	 * which is the one direction a memory reading must never fail in. Passing a sizer is therefore mandatory.
+	 *
+	 * # Where the sizer is consulted, and where it is not
+	 *
+	 * The tree decides, because ownership depends on the column {@link ValueColumnFactory#forKey} picked and that is
+	 * invisible from outside:
+	 *
+	 * - **Leaves that chose {@link BoxedObjectColumn}** own their keys, and a separator above them is the *identical
+	 *   instance* — a split promotes the right leaf's first key by reference. The leaf keys are priced and the
+	 *   separators are not, so one key is never counted twice. Any key type with neither a {@link LongKeyCodec} nor a
+	 *   front-coded form — a `UUID`, for instance — lands here.
+	 * - **Every other column kind** stores its keys as *values* — a front-coded byte block for `String`, parallel
+	 *   primitive arrays for the integral, temporal and scaled-`BigDecimal` types — and ignores the sizer entirely.
+	 *   The separators above them are boxes nothing else holds, so those are priced.
+	 *
+	 * What the caller still owns is whether a key is *this structure's* at all: return `0` for one it merely borrows
+	 * from a longer-lived owner, and its real footprint for one it holds outright
+	 * ({@link io.evitadb.index.IndexHeapSize#OWNED_KEY_SIZER} is the latter, shared by every index built on such a
+	 * tree).
+	 *
+	 * # Cost
 	 *
 	 * Unlike every other statistics reading, this one is **not** `O(1)`: it walks every node, so the cost is
 	 * `O(entries / blockSize)`. It belongs to `MEMORY_FOOTPRINT`, which is opt-in and documented expensive, and must
@@ -142,8 +170,9 @@ public interface BucketBPlusTree<K extends Comparable<K>> extends
 	 * roughly three quarters of the time is cache misses reaching 10M scattered bitmaps rather than the arithmetic
 	 * itself (see `BucketBPlusTreeHeapSizeBenchmark` and `BitmapHeapSizeCostBenchmark`).
 	 *
-	 * @return the owned heap footprint in bytes, including alignment padding
+	 * @param keySizer prices a single boxed key; must return `0` for keys this tree does not own
+	 * @return the heap footprint in bytes, including alignment padding
 	 */
-	long getHeapSizeInBytes();
+	long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> keySizer);
 
 }

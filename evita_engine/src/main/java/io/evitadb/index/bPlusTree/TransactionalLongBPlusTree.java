@@ -832,7 +832,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 * Returns the heap this tree occupies in bytes, **excluding the values its leaves point at**.
 	 *
 	 * Like every heap-footprint reading over a tree this is `O(entries / blockSize)` rather than `O(1)`, so it
-	 * belongs to `MEMORY_FOOTPRINT` and never to a query path — see {@link BucketBPlusTree#getHeapSizeInBytes()}
+	 * belongs to `MEMORY_FOOTPRINT` and never to a query path — see {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)}
 	 * for the measured cost and where it goes.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

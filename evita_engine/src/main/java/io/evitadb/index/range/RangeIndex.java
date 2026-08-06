@@ -45,6 +45,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -858,6 +859,47 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * @param points  the leaf's range points in ascending threshold order
 	 */
 	public record RangePage(int pageSequence, @Nonnull TransactionalRangePoint[] points) {
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag, the threshold tree with every
+	 * {@link TransactionalRangePoint} in it, and the "valid now" memoization when one has been built.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The range points are **this index's own**: the tree is the only structure that reaches them and every one is
+	 * constructed here, so each is charged in full along with both of its record bitmaps.
+	 *
+	 * {@link #envelopingNowCache} is charged, including the {@link Bitmap} it holds — a derived result this index
+	 * computed and retains. Being a lazily-built cache, it makes the figure **jump on first read**: an index that has
+	 * never answered a "valid now" query reports less than the identical index that has. That is a real occupancy
+	 * difference rather than drift, but a caller sampling across the first such query will see a step.
+	 *
+	 * {@link #pageStreamRegistry} is excluded: single-writer flush bookkeeping carried by reference across commits,
+	 * not index content.
+	 *
+	 * Like every tree walk this is `O(points / blockSize)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT`
+	 * and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + the ranges / dirty / pageStreamRegistry / envelopingNowCache slots
+		long size = layout.sizeOfObject(Long.BYTES + 4L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.ranges.getHeapSizeInBytes(
+				point -> ((TransactionalRangePoint) point).getHeapSizeInBytes()
+			);
+		// read the volatile field ONCE: a concurrent query can publish or drop the cache between two reads, and
+		// pricing a cache the null-check said was there would dereference null
+		final EnvelopingNowCache nowCache = this.envelopingNowCache;
+		if (nowCache != null) {
+			// two longs and the result slot, plus the derived bitmap itself
+			size += layout.sizeOfObject(2L * Long.BYTES + layout.referenceSize())
+				+ nowCache.result().getHeapSizeInBytes();
+		}
+		return size;
 	}
 
 	@Nonnull

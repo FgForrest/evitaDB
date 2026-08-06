@@ -178,7 +178,7 @@ public class TransactionalIntToLongBPlusTree extends AbstractIntKeyedBPlusTree i
 	 *
 	 * Both its keys and its values are primitives, so there is no element-ownership question here at all and no
 	 * sizer overload: everything this tree reaches, it owns. Like every tree walk it is `O(nodes)` rather than
-	 * `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes()}.
+	 * `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)}.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

@@ -39,6 +39,7 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.LongPayloadBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -57,6 +58,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueI
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -594,6 +596,51 @@ public class GlobalUniqueIndex implements
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag, the value tree and all three
+	 * lookup maps.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The value tree is charged in full, its **keys included** — they are attribute values this index owns, priced by
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER}.
+	 *
+	 * The two locale maps charge their **boxed ids but not their locales**. A {@link Locale} comes from the JVM's own
+	 * per-language cache and is shared by every structure in the process that names the same language, so it belongs
+	 * to none of them. The ids are the opposite case: each map holds its own box, and both are charged, because
+	 * whether the JVM hands back a cached `Integer` moves with `-XX:AutoBoxCacheMax` and must not decide what a
+	 * memory reading says.
+	 *
+	 * {@link #entitiesPerType} bitmaps are charged in full — each is constructed here, per entity type.
+	 *
+	 * {@link #scope}, {@link #attributeKey}, {@link #type}, {@link #plainType} and {@link #comparator} contribute
+	 * their **slot alone**: an enum constant, the key the enclosing {@code CatalogIndex} filed this index under, two
+	 * `Class` objects, and fixed scaffolding chosen by the attribute type. {@link #pageStreamRegistry} is excluded as
+	 * single-writer flush bookkeeping.
+	 *
+	 * Walking the value tree is `O(values / blockSize)` rather than `O(1)`, so this belongs to `MEMORY_FOOTPRINT` and
+	 * must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// id, then the scope / attributeKey / type / dirty / plainType / comparator / tree / pageStreamRegistry /
+		// entitiesPerType / localeToIdIndex / idToLocaleIndex / localePkSequence slots
+		return layout.sizeOfObject(Long.BYTES + 12L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.entitiesPerType.getHeapSizeInBytes(
+				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
+			)
+			// Locale is interned by the JVM's LocaleObjectCache - only its slot is here, on either side
+			+ this.localeToIdIndex.getHeapSizeInBytes(locale -> 0L, value -> boxedInteger)
+			+ this.idToLocaleIndex.getHeapSizeInBytes(key -> boxedInteger, locale -> 0L)
+			// the sequence's own object holds a single int
+			+ layout.sizeOfObject(Integer.BYTES);
 	}
 
 	/**

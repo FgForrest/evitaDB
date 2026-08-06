@@ -952,7 +952,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * nodes and reference slots while the **bodies belong to the super index alone**. Counting them here too would
 	 * multiply the whole price payload by the number of reference-reduced indexes.
 	 *
-	 * Like every tree walk this is `O(nodes)`, not `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes()}.
+	 * Like every tree walk this is `O(nodes)`, not `O(1)` — see {@link BucketBPlusTree#getHeapSizeInBytes(ToLongFunction)}.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

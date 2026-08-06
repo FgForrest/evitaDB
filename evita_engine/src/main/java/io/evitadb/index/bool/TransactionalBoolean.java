@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -122,6 +123,24 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	 */
 	public void reset() {
 		this.setToFalse();
+	}
+
+	/**
+	 * Returns the heap this flag occupies, in bytes — a header, the version id and the boolean itself.
+	 *
+	 * The figure is a constant: this class holds no array, no delegate and nothing that grows with the data. It is a
+	 * method rather than a constant inlined at each call site because a `dirty` flag of this shape is a field on
+	 * nearly every index in the codebase, and adding a field here would otherwise leave all of them silently
+	 * under-reporting.
+	 *
+	 * The per-transaction {@link BooleanChanges} layer is deliberately **not** counted: it belongs to the transaction
+	 * that created it and disappears on commit or rollback.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		// id + the boolean
+		return VMLayout.current().sizeOfObject(Long.BYTES + 1L);
 	}
 
 	/*

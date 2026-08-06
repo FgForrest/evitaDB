@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -157,6 +158,20 @@ public final class UniqueIndexView extends UniqueIndex {
 	public boolean isEmpty() {
 		final FilterIndex filterView = this.sharedFilterView;
 		return filterView == null || filterView.isEmpty();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #sharedFilterView} contributes its **slot alone**. The filter view — and the shared tree beneath it —
+	 * belongs to the enclosing {@code AttributeIndex}, which charges it once; a folded view holds no transactional
+	 * state of its own and is rebuilt fresh against the committed tree on every commit. Charging it here would report
+	 * the same values twice for every attribute that is both unique and filterable, which is all of them.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		// the sharedFilterView slot, on top of the base's own fields - and nothing beyond it
+		return getSharedHeapSizeInBytes(VMLayout.current().referenceSize());
 	}
 
 	@Override

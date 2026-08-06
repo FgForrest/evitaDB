@@ -23,10 +23,8 @@
 
 package io.evitadb.utils;
 
+import org.openjdk.jol.info.ClassBlindGraphWalker;
 import org.openjdk.jol.info.GraphLayout;
-import org.openjdk.jol.info.GraphPathRecord;
-import org.openjdk.jol.info.GraphPathRecords;
-import org.openjdk.jol.info.GraphWalker;
 import org.openjdk.jol.vm.VM;
 
 import javax.annotation.Nonnull;
@@ -51,6 +49,11 @@ import java.util.Set;
  * value itself owns 96. {@link #ownedSize} therefore takes the borrowed roots explicitly and subtracts them as an
  * object **set**, not as an arithmetic difference of totals. Naming them at the call site is the point: it makes the
  * ownership decision executable instead of leaving it in a comment, which is the only form that stays true.
+ *
+ * **Before writing a new size test, read `documentation/developer/heap-size-testing.md`.** It carries the ownership
+ * rules the arithmetic has to follow and four traps that let a wrong implementation pass — chief among them that a
+ * JVM-shared instance such as `Integer.valueOf(0)` is charged once by a walk and once per holder by the arithmetic,
+ * so naming it here where nothing contends for it manufactures a divergence rather than removing one.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -85,66 +88,36 @@ public final class JolHeapSize {
 		// under surefire `parallel=all`: a GC between the instance walk and a shared-root walk relocates objects, the
 		// two address sets stop corresponding, and shared objects silently fail to be subtracted. The figure then
 		// reads high by a different amount on every run, and a correct production estimate is accused of
-		// under-counting. JOL's traversal has no such weakness - `GraphWalker` dedupes with a `SimpleIdentityHashSet`
-		// - so doing the set subtraction by identity makes the whole measurement deterministic under any collector.
-		// Two different exclusions, because the two kinds of borrowing behave differently.
+		// under-counting. A traversal has no such weakness - it dedupes with a `SimpleIdentityHashSet` - so doing the
+		// set subtraction by identity too makes the whole measurement deterministic under any collector.
 		//
 		// A NAMED shared root is excluded by MEMBERSHIP: everything it reaches is somebody else's, no matter which
 		// path this walk happens to arrive by. That matters for aliasing - a copy-on-write duplicate reaches the
 		// original's backing arrays directly, never "through" the original, so a path test would charge them.
 		// Enumerating a named root is safe: those are this codebase's own structures, not mutating underfoot.
 		//
-		// A CLASS is excluded by PATH, and must never be enumerated. Its reflection cache is live JVM state that
-		// another thread can populate between an enumeration walk and a summing walk, so the summing walk reaches
-		// objects the enumeration never saw and charges them - which is exactly the drift this method exists to
-		// remove. Deciding per record inside the one walk leaves no window.
+		// A CLASS is excluded by NOT BEING TRAVERSED AT ALL - see `ClassBlindGraphWalker` for why removing it from
+		// the sum afterwards is not enough, and why descending into one makes a figure depend on JVM history.
 		final Set<Object> borrowed = Collections.newSetFromMap(new IdentityHashMap<>());
 		if (sharedRoots.length > 0) {
 			Collections.addAll(borrowed, sharedRoots);
-			new GraphWalker(record -> {
-				if (!reachedThroughClass(record)) {
-					borrowed.add(GraphPathRecords.objectOf(record));
-				}
-			}).walk(sharedRoots);
+			new ClassBlindGraphWalker().walk(borrowed::add, sharedRoots);
 		}
 
 		final long[] owned = new long[1];
 		if (!(instance instanceof Class) && !borrowed.contains(instance)) {
-			// `GraphWalker` hands its visitors every object it REACHES but never the root it starts from
+			// the walker hands its visitor every object it REACHES but never the root it starts from
 			owned[0] += VM.current().sizeOf(instance);
 		}
-		new GraphWalker(record -> {
-			final Object visited = GraphPathRecords.objectOf(record);
-			if (!borrowed.contains(visited) && !reachedThroughClass(record)) {
-				// `record.size()` is NOT readable here: the walker invokes its visitors before it calls
-				// `setSize` on the record, so a visitor sees an unpopulated size. Asking the VM directly is
-				// what the walker itself does one step later, and it is the same number
-				owned[0] += VM.current().sizeOf(visited);
-			}
-		}).walk(instance);
+		new ClassBlindGraphWalker().walk(
+			visited -> {
+				if (!borrowed.contains(visited)) {
+					owned[0] += VM.current().sizeOf(visited);
+				}
+			},
+			instance
+		);
 		return owned[0];
-	}
-
-	/**
-	 * Decides whether a visited object is a {@link Class}, or was only reachable by going through one.
-	 *
-	 * A `Class` drags in its lazily-populated reflection cache — `Class$ReflectionData`, a `SoftReference`, a
-	 * `Field[]`, one `Field` per declared field, a `ReferenceQueue`, the `Module` and several interned strings, 600
-	 * bytes in one measured case. None of that belongs to the object under test, and it materialises the first time
-	 * anything reflects on the class, so including it would make every figure depend on what happened to run earlier
-	 * in the same JVM. The ownership rule already says a `Class` is owned by its class loader and its holder pays
-	 * only for the reference slot; this enforces it rather than trusting each call site to remember to name it.
-	 *
-	 * @param record the record to classify
-	 * @return true when this object sits at or below a `Class` on the walk path
-	 */
-	private static boolean reachedThroughClass(@Nonnull GraphPathRecord record) {
-		for (GraphPathRecord step = record; step != null; step = GraphPathRecords.parentOf(step)) {
-			if (GraphPathRecords.objectOf(step) instanceof Class) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**

@@ -59,6 +59,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLea
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -1133,6 +1134,54 @@ public class ChainIndex implements
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag, the element order-statistic
+	 * array, all three chain maps and the derived-cache layer when one exists.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * Every boxed `Integer` key and value is charged **in full, at each holder**. A primary key appearing in
+	 * {@link #chains}, {@link #predecessors} and {@link #successorsByPredecessor} is therefore counted three times.
+	 * That is deliberate: whether the JVM hands back a cached box depends on `-XX:AutoBoxCacheMax`, so a figure that
+	 * deduplicated them would answer differently on two JVMs holding identical data.
+	 *
+	 * - {@link #chains} values are {@link ChainDescriptor} records — a length and an {@link ElementState}, whose enum
+	 *   constants are JVM-wide and contribute their slot alone.
+	 * - {@link #successorsByPredecessor} values are charged in full; every bucket is constructed here and dropped the
+	 *   moment it empties, so none is shared with another structure.
+	 * - {@link #chainIndexChanges} prices only its own fields — the back-reference to this index is never followed.
+	 * - {@link #referenceKey} and {@link #attributeIndexKey} contribute their slot: both belong to the enclosing
+	 *   {@code AttributeIndex}, which hands them to every sub-index under it.
+	 * - {@link #pageStreamRegistry} is excluded: single-writer flush bookkeeping carried by reference across commits,
+	 *   not index content.
+	 *
+	 * Like every walk over the element tree and the maps this is `O(elements)` rather than `O(1)`, so it belongs to
+	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// a ChainDescriptor is a record holding a length and an ElementState slot; the enum constant behind it is the
+		// JVM's, one per value for the whole process
+		final long chainDescriptor = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
+		// id, then the elements / chains / predecessors / successorsByPredecessor / dirty / referenceKey /
+		// attributeIndexKey / chainIndexChanges / pageStreamRegistry slots
+		long size = layout.sizeOfObject(Long.BYTES + 9L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.elements.getHeapSizeInBytes()
+			+ this.chains.getHeapSizeInBytes(key -> boxedInteger, value -> chainDescriptor)
+			+ this.predecessors.getHeapSizeInBytes(key -> boxedInteger, value -> boxedInteger)
+			+ this.successorsByPredecessor.getHeapSizeInBytes(
+				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
+			);
+		if (this.chainIndexChanges != null) {
+			size += this.chainIndexChanges.getHeapSizeInBytes();
+		}
+		return size;
 	}
 
 	@Override

@@ -37,8 +37,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies {@link TransactionalBucketBPlusTree#getHeapSizeInBytes()} — the recursive walk over internal nodes,
- * leaves, both leaf columns and the overflow bitmaps — against JOL rather than against restated arithmetic.
+ * Verifies {@link TransactionalBucketBPlusTree#getHeapSizeInBytes(java.util.function.ToLongFunction)} — the
+ * recursive walk over internal nodes, leaves, both leaf columns and the overflow bitmaps — against JOL rather than
+ * against restated arithmetic.
  *
  * # Why this test is the load-bearing one
  *
@@ -158,11 +159,12 @@ class BucketBPlusTreeHeapSizeTest {
 
 			// the tree's own contribution is a handful of scalars, two TransactionalReference holders and their
 			// AtomicReferences - a small constant that must not scale with the data
-			final long own = tree.getHeapSizeInBytes() - tree.getNodeGraphHeapSizeInBytes(element -> 0L);
+			final long own = tree.getHeapSizeInBytes(element -> 0L)
+				- tree.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertTrue(own > 0 && own < 256, "the tree's own object should be a small constant, was " + own);
 
 			final TransactionalBucketBPlusTree<?> larger = buildTree(5_000, 1);
-			final long largerOwn = larger.getHeapSizeInBytes()
+			final long largerOwn = larger.getHeapSizeInBytes(element -> 0L)
 				- larger.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertEquals(own, largerOwn, "the tree's own object must not grow with the tree");
 		}
@@ -180,7 +182,7 @@ class BucketBPlusTreeHeapSizeTest {
 			// the same bucket count, but the multi-record tree carries a TransactionalBitmap per bucket - which the
 			// benchmark shows is what dominates the walk's cost, so it had better dominate the figure too
 			assertTrue(
-				multi.getHeapSizeInBytes() > 2 * single.getHeapSizeInBytes(),
+				multi.getHeapSizeInBytes(element -> 0L) > 2 * single.getHeapSizeInBytes(element -> 0L),
 				"the overflow bitmaps must be reflected in the reported footprint"
 			);
 		}
@@ -190,7 +192,7 @@ class BucketBPlusTreeHeapSizeTest {
 			final TransactionalBucketBPlusTree<?> small = buildTree(100, 1);
 			final TransactionalBucketBPlusTree<?> large = buildTree(1_000, 1);
 
-			assertTrue(large.getHeapSizeInBytes() > small.getHeapSizeInBytes());
+			assertTrue(large.getHeapSizeInBytes(element -> 0L) > small.getHeapSizeInBytes(element -> 0L));
 			assertNodeGraphMatchesMeasuredHeap(large);
 		}
 	}

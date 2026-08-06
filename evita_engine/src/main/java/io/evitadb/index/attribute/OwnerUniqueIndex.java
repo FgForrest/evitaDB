@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -47,6 +48,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -305,6 +307,46 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			}
 			return this.memoizedAllRecordsFormula;
 		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The value tree is charged in full, its **keys included** — they are attribute values this index owns, priced by
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. {@link #recordIds} is likewise charged in full: every construction
+	 * site builds it fresh rather than adopting a caller's set.
+	 *
+	 * {@link #memoizedAllRecordsFormula} is charged as its **own object plus its memoized scalars, never its
+	 * bitmap**. The formula is `new ConstantFormula(this.recordIds)` — it wraps the very set already charged above,
+	 * and its own `memoizedResult` resolves to that same instance, so following either would count one bitmap twice
+	 * for an index that has answered a single query. What remains is fixed-size scaffolding, priced at its upper
+	 * bound: every cost / hash field taken as populated, whether or not it has been computed yet.
+	 *
+	 * {@link #plainType} is a `Class` and {@link #comparator} is fixed scaffolding chosen by the attribute type, so
+	 * both contribute their slot alone — the same call {@code SortIndex} makes, for the same reason.
+	 * {@link #pageStreamRegistry} is excluded as single-writer flush bookkeeping.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the dirty / plainType / comparator / tree / pageStreamRegistry / recordIds / memoizedAllRecordsFormula slots
+		long size = getSharedHeapSizeInBytes(7L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
+			+ this.recordIds.getHeapSizeInBytes();
+		if (this.memoizedAllRecordsFormula != null) {
+			// AbstractFormula's executionContext / innerFormulas / memoizedResult / estimatedCost / cost /
+			// costToPerformance / hash / transactionalIds / transactionalIdHash, plus ConstantFormula's delegate
+			size += layout.sizeOfObject(10L * layout.referenceSize())
+				// the five boxed Long memos, each charged whether or not it has been computed - rule of reporting the
+				// higher of two defensible figures, since which are populated cannot be read from outside
+				+ 5L * layout.sizeOfObject(Long.BYTES)
+				// the transactional-id array: one entry, this index's own record set
+				+ layout.sizeOfArray(1, Long.BYTES);
+		}
+		return size;
 	}
 
 	@Nonnull

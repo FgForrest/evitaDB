@@ -34,6 +34,7 @@ import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -167,6 +168,20 @@ public final class SortIndexView extends SortIndex {
 	@Override
 	protected InvertedIndex valueTreeOrNull() {
 		return this.sharedTree;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #sharedTree} contributes its **slot alone**. The tree belongs to the enclosing {@code AttributeIndex},
+	 * which charges it once as the filter index it also is; a view holds no transactional state of its own over it
+	 * and is rebuilt fresh against the committed tree on every commit. Charging it here would report the same tree
+	 * twice for every attribute that is both filterable and sortable — which is most of them.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		// the sharedTree slot, on top of the base's own fields - and nothing beyond it
+		return getSharedHeapSizeInBytes(VMLayout.current().referenceSize());
 	}
 
 	@Nonnull

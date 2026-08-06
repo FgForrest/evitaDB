@@ -1,0 +1,1057 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index;
+
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.array.TransactionalIntArray;
+import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
+import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.JolHeapSize;
+import io.evitadb.utils.VMLayout;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.function.Function;
+
+import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Measures every leaf index's `getHeapSizeInBytes` against what JOL actually finds on the heap.
+ *
+ * # Why each test names the fields it excludes
+ *
+ * {@link JolHeapSize#ownedSize} walks *everything* an index reaches, while the index's own arithmetic deliberately
+ * stops at objects it does not own — the comparator and normalizer handed to it or built from the attribute schema,
+ * the page-stream registry that is flush bookkeeping rather than content, the attribute key the enclosing
+ * `AttributeIndex` files it under. Each is named here by **field name**, read back through reflection and handed to
+ * the walker as a shared root so it is subtracted by identity.
+ *
+ * Naming the fields rather than reading them through accessors is deliberate twice over: it keeps flush bookkeeping
+ * off the production API, where a getter would invite a caller that has no business with it, and it puts each
+ * index's exclusion list in one legible line of its own test. A `Class` needs no naming — the walker never descends
+ * into one, because its lazily-populated reflection cache would otherwise make the figure depend on test order.
+ *
+ * # Why several tests measure twice
+ *
+ * Four of these indexes hold a lazily-built cache — a "valid now" bitmap, a sorted-supplier projection, a flattened
+ * chain lookup, a referenced-key projection — that does not exist until something reads it. The reported figure
+ * therefore **steps up on first read**, which is a real occupancy change rather than drift, and the tests pin it in
+ * both states so that neither is mistaken for a bug later.
+ *
+ * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
+ */
+@Tag(INDEXING)
+@DisplayName("Leaf index heap size")
+class LeafIndexHeapSizeTest {
+
+	/**
+	 * The primary key every fixture starts numbering from, chosen to clear the JVM's boxed-`Integer` cache.
+	 *
+	 * Inside that cache two structures boxing the same value receive the **same instance**, which an identity walk
+	 * counts once while the arithmetic charges it to each holder — the divergence rule 1 deliberately accepts,
+	 * because whether a box is shared moves with `-XX:AutoBoxCacheMax` and must not decide what a memory reading
+	 * says. Seeding above it removes the confound so these tests can assert exact equality instead of a direction.
+	 */
+	private static final int AUTOBOX_CACHE_CEILING = 1_000;
+
+	/**
+	 * The JVM-wide zero-length arrays every empty structure in the codebase parks its fields on.
+	 *
+	 * They are shared by contract, not by luck: an empty {@code FrontCodedStringColumn} points both of its arrays at
+	 * these, and a childless hierarchy node its children. Charging one would bill the same sixteen bytes to every
+	 * empty structure in the catalog, so the arithmetic excludes them by identity — and every walk therefore has to
+	 * subtract them, whichever index happens to reach them.
+	 */
+	private static final Object[] SHARED_EMPTY_ARRAYS = {
+		ArrayUtils.EMPTY_INT_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_LONG_ARRAY,
+		ArrayUtils.EMPTY_OBJECT_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
+	};
+
+	/**
+	 * Translates between the one entity type these tests use and its compact primary key.
+	 *
+	 * A global unique index takes this as a **method parameter** rather than holding it, so it never appears in a
+	 * heap walk and needs no exclusion. The primary key it hands back clears {@link #AUTOBOX_CACHE_CEILING} for the
+	 * reason spelled out there: a global unique index boxes it as a map key, and inside the cache that box is the
+	 * JVM's rather than the index's — which shifted the reported figure by 16 bytes and nothing else.
+	 */
+	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			return AUTOBOX_CACHE_CEILING;
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			return "Product";
+		}
+	};
+
+	/**
+	 * Resolves the named field paths against `instance` and returns the objects they point at.
+	 *
+	 * A path may cross an owned sub-index — `ownedTree.normalizer` names the scaffolding of the inverted index a
+	 * sort index owns, which the walk reaches through it and which that index likewise does not charge. A path whose
+	 * head resolves to `null` yields nothing, which is what makes the same exclusion list usable against both a cold
+	 * and a warmed-up index.
+	 *
+	 * A path naming a field that no longer exists **throws**. Silently skipping it would leave the walker charging an
+	 * object the arithmetic excludes, and the test would then fail somewhere far from the rename that caused it.
+	 *
+	 * @param instance the object to resolve the paths against
+	 * @param paths    dot-separated field paths, in the order the roots should be handed to the walker
+	 * @return the resolved objects, with any `null` dropped
+	 */
+	@Nonnull
+	private static Object[] excluded(@Nonnull Object instance, @Nonnull String... paths) {
+		final List<Object> roots = new ArrayList<>(paths.length);
+		for (final String path : paths) {
+			Object current = instance;
+			for (final String step : path.split("\\.")) {
+				if (current == null) {
+					break;
+				}
+				// a numeric step indexes into the array the previous one resolved to, so a record held inside an
+				// owned array can still have its own shared components named
+				current = step.chars().allMatch(Character::isDigit) ?
+					Array.get(current, Integer.parseInt(step)) : readField(current, step);
+			}
+			if (current != null) {
+				roots.add(current);
+			}
+		}
+		return roots.toArray();
+	}
+
+	/**
+	 * Reads one field off an object, searching its class and every superclass.
+	 *
+	 * @param instance  the object to read from
+	 * @param fieldName the field to read
+	 * @return the field's current value, possibly `null`
+	 */
+	@Nullable
+	private static Object readField(@Nonnull Object instance, @Nonnull String fieldName) {
+		Class<?> type = instance.getClass();
+		Field field = null;
+		while (type != null && field == null) {
+			try {
+				field = type.getDeclaredField(fieldName);
+			} catch (NoSuchFieldException ignored) {
+				type = type.getSuperclass();
+			}
+		}
+		if (field == null) {
+			throw new GenericEvitaInternalError(
+				"Field `" + fieldName + "` no longer exists on " + instance.getClass().getName() +
+					" - the exclusion list in this test is stale and would silently stop subtracting it."
+			);
+		}
+		field.setAccessible(true);
+		try {
+			return field.get(instance);
+		} catch (IllegalAccessException e) {
+			throw new GenericEvitaInternalError("Cannot read field `" + fieldName + "` for exclusion.", e);
+		}
+	}
+
+	/**
+	 * Asserts that an index's own arithmetic matches a JOL walk that subtracts everything it does not own.
+	 *
+	 * @param reported   what the index says it occupies
+	 * @param index      the index to walk
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 */
+	private static void assertMatchesMeasuredHeap(
+		long reported,
+		@Nonnull Object index,
+		@Nonnull String... excludedFields
+	) {
+		assertMatchesMeasuredHeap(reported, index, new Object[0], excludedFields);
+	}
+
+	/**
+	 * Measures what an index really occupies, subtracting everything it deliberately does not charge.
+	 *
+	 * @param index          the index to walk
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 * @return the measured footprint in bytes
+	 */
+	private static long measuredHeapOf(@Nonnull Object index, @Nonnull String... excludedFields) {
+		return measuredHeapOf(index, new Object[0], excludedFields);
+	}
+
+	/**
+	 * As above, additionally subtracting objects no single field points at — an interned {@link Locale} reached from
+	 * inside a charged map, or a boxed `Integer` the JVM hands out from its own cache.
+	 *
+	 * Naming such an object matters for more than tidiness. The walker prunes anything it reached through a `Class`,
+	 * and whether a JVM-cached box acquires such a path depends on the order JOL's breadth-first search happens to
+	 * visit the graph in — which moves with the heap addresses. Left unnamed, a cached box makes the *measurement*
+	 * flicker by its own size between runs; named as a root it is subtracted every time, and the remaining gap is
+	 * the arithmetic's alone.
+	 *
+	 * @param index          the index to walk
+	 * @param extraRoots     shared objects reached from inside a charged structure
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 * @return the measured footprint in bytes
+	 */
+	private static long measuredHeapOf(
+		@Nonnull Object index,
+		@Nonnull Object[] extraRoots,
+		@Nonnull String... excludedFields
+	) {
+		final List<Object> roots = new ArrayList<>(
+			extraRoots.length + excludedFields.length + SHARED_EMPTY_ARRAYS.length
+		);
+		roots.addAll(List.of(excluded(index, excludedFields)));
+		roots.addAll(List.of(extraRoots));
+		roots.addAll(List.of(SHARED_EMPTY_ARRAYS));
+		return JolHeapSize.ownedSize(index, roots.toArray());
+	}
+
+	/**
+	 * Asserts that the gap between two indexes' arithmetic and their measurements is the **same**, however much
+	 * more data the second holds.
+	 *
+	 * This is the property that actually protects the figure. Several deliberate divergences in this layer have a
+	 * fixed cost — a pre-sized table, an enum constant the walker charges, a formula's cost bookkeeping — and none
+	 * of them matters. What would matter is a *per-element* term going uncharged, and that is exactly what a gap
+	 * growing with the data would reveal. Pinning the gap's constancy catches it; pinning its value would only
+	 * record whichever fixture happened to be written first.
+	 *
+	 * @param smallReported  the smaller index's own figure
+	 * @param small          the smaller index
+	 * @param largeReported  the larger index's own figure
+	 * @param large          the larger index, holding materially more data
+	 * @param excludedFields the fields holding objects neither index charges
+	 */
+	private static void assertDivergenceDoesNotGrowWithTheData(
+		long smallReported,
+		@Nonnull Object small,
+		long largeReported,
+		@Nonnull Object large,
+		@Nonnull String... excludedFields
+	) {
+		assertEquals(
+			smallReported - measuredHeapOf(small, excludedFields),
+			largeReported - measuredHeapOf(large, excludedFields),
+			"the gap between arithmetic and measurement must not grow with the data"
+		);
+	}
+
+	/**
+	 * Asserts that an index's arithmetic sits exactly `expectedExcess` bytes above a JOL walk.
+	 *
+	 * Four divergences in this layer are deliberate, and each has a known magnitude rather than a vague direction —
+	 * so they are pinned with the number, not waved through with a `>=`. An assertion that only said "at least as
+	 * much" would keep passing if the arithmetic drifted by a kilobyte.
+	 *
+	 * @param reported       what the index says it occupies
+	 * @param expectedExcess how far above the measurement the arithmetic is expected to sit, and why
+	 * @param index          the index to walk
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 */
+	private static void assertExceedsMeasuredHeapBy(
+		long reported,
+		long expectedExcess,
+		@Nonnull Object index,
+		@Nonnull String... excludedFields
+	) {
+		assertExceedsMeasuredHeapBy(reported, expectedExcess, index, new Object[0], excludedFields);
+	}
+
+	/**
+	 * As above, for an index that also reaches shared objects no single field points at.
+	 *
+	 * @param reported       what the index says it occupies
+	 * @param expectedExcess how far above the measurement the arithmetic is expected to sit, and why
+	 * @param index          the index to walk
+	 * @param extraRoots     shared objects reached from inside a charged structure
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 */
+	private static void assertExceedsMeasuredHeapBy(
+		long reported,
+		long expectedExcess,
+		@Nonnull Object index,
+		@Nonnull Object[] extraRoots,
+		@Nonnull String... excludedFields
+	) {
+		assertEquals(measuredHeapOf(index, extraRoots, excludedFields) + expectedExcess, reported);
+	}
+
+	/**
+	 * As {@link #assertMatchesMeasuredHeap}, for an index that also reaches shared objects no single field points at
+	 * — the interned {@link Locale}s scattered through both sides of a global unique index's locale maps, for one.
+	 *
+	 * @param reported       what the index says it occupies
+	 * @param index          the index to walk
+	 * @param extraRoots     shared objects reached from inside a charged structure
+	 * @param excludedFields the fields holding objects the index reaches but deliberately does not charge
+	 */
+	private static void assertMatchesMeasuredHeap(
+		long reported,
+		@Nonnull Object index,
+		@Nonnull Object[] extraRoots,
+		@Nonnull String... excludedFields
+	) {
+		assertEquals(measuredHeapOf(index, extraRoots, excludedFields), reported);
+	}
+
+	@Nested
+	@DisplayName("inverted index")
+	class InvertedIndexes {
+
+		/**
+		 * The normalizer and comparator handed in at construction, the flush bookkeeping, and the bucket tree's two
+		 * column-factory lambdas — each excluded by the arithmetic of whichever structure holds it.
+		 */
+		private static final String[] INVERTED_EXCLUSIONS = {
+			"normalizer", "comparator", "pageStreamRegistry",
+			"buckets.valueColumnFactory", "buckets.recordColumnFactory"
+		};
+
+		/**
+		 * Builds a string-keyed inverted index, whose leaves front-code their keys.
+		 *
+		 * @param distinctValues how many distinct bucket values to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static InvertedIndex stringKeyed(int distinctValues) {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(String.class, 0);
+			final Comparator<?> comparator = FilterIndex.getComparator(key, String.class);
+			final InvertedIndex index = new InvertedIndex(String.class, normalizer, comparator, 0);
+			for (int i = 0; i < distinctValues; i++) {
+				index.addRecord(String.format("value-%05d", i), i + 1);
+			}
+			return index;
+		}
+
+		@Test
+		void shouldMeasureAnEmptyIndexExactly() {
+			final InvertedIndex index = stringKeyed(0);
+			// the bucket tree memoizes its count, and an empty one boxes ZERO - the JVM's own instance. The walk
+			// charges it to this index and so does rule 1 - one holder, one box, and the two figures agree
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index,
+				"normalizer", "comparator", "pageStreamRegistry",
+				"buckets.valueColumnFactory", "buckets.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldMeasureASingleLeafIndexExactly() {
+			final InvertedIndex index = stringKeyed(50);
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index, "normalizer", "comparator", "pageStreamRegistry",
+				"buckets.valueColumnFactory", "buckets.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldOverReportAMultiLeafIndexByOnlyItsSeparatorKeysLatinOneSaving() {
+			// more than one leaf block (256) so the tree grows internal nodes and the walk has real depth
+			final InvertedIndex index = stringKeyed(1_000);
+			assertTrue(index.isPaged(), "the seeded index must span several leaves");
+			// Every separator key promoted into an internal node is a real String this tree owns, and
+			// `EvitaDataTypes.estimateSize` prices a String as UTF-16 while the JVM stores an all-Latin-1 one at a
+			// byte per char. For an 11-char key that is 40 bytes charged against 32 occupied, so the arithmetic sits
+			// 8 bytes above the measurement per separator - the deliberate over-report its own javadoc declares,
+			// taken because detecting the encoding would mean scanning every attribute value on this path. A
+			// single-leaf tree has no separators, which is why every other case here is exact
+			final long measured = measuredHeapOf(index, INVERTED_EXCLUSIONS);
+			final long excess = index.getHeapSizeInBytes() - measured;
+			assertTrue(excess > 0, "a paged tree charges its separator keys as UTF-16");
+			// eight bytes per separator, and a tree of this size has a handful - so the excess must stay a rounding
+			// error against the whole figure rather than anything that could hide a real accounting mistake
+			assertTrue(
+				excess < measured / 100,
+				"the separator over-report must stay under one percent - was " + excess + " of " + measured
+			);
+		}
+
+		@Test
+		void shouldNotLetTheSeparatorOverReportGrowFasterThanTheSeparators() {
+			// four times the values means roughly four times the leaves, hence four times the separators - and the
+			// over-report must track THAT, not the record count. A term that grew per record would show up here as
+			// a ratio far above the leaf ratio
+			final InvertedIndex small = stringKeyed(1_000);
+			final InvertedIndex large = stringKeyed(4_000);
+			final long smallExcess = small.getHeapSizeInBytes() - measuredHeapOf(small, INVERTED_EXCLUSIONS);
+			final long largeExcess = large.getHeapSizeInBytes() - measuredHeapOf(large, INVERTED_EXCLUSIONS);
+			assertTrue(
+				largeExcess < smallExcess * 8,
+				"the over-report must scale with leaves, not records - " + smallExcess + " to " + largeExcess
+			);
+		}
+
+		@Test
+		void shouldMeasureMultiRecordBucketsExactly() {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
+			final InvertedIndex index = new InvertedIndex(
+				String.class,
+				FilterIndex.getNormalizer(String.class, 0),
+				FilterIndex.getComparator(key, String.class),
+				0
+			);
+			// every bucket holds many records, so each leaf allocates its overflow bitmap column
+			for (int value = 0; value < 40; value++) {
+				for (int record = 0; record < 30; record++) {
+					index.addRecord("value-" + value, value * 100 + record + 1);
+				}
+			}
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index, "normalizer", "comparator", "pageStreamRegistry",
+				"buckets.valueColumnFactory", "buckets.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldChargeTheBoxedKeysOfAnIndexThatStoresThemAsObjects() {
+			// a UUID has no LongKeyCodec and is not a String, so ValueColumnFactory picks the BOXED column - the one
+			// case where the key sizer is consulted at all. Without it every one of these keys would go unreported
+			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
+			final InvertedIndex index = new InvertedIndex(
+				UUID.class,
+				FilterIndex.getNormalizer(UUID.class, 0),
+				FilterIndex.getComparator(key, UUID.class),
+				0
+			);
+			for (int i = 0; i < 100; i++) {
+				index.addRecord(UUID.nameUUIDFromBytes(new byte[]{(byte) i}), i + 1);
+			}
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index, "normalizer", "comparator", "pageStreamRegistry",
+				"buckets.valueColumnFactory", "buckets.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldNotChargeTheSeparatorKeysOfABoxedIndexTwice() {
+			// The multi-leaf half of the boxed-key policy, and the only fixture that exercises it: a separator key
+			// in an internal node is the IDENTICAL instance the leaf below it holds, because a split promotes the
+			// right leaf's first key by reference. Pricing it in both places would count one key twice per leaf
+			// boundary - invisible at 100 keys, which fit in a single leaf and have no separators at all.
+			final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
+			final InvertedIndex index = new InvertedIndex(
+				UUID.class,
+				FilterIndex.getNormalizer(UUID.class, 0),
+				FilterIndex.getComparator(key, UUID.class),
+				0
+			);
+			for (int i = 0; i < 2_000; i++) {
+				index.addRecord(
+					UUID.nameUUIDFromBytes(Integer.toString(i).getBytes(StandardCharsets.UTF_8)),
+					AUTOBOX_CACHE_CEILING + i
+				);
+			}
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, INVERTED_EXCLUSIONS);
+		}
+
+		@Test
+		void shouldGrowWithTheNumberOfBuckets() {
+			assertTrue(
+				stringKeyed(1_000).getHeapSizeInBytes() > stringKeyed(50).getHeapSizeInBytes(),
+				"a larger index must report a larger footprint"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("range index")
+	class RangeIndexes {
+
+		/**
+		 * Builds a range index holding `count` distinct validity ranges.
+		 *
+		 * @param count how many ranges to add
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static RangeIndex seeded(int count) {
+			final RangeIndex index = new RangeIndex();
+			for (int i = 0; i < count; i++) {
+				index.addRecord(i * 10L, i * 10L + 5L, i + 1);
+			}
+			return index;
+		}
+
+		@Test
+		void shouldMeasureAnEmptyIndexExactly() {
+			final RangeIndex index = new RangeIndex();
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index, "pageStreamRegistry", "ranges.transactionalLayerWrapper"
+			);
+		}
+
+		@Test
+		void shouldMeasureASeededIndexExactly() {
+			final RangeIndex index = seeded(500);
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index, "pageStreamRegistry", "ranges.transactionalLayerWrapper"
+			);
+		}
+
+		@Test
+		void shouldStepUpOnceTheValidNowCacheIsBuiltAndStayExactBothTimes() {
+			final RangeIndex index = seeded(200);
+			final long cold = index.getHeapSizeInBytes();
+			assertMatchesMeasuredHeap(cold, index, "pageStreamRegistry", "ranges.transactionalLayerWrapper");
+
+			// build the memoized "valid at now" result the way a real query would
+			index.getRecordsValidNowFormula(1_000L);
+
+			final long warm = index.getHeapSizeInBytes();
+			assertTrue(warm > cold, "the memoized now-cache must show up as additional occupancy");
+			assertMatchesMeasuredHeap(warm, index, "pageStreamRegistry", "ranges.transactionalLayerWrapper");
+		}
+	}
+
+	@Nested
+	@DisplayName("sort index")
+	class SortIndexes {
+
+		/**
+		 * Everything an owner sort index reaches but does not own: the attribute key it was filed under, the
+		 * scaffolding comparator and normalizer built from the attribute type, and — reached through the inverted
+		 * index it owns — that tree's own scaffolding and flush bookkeeping.
+		 */
+		private static final String[] EXCLUDED = {
+			"attributeIndexKey", "comparator", "normalizer",
+			"ownedTree.normalizer", "ownedTree.comparator", "ownedTree.pageStreamRegistry",
+			"ownedTree.buckets.valueColumnFactory", "ownedTree.buckets.recordColumnFactory",
+			// a ComparatorSource points at one Class and two enum constants; the walker prunes the Class by path
+			// but charges the enums, which belong to the JVM rather than to this index
+			"comparatorBase.0.orderDirection", "comparatorBase.0.orderBehaviour"
+		};
+
+		@Test
+		void shouldOverReportAnEmptyOwnerByTheOneZeroBoxItsThreeCountersShare() {
+			final OwnerSortIndex index = ownerSortIndex(0);
+			// an empty index has three structures whose size counter boxes ZERO - the owned tree and the two inner
+			// trees of the sorted-records facade - and the JVM hands all three the SAME cached Integer. Rule 1
+			// charges a box to each holder regardless, because whether one is shared moves with -XX:AutoBoxCacheMax
+			// and must not decide what a reading says; a walk dedupes by identity and sees the single instance once.
+			// Three holders, one instance, so the gap is two boxes - and it is fixed, not a term that grows: every
+			// seeded fixture here starts above the cache ceiling, which is why only empty ones diverge at all
+			assertExceedsMeasuredHeapBy(
+				index.getHeapSizeInBytes(), 2L * VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
+			);
+		}
+
+		@Test
+		void shouldMeasureASeededOwnerExactly() {
+			final OwnerSortIndex index = ownerSortIndex(200);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, EXCLUDED);
+		}
+
+		@Test
+		void shouldStepUpOnceTheSuppliersAreMaterializedAndStayExactBothTimes() {
+			final OwnerSortIndex index = ownerSortIndex(200);
+			final long cold = index.getHeapSizeInBytes();
+			assertMatchesMeasuredHeap(cold, index, EXCLUDED);
+
+			// materialize the committed-snapshot supplier arrays the way a sorted query would
+			index.getAscendingOrderRecordsSupplier();
+
+			final long warm = index.getHeapSizeInBytes();
+			assertTrue(warm >= cold, "materializing a read projection must never shrink the reported footprint");
+			assertMatchesMeasuredHeap(warm, index, EXCLUDED);
+		}
+
+		@Test
+		void shouldGrowWithTheRecordCount() {
+			assertTrue(
+				ownerSortIndex(500).getHeapSizeInBytes() > ownerSortIndex(50).getHeapSizeInBytes(),
+				"a larger index must report a larger footprint"
+			);
+		}
+
+		/**
+		 * Builds an owner sort index over `records` string values.
+		 *
+		 * @param records how many records to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static OwnerSortIndex ownerSortIndex(int records) {
+			final AttributeIndexKey key = new AttributeIndexKey(null, "priority", null);
+			final OwnerSortIndex index = new OwnerSortIndex(String.class, key);
+			// primary keys start above the autobox cache: inside it two structures boxing the same count share one
+			// JVM-cached Integer, which an identity walk counts once while the arithmetic charges it per holder
+			for (int i = 0; i < records; i++) {
+				index.addRecord(String.format("value-%05d", i), AUTOBOX_CACHE_CEILING + i);
+			}
+			return index;
+		}
+	}
+
+	@Nested
+	@DisplayName("chain index")
+	class ChainIndexes {
+
+		/**
+		 * Everything a chain index reaches but does not charge, including the wrapper lambda of the only one of its
+		 * three maps that carries one and the enum constant behind every chain descriptor.
+		 */
+		private static final String[] EXCLUDED = {
+			"attributeIndexKey", "pageStreamRegistry", "successorsByPredecessor.transactionalLayerWrapper"
+		};
+
+		@Test
+		void shouldOverReportAnEmptyIndexByTheOneZeroBoxItsTwoLookupsShare() {
+			final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "order", null));
+			// The element array is two structures - a position tree and a value index - and each memoizes its own
+			// element count as a boxed `Integer`. Both counts are zero here, and `Integer.valueOf(0)` comes from the
+			// JVM's own cache, so the heap holds ONE box where the arithmetic charges two. That is rule 1 working as
+			// intended: a figure must not change because someone moved `-XX:AutoBoxCacheMax`. Every other fixture in
+			// this class seeds above the cache to sidestep it; an empty structure cannot, since its size really is 0.
+			assertExceedsMeasuredHeapBy(
+				index.getHeapSizeInBytes(), VMLayout.current().sizeOfObject(Integer.BYTES), index, EXCLUDED
+			);
+		}
+
+		@Test
+		void shouldUnderReportASeededChainByExactlyItsPreSizedTableAndSharedEnum() {
+			final ChainIndex index = seededChain(300);
+			// Two known, opposite-signed departures from the measurement, both deliberate:
+			//
+			// - `chains` is built by `CollectionUtils.createHashMap(32)` and holds ONE head, so it really owns a
+			//   64-slot table while `tableCapacityFor(1)` can only infer 16 from the entry count. That is the one
+			//   case MapHeapSize's javadoc names as unfixable from outside: a map asked for more room than it uses
+			//   leaves no trace of having been.
+			// - every `ChainDescriptor` points at an `ElementState` constant, which belongs to the JVM for the life
+			//   of its class loader and is charged to nobody - but the walker prunes only `Class` by path, so it
+			//   still counts the constant, its name and that name's bytes.
+			final VMLayout layout = VMLayout.current();
+			final long preSizedTableShortfall =
+				layout.sizeOfArray(64, layout.referenceSize()) - layout.sizeOfArray(16, layout.referenceSize());
+			final long measured = measuredHeapOf(index, EXCLUDED);
+			final long shortfall = measured - index.getHeapSizeInBytes();
+			assertTrue(
+				shortfall > preSizedTableShortfall,
+				"the shortfall must cover the pre-sized table (" + preSizedTableShortfall + ") - was " + shortfall
+			);
+			// and nothing else of consequence: the enum constant with its name is the only other term, so the
+			// remainder stays small - and `shouldNotLetTheShortfallGrowWithTheChain` pins that it does not move
+			assertTrue(
+				shortfall - preSizedTableShortfall < 256,
+				"nothing beyond the pre-sized table and one enum constant may be missing - was " +
+					(shortfall - preSizedTableShortfall)
+			);
+		}
+
+		@Test
+		void shouldNotLetTheShortfallGrowWithTheChain() {
+			// the two departures above are fixed costs - one table, one enum constant. A shortfall that grew with
+			// the chain would mean a per-element term going uncharged, which is the failure that actually matters
+			//
+			// BOTH lengths clear the JVM's boxed-Integer cache, and that is load-bearing rather than incidental: the
+			// element array memoizes its size in two places, so a chain of 100 shares one cached box between them
+			// while a chain of 1000 allocates two. Comparing those two fixtures would read the cache boundary as a
+			// growing shortfall and point the finger at the accounting
+			final ChainIndex small = seededChain(200);
+			final ChainIndex large = seededChain(1_000);
+			assertEquals(
+				measuredHeapOf(small, EXCLUDED) - small.getHeapSizeInBytes(),
+				measuredHeapOf(large, EXCLUDED) - large.getHeapSizeInBytes(),
+				"the shortfall must stay constant as the chain grows"
+			);
+		}
+
+		@Test
+		void shouldGrowWithTheChainLength() {
+			assertTrue(
+				seededChain(500).getHeapSizeInBytes() > seededChain(50).getHeapSizeInBytes(),
+				"a longer chain must report a larger footprint"
+			);
+		}
+
+		/**
+		 * Seeds one head-anchored chain of `length` elements, each pointing at its predecessor.
+		 *
+		 * @param length how many elements the chain should hold
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static ChainIndex seededChain(int length) {
+			final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "order", null));
+			// above the autobox cache, for the reason spelled out on AUTOBOX_CACHE_CEILING: three maps here key on
+			// the same primary keys, and inside the cache they would share one Integer per key
+			index.upsertPredecessor(Predecessor.HEAD, AUTOBOX_CACHE_CEILING);
+			for (int i = 1; i < length; i++) {
+				index.upsertPredecessor(
+					new Predecessor(AUTOBOX_CACHE_CEILING + i - 1), AUTOBOX_CACHE_CEILING + i
+				);
+			}
+			return index;
+		}
+	}
+
+	@Nested
+	@DisplayName("unique indexes")
+	class UniqueIndexes {
+
+		/**
+		 * Everything a global unique index reaches but does not charge — the catalog key it was filed under, the
+		 * scope enum, the scaffolding comparator, the flush bookkeeping and two lambdas.
+		 */
+		private static final String[] GLOBAL_EXCLUSIONS = {
+			"attributeKey", "comparator", "pageStreamRegistry", "scope",
+			"tree.valueColumnFactory", "tree.recordColumnFactory",
+			"entitiesPerType.transactionalLayerWrapper"
+		};
+
+		/**
+		 * Everything an owner unique index reaches but does not charge — the key it was filed under, the collection
+		 * name, the scaffolding comparator, the flush bookkeeping and the tree's two column-factory lambdas.
+		 */
+		private static final String[] OWNER_EXCLUSIONS = {
+			"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+			"tree.valueColumnFactory", "tree.recordColumnFactory"
+		};
+
+		@Test
+		void shouldMeasureAnEmptyOwnerExactly() {
+			final OwnerUniqueIndex index = ownerUniqueIndex(0);
+			// its value tree memoizes a count of ZERO, which resolves to the JVM's cached box - one holder, so the
+			// walk charges the same single box the arithmetic does
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index,
+				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"tree.valueColumnFactory", "tree.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldMeasureASeededOwnerExactly() {
+			final OwnerUniqueIndex index = ownerUniqueIndex(200);
+			assertMatchesMeasuredHeap(
+				index.getHeapSizeInBytes(), index,
+				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"tree.valueColumnFactory", "tree.recordColumnFactory"
+			);
+		}
+
+		@Test
+		void shouldStepUpOnceTheAllRecordsFormulaIsMemoizedAndStayExactBothTimes() {
+			final OwnerUniqueIndex index = ownerUniqueIndex(200);
+			final long cold = index.getHeapSizeInBytes();
+			assertMatchesMeasuredHeap(cold, index, OWNER_EXCLUSIONS);
+
+			index.getRecordIdsFormula();
+
+			final long warm = index.getHeapSizeInBytes();
+			assertTrue(warm > cold, "the memoized formula must show up as additional occupancy");
+			// The formula wraps the very record set already charged above, and its own `memoizedResult` resolves to
+			// that same instance - so neither is followed, and a walk finds no second bitmap. What the arithmetic
+			// DOES read high is the formula's cost bookkeeping: `initFields` runs in the constructor and populates
+			// four of the six memo fields, while `cost` and `costToPerformance` stay null until something asks what
+			// the formula costs. Which are populated cannot be read from outside, so all five boxed Longs are
+			// charged - the higher of two defensible figures - leaving the arithmetic exactly two boxes above the
+			// measurement, forever, however large the index grows
+			final long excess = warm - measuredHeapOf(index, OWNER_EXCLUSIONS);
+			assertTrue(excess > 0 && excess < 128, "the formula's over-charge must stay small - was " + excess);
+
+			// and it must be a CONSTANT, not a term that grows: an index holding more records over-charges by the
+			// same handful of bytes, which is what makes charging the upper bound harmless. Both fixtures stay
+			// inside one leaf block, so neither carries the separate separator-key over-report
+			final OwnerUniqueIndex larger = ownerUniqueIndex(250);
+			larger.getRecordIdsFormula();
+			assertDivergenceDoesNotGrowWithTheData(
+				warm, index, larger.getHeapSizeInBytes(), larger, OWNER_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldNotLetAGlobalIndexDivergeWithItsSize() {
+			// four times the unique values: the only gaps a global unique index has are fixed ones plus the
+			// separator keys of its value tree, so a gap that tracked the ENTRY count would mean a real per-value
+			// term going uncharged
+			final GlobalUniqueIndex small = seededGlobal(200);
+			final GlobalUniqueIndex large = seededGlobal(800);
+			final long smallGap = small.getHeapSizeInBytes() - measuredHeapOf(small, GLOBAL_EXCLUSIONS);
+			final long largeGap = large.getHeapSizeInBytes() - measuredHeapOf(large, GLOBAL_EXCLUSIONS);
+			assertTrue(
+				largeGap < smallGap + 8L * 16,
+				"the gap must track leaves, not values - " + smallGap + " to " + largeGap
+			);
+		}
+
+		/**
+		 * Builds a global unique index over `records` string URLs.
+		 *
+		 * @param records how many unique values to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static GlobalUniqueIndex seededGlobal(int records) {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("url"), String.class
+			);
+			for (int i = 0; i < records; i++) {
+				index.registerUniqueKey(
+					String.format("url-%05d", i), "Product", null, AUTOBOX_CACHE_CEILING + i, RESOLVER
+				);
+			}
+			return index;
+		}
+
+		@Test
+		void shouldMeasureAnEmptyGlobalIndexExactly() {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("url"), String.class
+			);
+			// the value tree memoizes its bucket count, and an empty one boxes ZERO - the JVM's own instance. One
+			// structure holds it, so the walk charges the same one box the arithmetic does
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, GLOBAL_EXCLUSIONS);
+		}
+
+		@Test
+		void shouldOverReportALocalizedGlobalIndexByOneBoxPerLocaleAndNoMore() {
+			// The locale maps are the point here. A `Locale` comes from the JVM's own per-language cache and must be
+			// subtracted from the walk; the boxed locale ids are this index's own and must not be. But the index
+			// stores each id ONCE and files it in both directions - the same `Integer` instance is a value in
+			// `localeToIdIndex` and a key in `idToLocaleIndex` (verified by identity) - so a walk counts one box per
+			// locale where the arithmetic, which charges per holder, counts two.
+			//
+			// That is rule 1 again, and the right assertion is its exact magnitude: one box per locale, and one only.
+			// Ids run from 1 upward and cannot be seeded past the JVM's cache the way every other fixture here is,
+			// because the index allocates them itself.
+			final VMLayout layout = VMLayout.current();
+			final Locale[] locales = {Locale.ENGLISH, Locale.GERMAN, Locale.FRENCH, Locale.ITALIAN};
+			assertExceedsMeasuredHeapBy(
+				localizedGlobal(locales, 200).getHeapSizeInBytes(),
+				locales.length * layout.sizeOfObject(Integer.BYTES),
+				localizedGlobal(locales, 200),
+				locales,
+				GLOBAL_EXCLUSIONS
+			);
+
+			// and it tracks the LOCALE count: half the locales, half the gap. Both fixtures stay inside one leaf
+			// block, so neither carries the separator-key over-report - that dimension belongs to
+			// `shouldNotLetAGlobalIndexDivergeWithItsSize`, which varies the values and holds the locales out of it
+			final Locale[] fewerLocales = {Locale.ENGLISH, Locale.GERMAN};
+			final GlobalUniqueIndex fewer = localizedGlobal(fewerLocales, 200);
+			assertEquals(
+				fewerLocales.length * layout.sizeOfObject(Integer.BYTES),
+				fewer.getHeapSizeInBytes() - measuredHeapOf(fewer, fewerLocales, GLOBAL_EXCLUSIONS),
+				"halving the locales must halve the gap"
+			);
+		}
+
+		/**
+		 * Builds a global unique index whose values are spread evenly across `locales`.
+		 *
+		 * @param locales the locales to file the values under
+		 * @param records how many unique values to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static GlobalUniqueIndex localizedGlobal(@Nonnull Locale[] locales, int records) {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("url", Locale.ENGLISH), String.class
+			);
+			for (int i = 0; i < records; i++) {
+				index.registerUniqueKey(
+					String.format("url-%05d", i), "Product", locales[i % locales.length],
+					AUTOBOX_CACHE_CEILING + i, RESOLVER
+				);
+			}
+			return index;
+		}
+
+		/**
+		 * Builds an owner unique index over `records` string values.
+		 *
+		 * @param records how many unique keys to seed
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static OwnerUniqueIndex ownerUniqueIndex(int records) {
+			final OwnerUniqueIndex index = new OwnerUniqueIndex(
+				"Product", new AttributeIndexKey(null, "code", null), String.class
+			);
+			for (int i = 0; i < records; i++) {
+				index.registerUniqueKey(String.format("code-%05d", i), i + 1);
+			}
+			return index;
+		}
+	}
+
+	@Nested
+	@DisplayName("reference type cardinality index")
+	class CardinalityIndexes {
+
+		/**
+		 * The flush bookkeeping, the two column-factory lambdas of the cardinality tree, and the wrapper lambda of
+		 * the referenced-key map — each excluded by the arithmetic of whichever structure holds it.
+		 */
+		private static final String[] CARDINALITY_EXCLUSIONS = {
+			"pageStreamRegistry",
+			"cardinalities.valueColumnFactory", "cardinalities.recordColumnFactory", "cardinalities.comparator",
+			"referencedPrimaryKeysIndex.transactionalLayerWrapper"
+		};
+
+		@Test
+		void shouldMeasureAnEmptyIndexExactly() {
+			final ReferenceTypeCardinalityIndex index = new ReferenceTypeCardinalityIndex();
+			// as with every empty structure here: the cardinality tree memoizes a bucket count of ZERO and the JVM
+			// hands back its own cached box, charged once by the arithmetic and once by the walk
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, CARDINALITY_EXCLUSIONS);
+		}
+
+		@Test
+		void shouldNotLetASeededIndexDivergeWithItsSize() {
+			// the cardinality tree keys on composed longs and needs no separator strings, so the only gaps left are
+			// fixed ones - the shared natural-order comparator and the JVM's cached boxes. Four times the entries
+			// must therefore leave the gap untouched
+			final ReferenceTypeCardinalityIndex small = seeded(10, 25);
+			final ReferenceTypeCardinalityIndex large = seeded(40, 25);
+			assertDivergenceDoesNotGrowWithTheData(
+				small.getHeapSizeInBytes(), small, large.getHeapSizeInBytes(), large, CARDINALITY_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldStepUpOnceTheReferencedKeyProjectionIsBuiltAndAccountForItExactly() {
+			final ReferenceTypeCardinalityIndex index = seeded(10, 20);
+			final long cold = index.getHeapSizeInBytes();
+			final long coldGap = cold - measuredHeapOf(index, CARDINALITY_EXCLUSIONS);
+
+			index.getAllTrackedReferencedEntityPrimaryKeysAsBitmap();
+
+			final long warm = index.getHeapSizeInBytes();
+			assertTrue(warm > cold, "the memoized referenced-key projection must show up as additional occupancy");
+			// The projection itself is charged for exactly what it occupies - an arithmetic that mispriced the
+			// roaring bitmap would move this gap by the bitmap's size. What it does move by is one 16-byte object,
+			// every time and regardless of how much the index holds: building the projection iterates the
+			// referenced-key map's `keySet()`, and a `HashMap` caches that view on first call. `MapHeapSize` walks
+			// with `forEach` precisely so that *measuring* never allocates one, and it cannot see a view somebody
+			// else created either - the field is in `java.util`, which `java.base` does not open, so no exclusion by
+			// field path reaches it. The cost is one fixed object per map that has ever been iterated
+			final VMLayout layout = VMLayout.current();
+			assertEquals(
+				coldGap - layout.sizeOfObject(layout.referenceSize()),
+				warm - measuredHeapOf(index, CARDINALITY_EXCLUSIONS),
+				"building the projection may cost exactly one cached collection view, and nothing else"
+			);
+		}
+
+		/**
+		 * Seeds a cardinality index with a full cross product of index primary keys and referenced entities.
+		 *
+		 * @param indexes    how many owning index primary keys
+		 * @param referenced how many referenced entities each of them points at
+		 * @return the seeded index
+		 */
+		@Nonnull
+		private static ReferenceTypeCardinalityIndex seeded(int indexes, int referenced) {
+			final ReferenceTypeCardinalityIndex index = new ReferenceTypeCardinalityIndex();
+			// both key spaces start above the autobox cache: the referenced keys are boxed into the map, and
+			// inside the cache they would be the JVM's instances rather than this index's
+			for (int indexPk = 0; indexPk < indexes; indexPk++) {
+				for (int referencedPk = 0; referencedPk < referenced; referencedPk++) {
+					index.addRecord(AUTOBOX_CACHE_CEILING + indexPk, AUTOBOX_CACHE_CEILING + referencedPk);
+				}
+			}
+			return index;
+		}
+	}
+
+	@Nested
+	@DisplayName("substrate the leaf indexes are built from")
+	class Substrate {
+
+		@Test
+		void shouldMeasureATransactionalBooleanAsAConstant() {
+			final TransactionalBoolean flag = new TransactionalBoolean();
+			assertEquals(JolHeapSize.ownedSize(flag), flag.getHeapSizeInBytes());
+			// a flag that has been set holds no more than one that has not
+			flag.setToTrue();
+			assertEquals(JolHeapSize.ownedSize(flag), flag.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldMeasureATransactionalIntArrayExactly() {
+			final TransactionalIntArray array = new TransactionalIntArray();
+			for (int i = 0; i < 100; i++) {
+				array.add(i);
+			}
+			assertEquals(JolHeapSize.ownedSize(array), array.getHeapSizeInBytes());
+		}
+
+		@Test
+		void shouldNotChargeTheSharedEmptyArraySingleton() {
+			// thousands of childless hierarchy nodes point at the ONE shared empty array - charging it would bill the
+			// same allocation to each of them
+			final TransactionalIntArray empty = new TransactionalIntArray();
+			assertEquals(
+				JolHeapSize.shallowSize(empty),
+				empty.getHeapSizeInBytes(),
+				"an empty array must cost its own object and nothing else"
+			);
+		}
+
+		@Test
+		void shouldChargeAnArrayThatShrankToEmpty() {
+			// an array emptied by removal is its OWN allocation, not the shared constant - the identity test is what
+			// keeps these two cases apart, and an emptiness test would wrongly zero this one
+			final TransactionalIntArray array = new TransactionalIntArray();
+			array.add(1);
+			array.remove(1);
+			assertEquals(JolHeapSize.ownedSize(array), array.getHeapSizeInBytes());
+		}
+	}
+}

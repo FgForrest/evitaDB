@@ -32,6 +32,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -218,6 +219,40 @@ public abstract sealed class UniqueIndex implements
 	 * Returns true if index is empty.
 	 */
 	public abstract boolean isEmpty();
+
+	/**
+	 * Returns the heap this index occupies, in bytes.
+	 *
+	 * Each variant adds its own value side — {@code OwnerUniqueIndex} the value tree and record set it owns,
+	 * {@code UniqueIndexView} only a slot, because the filter view it points at belongs to the enclosing
+	 * {@code AttributeIndex}. Everything the two have in common is priced by {@link #getSharedHeapSizeInBytes}.
+	 *
+	 * Walking an owner's value tree is `O(values / blockSize)` rather than `O(1)`, so this belongs to
+	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Prices everything both variants hold, given how many bytes of fields the concrete subclass adds.
+	 *
+	 * A subclass's fields live in the **same allocation** as the base's — one header, one round of padding — so the
+	 * subclass passes its field bytes in rather than sizing a second object, which would charge a phantom header and
+	 * round twice.
+	 *
+	 * All three of the base's references contribute their **slot alone**: {@link #entityType} is the collection's
+	 * name, handed to every index in it; {@link #attributeIndexKey} belongs to the enclosing {@code AttributeIndex};
+	 * and {@link #type} is a `Class`, owned by the JVM for the lifetime of its class loader.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the heap footprint in bytes of everything both variants share, including alignment padding
+	 */
+	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id, then the entityType / attributeIndexKey / type slots
+		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize() + ownFieldBytes);
+	}
 
 	/**
 	 * Emits this unique index's modified storage parts into `sink` on the commit/flush path — the single persistence
