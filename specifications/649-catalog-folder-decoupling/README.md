@@ -322,16 +322,36 @@ authoritative, never rewritten in place. `<generation>` is **per catalog, starti
 the engine-scoped `SequenceService` (§2.1).
 
 Allocation burns a number per *attempt*, so a failed operation never leaves its number available to
-the retry:
+the retry. **The directory creation is itself the test**, under a bounded retry:
 
 ```java
-int generation;
-Path candidate;
-do {
-    generation = sequence.incrementAndGet();
-    candidate  = storageDirectory.resolve(catalogName + '_' + generation);
-} while (Files.exists(candidate));
+IOException lastFailure = null;
+for (int attempt = 1; attempt <= MAX_ALLOCATION_ATTEMPTS; attempt++) {
+    final int generation = sequence.incrementAndGet();
+    final Path candidate = storageDirectory.resolve(catalogName + '_' + generation);
+    try {
+        Files.createDirectory(candidate);          // atomic test-and-set, not a check-then-act
+        return new CatalogFolderId(candidate.getFileName().toString());
+    } catch (IOException ex) {                     // taken, or unusable - burn it, draw the next
+        lastFailure = ex;
+    }
+}
+throw new CatalogFolderAllocationException(catalogName, MAX_ALLOCATION_ATTEMPTS, lastFailure);
 ```
+
+Do **not** pre-check with `Files.exists`. It answers `false` both when a path is absent and when its
+existence *cannot be determined* — an `AccessDeniedException` is reported as absence — so it can call a
+name free that creation then rejects. `createDirectory` collapses the check and the act into one atomic
+syscall, which also removes the check-then-act race the earlier form had.
+
+Retrying rather than failing is what keeps a rename **live**. A folder left by an operation that died
+can be one the filesystem refuses to clear, or reports as cleared while still refusing to recreate the
+name (Windows marks a directory delete-pending behind an open handle). An allocator that draws one
+number and gives up retries the *same* name after every restart and fails identically forever, leaving
+the catalog permanently unreplaceable — and each attempt surfaces an ordinary filesystem error, so the
+livelock reads as an environment problem. The failure that ends the loop must distinguish *"N candidate
+names were all unusable"* from *"the storage directory itself cannot be written"*; they need different
+operator responses and are otherwise indistinguishable from the message.
 
 **Legacy folders migrate on first boot.** A bare `products` folder — whether left by an older evitaDB
 version or hand-copied in by an operator — is treated identically: adopt it, allocate generation 1,
@@ -446,11 +466,19 @@ non-blocking: the switch commits, the delete is attempted, and a Windows lock me
 delete to the next boot instead of failing the operation.
 
 `.provisional` is written **first** by any operation that materialises a new folder (create, restore,
-duplicate) and removed as the last step. It is the same idea as the existing `RESTORE_FLAG` but with the
-opposite polarity — `RESTORE_FLAG` says *"complete, adapt the name on load"*, `.provisional` says
-*"incomplete, do not trust"*. Both are needed; they answer different questions. The two together are
-what let the **unclaimed** row stay non-destructive without leaking litter: everything we create is
-marked from the instant it exists.
+duplicate). It is the same idea as the existing `RESTORE_FLAG` but with the opposite polarity —
+`RESTORE_FLAG` says *"complete, adapt the name on load"*, `.provisional` says *"incomplete, do not
+trust"*. Both are needed; they answer different questions. The two together are what let the
+**unclaimed** row stay non-destructive without leaking litter: everything we create is marked from the
+instant it exists.
+
+**The marker must be removed *before* the binding is committed, not merely "last".** The rows above are
+a lookup by first match, so they must be disjoint, and `referenced` ∧ `provisional` is otherwise
+reachable — a create whose binding committed while the marker removal was still pending. That folder
+matches `referenced` first and gets **loaded** despite being incomplete. Ordering the removal ahead of
+the commit makes the overlap unreachable: a crash in the window leaves an unreferenced, suffixed,
+marker-free folder, which classifies as **unclaimed** — warned about and left alone. Litter instead of a
+corrupt load, which is the trade this whole table exists to make.
 
 ### 3.6 Backups must emit the suffix-free shape
 
@@ -603,9 +631,16 @@ its header says `orders`, or if `orders` is already registered, the folder is re
 left alone rather than silently shadowing a live catalog — a hole that exists today, where the directory
 name is taken as gospel.
 
-The freshly adopted folder keeps its existing (suffix-free) directory name; the counter is not advanced
-by adoption, which is why the `Files.exists` guard in allocation (§3.2) is required — otherwise a later
-allocation could pick a name an adopted folder already occupies.
+Adoption then follows the same path as legacy migration (§3.2): allocate generation 1, rename `products`
+to `products_1`, record `products → products_1`. If the rename fails the binding records the folder
+under its bare name and the migration retries on the next boot, so a *referenced* folder may transiently
+be suffix-free — the classification table tolerates that, since the referenced row is matched before the
+foreign row and adoption therefore never runs twice against the same folder.
+
+An earlier draft had adoption keep the bare name and leave the counter untouched, and justified the
+`Files.exists` guard in allocation by the collision that would create. Both halves are obsolete: the
+counter *is* advanced, and allocation no longer pre-checks at all — `Files.createDirectory` fails
+atomically if any folder already holds the name, whoever put it there.
 
 ### 5.4 Client-visible version discontinuity
 
@@ -792,14 +827,19 @@ in §5.6 must survive into the record.
 These are ordering hazards discovered during implementation, not part of any single step. Each fails
 *silently* if missed — which is why they are a checklist rather than a note.
 
-- [ ] **Step 5 must not land before step 7, or these two sites must be converted first.**
-  `DefaultCatalogPersistenceService#replaceWith`'s renaming block and the private static
-  `getFileNameWithCatalogRename` still build and compare file names from the **catalog name**, not
-  from the storage prefix discovered in step 2. That is correct only while the two are equal, which
-  holds through step 4. Step 5 is what first makes a prefix diverge from a name, and step 7 deletes
-  both sites outright — so the hazard exists only in the window between them. If that window is ever
-  going to be open, convert both to `this.storagePrefix` before step 5 merges. The failure mode is
-  the dangerous kind: `replaceWith` would match nothing and rename nothing, reporting success.
+- [x] **Step 5 must not land before step 7, or these sites must be converted first.** — *done, ahead of
+  step 5.* `DefaultCatalogPersistenceService#replaceWith`'s renaming block built and compared file names
+  from the **catalog name**, correct only while name and storage prefix are equal. Step 5 is what first
+  makes them diverge, so the three sites (the `listFiles` filter and the two `getCatalog*FileName`
+  comparisons) now read `this.storagePrefix`. The failure mode was the dangerous kind: the filter would
+  have matched nothing, renamed nothing, and reported success.
+
+  The gate also named `getFileNameWithCatalogRename`; on inspection it needs **no** change, and there
+  are two independent copies of it (`DefaultCatalogPersistenceService` for duplicate,
+  `RestoreTask` for restore). Both write into a *freshly created* folder whose prefix we get to choose,
+  so naming those files after the target catalog is correct rather than merely equal-by-accident. Their
+  one prefix-sensitive dependency, `getIndexFromCatalogFileName`, parses digits backwards from the
+  suffix and is prefix-independent since step 2.
 
 - [ ] **Step 5 must delete the identity default in `ExpandedEngineState#bindingsIncluding`, not just
   add an allocator alongside it.** Step 4 made the folder lookup strict everywhere *except* there: a

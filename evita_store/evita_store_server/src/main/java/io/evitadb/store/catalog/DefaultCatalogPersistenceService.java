@@ -2621,17 +2621,20 @@ public class DefaultCatalogPersistenceService
 		this.close();
 
 		// name files in the directory that replaces the original first
+		// Matched against the *discovered* storage prefix rather than the catalog name: the two are equal only
+		// until a folder outlives a rename, and once they diverge a name-based filter silently matches nothing,
+		// renames nothing and still reports success - which is the one failure mode this must not have.
 		final File[] filesToRename = this.catalogStoragePath
 			.toFile()
-			.listFiles((dir, name) -> name.startsWith(this.catalogName));
+			.listFiles((dir, name) -> name.startsWith(this.storagePrefix));
 		if (filesToRename != null) {
 			for (int i = 0; i < filesToRename.length; i++) {
 				File it = filesToRename[i];
 				final Path filePath = it.toPath();
 				final String fileNameToRename;
-				if (it.getName().equals(getCatalogBootstrapFileName(this.catalogName))) {
+				if (it.getName().equals(getCatalogBootstrapFileName(this.storagePrefix))) {
 					fileNameToRename = getCatalogBootstrapFileName(catalogNameToBeReplaced);
-				} else if (it.getName().equals(getCatalogDataStoreFileName(this.catalogName, catalogIndex))) {
+				} else if (it.getName().equals(getCatalogDataStoreFileName(this.storagePrefix, catalogIndex))) {
 					fileNameToRename = getCatalogDataStoreFileName(catalogNameToBeReplaced, catalogIndex);
 				} else {
 					continue;

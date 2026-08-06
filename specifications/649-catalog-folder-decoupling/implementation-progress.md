@@ -402,7 +402,59 @@ survival across a builder copy). `EngineStateSerializerTest` gained the round tr
 old-bytes-to-identity-bindings test. New `SequenceServiceTest` (4 tests) covers fast-forward-only
 seeding and the removal API.
 
-## Steps 5–10 — not started
+## Step 5 — preparation landed, classification not started
+
+### Gate 1 discharged, and it was narrower than the gate claimed
+
+`replaceWith`'s rename block now matches on `this.storagePrefix` at all three sites (the `listFiles`
+filter and the two `getCatalog*FileName` comparisons). Verified by `EvitaReplacementFunctionalTest`
+(1 test, `-P longRunning` — the module's `skipTests` sits in the plugin `<configuration>`, so
+`-DskipTests=false` does *not* override it and silently reports a vacuous pass) plus `EvitaTest` and
+`DefaultCatalogPersistenceServiceTest`, 106 green.
+
+The gate also named `getFileNameWithCatalogRename`; it needs no change, and there are two independent
+copies (duplicate path, restore path). Both write into a folder they just created, so naming those
+files after the target catalog *chooses* the prefix rather than assuming it. Recorded in the gate itself.
+
+### Three spec defects found while reading step 5's inputs
+
+1. **§3.2's allocation pseudocode had the exact bug the new §7 gate warns about** — `do { … } while
+   (Files.exists(candidate))` skips *visible* folders and then creates unguarded. Replaced with
+   `Files.createDirectory` as an atomic test-and-set under a bounded retry, which also removes the
+   check-then-act race the original had.
+2. **§3.2 and §5.3 contradicted each other on adoption.** §3.2: allocate generation 1 and rename
+   `products` → `products_1`. §5.3: keep the bare name, counter not advanced. Reconciled toward §3.2
+   (§5.3's version also left a *referenced* folder permanently suffix-free); §5.3's justification for the
+   `Files.exists` guard went with it, since `createDirectory` handles the collision atomically.
+3. **§3.5's `.provisional` removal was ordered only as "last step"**, which leaves `referenced` ∧
+   `provisional` reachable — a create whose binding committed with the marker removal still pending. The
+   table is first-match, so that folder matches `referenced` and gets **loaded while incomplete**. Pinned
+   the removal ahead of the binding commit, which makes the overlap unreachable and turns a crash in the
+   window into an `unclaimed` folder: litter, warned about, not deleted.
+
+### Design decisions taken for the classifier, not yet implemented
+
+- **Extract a pure classifier.** `computeCatalogInventoryDivergence` is `private static` and reachable
+  only through the persistence-service constructor, which is why the mandated test-first order is
+  currently impossible. A separate classifier over (storage directory, engine state) is testable
+  directly and is what the tests get written against.
+- **Matching moves from directory *name* to *binding*.** Today `catalogsOnDisk` compares directory names
+  to catalog names and dumps every unknown directory into `autoDiscovered`. Under §3.5 only **foreign**
+  (suffix-free, has a `*.boot`) is adoptable; the rest split six ways.
+- **Referenced always wins, and nothing referenced is ever deleted.** For the residual overlaps a stale
+  marker or tombstone on a *bound* folder is litter to clear and warn about, never grounds for deletion —
+  the binding is the authority (Invariant A). Worth asserting as a standalone property test across every
+  marker combination, independently of the six-row table.
+- `.provisional` and `.catalogname` become constants on the `CatalogPersistenceService` SPI interface,
+  beside the existing `RESTORE_FLAG = ".restored"`.
+
+### The three §0 open items do not gate step 5
+
+Despite the step-0 line saying they gate steps 5 and 7, all three land later: `terminate()` drain is
+§3.7/step 9, `catalogId` stability across backup/restore is §3.1.1/step 8, and `doReplaceCatalogInternal`
+idempotency is §5.1/step 7. Deferred rather than answered now.
+
+## Steps 6–10 — not started
 
 ### Found before starting step 2: the prefix goes into a regex unescaped
 
