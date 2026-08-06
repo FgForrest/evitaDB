@@ -92,9 +92,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Fast, bounded soak test that re-uses the schema and mutation generator from
- * `LongRunningEvitaReferencesGenerationalTest` but compresses the work into a few seconds per
- * seed so the regression class is exercised in the regular CI cycle.
+ * Bounded soak test that re-uses the schema and mutation generator from
+ * `LongRunningEvitaReferencesGenerationalTest`, but replaces its time-boxed run with a fixed sweep of
+ * 13 seeds — so a failure reproduces from a seed rather than from a duration.
  *
  * The invariants this test pins are:
  *
