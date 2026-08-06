@@ -56,6 +56,7 @@ import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
@@ -706,7 +707,12 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Duplicates an existing catalog to create a new catalog with a different name.
 	 *
+	 * The folder the copy lands in is passed in rather than derived from the target name: which directory a
+	 * catalog occupies is engine state, and the duplicate is one of the three paths that materialise a folder
+	 * (#649). The caller allocates it, marks it provisional, and clears that marker once this future completes.
+	 *
 	 * @param targetCatalogName name of the target catalog to be created
+	 * @param targetFolderId    folder the copy is written into, already allocated by the caller
 	 * @param storageOptions storage configuration options
 	 * @return progressing future that tracks the duplication process
 	 *
@@ -715,6 +721,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	@Nonnull
 	ProgressingFuture<Void> duplicateCatalog(
 		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId,
 		@Nonnull StorageOptions storageOptions
 	) throws EvitaIOException;
 

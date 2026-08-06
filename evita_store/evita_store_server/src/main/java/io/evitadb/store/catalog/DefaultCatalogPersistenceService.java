@@ -108,7 +108,6 @@ import io.evitadb.store.catalog.task.FullBackupTask;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.exception.BootstrapFileNotFound;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
-import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -167,7 +166,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -591,19 +589,6 @@ public class DefaultCatalogPersistenceService
 		}
 
 		return storageDirectoryFile.getName();
-	}
-
-	/**
-	 * Verifies the name of the catalog and its uniqueness among other existing catalogs.
-	 */
-	@Nonnull
-	public static Path pathForCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
-		try {
-			return storageDirectory.resolve(catalogName);
-		} catch (InvalidPathException ex) {
-			throw new InvalidFileNameException(
-				"Name `" + catalogName + "` cannot be converted a valid file name: " + ex.getMessage() + "! Please rename the catalog.");
-		}
 	}
 
 	/**
@@ -1720,10 +1705,14 @@ public class DefaultCatalogPersistenceService
 		// a rename or replace whose post-commit header rewrite did not land. Refusing the load would turn a
 		// recoverable lag into a catalog reported CORRUPTED; adapting makes the folder agree with the one
 		// durable fact there is.
-		reconcileStoredCatalogName(
-			catalogInstance, catalogVersion, catalogStoragePartPersistenceService, this.bootstrapUsed
-		);
+		//
+		// The restore flag rides along as a *separate* question - it marks a folder whose bytes were copied from
+		// another catalog, which is the one case that must not inherit the source's identity.
 		final boolean restoreFlagExists = restoreFlagFile.exists();
+		reconcileStoredCatalogIdentity(
+			catalogInstance, catalogVersion, catalogStoragePartPersistenceService, this.bootstrapUsed,
+			restoreFlagExists
+		);
 		if (restoreFlagExists) {
 			// the flag still carries its second meaning - "this folder arrived from outside, regenerate the
 			// naming variants" - which is why it is read here and deleted only once the reconcile has run
@@ -3131,9 +3120,12 @@ public class DefaultCatalogPersistenceService
 	@Override
 	public ProgressingFuture<Void> duplicateCatalog(
 		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId,
 		@Nonnull StorageOptions storageOptions
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
-		final Path targetFolder = pathForCatalog(targetCatalogName, storageOptions.storageDirectory());
+		// the folder was allocated by the engine and already exists, carrying nothing but its provisional
+		// marker - which `holdsNoCatalogData` discounts, so the emptiness check below still passes
+		final Path targetFolder = storageOptions.storageDirectory().resolve(targetFolderId.id());
 
 		// verify target folder does not exist or is empty, create it
 		verifyDirectory(targetFolder, true);
@@ -4514,37 +4506,62 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Makes the catalog name stored inside the folder agree with the name the catalog is being loaded under.
+	 * Makes the identity stored inside the folder agree with the identity the catalog is being loaded under.
 	 *
-	 * The engine state is the sole authority on which catalog a folder holds, so this reconciles in one
-	 * direction only: whatever the header says is overwritten. Before #649 the incoming name was itself derived
-	 * from the folder's name, which made a disagreement evidence of a mistake worth refusing the load over; now
-	 * that a folder is bound to a catalog by an opaque token, a header naming a different catalog is the ordinary
-	 * trace of a rename or replace whose post-commit header rewrite did not land, and refusing would report a
-	 * perfectly loadable catalog as corrupted.
+	 * Two independent reconciliations, deliberately in one place because both rewrite the same header:
 	 *
-	 * The rewrite covers the header, the catalog schema (including its naming variants) and a fresh bootstrap
-	 * record; it is deliberately not written to the WAL, since it reconciles state that predates the load.
+	 * **The name.** The engine state is the sole authority on which catalog a folder holds, so this reconciles
+	 * in one direction only: whatever the header says is overwritten. Before #649 the incoming name was itself
+	 * derived from the folder's name, which made a disagreement evidence of a mistake worth refusing the load
+	 * over; now that a folder is bound to a catalog by an opaque token, a header naming a different catalog is
+	 * the ordinary trace of a rename or replace whose post-commit header rewrite did not land, and refusing
+	 * would report a perfectly loadable catalog as corrupted.
+	 *
+	 * **The id.** A catalog materialised from copied bytes — a restore or a duplicate — is a *new lineage*: its
+	 * version stream diverges from the source's at the moment of the copy, so a client cache keyed on the
+	 * source's `catalogId` is already stale with respect to it. Carrying the id across is therefore not merely
+	 * ambiguous but wrong, and it is what makes a duplicate indistinguishable from its source by the very field
+	 * clients use to decide whether their cached view still holds. The two copying paths are exactly the two
+	 * writers of the restore flag, which is why that flag drives this.
+	 *
+	 * Minting is **not** tied to the name changing, and the distinction is load-bearing: a rename must preserve
+	 * the id, and it is a rename that most often lands here with a differing name.
+	 *
+	 * The rewrite covers the header, the catalog schema (including its naming variants, only when the name
+	 * actually changed) and a fresh bootstrap record; it is deliberately not written to the WAL, since it
+	 * reconciles state that predates the load.
 	 *
 	 * @param catalogInstance               the catalog contract instance
 	 * @param catalogVersion                the version of the catalog
 	 * @param storagePartPersistenceService the storage part persistence service
 	 * @param bootstrapUsed                 the bootstrap used to load the catalog
+	 * @param freshCatalogIdRequired        true when the folder's contents were copied from another catalog
 	 */
-	private void reconcileStoredCatalogName(
+	private void reconcileStoredCatalogIdentity(
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
 		@Nonnull CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> storagePartPersistenceService,
-		@Nonnull CatalogBootstrap bootstrapUsed
+		@Nonnull CatalogBootstrap bootstrapUsed,
+		boolean freshCatalogIdRequired
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
-		if (!catalogHeader.catalogName().equals(this.catalogName)) {
-			log.info(
-				"Folder `{}` stores catalog `{}` but the engine binds it to `{}` — adapting the stored name.",
-				this.catalogStoragePath, catalogHeader.catalogName(), this.catalogName
-			);
+		final boolean nameDiffers = !catalogHeader.catalogName().equals(this.catalogName);
+		if (nameDiffers || freshCatalogIdRequired) {
+			if (nameDiffers) {
+				log.info(
+					"Folder `{}` stores catalog `{}` but the engine binds it to `{}` — adapting the stored name.",
+					this.catalogStoragePath, catalogHeader.catalogName(), this.catalogName
+				);
+			}
+			final UUID catalogId = freshCatalogIdRequired ? UUID.randomUUID() : catalogHeader.catalogId();
+			if (freshCatalogIdRequired) {
+				log.info(
+					"Catalog `{}` was materialised from copied bytes — minting a fresh catalog id `{}` so it is " +
+						"not mistaken for the catalog it was copied from.", this.catalogName, catalogId
+				);
+			}
 			// update name in the catalog header
 			storagePartPersistenceService.writeCatalogHeader(
 				STORAGE_PROTOCOL_VERSION,
@@ -4557,33 +4574,36 @@ public class DefaultCatalogPersistenceService
 					))
 					.orElse(null),
 				catalogHeader.collectionFileIndex(),
-				catalogHeader.catalogId(),
+				catalogId,
 				this.catalogName,
 				catalogHeader.catalogState(),
 				catalogHeader.lastEntityCollectionPrimaryKey()
 			);
 
-			// update name in the catalog schema
-			final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
-				catalogInstance,
-				() -> storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class)
-			);
-			final CatalogSchema catalogSchema = catalogSchemaStoragePart.catalogSchema();
+			// update name in the catalog schema - only when it actually changed, since rewriting it bumps the
+			// schema version and a restore under the catalog's own name has nothing to reword
+			if (nameDiffers) {
+				final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
+					catalogInstance,
+					() -> storagePartPersistenceService.getStoragePart(catalogVersion, 1, CatalogSchemaStoragePart.class)
+				);
+				final CatalogSchema catalogSchema = catalogSchemaStoragePart.catalogSchema();
 
-			// this will not be recorded in the WAL, but it's ok since this is the first time the catalog is loaded
-			final CatalogSchema updateCatalogSchema = CatalogSchema._internalBuild(
-				catalogSchema.version() + 1,
-				this.catalogName,
-				NamingConvention.generate(this.catalogName),
-				catalogSchema.getDescription(),
-				null,
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes(),
-				MutationEntitySchemaAccessor.INSTANCE
-			);
-			storagePartPersistenceService.putStoragePart(
-				catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
-			);
+				// this will not be recorded in the WAL, but it's ok since this is the first time the catalog is loaded
+				final CatalogSchema updateCatalogSchema = CatalogSchema._internalBuild(
+					catalogSchema.version() + 1,
+					this.catalogName,
+					NamingConvention.generate(this.catalogName),
+					catalogSchema.getDescription(),
+					null,
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes(),
+					MutationEntitySchemaAccessor.INSTANCE
+				);
+				storagePartPersistenceService.putStoragePart(
+					catalogVersion, new CatalogSchemaStoragePart(updateCatalogSchema)
+				);
+			}
 
 			final PersistentStorageDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogVersion);
 
@@ -4602,10 +4622,10 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Asserts that the folder this service has just re-opened really does store the catalog it was handed.
 	 *
-	 * Unlike {@link #reconcileStoredCatalogName} this refuses rather than adapts, and deliberately so: its only
-	 * caller is the constructor that follows `replaceWith`, which wrote the new name into the header moments
-	 * earlier in this same process. A disagreement here is not a stale header but a broken invariant, and
-	 * adapting would paper over it.
+	 * Unlike {@link #reconcileStoredCatalogIdentity} this refuses rather than adapts, and deliberately so: its
+	 * only caller is the constructor that follows `replaceWith`, which wrote the new name into the header
+	 * moments earlier in this same process. A disagreement here is not a stale header but a broken invariant,
+	 * and adapting would paper over it.
 	 *
 	 * @param catalogVersion                the version of the catalog
 	 * @param catalogStoragePath            the path to the catalog storage directory

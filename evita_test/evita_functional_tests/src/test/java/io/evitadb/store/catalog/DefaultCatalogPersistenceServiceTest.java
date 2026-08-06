@@ -368,7 +368,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			)
 		) {
 			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
-			assertEquals(RENAMED_CATALOG, persistenceService.getCatalogHeader(lastCatalogVersion).catalogName());
+			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
+			assertEquals(RENAMED_CATALOG, catalogHeader.catalogName());
+			// A rename lands here too, and it must keep the catalog's identity: the folder holds the same
+			// lineage under a new name, so a client cache keyed on the id is still valid.
+			assertEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"Adapting a stored name must not mint a new identity - only copied bytes do that!"
+			);
 		}
 	}
 
@@ -392,6 +399,14 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
 			assertNotNull(catalogHeader);
 			assertEquals(RENAMED_CATALOG, catalogHeader.catalogName());
+			// The restore flag says these bytes were copied from another catalog, which makes this a new
+			// lineage: its version stream diverged at the moment of the copy, so a client cache keyed on the
+			// source's id is already stale with respect to it. Carrying the id across would leave a duplicate
+			// indistinguishable from its source by the very field clients use to check their cached view.
+			assertNotEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"A catalog materialised from copied bytes must be given an identity of its own!"
+			);
 
 			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
 				final CatalogSchemaStoragePart catalogSchema = persistenceService.getStoragePartPersistenceService(lastCatalogVersion)

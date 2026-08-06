@@ -5106,6 +5106,41 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Duplicate a catalog into an allocated folder rather than one named after it")
+	void shouldDuplicateCatalogIntoAnAllocatedFolder() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		final String duplicateName = TEST_CATALOG + "_copy";
+		this.evita.duplicateCatalog(TEST_CATALOG, duplicateName);
+
+		// The duplicate was the last path still writing into a directory named after its catalog, which breaks
+		// the one rule the whole scheme rests on: every folder evitaDB creates carries a generation, and only a
+		// suffix-free folder is treated as one an operator hand-placed and may be adopted (#649).
+		final Path duplicateFolder = catalogFolder(duplicateName);
+		assertTrue(
+			duplicateFolder.toFile().getName().startsWith(duplicateName + "_"),
+			() -> "A duplicate must land in an allocated folder, but landed in `" +
+				duplicateFolder.toFile().getName() + "`!"
+		);
+		assertTrue(
+			duplicateFolder.resolve(
+				CatalogPersistenceService.getCatalogBootstrapFileName(duplicateName)
+			).toFile().exists(),
+			"The bound folder must be the one the copy was written into!"
+		);
+		// the provisional marker must be gone, or the next boot would classify a fully written, referenced
+		// folder as an abandoned one
+		assertTrue(
+			duplicateFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG).toFile().exists() == false,
+			"A completed duplicate must not still declare its own contents untrustworthy!"
+		);
+		assertEquals(
+			duplicateName,
+			Files.readString(duplicateFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+		);
+	}
+
+	@Test
 	@DisplayName("Discharge a folder's tombstone once its removal is confirmed")
 	void shouldNotAccumulateTombstonesAcrossRepeatedReplaces() {
 		setupCatalogWithProductAndCategory();

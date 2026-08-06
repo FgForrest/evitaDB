@@ -29,13 +29,16 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -79,20 +82,38 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 		final String targetCatalogName = mutation.getNewCatalogName();
 
 		final CatalogContract sourceCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		// `verifyApplicability` has already refused anything that is not an active catalog, and the mutation's
+		// conflict key keeps the name from transitioning underneath us - so a placeholder here is a broken
+		// invariant rather than a user error, and must surface as one instead of being quietly reported as a
+		// failed duplication
+		Assert.isPremiseValid(
+			sourceCatalog instanceof Catalog,
+			() -> new GenericEvitaInternalError(
+				"Catalog `" + catalogName + "` cannot be duplicated - it is a `" +
+					sourceCatalog.getClass().getSimpleName() + "` placeholder rather than a live catalog!"
+			)
+		);
+		// Allocated here rather than derived from the target name: the duplicate is one of the three paths that
+		// materialise a folder, and it was the last one still writing into a directory named after its catalog.
+		final CatalogFolderId targetFolder = this.folderContext.allocateFolderFor(targetCatalogName);
 		return new ProgressingFuture<>(
 			0,
-			Collections.singletonList(sourceCatalog.duplicateTo(targetCatalogName)),
+			Collections.singletonList(((Catalog) sourceCatalog).duplicateTo(targetCatalogName, targetFolder)),
 			(progressingFuture, __) -> {
+				// Declares the folder complete - and therefore loadable - **before** the commit below binds a
+				// catalog to it. The reverse order leaves a referenced folder still wearing its "incomplete"
+				// marker, which boot classification matches as referenced and loads anyway. Labelling the folder
+				// with its catalog name rides along with it.
+				DuplicateCatalogMutationOperator.this.folderContext.completeFolder(
+					targetCatalogName, targetFolder
+				);
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
 							// The duplicate is registered here for the first time, so its folder binding is
-							// established rather than looked up. Resolved once and used twice: the placeholder
-							// and the binding must name the same folder, and `duplicateTo` has already written
-							// the data into whichever one this answers with.
-							final CatalogFolderId targetFolder = DuplicateCatalogMutationOperator.this
-								.folderContext.folderIdForBinding(targetCatalogName);
+							// established rather than looked up - and it names the folder allocation created,
+							// which is the one `duplicateTo` has just written the data into.
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
@@ -106,14 +127,6 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 								.build();
 						}
 					}
-				);
-
-				// Label the folder once the binding above is committed: the duplicate never went through
-				// `completeFolder`, because it never allocated. Deliberately after the commit rather than
-				// inside it - the state updater runs under the engine-state lock, and a file only humans
-				// read has no business being written while every other engine mutation waits.
-				this.folderContext.recordCatalogName(
-					targetCatalogName, this.folderContext.folderIdFor(targetCatalogName)
 				);
 
 				// Emit the host event AFTER the engine state update so the freshly-duplicated

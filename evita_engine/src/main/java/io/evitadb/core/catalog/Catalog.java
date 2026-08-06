@@ -1430,10 +1430,27 @@ public final class Catalog
 		return backupTask;
 	}
 
+	/**
+	 * Copies this catalog's contents into the folder the engine allocated for the duplicate.
+	 *
+	 * Deliberately not on {@link io.evitadb.api.CatalogContract}: the folder a duplicate lands in is engine
+	 * state, and the token naming it is a storage-layer type the public contract does not expose (#649).
+	 * Duplicating is only ever driven by `DuplicateCatalogMutationOperator`, which is engine-internal and holds
+	 * the allocation, so the narrower signature costs nothing and removes the only remaining way to ask for a
+	 * copy into a folder named after the catalog.
+	 *
+	 * @param targetCatalogName name the copy will be registered under
+	 * @param targetFolderId    folder the copy is written into, allocated and marked provisional by the caller
+	 * @return progressing future that tracks the copy
+	 */
 	@Nonnull
-	@Override
-	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
-		return this.persistenceService.duplicateCatalog(targetCatalogName, this.evitaConfiguration.storage());
+	public ProgressingFuture<Void> duplicateTo(
+		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId
+	) {
+		return this.persistenceService.duplicateCatalog(
+			targetCatalogName, targetFolderId, this.evitaConfiguration.storage()
+		);
 	}
 
 	@Nonnull
