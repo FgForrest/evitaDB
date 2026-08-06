@@ -276,9 +276,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
-			this.offsetConsumer,
-			firstActiveCatalogVersion -> {
-			}
+			this.offsetConsumer
 		);
 	}
 
@@ -299,9 +297,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
-			this.offsetConsumer,
-			firstActiveCatalogVersion -> {
-			}
+			this.offsetConsumer
 		);
 	}
 

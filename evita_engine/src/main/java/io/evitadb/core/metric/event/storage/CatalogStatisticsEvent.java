@@ -62,16 +62,24 @@ public class CatalogStatisticsEvent extends AbstractStorageEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long oldestCatalogVersionTimestampSeconds;
 
+	@Label("Retained history size in Bytes")
+	@Description("The disk space occupied by historical data files kept for time travel, on top of the active data " +
+		"set. Always zero unless time travel is enabled, and bounded by `timeTravelSizeLimitBytes`.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long retainedHistorySizeBytes;
+
 	public CatalogStatisticsEvent(
 		@Nonnull String catalogName,
 		int entityCollections,
 		long occupiedDiskSpaceBytes,
-		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds
+		@Nullable OffsetDateTime oldestCatalogVersionTimestampSeconds,
+		long retainedHistorySizeBytes
 	) {
 		super(catalogName);
 		this.entityCollections = entityCollections;
 		this.occupiedDiskSpaceBytes = occupiedDiskSpaceBytes;
 		this.oldestCatalogVersionTimestampSeconds = oldestCatalogVersionTimestampSeconds == null ?
 			0L : oldestCatalogVersionTimestampSeconds.toEpochSecond();
+		this.retainedHistorySizeBytes = retainedHistorySizeBytes;
 	}
 }

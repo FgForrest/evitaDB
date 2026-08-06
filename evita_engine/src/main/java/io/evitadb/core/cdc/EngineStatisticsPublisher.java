@@ -120,7 +120,8 @@ public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCa
 			catalogName,
 			0,
 			0,
-			null
+			null,
+			0
 		).commit();
 		// emit nullifying WAL event
 		new WalStatisticsEvent(

@@ -23,11 +23,18 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
+import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.shared.model.FileLocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,13 +42,22 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Supplier;
 
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the active-reader floor tracking exposed by {@link ObsoleteFileMaintainer} through its public API.
@@ -173,13 +189,168 @@ class ObsoleteFileMaintainerTest {
 	 */
 	@Nonnull
 	private ObsoleteFileMaintainer newMaintainer(boolean timeTravelEnabled) {
+		return newMaintainer(timeTravelEnabled, NO_OP_SUPPLIER);
+	}
+
+	/**
+	 * Builds an {@link ObsoleteFileMaintainer} bound to the per-test scheduler and temporary storage path, using
+	 * the supplied source of the oldest retained data file info.
+	 *
+	 * @param timeTravelEnabled           whether the maintainer should operate in time-travel mode
+	 * @param oldestDataFilesInfoSupplier source of the oldest retained bootstrap record and its catalog header
+	 * @return a freshly constructed maintainer that the caller is responsible for closing
+	 */
+	@Nonnull
+	private ObsoleteFileMaintainer newMaintainer(
+		boolean timeTravelEnabled,
+		@Nonnull Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier
+	) {
 		return new ObsoleteFileMaintainer(
 			CATALOG_NAME,
 			this.scheduler,
 			this.catalogStoragePath,
 			timeTravelEnabled,
-			NO_OP_SUPPLIER
+			oldestDataFilesInfoSupplier
 		);
+	}
+
+	/**
+	 * Verifies which data files the time-travel WAL-rotation purge deletes and which it must leave alone.
+	 *
+	 * The purge keeps everything the **oldest retained** bootstrap record still pins and drops everything below it.
+	 * The interesting cases are the entity collections whose primary key is absent from that record's catalog
+	 * header, because absence has two opposite causes that must not be treated alike.
+	 */
+	@Nested
+	@DisplayName("Time-travel purge of obsolete data files")
+	class TimeTravelPurge {
+
+		/**
+		 * Entity type of the collection that already existed at the oldest retained version.
+		 */
+		private static final String RETAINED_ENTITY_TYPE = "product";
+
+		/**
+		 * Primary key of {@link #RETAINED_ENTITY_TYPE}; also the watermark stored in the oldest retained header.
+		 */
+		private static final int RETAINED_ENTITY_PK = 1;
+
+		@Test
+		@DisplayName("Files below the oldest retained generation are deleted, the pinned ones survive")
+		void shouldDeleteOnlyFilesBelowOldestRetainedGeneration() throws IOException {
+			final Path obsoleteCatalogFile = createFile(getCatalogDataStoreFileName(CATALOG_NAME, 0));
+			final Path retainedCatalogFile = createFile(getCatalogDataStoreFileName(CATALOG_NAME, 1));
+			final Path obsoleteCollectionFile = createFile(
+				getEntityCollectionDataStoreFileName(RETAINED_ENTITY_TYPE, RETAINED_ENTITY_PK, 0));
+			final Path retainedCollectionFile = createFile(
+				getEntityCollectionDataStoreFileName(RETAINED_ENTITY_TYPE, RETAINED_ENTITY_PK, 1));
+
+			purgeWithOldestRetainedGeneration(RETAINED_ENTITY_PK);
+
+			assertFalse(obsoleteCatalogFile.toFile().exists(), "catalog file below the retained index must be gone");
+			assertTrue(retainedCatalogFile.toFile().exists(), "pinned catalog file must survive");
+			assertFalse(
+				obsoleteCollectionFile.toFile().exists(), "collection file below the retained index must be gone");
+			assertTrue(retainedCollectionFile.toFile().exists(), "pinned collection file must survive");
+		}
+
+		@Test
+		@DisplayName("Files of a collection created after the retention floor survive")
+		void shouldKeepFilesOfCollectionCreatedAfterRetentionFloor() throws IOException {
+			// a collection created after the oldest retained version is absent from that version's catalog header,
+			// but its primary key is above the watermark that header recorded - every file it has was written
+			// later and is still pinned by a retained bootstrap record, including the live one
+			final int laterEntityPk = RETAINED_ENTITY_PK + 1;
+			final Path liveFileOfNewCollection = createFile(
+				getEntityCollectionDataStoreFileName("brand", laterEntityPk, 0));
+			createFile(getCatalogDataStoreFileName(CATALOG_NAME, 1));
+
+			purgeWithOldestRetainedGeneration(RETAINED_ENTITY_PK);
+
+			assertTrue(
+				liveFileOfNewCollection.toFile().exists(),
+				"the only data file of a collection created after the retention floor must not be deleted"
+			);
+		}
+
+		@Test
+		@DisplayName("Files of a collection dropped before the retention floor are reclaimed")
+		void shouldDeleteFilesOfCollectionDroppedBeforeRetentionFloor() throws IOException {
+			// a collection whose primary key is at or below the watermark, yet absent from the header, existed once
+			// and was dropped - no retained record can reach its files any more
+			final Path fileOfDroppedCollection = createFile(
+				getEntityCollectionDataStoreFileName("store", RETAINED_ENTITY_PK, 3));
+			createFile(getCatalogDataStoreFileName(CATALOG_NAME, 1));
+
+			// watermark above the dropped collection's key, and the header lists no collection at all
+			purgeWithOldestRetainedGeneration(RETAINED_ENTITY_PK + 5, Map.of());
+
+			assertFalse(
+				fileOfDroppedCollection.toFile().exists(),
+				"files of a collection dropped before the retention floor must be reclaimed"
+			);
+		}
+
+		/**
+		 * Runs the time-travel purge against an oldest-retained generation that pins catalog file index `1` and
+		 * the single {@link #RETAINED_ENTITY_TYPE} collection at file index `1`.
+		 *
+		 * @param lastEntityCollectionPrimaryKey watermark recorded in the oldest retained catalog header
+		 */
+		private void purgeWithOldestRetainedGeneration(int lastEntityCollectionPrimaryKey) {
+			purgeWithOldestRetainedGeneration(
+				lastEntityCollectionPrimaryKey,
+				Map.of(
+					RETAINED_ENTITY_TYPE,
+					new CollectionFileReference(RETAINED_ENTITY_TYPE, RETAINED_ENTITY_PK, 1, null)
+				)
+			);
+		}
+
+		/**
+		 * Runs the time-travel purge against an oldest-retained generation that pins catalog file index `1` and
+		 * the supplied collection references.
+		 *
+		 * @param lastEntityCollectionPrimaryKey watermark recorded in the oldest retained catalog header
+		 * @param collectionFileIndex            collections alive at the oldest retained version
+		 */
+		private void purgeWithOldestRetainedGeneration(
+			int lastEntityCollectionPrimaryKey,
+			@Nonnull Map<String, CollectionFileReference> collectionFileIndex
+		) {
+			final DataFilesBulkInfo oldestGeneration = new DataFilesBulkInfo(
+				new CatalogBootstrap(1L, 1, OffsetDateTime.now(), new FileLocation(0L, 1)),
+				new CatalogHeader<>(
+					PersistenceService.STORAGE_PROTOCOL_VERSION,
+					1L,
+					null,
+					collectionFileIndex,
+					Map.of(),
+					UUID.randomUUID(),
+					CATALOG_NAME,
+					CatalogState.ALIVE,
+					lastEntityCollectionPrimaryKey,
+					1.0
+				)
+			);
+			try (
+				ObsoleteFileMaintainer maintainer = newMaintainer(true, () -> oldestGeneration)
+			) {
+				maintainer.createWalPurgeCallback().purgeFilesUpTo(1L);
+			}
+		}
+
+		/**
+		 * Creates an empty file with the given name inside the temporary catalog storage path.
+		 *
+		 * @param fileName name of the file to create
+		 * @return path of the created file
+		 */
+		@Nonnull
+		private Path createFile(@Nonnull String fileName) throws IOException {
+			return Files.createFile(ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(fileName));
+		}
+
 	}
 
 }

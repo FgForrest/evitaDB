@@ -56,6 +56,7 @@ storage:                                          # [see Storage configuration](
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
+  timeTravelSizeLimitBytes: 1GB
   minCompactionIntervalMilliseconds: 1m
   maxWasteActiveShare: 0.1
 
@@ -681,6 +682,34 @@ This section contains configuration options for the storage layer of the databas
         as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point
         in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in
         time with all the data available at that time.</p>
+        <p>How much disk that history may consume is bounded by `timeTravelSizeLimitBytes`.</p>
+    </dd>
+    <dt>timeTravelSizeLimitBytes</dt>
+    <dd>
+        <p>**Default:** `1GB`</p>
+        <p>Upper bound on the disk space the retained history may occupy **on top of the active data set**, per
+            catalog. The setting is inert unless `timeTravelEnabled` is `true`, because otherwise no historical data
+            file is kept at all.</p>
+        <p>The cost of time travel is not per transaction - it is one full data file copy per compaction, because
+            with time travel enabled the compacted-away file is kept instead of deleted. Compaction fires on a single
+            file's waste and size, while write-ahead log rotation fires on appended bytes, so the write-ahead log
+            retention settings (`walFileSizeBytes` × `walFileCountKept`) bound WAL bytes but say nothing about disk
+            bytes. This limit is what actually bounds them: whenever retained history exceeds it, the oldest
+            generations are given up until it fits again.</p>
+        <p>Two properties follow from how compaction works and cannot be configured away:</p>
+        <p>- The limit **cannot bound peak usage below one generation**. A compaction writes the full new copy before
+            the old file may be dropped, so the transient peak is roughly *active + old file* regardless of the value
+            set here.</p>
+        <p>- If the limit **cannot hold even a single generation**, the retained history is effectively zero and time
+            travel stops working. That is the correct reading of the instruction rather than an error, so it is
+            reported through a warning in the log instead of being overridden - a minimum-retention floor able to
+            exceed the byte limit would break the contract this setting states.</p>
+        <p>A negative value means *no limit* and restores the pre-2026.2 behavior, where retention was bounded only by
+            the write-ahead log - which is the unbounded-growth characteristic this limit exists to remove. A value of
+            `0` keeps no history at all.</p>
+        <p>Switching the limit off does **not** switch off housekeeping: data files that no retained point in time can
+            reach any more are reclaimed regardless of the value set here. Those files are not history - nothing can
+            travel to them - so no budget, however generous, is a reason to keep them.</p>
     </dd>
     <dt>minCompactionIntervalMilliseconds</dt>
     <dd>

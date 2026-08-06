@@ -514,8 +514,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					TransactionOptions.builder().build()
 				),
 				Mockito.mock(Scheduler.class),
-				Functions.noOpLongConsumer(),
-				null
+				Functions.noOpLongConsumer()
 			)
 		) {
 

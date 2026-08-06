@@ -31,6 +31,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.observability.trace.DefaultTracingContext;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -106,6 +107,8 @@ import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -122,11 +125,14 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -135,6 +141,8 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
+import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.countObsoletePersistenceServices;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.deserializeCatalogBootstrapRecord;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatalogBootstrapForSpecificMoment;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getFirstCatalogBootstrap;
@@ -143,6 +151,7 @@ import static io.evitadb.store.catalog.DefaultIsolatedWalServiceTest.SCHEMA_MUTA
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfLongInOrderedArray;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
@@ -658,25 +667,39 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertNotNull(last);
 			assertEquals(13, last.catalogVersion());
 
+			// a point-in-time lookup resolves the state AS OF the moment - the newest record whose timestamp is not
+			// after it - so it may never return a record stamped later than the requested moment. Versions 2..13
+			// carry the timestamp `startTime + version hours`, versions 0 and 1 both carry `startTime`.
 			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime);
 			assertNotNull(m0);
-			assertEquals(0, m0.catalogVersion());
+			assertEquals(1, m0.catalogVersion());
 
 			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5));
 			assertNotNull(m1);
 			assertEquals(5, m1.catalogVersion());
 
+			// one minute PAST the version 5 checkpoint: version 6 is still an hour in the future of the requested
+			// moment and must not be handed back
 			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).plusMinutes(1));
 			assertNotNull(m2);
-			assertEquals(6, m2.catalogVersion());
+			assertEquals(5, m2.catalogVersion());
 
+			// one minute BEFORE the version 5 checkpoint: the state at that moment is still version 4
 			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).minusMinutes(1));
 			assertNotNull(m3);
-			assertEquals(5, m3.catalogVersion());
+			assertEquals(4, m3.catalogVersion());
 
 			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(15));
 			assertNotNull(m4);
 			assertEquals(13, m4.catalogVersion());
+
+			// a moment that precedes the whole retained history has no state to return - reporting the oldest
+			// retained record instead would silently answer a different question than the one asked
+			assertThrows(
+				TemporalDataNotAvailableException.class,
+				() -> getCatalogBootstrapForSpecificMoment(
+					catalogName, storageSettings, startTime.minusMinutes(1))
+			);
 		} finally {
 			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
 		}
@@ -809,6 +832,49 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			trimAndCheck(ioService, 7, 7, 6);
 			trimAndCheck(ioService, 8, 8, 5);
 		}
+	}
+
+	@Test
+	@DisplayName("Trimming marks every generation below the history floor obsolete, but never the one serving it")
+	void shouldCountObsoletePersistenceServicesBelowHistoryFloor() {
+		// generations registered at these versions; the one at or below the floor still serves it, because
+		// `getStoragePartPersistenceService` resolves a version to the closest registered version at or below it
+		final long[] registeredVersions = {0L, 10L, 20L, 30L};
+
+		// floor lands exactly on a registered generation -> everything strictly below it is obsolete
+		assertEquals(
+			2,
+			countObsoletePersistenceServices(
+				computeInsertPositionOfLongInOrderedArray(20L, registeredVersions))
+		);
+
+		// floor lands BETWEEN two generations - the case WAL-driven trimming produces almost every time, since the
+		// floor arrives as `lastVersionInFile + 1`. Generation 20 still serves version 25 and must be kept, so only
+		// the two below it are obsolete.
+		assertEquals(
+			2,
+			countObsoletePersistenceServices(
+				computeInsertPositionOfLongInOrderedArray(25L, registeredVersions))
+		);
+
+		// floor above every generation - the newest one still serves it
+		assertEquals(
+			3,
+			countObsoletePersistenceServices(
+				computeInsertPositionOfLongInOrderedArray(99L, registeredVersions))
+		);
+
+		// floor at or below the oldest generation - nothing may be dropped
+		assertEquals(
+			0,
+			countObsoletePersistenceServices(
+				computeInsertPositionOfLongInOrderedArray(0L, registeredVersions))
+		);
+		assertEquals(
+			0,
+			countObsoletePersistenceServices(
+				computeInsertPositionOfLongInOrderedArray(5L, registeredVersions))
+		);
 	}
 
 	@Nonnull
@@ -1049,6 +1115,284 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				}
 			}
 			return maxIndex == Integer.MAX_VALUE ? 0 : maxIndex;
+		}
+	}
+
+	/**
+	 * Verifies that the `timeTravelSizeLimitBytes` guard reclaims history on real files, exercising the plumbing the
+	 * pure {@link io.evitadb.store.catalog.TimeTravelRetention} tests cannot reach: the directory scan, the generation
+	 * pins read out of real catalog headers, and the seam that trims the bootstrap file and deletes the files.
+	 *
+	 * The guard is invoked synchronously here rather than through its {@link Scheduler} task, which is mocked away -
+	 * awaiting an asynchronous purge would only add flakiness to an otherwise deterministic assertion.
+	 */
+	@Nested
+	@DisplayName("Time travel size guard")
+	class TimeTravelSizeGuardTest {
+
+		/**
+		 * Number of catalog versions written - each one rewrites the catalog schema part and the catalog header, so
+		 * every round leaves the previous copies as waste and trips the compaction thresholds set below.
+		 */
+		private static final int VERSIONS_WRITTEN = 8;
+
+		/**
+		 * Storage options that compact on every round and keep the compacted-away file for time travel.
+		 *
+		 * @param timeTravelSizeLimitBytes the history budget under test
+		 * @return the storage options
+		 */
+		@Nonnull
+		private StorageOptions timeTravelStorageOptions(long timeTravelSizeLimitBytes) {
+			return StorageOptions.builder()
+				.storageDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.workDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.computeCRC32(true)
+				// compact whatever the file size, as soon as a single record of waste appears
+				.fileSizeCompactionThresholdBytes(1L)
+				.minimalActiveRecordShare(0.99)
+				.maxWasteActiveShare(0.99)
+				.minCompactionIntervalMilliseconds(0L)
+				.timeTravelEnabled(true)
+				.timeTravelSizeLimitBytes(timeTravelSizeLimitBytes)
+				.build();
+		}
+
+		/**
+		 * Transaction options with checkpointing at the end of every round, so each version publishes its bootstrap
+		 * record immediately instead of deferring it behind the checkpoint interval.
+		 *
+		 * @return the transaction options
+		 */
+		@Nonnull
+		private TransactionOptions eagerCheckpointTransactionOptions() {
+			return TransactionOptions.builder()
+				.transactionWorkDirectory(getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.checkpointIntervalInMillis(0L)
+				.build();
+		}
+
+		/**
+		 * Writes {@link #VERSIONS_WRITTEN} catalog versions, each leaving the previous catalog data file behind.
+		 *
+		 * @param ioService the service under test
+		 */
+		private void writeSeveralGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
+			final UUID catalogId = UUIDUtil.randomUUID();
+			long catalogVersion = 0L;
+			for (int i = 0; i < VERSIONS_WRITTEN; i++) {
+				ioService.getStoragePartPersistenceService(catalogVersion)
+					.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+				ioService.storeHeader(
+					catalogId,
+					CatalogState.ALIVE,
+					catalogVersion,
+					1,
+					null,
+					Collections.emptyList(),
+					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(catalogVersion))
+				);
+				// the first round transitions the catalog to ALIVE and lands on version 1 internally
+				catalogVersion = catalogVersion == 0L ? 2L : catalogVersion + 1L;
+			}
+		}
+
+		/**
+		 * Writes {@link #VERSIONS_WRITTEN} warm-up flushes, each leaving the previous catalog data file behind.
+		 *
+		 * Warm-up rewrites the bootstrap file down to a single record on every flush, so the files left behind by its
+		 * compactions are not history at all - no bootstrap record can reach them. Nothing else ever sweeps them
+		 * either: the write-ahead log purge that normally would has no log to fire from here.
+		 *
+		 * @param ioService the service under test
+		 */
+		private void writeSeveralWarmUpGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
+			final UUID catalogId = UUIDUtil.randomUUID();
+			for (int i = 0; i < VERSIONS_WRITTEN; i++) {
+				ioService.getStoragePartPersistenceService(0L)
+					.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+				ioService.storeHeader(
+					catalogId,
+					CatalogState.WARMING_UP,
+					0L,
+					1,
+					null,
+					Collections.emptyList(),
+					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+				);
+			}
+		}
+
+		/**
+		 * Lists the catalog data files present in the catalog folder, newest index last.
+		 *
+		 * @return the catalog data files sorted by their file index
+		 */
+		@Nonnull
+		private List<File> listCatalogDataFiles() {
+			final Path catalogDirectory = getTestDirectory()
+				.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
+				.resolve(TEST_CATALOG);
+			return Arrays.stream(
+					Objects.requireNonNull(
+						catalogDirectory.toFile().listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+					)
+				)
+				.sorted(Comparator.comparingInt(file -> getIndexFromCatalogFileName(file.getName())))
+				.toList();
+		}
+
+		@Test
+		@DisplayName("should give up every generation of history when the budget cannot hold one")
+		void shouldGiveUpEveryGenerationWhenBudgetCannotHoldOne() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				// precondition - compaction really produced history to reclaim, else the assertions below are vacuous
+				final List<File> beforeGuard = listCatalogDataFiles();
+				assertTrue(
+					beforeGuard.size() > 2,
+					"expected several catalog data files to accumulate, got " + beforeGuard.size()
+				);
+				assertTrue(ioService.computeRetainedHistoryBytes() > 0L);
+
+				ioService.enforceTimeTravelSizeLimit();
+
+				final List<File> afterGuard = listCatalogDataFiles();
+				assertEquals(
+					1, afterGuard.size(),
+					"a zero budget must leave only the active generation, got " + afterGuard.size() + " files"
+				);
+				// the surviving file must be the newest one - reclaiming from the wrong end would destroy the catalog
+				assertEquals(
+					beforeGuard.get(beforeGuard.size() - 1).getName(),
+					afterGuard.get(0).getName()
+				);
+				assertEquals(0L, ioService.computeRetainedHistoryBytes());
+			}
+		}
+
+		@Test
+		@DisplayName("should reclaim a warm-up catalog's leftovers, which no bootstrap record can reach")
+		void shouldReclaimWarmUpLeftovers() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralWarmUpGenerations(ioService);
+
+				final List<File> beforeGuard = listCatalogDataFiles();
+				assertTrue(
+					beforeGuard.size() > 2,
+					"expected several catalog data files to accumulate, got " + beforeGuard.size()
+				);
+
+				ioService.enforceTimeTravelSizeLimit();
+
+				final List<File> afterGuard = listCatalogDataFiles();
+				assertEquals(
+					1, afterGuard.size(),
+					"warm-up leftovers must be reclaimable too, got " + afterGuard.size() + " files"
+				);
+				assertEquals(
+					beforeGuard.get(beforeGuard.size() - 1).getName(),
+					afterGuard.get(0).getName()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should reclaim unreachable files even when the operator asked for unlimited history")
+		void shouldReclaimUnreachableFilesUnderAnUnlimitedBudget() {
+			// unlike the sibling tests this one goes through the scheduler rather than calling the guard directly:
+			// what is under test is precisely the wiring - an unlimited budget used to leave the guard task unbound,
+			// so nothing ever called the method the other tests invoke by hand
+			final Scheduler scheduler = Mockito.mock(Scheduler.class);
+			final ArgumentCaptor<Runnable> scheduledTask = ArgumentCaptor.forClass(Runnable.class);
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// a negative limit means unlimited history - it switches off the budget, not the reclamation of
+					// files no bootstrap record can reach. Those were never history, and an operator asking for
+					// unlimited history is precisely the one who would otherwise never get them back.
+					timeTravelStorageOptions(-1L),
+					eagerCheckpointTransactionOptions(),
+					scheduler,
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralWarmUpGenerations(ioService);
+
+				final List<File> beforeGuard = listCatalogDataFiles();
+				assertTrue(
+					beforeGuard.size() > 2,
+					"expected several catalog data files to accumulate, got " + beforeGuard.size()
+				);
+
+				// run whatever compaction planned on this thread instead of racing the scheduler
+				Mockito.verify(scheduler, Mockito.atLeastOnce())
+					.schedule(scheduledTask.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+				scheduledTask.getAllValues().forEach(Runnable::run);
+
+				final List<File> afterGuard = listCatalogDataFiles();
+				assertEquals(
+					1, afterGuard.size(),
+					"an unlimited budget is no reason to keep unreachable files, got " + afterGuard.size() + " files"
+				);
+				assertEquals(
+					beforeGuard.get(beforeGuard.size() - 1).getName(),
+					afterGuard.get(0).getName()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should keep every reachable generation when the history already fits the budget")
+		void shouldKeepEveryReachableGenerationWhenHistoryFitsTheBudget() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(Long.MAX_VALUE),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				assertTrue(listCatalogDataFiles().size() > 2);
+				final long historyBefore = ioService.computeRetainedHistoryBytes();
+				assertTrue(historyBefore > 0L);
+
+				ioService.enforceTimeTravelSizeLimit();
+
+				// the horizon must not have moved: the reachable history is exactly what it was. The file list may
+				// still shrink, because the guard also sweeps files no retained record can reach - those were never
+				// history and no budget, however generous, is a reason to keep them.
+				final List<File> afterGuard = listCatalogDataFiles();
+				assertTrue(afterGuard.size() > 1, "the reachable history must survive a budget that fits it");
+				assertEquals(historyBefore, ioService.computeRetainedHistoryBytes());
+
+				// and it is idempotent - a second run has nothing left to reclaim
+				ioService.enforceTimeTravelSizeLimit();
+				assertEquals(
+					afterGuard.stream().map(File::getName).toList(),
+					listCatalogDataFiles().stream().map(File::getName).toList()
+				);
+			}
 		}
 	}
 

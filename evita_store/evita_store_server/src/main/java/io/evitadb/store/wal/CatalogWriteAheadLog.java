@@ -87,13 +87,12 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	 */
 	private final String catalogName;
 	/**
-	 * This lambda allows trimming the bootstrap file to the given date.
+	 * Advances the history horizon of the catalog - trims the bootstrap file and reclaims the data files that fall
+	 * below the given catalog version. WAL retention is one of two independent drivers of that seam (the other being
+	 * the `timeTravelSizeLimitBytes` guard), which is why the log only reports the floor it needs and leaves clamping,
+	 * ordering and idempotency to the seam itself.
 	 */
-	protected final LongConsumer bootstrapFileTrimmer;
-	/**
-	 * Callback to be called when the WAL file is purged.
-	 */
-	protected final WalPurgeCallback onWalPurgeCallback;
+	protected final LongConsumer historyHorizonAdvancer;
 
 	/**
 	 * Creates a new instance of CatalogTransactionChanges based on the given parameters.
@@ -143,8 +142,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	 * @param kryoPool               pool of Kryo instances for serialization
 	 * @param storageSettings        storage configuration including checksum and compression factories
 	 * @param scheduler              scheduler for background tasks
-	 * @param bootstrapFileTrimmer   callback to trim the bootstrap file after WAL purge
-	 * @param onWalPurgeCallback     callback invoked when WAL files are purged
+	 * @param historyHorizonAdvancer callback advancing the catalog history horizon once WAL files are purged
 	 */
 	public CatalogWriteAheadLog(
 		long catalogVersion,
@@ -154,8 +152,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 		@Nonnull Pool<Kryo> kryoPool,
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull Scheduler scheduler,
-		@Nonnull LongConsumer bootstrapFileTrimmer,
-		@Nonnull WalPurgeCallback onWalPurgeCallback
+		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
 		super(
 			catalogVersion,
@@ -167,8 +164,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
-		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
-		this.onWalPurgeCallback = onWalPurgeCallback;
+		this.historyHorizonAdvancer = historyHorizonAdvancer;
 	}
 
 	/**
@@ -203,8 +199,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
-		this.bootstrapFileTrimmer = null;
-		this.onWalPurgeCallback = null;
+		this.historyHorizonAdvancer = null;
 	}
 
 	@Override
@@ -292,15 +287,9 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	@Override
 	protected void updateFirstVersionKept(long firstVersionToBeKept) {
-		// clamp the version by the active-reader floor so that neither the bootstrap-record trimming nor the catalog
-		// data file purge ever removes data still needed by an active reader (time-travel invariant)
-		final long effectiveVersionToBeKept = this.onWalPurgeCallback.effectivePurgeVersion(firstVersionToBeKept);
-		// first trim the bootstrap record file
-		this.bootstrapFileTrimmer.accept(effectiveVersionToBeKept);
-		// call the listener to remove the obsolete files
-		if (effectiveVersionToBeKept > -1) {
-			this.onWalPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
-		}
+		// WAL retention is only one of the floors the history horizon obeys - the seam clamps the request by the
+		// active-reader floor, trims the bootstrap file and reclaims the unreachable data files in one serialized step
+		this.historyHorizonAdvancer.accept(firstVersionToBeKept);
 	}
 
 	@Override

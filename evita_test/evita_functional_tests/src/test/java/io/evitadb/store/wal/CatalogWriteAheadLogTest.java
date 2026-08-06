@@ -199,8 +199,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 				TransactionOptions.builder().build()
 			),
 			Mockito.mock(Scheduler.class),
-			offsetDateTime -> {},
-			null
+			catalogVersion -> {}
 		);
 	}
 
@@ -228,8 +227,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
-			offsetDateTime -> {},
-			null
+			catalogVersion -> {}
 		);
 	}
 

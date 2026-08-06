@@ -38,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -309,6 +310,98 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	}
 
 	/**
+	 * Deletes every data file that no retained bootstrap record can reach any more.
+	 *
+	 * The threshold is not passed in - it is re-derived from the oldest record left in the bootstrap file, whose
+	 * catalog data file is by definition the lowest index kept and therefore guaranteed to be present. That makes this
+	 * method idempotent and independent of *how* the bootstrap file came to be trimmed, which is what lets the size
+	 * guard call it directly: during warm-up every bootstrap record carries catalog version `0`, so a version-keyed
+	 * entry point like {@link ObsoleteWalPurgeCallback#purgeFilesUpTo(long)} would refuse every call after the first.
+	 */
+	public void reclaimUnreachableFiles() {
+		assertNotClosed();
+		if (!this.timeTravelEnabled) {
+			// without time travel nothing is ever left behind to reclaim - files go as soon as their last reader leaves
+			return;
+		}
+		reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
+	}
+
+	/**
+	 * Deletes every catalog and entity collection data file that the given oldest retained generation cannot reach.
+	 * The survivor rules are shared with the size guard through {@link TimeTravelRetention} so the two cannot drift
+	 * apart - one predicts the bytes the other actually reclaims.
+	 *
+	 * @param activeFiles        the oldest retained bootstrap record and its catalog header, or `null` when unavailable
+	 * @param catalogStoragePath folder holding the catalog files
+	 */
+	private static void reclaimFilesUnreachableFrom(
+		@Nullable DataFilesBulkInfo activeFiles,
+		@Nonnull Path catalogStoragePath
+	) {
+		if (activeFiles == null) {
+			return;
+		}
+		final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
+		final Map<Integer, Integer> entityFileIndex = activeFiles
+			.catalogHeader()
+			.getEntityTypeFileIndexes()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					CollectionFileReference::entityTypePrimaryKey,
+					CollectionFileReference::fileIndex
+				)
+			);
+		// The highest entity type primary key that had been assigned at the oldest retained version. Entity type
+		// primary keys come from a monotonic sequence and are never reused, so this cleanly separates the two reasons
+		// a key can be missing from the header above: above the watermark the collection did not exist yet, below it
+		// the collection existed once and was dropped.
+		final int lastEntityTypePrimaryKeyAtOldestVersion = activeFiles
+			.catalogHeader()
+			.lastEntityCollectionPrimaryKey();
+
+		ofNullable(
+			catalogStoragePath.toFile()
+				.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
+		)
+			.stream()
+			.flatMap(Arrays::stream)
+			.filter(
+				file -> TimeTravelRetention.isCatalogDataFileObsolete(
+					getIndexFromCatalogFileName(file.getName()), firstUsedCatalogDataFileIndex))
+			.forEach(file -> {
+				if (file.delete()) {
+					log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
+				} else {
+					log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
+				}
+			});
+
+		ofNullable(
+			catalogStoragePath.toFile()
+				.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
+		)
+			.stream()
+			.flatMap(Arrays::stream)
+			.filter(file -> {
+				final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(
+					file.getName());
+				return TimeTravelRetention.isEntityCollectionFileObsolete(
+					result.entityTypePrimaryKey(), result.fileIndex(),
+					entityFileIndex, lastEntityTypePrimaryKeyAtOldestVersion
+				);
+			})
+			.forEach(file -> {
+				if (file.delete()) {
+					log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
+				} else {
+					log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
+				}
+			});
+	}
+
+	/**
 	 * Purges the specified maintained file.
 	 *
 	 * This method deletes the specified maintained file from the file system. If the deletion is successful,
@@ -415,61 +508,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				// then purge all obsolete files in the folders - the threshold is derived from the oldest bootstrap
 				// record still retained on disk (whose data file is guaranteed to exist), not from an exact-version
 				// lookup that may reference an already purged file
-				ofNullable(this.oldestDataFilesInfoSupplier.get())
-					.ifPresent(
-						activeFiles -> {
-							final int firstUsedCatalogDataFileIndex = activeFiles.bootstrapRecord().catalogFileIndex();
-							final Map<Integer, Integer> entityFileIndex = activeFiles
-								.catalogHeader()
-								.getEntityTypeFileIndexes()
-								.stream()
-								.collect(
-									Collectors.toMap(
-										CollectionFileReference::entityTypePrimaryKey,
-										CollectionFileReference::fileIndex
-									)
-								);
-
-							ofNullable(
-								this.catalogStoragePath.toFile()
-									.listFiles((dir, name) -> name.endsWith(CATALOG_FILE_SUFFIX))
-							)
-								.stream()
-								.flatMap(Arrays::stream)
-								.filter(
-									file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
-								.forEach(file -> {
-									if (file.delete()) {
-										log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
-									} else {
-										log.warn("Could not delete obsolete catalog file `{}`", file.getAbsolutePath());
-									}
-								});
-
-							ofNullable(
-								this.catalogStoragePath.toFile()
-									.listFiles((dir, name) -> name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX))
-							)
-								.stream()
-								.flatMap(Arrays::stream)
-								.filter(file -> {
-									final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(
-										file.getName());
-									final Integer firstUsedEntityFileIndex = entityFileIndex.get(
-										result.entityTypePrimaryKey());
-									return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
-								})
-								.forEach(file -> {
-									if (file.delete()) {
-										log.debug(
-											"Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
-									} else {
-										log.warn(
-											"Could not delete entity collection file `{}`", file.getAbsolutePath());
-									}
-								});
-						}
-					);
+				reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
 			} else {
 				// this callback was already called with this or newer catalog version
 			}
