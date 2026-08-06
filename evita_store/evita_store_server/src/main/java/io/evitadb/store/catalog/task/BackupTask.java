@@ -443,7 +443,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		for (int i = 0; i < servicesAndStatistics.walFiles().length; i++) {
 			final Path walFile = servicesAndStatistics.walFiles()[i];
 			try {
-				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + walFile.getFileName()));
+				// the file on disk carries the folder's storage prefix, the archive must carry the catalog name
+				final String entryName = CatalogFileNaming.canonicalizeTo(
+					walFile.getFileName().toString(), this.catalogName
+				);
+				zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entryName));
 				Files.copy(walFile, zipOutputStream);
 				zipOutputStream.closeEntry();
 				doUpdateProgress(backedUpRecords + i + 1, servicesAndStatistics.totalRecords());
