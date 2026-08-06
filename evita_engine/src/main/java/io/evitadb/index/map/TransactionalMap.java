@@ -32,6 +32,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +43,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
@@ -131,6 +133,53 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		this.valueType = TransactionalMap.class;
 		this.mapDelegate = mapDelegate;
 		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply(o);
+	}
+
+	/**
+	 * Returns the heap this map occupies, in bytes — the decorator itself plus the backing map, its bucket table,
+	 * one node per entry, and whatever the two sizers decide the keys and values are worth.
+	 *
+	 * The keys and values are the caller's to price because only the caller knows whether this map owns them. The
+	 * same {@link io.evitadb.index.bitmap.TransactionalBitmap} can sit in a map and be referenced from elsewhere, and
+	 * a key is frequently the very instance the owning index also holds as a field — pricing it in both places would
+	 * count one object twice. Return `0` from a sizer for anything this map merely borrows.
+	 *
+	 * The per-transaction {@link MapChanges} layer is deliberately **not** counted: it belongs to the transaction
+	 * that created it, not to this map, and it disappears on commit or rollback.
+	 *
+	 * See {@link MapHeapSize} for the one place the figure is an inference rather than a measurement — the bucket
+	 * table of a map created pre-sized above its eventual content.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		final VMLayout layout = VMLayout.current();
+		// id + mapDelegate/valueType/transactionalLayerWrapper slots. `valueType` addresses a Class object, which
+		// the JVM owns for the lifetime of its class loader, and the wrapper is a lambda shared with nobody but
+		// still only a reference here - both contribute their slot alone
+		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize())
+			+ getDelegateHeapSizeInBytes(keySizer, valueSizer);
+	}
+
+	/**
+	 * Returns the heap of the backing map alone — everything {@link #getHeapSizeInBytes} counts except this
+	 * decorator's own object, which the tests assert separately because a JOL walk of the decorator dies on the
+	 * lambda in {@link #transactionalLayerWrapper}.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the heap footprint of the backing map in bytes
+	 */
+	long getDelegateHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		return MapHeapSize.sizeOf(this.mapDelegate, keySizer, valueSizer);
 	}
 
 	/**

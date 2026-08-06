@@ -3196,7 +3196,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// column kind underneath, which only the caller knows. A primitive or front-coded leaf keeps no boxed
 			// key, so the separator here is owned outright; a BoxedObjectColumn leaf may hold the identical
 			// instance, and pricing it in both places would count one key twice inside a single tree
-			final int keyCount = keyCount();
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning separate arrays
+			final int keyCount = Math.max(this.peek, 0);
 			for (int i = 0; i < keyCount; i++) {
 				final M key = this.keys[i];
 				if (key != null) {

@@ -32,6 +32,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -135,6 +137,43 @@ class LongBPlusTreeHeapSizeTest {
 			final long largerOwn = larger.getHeapSizeInBytes()
 				- larger.getNodeGraphHeapSizeInBytes(element -> 0L);
 			assertEquals(own, largerOwn, "the tree's own object must not grow with the tree");
+		}
+	}
+
+	@Nested
+	@Tag(TRANSACTION)
+	@DisplayName("stays self-consistent when the calling thread holds a transactional layer")
+	class TransactionalLayerSafety {
+
+		@Test
+		void shouldNotBoundOneNodesArrayByAnotherNodesCount() {
+			final TransactionalLongBPlusTree<String> tree = buildTree(500);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// force splits INSIDE the transaction, so nodes acquire a layer whose key count runs ahead of
+					// the count committed on the instance itself. A node and its layer are two distinct objects with
+					// two distinct `children` arrays: a walk that measures one array while asking the other for its
+					// length reads slots the measured array never filled - a null child, and an NPE on the recursion
+					for (int i = 0; i < 500; i++) {
+						t.insert(1_000_000 + i, "txn-" + i);
+					}
+
+					// the walk must survive and stay positive; before the count and the array were paired on the same
+					// object this threw NullPointerException from the internal-node child loop
+					final long insideTransaction = t.getNodeGraphHeapSizeInBytes(element -> 0L);
+					assertTrue(
+						insideTransaction > 0,
+						"the walk must report a positive figure from inside a transaction, was " + insideTransaction
+					);
+				},
+				(original, committed) -> {
+					// and the committed tree is still exactly measurable afterwards - the transaction must not leave
+					// the walk reporting anything but the real graph
+					assertNodeGraphMatchesMeasuredHeap(original);
+				}
+			);
 		}
 	}
 }

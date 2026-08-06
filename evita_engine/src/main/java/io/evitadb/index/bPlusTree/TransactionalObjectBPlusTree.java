@@ -1358,7 +1358,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 			// separator keys are boxed here, and are often the very instances the leaves below hold, so they go
 			// through the caller's sizer rather than being charged unconditionally
-			final int keyCount = keyCount();
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning separate arrays
+			final int keyCount = Math.max(this.peek, 0);
 			for (int i = 0; i < keyCount; i++) {
 				final M key = this.keys[i];
 				if (key != null) {
@@ -2202,7 +2204,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> extends Ab
 			size += layout.sizeOfArray(this.keys.length, layout.referenceSize());
 			size += layout.sizeOfArray(this.values.length, layout.referenceSize());
 			// both the boxed keys and the stored values are the caller's to price
-			final int liveCount = keyCount();
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning separate arrays
+			final int liveCount = this.peek + 1;
 			for (int i = 0; i < liveCount; i++) {
 				final M key = this.keys[i];
 				if (key != null) {

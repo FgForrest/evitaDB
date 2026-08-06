@@ -36,6 +36,7 @@ import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -294,6 +295,26 @@ public class TransactionalUnorderedIntArray
 		final int[] sortedRecordIds = getArray().clone();
 		Arrays.sort(sortedRecordIds);
 		return new BaseBitmap(sortedRecordIds);
+	}
+
+	/**
+	 * Returns the heap this array occupies, in bytes.
+	 *
+	 * The figure is exact and covers both halves of the composite: the order-statistic {@link #positionTree} and the
+	 * {@link #valueIndex} that maps each record id back to its container's order-key. Both are wholly owned — this
+	 * class builds them in its own constructors and hands neither out — and both store only primitives, so there is
+	 * no shared payload anywhere beneath this object and no ownership question to delegate to a caller.
+	 *
+	 * `O(n)` in the number of nodes across the two trees.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + positionTree/valueIndex slots
+		return layout.sizeOfObject(Long.BYTES + 2L * layout.referenceSize())
+			+ this.positionTree.getHeapSizeInBytes()
+			+ this.valueIndex.getHeapSizeInBytes();
 	}
 
 	/**

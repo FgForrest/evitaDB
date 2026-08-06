@@ -1620,7 +1620,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			// the elements are exactly the case the sizer exists for: a PriceListAndCurrencyPriceRefIndex holds the
 			// very same PriceRecord instances as the super index, so it sizes this tree spine-only (sizer -> 0)
 			// while the super index, their real owner, charges the bodies
-			final int liveCount = keyCount();
+			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
+			// transactional layer, which is a separate node object owning a separate `values` array
+			final int liveCount = this.peek + 1;
 			for (int i = 0; i < liveCount; i++) {
 				final E value = this.values[i];
 				if (value != null) {

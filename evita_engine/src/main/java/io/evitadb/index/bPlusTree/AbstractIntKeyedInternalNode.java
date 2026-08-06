@@ -264,7 +264,10 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 		// separator keys are `int` values inside the array, so unlike a boxed-key tree there is nothing here for
 		// the sizer to price and no way for one key to be counted twice
-		final int childCount = keyCount() + 1;
+		// THIS instance's own count, deliberately not `keyCount()`: the accessor resolves the calling thread's
+		// transactional layer, and that layer is a separate node object with its OWN `children` array. Bounding the
+		// array measured above by another object's count walks slots this one never filled
+		final int childCount = Math.max(this.peek, 0) + 1;
 		for (int i = 0; i < childCount; i++) {
 			size += this.children[i].getHeapSizeInBytes(elementSizer);
 		}
