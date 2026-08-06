@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 16:00
+updated: 2026-08-06 17:30
 status: accepted
 kind: feature
 issues: [761]
@@ -241,11 +241,18 @@ to "I cannot configure my fleet uniformly".
 
 ### The deleter × guard matrix
 
-Four separate code paths remove something from the catalog folder, and each answers to a different
-set of guards. **Every defect found on this line of work is one of them failing to consult one of
-these** — which is why the matrix is the artifact worth keeping, not the prose around it. A cell
-reading *none* must be a decision somebody wrote down, never an omission nobody noticed. Restate it
-in the description of any change that touches a deleter or a guard.
+Every path that removes something from the catalog folder answers to a different set of guards.
+**Every defect found on this line of work is one of them failing to consult one of these** — which
+is why the matrix is the artifact worth keeping, not the prose around it. A cell reading *none* must
+be a decision somebody wrote down, never an omission nobody noticed. Restate it in the description
+of any change that touches a deleter or a guard.
+
+**Key it by sink, not by driver.** The first version of this matrix had one row reading
+`purgeObsoleteFiles → purgeFile`, which quietly asserts that `purgeObsoleteFiles` is the way into
+`purgeFile`. It is not — there are three doors, and the two that were missing are exactly the two
+cells a later review found empty. Enumerate the **call sites of the thing that deletes**, then ask
+each what it consults; a row named after a scheduled task will keep hiding the inline caller behind
+it. The sinks are `purgeFile`, `reclaimFilesUnreachableFrom`, and `removeWalFiles`.
 
 **1. `DefaultCatalogPersistenceService.trimBootstrapFile`** — drops bootstrap records and closes the
 catalog persistence services that fall below the new floor. Runs in **both** time-travel modes.
@@ -254,24 +261,96 @@ catalog persistence services that fall below the new floor. Runs in **both** tim
   the folder resolves nothing through the services it closes. A full backup additionally pins the
   oldest retained version, which freezes this path anyway.
 
-**2. `ObsoleteFileMaintainer.purgeObsoleteFiles` → `purgeFile`** — deletes a retired data file when
-time travel is off; in both modes it runs the removal lambda that closes the file's persistence
-service.
+**2. `purgeFile` — door 1 of 3: `ObsoleteFileMaintainer.purgeObsoleteFiles`** — deletes a retired
+data file when time travel is off; in both modes it runs the removal lambda that closes the file's
+persistence service.
 - *Version floor:* `lastKnownMinimalActiveVersion` only — the departure-reported floor, **not** the
   pins. See the open follow-up below; this is a documented gap, not a settled decision.
-- *Directory hold:* consulted.
+- *Directory hold:* consulted, through `runWithDirectoryExclusivity`.
 
-**3. `ObsoleteFileMaintainer.reclaimUnreachableFiles`** — deletes catalog and entity-collection files
-that no retained bootstrap record can reach. Time travel **on** only; with it off nothing is ever
-left behind to reclaim.
+**3. `purgeFile` — door 2 of 3: `removeFileWhenNotUsed` at `catalogVersion <= 0L`** — the warm-up
+eager path. Deletes **inline, on the commit thread**, without ever reaching the scheduled purge.
+Only the unlink is mode-dependent (`purgeFile` skips `delete()` with time travel on); the removal
+lambda runs in both modes.
+- *Version floor:* **none, and correctly so.** `<= 0` is a version tag, not a state test, and this
+  path exists precisely for the state where no meaningful version exists yet.
+- *Directory hold:* consulted. When held, the file is parked in `deferredEagerPurges` and taken by
+  the next pass that gets the folder to itself. This is the one deleter with no driver of its own to
+  bring it back, which is why what it defers has to be parked rather than dropped.
+
+**4. `purgeFile` — door 3 of 3: `ObsoleteFileMaintainer.close()`** — empties the folder of every
+maintained and every parked file when the catalog goes away.
+- *Version floor:* **none, deliberately.** It sets the floor to `0` on purpose: the catalog is being
+  discarded, so no version can still be owed anything.
+- *Directory hold:* **none, deliberately** — and this is the one cell where the hold is knowingly
+  overridden. The original comment here read *"database shuts down and there will be no active
+  sessions"*, which is **false**: `Evita.closeInternal` closes catalogs *before* `Scheduler.shutdown`
+  cancels the tasks queued against them, so a full backup can be holding the folder at exactly this
+  moment. Honouring the hold would not save that backup — its catalog is being torn down underneath
+  it either way — and would strand files on disk with nothing left to collect them. It fails loudly
+  instead, which is the honest outcome. *Revisit if:* backups ever become cancellable ahead of
+  catalog close, in which case draining them first is strictly better.
+
+**5. `ObsoleteFileMaintainer.reclaimUnreachableFiles` → `reclaimFilesUnreachableFrom`** — deletes
+catalog and entity-collection files that no retained bootstrap record can reach. Time travel **on**
+only; with it off nothing is ever left behind to reclaim. Single door — the WAL callback routes
+through this method rather than calling the sink directly, which is what keeps it that way.
 - *Version floor:* **none, by necessity.** It is reachability-keyed rather than version-keyed — see
   the section below for why that cannot be changed — and it needs no floor of its own, because its
   threshold is re-derived from the oldest record left after a trim that was already clamped.
 - *Directory hold:* consulted. This is the path the hold exists for.
 
-**4. `AbstractMutationLog.removeWalFiles`** — deletes write-ahead log files. Runs in both modes.
+**6. `AbstractMutationLog.removeWalFiles`** — deletes write-ahead log files. Runs in both modes.
 - *Version floor:* **none.** Pre-existing and unchanged by this work; see the open follow-up.
 - *Directory hold:* **none.** Same follow-up.
+
+### Acquire and release both have to survive a throw
+
+Every guard here is taken in one method and given back in another, and both ends have failed that way
+at least once. The rules the code now follows:
+
+- **A constructor that acquires must unwind its own acquisition.** A throw leaves no object behind:
+  `tearDown` is unreachable and the caller's cancel-on-rejected-submission has no task to cancel. Both
+  backup tasks wrap everything after the acquisition in a `catch` that closes the hold and rethrows.
+- **A tear-down that releases two things must release the second even if the first throws.** Giving
+  the folder back re-drives the reclamation it deferred, which is real work that can fail — and the
+  unpin sits after it. A full backup pins the *oldest* retained version, so a pin stranded that way
+  does not delay one reclamation, it stops every reclamation the catalog will ever do. Hence the
+  `finally`.
+- **Only the intolerant end may be intolerant.** `pinCatalogVersion` throws when the catalog cannot be
+  resolved, because a backup whose pin silently did not land runs unprotected for its whole life and
+  its own post-pin re-verification degrades back to the race it was written to close. Session
+  registration keeps its tolerance — but a tolerated skip is now *recorded*
+  (`versionsWithSkippedPin`), because releasing a pin that was never taken is not a no-op: by the time
+  the session closes the catalog may be back, and the release would decrement whatever pin somebody
+  else holds at that version.
+
+### `DelayedAsyncTask` had to stop losing wake-ups first
+
+Everything above that "defers and gets rescheduled" — the parked warm-up purge, the sweep a hold
+turned away, the guard woken by a released pin — rests on `schedule()` being reliable. It was not.
+`runTask` cleared `running` in its `finally` and only then called `pause()`; a `schedule()` arriving
+between the two planned nothing (a tick was still set) and recorded nothing (the task no longer
+looked busy), and the `pause()` then discarded the very tick it had deferred to. On an idle catalog
+the deferred work waited for an unrelated event that might never come.
+
+The next tick is now settled while `running` is still set and under `schedulingLock`. The same change
+fixes a second latent bug in that class: a run that threw skipped the re-planning entirely, leaving a
+stale tick behind that made every later `schedule()` a no-op — the task stayed dead for good after one
+exception. This is a shared class; the full `unitAndFunctional` suite is the check that matters.
+
+### The hold is exclusion, not a flag
+
+`CatalogDirectoryReadHold` reads as a counter, and a counter invites check-then-act: read zero,
+then delete, with the whole window in between for a backup to start. Acquisition and every deletion
+pass therefore share `directoryAccessLock`, so a hold either predates a pass entirely or waits for
+it to finish.
+
+The asymmetry in how that lock is taken is load-bearing. **Deleters `tryLock` and give up**, because
+every one of them is opportunistic work that the last release reschedules — and because door 2 runs
+on the commit thread underneath `cpsvLock`, which a deletion pass may itself need, so blocking there
+would invert the lock order. **Acquisition blocks**, because it runs while a backup task is being
+constructed, holding nothing else, and a deletion pass is bounded by the number of files it unlinks.
 
 ### The unreachable-file sweep, and why it is not an eager delete
 
@@ -347,10 +426,38 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   what made this the last unverified behaviour of the whole change.
 - `shouldRefuseAPointInTimeBackupOfAlreadyReclaimedHistory` — a backup whose record was reclaimed in
   the window between resolving it and pinning it must fail with `TemporalDataNotAvailableException`
-  and release the pin it took. Calibrated by removing the re-verification, where it silently proceeds
-  to copy files that are no longer there.
+  and release **both** the pin and the folder hold it took. Calibrated in two directions: removing
+  the re-verification makes it silently copy files that are no longer there; removing the
+  constructor's unwind leaves `isCatalogDirectoryHeld()` true (`expected: <false> but was: <true>`).
+  The second half matters more than it looks — this test resolves the version-0 go-live record, so it
+  drove the leaked-hold path on every run and asserted nothing about it.
+- `shouldToleratePinAndHoldReleaseAfterTheServiceClosed` — a backup tearing down against an
+  already-closed catalog must not throw. Calibrated by removing the closed guards:
+  `GenericEvitaInternalError: Cannot schedule task 'Time travel size guard' that has been closed.`
+  That throw escapes `Scheduler.shutdown`'s bare cancellation loop, which then skips the remaining
+  tasks and `executorService.shutdown()` — and the scheduler's threads are not daemons.
+- `ObsoleteFileMaintainerTest.WarmUpEagerPurge` — three tests over the inline warm-up deleter, all
+  with time travel **off**, which is the mode where it actually unlinks. Calibrated separately
+  because they guard two different things: restoring the ungated `purgeFile` call fails only
+  `shouldNotUnlinkTheWarmUpFileWhileTheFolderIsHeld` (`expected: <true> but was: <false>` — the file
+  was unlinked under a live backup), while removing the drain fails the other two, which is the
+  counterfactual that keeps a deferral from silently becoming a disk leak.
+- `DelayedAsyncTaskTest.shouldStillRunAfterAnExecutionThrew` — a task whose run throws must still be
+  schedulable afterwards. Calibrated by skipping the settle on the exception path: `Task never ran
+  again after an execution threw`. Its retry loop is bounded on purpose — with the tick left behind
+  no number of retries succeeds, and an unbounded loop hangs the build instead of failing it.
+- **The lost-wakeup half of that fix is not covered by a test.** It is a two-statement race with no
+  seam to drive, and per `.claude/rules/testing.md` that means either a `@Disabled` stress test in
+  `evita_long_running_tests` or an honest statement that it is uncovered. This is the statement. What
+  *is* covered is everything downstream of it — the deferred warm-up purge and the sweep a hold turns
+  away both come back — so a regression would surface as those tests going intermittent rather than
+  as silence.
 - Regression: `mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
-  -Dgroups="storage | wal | transaction | session | cdc"`.
+  -Dgroups="storage | wal | transaction | session | cdc"` — 3707 tests. The full `unitAndFunctional`
+  suite is the gate for the `DelayedAsyncTask` change, which is engine-wide: the storage subset does
+  **not** exercise it. The first attempt at that fix held `running` across the re-plan and broke three
+  `DelayedAsyncTaskTest` cases, because a zero-delay task fires its next run before the flag clears —
+  the subset run was green throughout.
 
 ## Consequences & open follow-ups
 
@@ -377,13 +484,42 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   to a different deleter. The exposure that remains is a point-in-time backup with time travel off,
   which is already of marginal value because retired files are unlinked eagerly in that mode. Revisit
   by measuring what the tightened floor actually retains before changing it.
-- **Open — write-ahead log removal is gated by nothing at all** (matrix row 4). `removeWalFiles`
+- **Open — write-ahead log removal is gated by nothing at all** (matrix row 6). `removeWalFiles`
   deletes its files consulting neither the retention floor nor the directory hold, in either mode, so
   a rotation during a full backup can remove a log file mid-walk. Not fixed here because the current
   failure is loud (`Files.copy` throws and the backup fails) rather than silent, and the deferral has
   a real cost: log removal would have to be held back behind a backup that may run for minutes.
   Closing it is natural once wanted — the deletions are already queued in `pendingRemovals`, so the
   drain simply must not run while a hold is up.
+- **Open — a session's version is captured before it is pinned** (`SessionRegistry`, around the
+  `registerSessionConsumingCatalogInVersion` call site). `newSession.getCatalogVersion()` is read,
+  and the pin lands a few statements later; a guard run in between can move the horizon past it.
+  **Declined for now**, on two counts: a session captures the *newest* version and the horizon can
+  never exceed the newest recorded version, so the window needs a budget tight enough to trim to the
+  current generation before it is reachable at all; and the failure is loud —
+  `getStoragePartPersistenceService` resolves to the closest service *at or below* the request and
+  throws when the request falls below every registered version, which is exactly what a prefix trim
+  leaves, so there is no silent-stale-read tier here. A real fix means capturing and pinning
+  atomically at session construction, which is a wider change than this line of work. Revisit if a
+  deployment ever runs a budget that tight; the symptom would be
+  `Catalog version N not found in the catalog persistence service versions!` at session open.
+- **Open — version pins route through the mutable by-name catalog lookup, the folder hold does not.**
+  `CatalogDirectoryReadHold` captures the maintainer it was taken on, precisely because a release
+  routed through a mutable reference can land on a different instance. `pinCatalogVersion` /
+  `unpinCatalogVersion` still resolve the catalog by name on both sides. Ordinary transactional
+  version swaps are safe (the new `Catalog` shares the same persistence service), but `replaceWith`
+  builds a fresh service with a fresh maintainer, so pins do not transfer and a late release can
+  decrement a *different* backup's pin at the same version number. **Declined for now** — it needs
+  two backups straddling a replacement with colliding version numbers, and the replacement swaps the
+  storage path out from under the captured service anyway, which is a wider pre-existing race. The
+  symmetric fix is to give pins the same lease treatment the hold got. Until then, an unpaired
+  release is at least logged rather than silent.
+- **Decided — a last reader leaving pays for the trim it unblocks.** `catalogConsumersLeft` ends in
+  `retentionStateChanged`, which can drain an owed horizon request synchronously: a bootstrap rewrite
+  plus file deletion, on the session-close thread, under `historyHorizonLock`. Handing it to the
+  guard task was considered and rejected — the guard exists only when a budget is configured, and the
+  request being drained is the write-ahead log driver's, which has no other way back. Correctness of
+  the drain outranks the latency of a session close.
 - **Follow-up — shrink the folder hold to a hardlink snapshot.** A full backup currently holds the
   folder for the whole of its copy. Hard-linking the catalog folder into a sibling directory
   (`Files.createLink`, same volume, works on POSIX and NTFS), releasing the hold, and zipping from the

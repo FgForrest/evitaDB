@@ -299,7 +299,8 @@ public class DelayedAsyncTask implements Closeable {
 	 * Executes the task and sets the running flag to false when the task is finished.
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
-		final long planWithShorterDelay;
+		long planWithShorterDelay = -1L;
+		boolean started = false;
 		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(
 			this.catalogName, this.taskName
 		);
@@ -308,6 +309,7 @@ public class DelayedAsyncTask implements Closeable {
 				this.running.compareAndSet(false, true),
 				"Task is already running."
 			);
+			started = true;
 			new BackgroundTaskStartedEvent(this.catalogName, this.taskName).commit();
 			planWithShorterDelay = runnable.getAsLong();
 			this.lastFinishedExecution.set(OffsetDateTime.now());
@@ -316,18 +318,38 @@ public class DelayedAsyncTask implements Closeable {
 			throw ex;
 		} finally {
 			finishEvent.commit();
-			Assert.isPremiseValid(
-				this.running.compareAndSet(true, false),
-				"Task is not running."
-			);
-		}
-		if (planWithShorterDelay > -1L) {
-			scheduleWithDelayShorterBy(planWithShorterDelay);
-		} else {
-			pause();
-			if (this.reSchedule.compareAndSet(true, false)) {
+			// guarded by `started`, so a run that never acquired the flag does not clear it, re-plan, or pause on
+			// behalf of the invocation that actually holds it
+			if (started) {
+				// Clearing the flag and settling the next tick has to be atomic against `schedule()`, which is why
+				// both happen under the scheduling lock rather than in the open. Without it there is a window between
+				// the two in which a concurrent `schedule()` is simply lost: it finds a tick still planned so it plans
+				// nothing, finds the task no longer running so it records nothing, and the `pause()` below then
+				// discards the very tick it deferred to. Callers that defer work and rely on the next `schedule()` to
+				// bring it back would then wait for an unrelated event that may never come.
+				//
+				// The flag is cleared *first* inside that block, and the order matters: re-planning a zero-delay task
+				// can fire the next run before this method returns, and it would fail its own "task is already
+				// running" premise if the flag were still set.
+				this.schedulingLock.lock();
+				try {
+					this.running.set(false);
+					if (planWithShorterDelay > -1L && !this.closed.get()) {
+						scheduleWithDelayShorterBy(planWithShorterDelay);
+					} else {
+						// also reached when the run threw. A failed run must not leave its planned tick behind
+						// either, or `schedule()` can never plan another one and the task stays dead for good
+						pause();
+					}
+				} finally {
+					this.schedulingLock.unlock();
+				}
+			}
+			// never on a closed task - this runs on the way out of a failed run too, and scheduling a closed task
+			// throws, which would replace the exception that actually explains the failure
+			if (started && !this.closed.get() && this.reSchedule.compareAndSet(true, false)) {
 				// reschedule the task if it was requested during the run
-				this.schedule();
+				schedule();
 			}
 		}
 	}

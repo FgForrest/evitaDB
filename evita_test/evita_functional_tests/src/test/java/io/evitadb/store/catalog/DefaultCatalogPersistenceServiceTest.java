@@ -1933,7 +1933,51 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					-1L, ioService.getRetentionFloor(),
 					"the pin taken for the rejected backup must be released again"
 				);
+
+				// the same goes for the folder hold - and it is the harder half to notice. The record resolved here
+				// is the version-0 go-live record, which is exactly the case the task takes a hold for, and a
+				// constructor that throws leaves no task behind for `tearDown` to reach. A hold left open that way
+				// is not a delayed reclamation but the end of reclamation for this catalog, with no symptom at all
+				assertFalse(
+					ioService.isCatalogDirectoryHeld(),
+					"the folder hold taken for the rejected backup must be given back too"
+				);
 			}
+		}
+
+		@Test
+		@DisplayName("should let a backup give its holds back after the catalog has already closed")
+		void shouldToleratePinAndHoldReleaseAfterTheServiceClosed() {
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				TEST_CATALOG,
+				timeTravelStorageOptions(0L),
+				eagerCheckpointTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			);
+			writeSeveralGenerations(ioService);
+
+			// exactly what a full backup holds for the whole of its run
+			final CatalogDirectoryReadHold directoryReadHold = ioService.acquireDirectoryReadHold();
+			ioService.catalogVersionPinned(1L);
+			// leave a request the floor refused outstanding, so the release below has something to drain. Draining it
+			// after the close would rewrite the bootstrap file of a service that is already shut
+			ioService.advanceHistoryHorizon(ioService.getLastCatalogVersion());
+
+			// catalogs are closed *before* the scheduler cancels the tasks queued against them, so a backup task
+			// cancelled during shutdown tears down against a service whose size guard is already closed - and
+			// scheduling a closed task throws. That throw escapes a bare cancellation loop and takes the rest of the
+			// shutdown with it, which is why tear-down here has to be silent rather than merely harmless
+			ioService.close();
+
+			assertDoesNotThrow(
+				directoryReadHold::close,
+				"a folder hold given back after the catalog closed must not throw out of the backup's tear-down"
+			);
+			assertDoesNotThrow(
+				() -> ioService.catalogVersionReleased(1L),
+				"a pin given back after the catalog closed must not throw out of the backup's tear-down"
+			);
 		}
 
 		@Test

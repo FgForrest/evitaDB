@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -126,6 +127,26 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	private final AtomicInteger directoryReadHolds = new AtomicInteger();
 	/**
+	 * Makes taking a hold mutually exclusive with a deletion pass, which the counter alone cannot do.
+	 *
+	 * Reading {@link #directoryReadHolds} and then deleting is check-then-act: a hold taken after the count was read
+	 * as zero but before the files were unlinked observes a folder that is already being emptied. Every deleter
+	 * therefore runs its whole pass under this lock, and acquisition takes it too.
+	 *
+	 * Deleters use {@code tryLock} and give up rather than wait - all of them are opportunistic housekeeping that the
+	 * last release reschedules, and one of them ({@link #removeFileWhenNotUsed}) runs on the commit thread while the
+	 * catalog persistence service lock is held, where blocking would invert the lock order.
+	 */
+	private final ReentrantLock directoryAccessLock = new ReentrantLock();
+	/**
+	 * Files the warm-up eager path had to hand over because the folder was held at the moment it wanted to delete.
+	 *
+	 * This is the one deleter with no driver of its own to come back on - it fires inline from a compaction and is
+	 * never retried - so what it defers has to be parked somewhere until a pass can take it. Drained by the next
+	 * deletion pass that gets the folder to itself, and by {@link #close()} so that nothing is left on disk.
+	 */
+	private final List<MaintainedFile> deferredEagerPurges = new CopyOnWriteArrayList<>();
+	/**
 	 * The supplier of the catalog header and bootstrap record for the oldest catalog version that is still retained on
 	 * disk (the first record in the bootstrap file). The catalog data file referenced by this bootstrap is, by
 	 * definition, the lowest index that is kept and therefore is guaranteed not to have been purged.
@@ -172,7 +193,18 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		final MaintainedFile fileToMaintain = new MaintainedFile(catalogVersion, path, removalLambda);
 		if (catalogVersion <= 0L) {
 			// version 0L represents catalog in WARM-UP (non-transactional) state where we apply all changes immediately
-			purgeFile(fileToMaintain);
+			// - but "immediately" still has to yield to a consumer reading the folder. This is the *other* door into
+			// `purgeFile`, and warm-up is exactly when a backup is most exposed: it holds the folder precisely because
+			// every flush strands the generation before it. Deferring costs a delayed unlink and a persistence service
+			// that stays registered a little longer; not deferring unlinks a file a backup is copying
+			if (!runWithDirectoryExclusivity(() -> purgeFile(fileToMaintain))) {
+				this.deferredEagerPurges.add(fileToMaintain);
+				if (!this.closed.get()) {
+					// a maintainer that closed in the meantime drains the parked list itself; scheduling a task it
+					// has already closed would only throw
+					this.purgeTask.schedule();
+				}
+			}
 		} else {
 			// if the first catalog version is not set, set it to the current catalog version
 			this.firstCatalogVersion.compareAndExchange(0, catalogVersion);
@@ -258,10 +290,28 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * @param catalogVersion the catalog version that no longer needs to remain readable
 	 */
 	public void catalogVersionReleased(long catalogVersion) {
+		// the flag has to be set inside the remapping function - `computeIfPresent` returns `null` both for a version
+		// that was never pinned and for the last pin of one that was, and only the first of those is a defect
+		final AtomicBoolean paired = new AtomicBoolean();
 		this.pinnedCatalogVersions.computeIfPresent(
 			catalogVersion,
-			(version, pinCount) -> pinCount <= 1 ? null : pinCount - 1
+			(version, pinCount) -> {
+				paired.set(true);
+				return pinCount <= 1 ? null : pinCount - 1;
+			}
 		);
+		if (!paired.get()) {
+			// an unpaired release means the pin and its release did not meet - a double release, or a consumer whose
+			// two calls resolved to different maintainer instances across a catalog replacement. Neither can be
+			// repaired from here, but both leave a phantom pin freezing retention on some *other* instance, and that
+			// is invisible unless it is said out loud. Not an exception: this runs on task tear-down paths that must
+			// complete
+			log.warn(
+				"Catalog version {} was released without a matching pin - retention on another catalog instance may " +
+					"be held by a pin that will never be given back.",
+				catalogVersion
+			);
+		}
 	}
 
 	/**
@@ -317,12 +367,20 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	public void close() {
 		if (this.closed.compareAndSet(false, true)) {
 			IOUtils.closeQuietly(this.purgeTask::close);
-			// clear all files immediately, database shuts down and there will be no active sessions
+			// clear all files immediately - the catalog is going away, so nothing that could still be reading them
+			// has anywhere to read them from. This is the one deleter that deliberately ignores the directory hold:
+			// a consumer walking a folder whose catalog is closing has already lost, and it finds out loudly. See
+			// the deleter matrix in `documentation/adr/2026-08-06-time-travel-disk-budget.md`
 			this.lastKnownMinimalActiveVersion.set(0L);
 			for (MaintainedFile maintainedFile : this.maintainedFiles) {
 				purgeFile(maintainedFile);
 			}
 			this.maintainedFiles.clear();
+			// anything the eager warm-up path parked would otherwise stay on disk with nothing left to collect it
+			for (MaintainedFile deferredPurge : this.deferredEagerPurges) {
+				purgeFile(deferredPurge);
+			}
+			this.deferredEagerPurges.clear();
 		}
 	}
 
@@ -351,14 +409,19 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * @return the next scheduled time for the purge task (always -1L - i.e. do not schedule again)
 	 */
 	private long purgeObsoleteFiles() {
-		if (isCatalogDirectoryHeld()) {
-			// with time travel off this is the deleter that actually unlinks a retired data file, and it is driven
-			// purely by the departure-reported active version - it never looks at pins. A consumer walking the folder
-			// is therefore invisible to it, which today is masked only by a full backup registering itself as if it
-			// were a read-write session. The hold is what makes that registration removable.
-			// Nothing is lost by deferring: `releaseDirectoryReadHold` reschedules this task
-			return -1L;
-		}
+		// with time travel off this is the deleter that actually unlinks a retired data file, and it is driven purely
+		// by the departure-reported active version - it never looks at pins. A consumer walking the folder is
+		// therefore invisible to it, which was masked only by a full backup registering itself as if it were a
+		// read-write session. The hold is what makes that registration removable.
+		// Nothing is lost by deferring: `releaseDirectoryReadHold` reschedules this task
+		runWithDirectoryExclusivity(this::purgeObsoleteFilesUnguarded);
+		return -1L;
+	}
+
+	/**
+	 * The body of {@link #purgeObsoleteFiles()}, to be run only with the folder held exclusively.
+	 */
+	private void purgeObsoleteFilesUnguarded() {
 		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
 		/* TOBEDONE JNO - this is only for debugging purposes, we should rely on events instead */
 		if (!this.maintainedFiles.isEmpty()) {
@@ -386,7 +449,6 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		}
 		this.maintainedFiles.removeAll(itemsToRemove);
 		this.firstCatalogVersion.set(newFirstCatalogVersion);
-		return -1L;
 	}
 
 	/**
@@ -404,20 +466,55 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			// without time travel nothing is ever left behind to reclaim - files go as soon as their last reader leaves
 			return;
 		}
-		if (isCatalogDirectoryHeld()) {
-			// "no retained bootstrap record reaches this file" is not the same as "nobody is reading it" - a consumer
-			// that walks the folder reads files no record points at. It gives up nothing to wait: this is opportunistic
-			// housekeeping and releasing the hold reschedules it.
-			//
-			// Note this gate is *not* the one protecting ordinary sessions, and must never be widened into one. A
-			// session resolves its reads through the bootstrap record serving its version; the trim that decides which
-			// records are retained is clamped by the retention floor, which includes that session's own pin; so every
-			// file a session can reach is still reachable from a retained record, and this sweep deletes only files
-			// that are not. Gating here on pins instead - which every session takes - stops reclamation for as long as
-			// anything is connected, and during warm-up that is the whole of a bulk import
-			return;
+		// "no retained bootstrap record reaches this file" is not the same as "nobody is reading it" - a consumer
+		// that walks the folder reads files no record points at. It gives up nothing to wait: this is opportunistic
+		// housekeeping and releasing the hold reschedules it.
+		//
+		// Note this gate is *not* the one protecting ordinary sessions, and must never be widened into one. A
+		// session resolves its reads through the bootstrap record serving its version; the trim that decides which
+		// records are retained is clamped by the retention floor, which includes that session's own pin; so every
+		// file a session can reach is still reachable from a retained record, and this sweep deletes only files
+		// that are not. Gating here on pins instead - which every session takes - stops reclamation for as long as
+		// anything is connected, and during warm-up that is the whole of a bulk import
+		runWithDirectoryExclusivity(
+			() -> reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath)
+		);
+	}
+
+	/**
+	 * Runs a deletion pass with the catalog folder held exclusively, or reports that it must not run at all right now.
+	 *
+	 * This is the single gate every deleter that unlinks a file in the catalog folder goes through, and it is what
+	 * makes {@link CatalogDirectoryReadHold} mean what its name says: a hold cannot be taken part-way through a pass,
+	 * and a pass cannot start once a hold is open.
+	 *
+	 * The lock is only ever attempted, never waited on. Every caller is opportunistic work that the last release
+	 * reschedules, and one of them runs on the commit thread underneath the catalog persistence service lock - which
+	 * a deletion pass may itself need, so waiting here would invert the order.
+	 *
+	 * @param deletionPass the pass to run while no consumer is reading the folder
+	 * @return true when the pass ran, false when the folder was held or another pass was already running
+	 */
+	private boolean runWithDirectoryExclusivity(@Nonnull Runnable deletionPass) {
+		if (!this.directoryAccessLock.tryLock()) {
+			return false;
 		}
-		reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
+		try {
+			if (this.directoryReadHolds.get() > 0) {
+				return false;
+			}
+			// whatever the eager warm-up path handed over goes first - it is the only deleter with no driver of its
+			// own to bring it back, so this is where its work gets done
+			if (!this.deferredEagerPurges.isEmpty()) {
+				final List<MaintainedFile> deferred = List.copyOf(this.deferredEagerPurges);
+				this.deferredEagerPurges.removeAll(deferred);
+				deferred.forEach(this::purgeFile);
+			}
+			deletionPass.run();
+			return true;
+		} finally {
+			this.directoryAccessLock.unlock();
+		}
 	}
 
 	/**
@@ -425,7 +522,15 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * exactly one {@link #releaseDirectoryReadHold()}.
 	 */
 	void acquireDirectoryReadHold() {
-		this.directoryReadHolds.incrementAndGet();
+		// taken under the same lock every deletion pass runs under, so the hold either predates a pass entirely or
+		// waits for it to finish - it can never land in the middle of one. This is the only caller that waits, and it
+		// can afford to: it runs while a backup task is being constructed, holding nothing else
+		this.directoryAccessLock.lock();
+		try {
+			this.directoryReadHolds.incrementAndGet();
+		} finally {
+			this.directoryAccessLock.unlock();
+		}
 	}
 
 	/**
@@ -433,18 +538,26 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * hold turned away - the deferred work would otherwise wait for the next unrelated event to drive it.
 	 */
 	void releaseDirectoryReadHold() {
-		if (this.directoryReadHolds.decrementAndGet() == 0 && !this.closed.get()) {
+		final boolean lastOne;
+		this.directoryAccessLock.lock();
+		try {
+			lastOne = this.directoryReadHolds.decrementAndGet() == 0;
+		} finally {
+			this.directoryAccessLock.unlock();
+		}
+		if (lastOne && !this.closed.get()) {
+			// this also drains whatever the eager warm-up path parked while the folder was held - see
+			// `runWithDirectoryExclusivity`
 			this.purgeTask.schedule();
 		}
 	}
 
 	/**
-	 * Tells whether a consumer is currently reading the catalog folder by listing it.
+	 * Tells whether any consumer is currently reading the catalog folder by listing it.
 	 *
-	 * Distinct from {@link #getRetentionFloor()} being set, and the distinction is the whole point: a reader that
-	 * reaches its data through a bootstrap record is fully described by the version it holds, and the floor protects
-	 * it. A consumer that reads the folder itself is not described by any version, so it gets its own guard - and
-	 * conflating the two is what made every open session freeze reclamation.
+	 * Not consulted by the deleters - they go through {@link #runWithDirectoryExclusivity(Runnable)}, which has to
+	 * hold the lock while it decides. This exists so that a hold which was leaked rather than released can be seen
+	 * at all: its only symptom is reclamation quietly never happening again.
 	 *
 	 * @return true when at least one consumer is reading the folder
 	 */

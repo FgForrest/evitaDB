@@ -110,8 +110,16 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// all. Those are exactly what the unreachable-file sweep exists to delete, and no version can describe them,
 		// so the folder itself has to be held for as long as the walk is running
 		this.directoryReadHold = catalogPersistenceService.acquireDirectoryReadHold();
-		if (onStart != null) {
-			onStart.accept(this.pinnedCatalogVersion);
+		// the pin below can throw - the catalog may have become unusable between the factory call and this line - and
+		// a constructor that throws leaves no object to tear down, so the hold has to be given back here or never.
+		// Leaking it does not delay reclamation for this catalog, it ends it
+		try {
+			if (onStart != null) {
+				onStart.accept(this.pinnedCatalogVersion);
+			}
+		} catch (RuntimeException ex) {
+			this.directoryReadHold.close();
+			throw ex;
 		}
 	}
 
@@ -251,12 +259,19 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
 		// the lease is idempotent, so the paths that reach this method twice - a cancellation racing the finally block
-		// of the backup itself - give the folder back exactly once
-		this.directoryReadHold.close();
-		final LongConsumer onComplete = this.onComplete.getAndSet(null);
-		if (onComplete != null) {
-			// must release exactly what was pinned in the constructor, or the catalog keeps its entire history forever
-			onComplete.accept(this.pinnedCatalogVersion);
+		// of the backup itself - give the folder back exactly once.
+		// Releasing it can run real work: the last hold going away is what re-drives the reclamation it deferred. The
+		// unpin therefore sits in a `finally`, because a throw from that work must not cost the catalog its retention
+		// floor - this backup holds the *oldest* retained version, so a pin left behind here does not delay one
+		// reclamation, it stops every reclamation this catalog will ever do
+		try {
+			this.directoryReadHold.close();
+		} finally {
+			final LongConsumer onComplete = this.onComplete.getAndSet(null);
+			if (onComplete != null) {
+				// must release exactly what was pinned in the constructor, or the catalog keeps its history forever
+				onComplete.accept(this.pinnedCatalogVersion);
+			}
 		}
 	}
 

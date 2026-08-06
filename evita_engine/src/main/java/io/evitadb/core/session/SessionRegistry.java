@@ -36,6 +36,7 @@ import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -524,6 +526,18 @@ public final class SessionRegistry {
 			CollectionUtils.createConcurrentHashMap(32);
 
 		/**
+		 * Versions whose pin could not be taken at registration because the catalog was momentarily unavailable, to
+		 * the number of sessions in that state.
+		 *
+		 * Session registration tolerates a missing catalog on purpose - the session is doomed anyway and failing here
+		 * adds nothing - but the tolerance has to be remembered rather than forgotten. A release that goes ahead
+		 * regardless is worse than the skipped pin: by the time it runs the catalog may be back, and the release would
+		 * decrement whatever pin somebody *else* holds at that version.
+		 */
+		private final ConcurrentHashMap<Long, Integer> versionsWithSkippedPin =
+			CollectionUtils.createConcurrentHashMap(8);
+
+		/**
 		 * Registers a session consuming catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
@@ -557,11 +571,15 @@ public final class SessionRegistry {
 			try {
 				final Catalog theCatalog = catalog.get();
 				// in rare cases (catalog replacement) the catalog might not be available already
-				if (theCatalog != null) {
+				if (theCatalog == null) {
+					this.versionsWithSkippedPin.merge(version, 1, Integer::sum);
+				} else {
 					theCatalog.catalogVersionPinned(version);
 				}
 			} catch (CatalogTransitioningException ignored) {
-				// catalog is transitioning, we cannot notify it anyway
+				// catalog is transitioning, we cannot notify it anyway - but the release must be told, or it would
+				// give back a pin this session never took
+				this.versionsWithSkippedPin.merge(version, 1, Integer::sum);
 			}
 		}
 
@@ -586,14 +604,27 @@ public final class SessionRegistry {
 			);
 
 			// release the pin taken on registration - paired and counted, so the version stays held until the last
-			// consumer of it has gone, independently of the last-reader notification below
-			try {
-				final Catalog pinnedCatalog = catalog.get();
-				if (pinnedCatalog != null) {
-					pinnedCatalog.catalogVersionReleased(version);
+			// consumer of it has gone, independently of the last-reader notification below.
+			// Unless registration could not take one: releasing a pin that was never taken is not a harmless no-op,
+			// because by now the catalog may be back and some *other* consumer may hold this very version - the
+			// release would land on their pin and quietly take their protection away
+			final AtomicBoolean pinWasSkipped = new AtomicBoolean();
+			this.versionsWithSkippedPin.computeIfPresent(
+				version,
+				(k, skippedCount) -> {
+					pinWasSkipped.set(true);
+					return skippedCount <= 1 ? null : skippedCount - 1;
 				}
-			} catch (CatalogTransitioningException ignored) {
-				// catalog is transitioning, we cannot notify it anyway
+			);
+			if (!pinWasSkipped.get()) {
+				try {
+					final Catalog pinnedCatalog = catalog.get();
+					if (pinnedCatalog != null) {
+						pinnedCatalog.catalogVersionReleased(version);
+					}
+				} catch (CatalogTransitioningException ignored) {
+					// catalog is transitioning, we cannot notify it anyway
+				}
 			}
 
 			// the minimal active catalog version used by another session now
@@ -728,15 +759,20 @@ public final class SessionRegistry {
 
 		@Override
 		public void pinCatalogVersion(long version) {
-			try {
-				final Catalog theCatalog = this.catalog.get();
-				// in rare cases (catalog replacement) the catalog might not be available already
-				if (theCatalog != null) {
-					theCatalog.catalogVersionPinned(version);
-				}
-			} catch (CatalogTransitioningException ignored) {
-				// catalog is transitioning, we cannot notify it anyway
+			// deliberately intolerant, unlike the session registration above. The only caller is a backup, and this
+			// pin is the whole of its protection against having the history it is copying reclaimed underneath it -
+			// its own post-pin re-verification is conclusive *because* the pin landed first. Swallowing the failure
+			// would not degrade the backup, it would silently remove the guarantee and let it run to completion over
+			// files that are free to be deleted. A `CatalogTransitioningException` is likewise left to propagate: the
+			// caller can retry, whereas a backup that never held anything cannot be repaired afterwards
+			final Catalog theCatalog = this.catalog.get();
+			if (theCatalog == null) {
+				throw new GenericEvitaInternalError(
+					"Catalog is not available - catalog version " + version +
+						" cannot be held against reclamation!"
+				);
 			}
+			theCatalog.catalogVersionPinned(version);
 		}
 
 		@Override
@@ -747,7 +783,9 @@ public final class SessionRegistry {
 					theCatalog.catalogVersionReleased(version);
 				}
 			} catch (CatalogTransitioningException ignored) {
-				// catalog is transitioning, we cannot notify it anyway
+				// tolerant where the acquisition is not, and on purpose: this runs from task tear-down, which must
+				// finish. A release that cannot find its catalog leaves a pin behind on an instance that is being
+				// discarded anyway, and the maintainer says so in its log if it ever lands on a live one
 			}
 		}
 

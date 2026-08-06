@@ -477,8 +477,11 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Flag indicating whether the catalog is closed. This flag is set to true when the catalog is closed and
 	 * should not be used anymore.
+	 *
+	 * Volatile because it is read off the closing thread: a backup task tearing down after its catalog went away asks
+	 * this before touching anything the shutdown has already torn down.
 	 */
-	private boolean closed;
+	private volatile boolean closed;
 
 	/**
 	 * Method returns continuous stream of catalog bootstrap records from the catalog bootstrap file.
@@ -3726,7 +3729,10 @@ public class DefaultCatalogPersistenceService
 	 */
 	private void scheduleTimeTravelSizeGuard() {
 		final DelayedAsyncTask theGuardTask = this.timeTravelSizeGuardTask;
-		if (theGuardTask != null) {
+		// `close()` closes the guard task but leaves the field set, and scheduling a closed task throws. The closed
+		// check is what keeps a late arrival - a task cancelled after its catalog went away - from throwing out of a
+		// tear-down path that has no business failing
+		if (theGuardTask != null && !this.closed) {
 			theGuardTask.schedule();
 		}
 	}
@@ -3751,6 +3757,18 @@ public class DefaultCatalogPersistenceService
 		final ObsoleteFileMaintainer maintainer = this.obsoleteFileMaintainer;
 		maintainer.acquireDirectoryReadHold();
 		return new CatalogDirectoryReadHold(maintainer, this::retentionStateChanged);
+	}
+
+	/**
+	 * Tells whether any consumer currently holds the catalog folder against reclamation.
+	 *
+	 * Exists for tests. A hold that leaks instead of being released has exactly one symptom - reclamation silently
+	 * never happening again for the rest of this service's life - and nothing else can observe it.
+	 *
+	 * @return true when at least one consumer is reading the folder
+	 */
+	boolean isCatalogDirectoryHeld() {
+		return this.obsoleteFileMaintainer.isCatalogDirectoryHeld();
 	}
 
 	/**
@@ -3789,6 +3807,16 @@ public class DefaultCatalogPersistenceService
 	 * it does need waking, because a floor that just dropped may have been the only reason it deferred.
 	 */
 	private void retentionStateChanged() {
+		if (this.closed) {
+			// a consumer can outlive the service: catalogs are closed before the scheduler cancels the tasks queued
+			// against them, so a backup's tear-down - releasing its pin, closing its folder hold - lands here after
+			// everything it would drive is already shut. Both halves below are actively harmful then, not merely
+			// pointless: the guard task throws when scheduled after close, and draining an owed request would run
+			// `trimBootstrapFile` on a closed service, rewriting the bootstrap file after shutdown and leaving behind
+			// a write handle nothing will ever close. There is nothing to settle either - a closed service has given
+			// up its whole history already
+			return;
+		}
 		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
 		if (owedRequest > -1L) {
 			// if a lower pin still holds it back, `advanceHistoryHorizon` simply records it again - this converges

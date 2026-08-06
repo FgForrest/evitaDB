@@ -28,7 +28,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A lease held for as long as a consumer is reading the catalog folder **by listing it** rather than by following
- * a bootstrap record. No file is removed from the folder while any lease is open.
+ * a bootstrap record.
+ *
+ * While a lease is open, no deleter removes a file from the folder: acquisition and every deletion pass share one
+ * lock, so a lease cannot be taken part-way through a pass and a pass cannot begin once a lease is open. The single
+ * exception is {@link ObsoleteFileMaintainer#close()}, which empties the folder regardless - a consumer reading a
+ * catalog that is closing has nothing left to read anyway, and it finds out loudly. The deleter matrix in
+ * `documentation/adr/2026-08-06-time-travel-disk-budget.md` is the full list.
  *
  * It is a lease rather than a pair of `acquire`/`release` calls because acquisition and release are separated by the
  * whole of a backup, and the two have repeatedly failed to pair up: a task that pinned in its constructor and was then

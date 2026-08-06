@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -215,6 +216,25 @@ class ObsoleteFileMaintainerTest {
 	}
 
 	/**
+	 * Builds an {@link ObsoleteFileMaintainer} whose scheduler never actually runs anything, so the only deletion
+	 * pass is the one the test drives. Use it wherever the assertion is about *which* pass does the work - with a
+	 * live scheduler the maintainer's own rescheduling competes for the folder and either side can win.
+	 *
+	 * @param timeTravelEnabled whether the maintainer should operate in time-travel mode
+	 * @return a freshly constructed maintainer that the caller is responsible for closing
+	 */
+	@Nonnull
+	private ObsoleteFileMaintainer newMaintainerWithInertScheduler(boolean timeTravelEnabled) {
+		return new ObsoleteFileMaintainer(
+			CATALOG_NAME,
+			Mockito.mock(Scheduler.class),
+			this.catalogStoragePath,
+			timeTravelEnabled,
+			NO_OP_SUPPLIER
+		);
+	}
+
+	/**
 	 * Verifies that a catalog version explicitly pinned by a live consumer is never purged.
 	 *
 	 * The active-reader floor alone cannot express this. It is fed by `catalogConsumersLeft`, which fires only when
@@ -329,6 +349,100 @@ class ObsoleteFileMaintainerTest {
 	 * The interesting cases are the entity collections whose primary key is absent from that record's catalog
 	 * header, because absence has two opposite causes that must not be treated alike.
 	 */
+	/**
+	 * Verifies that the eager warm-up deletion path answers to the directory read hold like every other deleter.
+	 *
+	 * `removeFileWhenNotUsed` is the second door into `purgeFile`, and it does not go through the scheduled purge at
+	 * all - at catalog version `0` it unlinks inline, on the commit thread. Warm-up is also when a backup is most
+	 * exposed, because it holds the folder precisely for the generations that repeated compaction strands. With time
+	 * travel on the unlink is skipped anyway; with it off - the default configuration - this is a live delete under
+	 * a running backup.
+	 */
+	@Nested
+	@DisplayName("Warm-up eager purge under a directory read hold")
+	class WarmUpEagerPurge {
+
+		@Test
+		@DisplayName("A file retired at version zero is not unlinked while the folder is held")
+		void shouldNotUnlinkTheWarmUpFileWhileTheFolderIsHeld() throws IOException {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(false)) {
+				final Path retiredFile = createCatalogFile(0);
+				maintainer.acquireDirectoryReadHold();
+
+				maintainer.removeFileWhenNotUsed(0L, retiredFile, () -> {});
+
+				assertTrue(
+					retiredFile.toFile().exists(),
+					"a file retired during warm-up must survive while a consumer is reading the folder"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("The deferred file is taken by the next deletion pass once the folder is free")
+		void shouldPurgeTheDeferredFileOnceTheFolderIsFree() throws IOException {
+			// the scheduler is inert here on purpose. Releasing the last hold schedules a purge of its own, and this
+			// test asserts what the *next pass* does - with a live scheduler the two race for the folder and either
+			// one can legitimately win, which would make the assertions below describe a coin toss rather than the
+			// mechanism. Driving the pass from the test thread is the same choice the size-guard tests make
+			try (ObsoleteFileMaintainer maintainer = newMaintainerWithInertScheduler(false)) {
+				final Path deferredFile = createCatalogFile(0);
+				maintainer.acquireDirectoryReadHold();
+				maintainer.removeFileWhenNotUsed(0L, deferredFile, () -> {});
+				maintainer.releaseDirectoryReadHold();
+
+				// observed through a second retirement rather than through the task the release schedules, so that
+				// the assertion is about the drain itself and not about winning a race with the scheduler
+				final Path laterFile = createCatalogFile(1);
+				maintainer.removeFileWhenNotUsed(0L, laterFile, () -> {});
+
+				assertFalse(
+					deferredFile.toFile().exists(),
+					"the file parked while the folder was held must be taken by the next pass"
+				);
+				assertFalse(
+					laterFile.toFile().exists(),
+					"and the pass that took it must still do its own work"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("A parked file does not outlive the maintainer that parked it")
+		void shouldPurgeDeferredFilesWhenTheMaintainerCloses() throws IOException {
+			final Path deferredFile;
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(false)) {
+				deferredFile = createCatalogFile(0);
+				maintainer.acquireDirectoryReadHold();
+				maintainer.removeFileWhenNotUsed(0L, deferredFile, () -> {});
+			}
+
+			// the hold is deliberately still open here - a catalog that is closing empties its folder regardless,
+			// because a consumer reading it has nothing left to read. What must not happen is the file being
+			// forgotten: nothing would ever collect it again
+			assertFalse(
+				deferredFile.toFile().exists(),
+				"a parked file must not be left on disk by the maintainer that parked it"
+			);
+		}
+
+		/**
+		 * Creates an empty catalog data file with the given index inside the temporary catalog storage path.
+		 *
+		 * @param fileIndex index of the catalog data file
+		 * @return path of the created file
+		 */
+		@Nonnull
+		private Path createCatalogFile(int fileIndex) throws IOException {
+			return Files.createFile(
+				ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(
+					getCatalogDataStoreFileName(CATALOG_NAME, fileIndex)
+				)
+			);
+		}
+
+	}
+
 	@Nested
 	@DisplayName("Time-travel purge of obsolete data files")
 	class TimeTravelPurge {

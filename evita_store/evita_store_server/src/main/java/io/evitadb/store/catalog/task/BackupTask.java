@@ -139,21 +139,32 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// sweep - which re-derives its threshold from whatever record is oldest *now* - would take its files
 		this.directoryReadHold = bootstrapRecord.catalogVersion() == 0L ?
 			catalogPersistenceService.acquireDirectoryReadHold() : null;
-		if (onStart != null) {
-			final long backedUpVersion = this.bootstrapRecord.catalogVersion();
-			onStart.accept(backedUpVersion);
-			// the record was resolved before the pin was taken, and history can be given up in between - by the time
-			// the pin lands, the files this record points at may already have been reclaimed. The pin itself makes the
-			// check conclusive rather than another guess: once it is registered no further advance can pass this
-			// version, so a window that is open now stays open for as long as the task holds it
-			final long oldestRetainedVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
-			if (oldestRetainedVersion > backedUpVersion) {
-				if (onComplete != null) {
-					this.onComplete.set(null);
-					onComplete.accept(backedUpVersion);
+		// everything from here on has to unwind the hold itself. A constructor that throws leaves no object behind:
+		// `tearDown` is unreachable, and the caller's cancel-on-rejected-submission has no task to cancel. A hold left
+		// open by that path is not a delayed reclamation, it is the permanent end of reclamation for this catalog -
+		// silently, because the exception it rides out on looks perfectly handled
+		try {
+			if (onStart != null) {
+				final long backedUpVersion = this.bootstrapRecord.catalogVersion();
+				onStart.accept(backedUpVersion);
+				// the record was resolved before the pin was taken, and history can be given up in between - by the
+				// time the pin lands, the files this record points at may already have been reclaimed. The pin itself
+				// makes the check conclusive rather than another guess: once it is registered no further advance can
+				// pass this version, so a window that is open now stays open for as long as the task holds it
+				final long oldestRetainedVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
+				if (oldestRetainedVersion > backedUpVersion) {
+					if (onComplete != null) {
+						this.onComplete.set(null);
+						onComplete.accept(backedUpVersion);
+					}
+					throw new TemporalDataNotAvailableException(oldestRetainedVersion);
 				}
-				throw new TemporalDataNotAvailableException(oldestRetainedVersion);
 			}
+		} catch (RuntimeException ex) {
+			if (this.directoryReadHold != null) {
+				this.directoryReadHold.close();
+			}
+			throw ex;
 		}
 	}
 
@@ -291,13 +302,18 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// free references to expensive resources
 		this.catalogPersistenceService.set(null);
 		this.exportFileService.set(null);
-		if (this.directoryReadHold != null) {
-			// idempotent, so the paths that reach this method twice give the folder back exactly once
-			this.directoryReadHold.close();
-		}
-		final LongConsumer onComplete = this.onComplete.getAndSet(null);
-		if (onComplete != null) {
-			onComplete.accept(this.bootstrapRecord.catalogVersion());
+		try {
+			if (this.directoryReadHold != null) {
+				// idempotent, so the paths that reach this method twice give the folder back exactly once
+				this.directoryReadHold.close();
+			}
+		} finally {
+			// in a `finally` because giving the folder back re-drives the reclamation it deferred, which is real work
+			// that can throw - and a pin left behind by that throw freezes the catalog's retention floor for good
+			final LongConsumer onComplete = this.onComplete.getAndSet(null);
+			if (onComplete != null) {
+				onComplete.accept(this.bootstrapRecord.catalogVersion());
+			}
 		}
 	}
 
