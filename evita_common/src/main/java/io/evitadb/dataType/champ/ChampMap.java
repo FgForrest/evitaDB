@@ -24,6 +24,7 @@
 package io.evitadb.dataType.champ;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +45,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 /**
  * Immutable, persistent hash map based on the CHAMP (Compressed Hash-Array Mapped Prefix-tree)
@@ -262,6 +264,86 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		final Builder<K, V> builder = new Builder<>();
 		this.rootNode.mergeInto(that.rootNode, builder, 0, resolver);
 		return builder.build();
+	}
+
+	/* ===========================================================================================
+	 * Heap accounting.
+	 * =========================================================================================== */
+
+	/**
+	 * Returns the heap this map's trie occupies, in bytes — the map object, every node it reaches, their backing
+	 * arrays and, as priced by the two supplied sizers, the keys and values inlined in them.
+	 *
+	 * The figure is exact rather than estimated: the node arities come from each node's own bitmaps, so the walk
+	 * measures the structure that is actually there instead of the one a size-based model would predict. It costs
+	 * `O(nodes)` and allocates nothing, which is what makes it usable from a monitoring call.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * **Structure shared with another version is charged in full.** Path-copying means a derived map shares every
+	 * untouched sub-trie with the map it was derived from, and this walk descends into all of it. That is deliberate:
+	 * the shared nodes keep this map alive on their own, so its footprint really is what a walk of it reports —
+	 * the *predecessor* is the version whose reported size is inflated, and it is normally garbage-in-waiting.
+	 *
+	 * **The empty map is charged nothing.** {@link #empty()} is a single JVM-wide instance that
+	 * {@link Builder#build()} hands back for every empty result, so no caller owns it and every one of them would
+	 * otherwise be charged for the same object graph. The two shared zero-length arrays are excluded for the same
+	 * reason, wherever they appear — and they appear inside live nodes too, not only in the empty map.
+	 *
+	 * Keys and values get separate sizers so a caller that owns one side and borrows the other can say so; returning
+	 * `0` from a sizer prices its side at nothing, leaving the trie spine alone.
+	 *
+	 * # Why the accounting lives here rather than in the module that needs it
+	 *
+	 * The nodes are private, and a trie's node count cannot be reconstructed from its entry count — the shape
+	 * depends on how the keys' hashes happen to distribute, so any outside estimator would be guessing. Exposing a
+	 * node-visitor hook or a structural summary instead was declined for that same reason: it would export the
+	 * private layout in a second form without buying any accuracy. A structure whose internals are private prices
+	 * itself.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		if (this == EMPTY) {
+			// the JVM-wide empty singleton belongs to nobody - see the javadoc above. A map that became empty by
+			// removal is NOT this instance and is priced normally, which is why the test is identity
+			return 0L;
+		}
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(layout.referenceSize())
+			+ this.rootNode.heapSizeInBytes(layout, keySizer, valueSizer);
+	}
+
+	/**
+	 * Prices a node's backing payload array, charging nothing for the shared empty one.
+	 *
+	 * The test is **identity**, not `length == 0`: a node holding a single sub-node and no inlined payload is built
+	 * with the shared {@link #EMPTY_OBJECT_ARRAY}, but removal genuinely allocates fresh zero-length arrays that
+	 * belong to the map that allocated them. Treating every empty array as shared would silently drop those.
+	 *
+	 * @param layout  the layout of the running VM
+	 * @param content the array to price
+	 * @return its footprint in bytes, or `0` when it is the shared empty instance
+	 */
+	private static long sizeOfContent(@Nonnull VMLayout layout, @Nonnull Object[] content) {
+		return content == EMPTY_OBJECT_ARRAY ? 0L : layout.sizeOfArray(content.length, layout.referenceSize());
+	}
+
+	/**
+	 * Prices a node's original-hash array, charging nothing for the shared empty one — see {@link #sizeOfContent}
+	 * for why the test is identity.
+	 *
+	 * @param layout the layout of the running VM
+	 * @param hashes the array to price
+	 * @return its footprint in bytes, or `0` when it is the shared empty instance
+	 */
+	private static long sizeOfHashes(@Nonnull VMLayout layout, @Nonnull int[] hashes) {
+		return hashes == EMPTY_INT_ARRAY ? 0L : layout.sizeOfArray(hashes.length, Integer.BYTES);
 	}
 
 	/* ===========================================================================================
@@ -698,6 +780,24 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		/** Deep copy used by the {@link Builder} to gain exclusive ownership before mutating. */
 		@Nonnull
 		abstract MapNode<K, V> copy();
+
+		/**
+		 * Returns the heap this node and everything below it occupies, in bytes.
+		 *
+		 * Every implementation must derive its arities from **this** node's own fields — its bitmaps, or the length
+		 * of its own backing array — and never from a parent's view of it. The arrays and the counts that bound
+		 * them belong to the same object, and reading one from another node walks slots this one never filled.
+		 *
+		 * @param layout     the layout of the running VM
+		 * @param keySizer   prices one key, or returns `0` when the map does not own it
+		 * @param valueSizer prices one value, or returns `0` when the map does not own it
+		 * @return the owned footprint of this sub-trie in bytes
+		 */
+		abstract long heapSizeInBytes(
+			@Nonnull VMLayout layout,
+			@Nonnull ToLongFunction<? super K> keySizer,
+			@Nonnull ToLongFunction<? super V> valueSizer
+		);
 	}
 
 	/* ===========================================================================================
@@ -785,6 +885,31 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		@Override
 		int payloadArity() {
 			return Integer.bitCount(this.dataMap);
+		}
+
+		@Override
+		long heapSizeInBytes(
+			@Nonnull VMLayout layout,
+			@Nonnull ToLongFunction<? super K> keySizer,
+			@Nonnull ToLongFunction<? super V> valueSizer
+		) {
+			// dataMap + nodeMap + size + cachedJavaKeySetHashCode, then the content / originalHashes slots
+			long size = layout.sizeOfObject(4L * Integer.BYTES + 2L * layout.referenceSize())
+				+ sizeOfContent(layout, this.content)
+				+ sizeOfHashes(layout, this.originalHashes);
+
+			// both arities read THIS node's own bitmaps, which is what the arrays below were sized from - a node is
+			// never mutated once published, so the two cannot drift apart mid-walk
+			final int payloadArity = payloadArity();
+			for (int i = 0; i < payloadArity; i++) {
+				size += keySizer.applyAsLong(getKey(i));
+				size += valueSizer.applyAsLong(getValue(i));
+			}
+			final int nodeArity = nodeArity();
+			for (int i = 0; i < nodeArity; i++) {
+				size += getNode(i).heapSizeInBytes(layout, keySizer, valueSizer);
+			}
+			return size;
 		}
 
 		/** Dense payload index of the data slot at `bitpos`. */
@@ -1421,6 +1546,26 @@ public final class ChampMap<K, V> implements Map<K, V> {
 		@Override
 		int payloadArity() {
 			return size();
+		}
+
+		@Override
+		long heapSizeInBytes(
+			@Nonnull VMLayout layout,
+			@Nonnull ToLongFunction<? super K> keySizer,
+			@Nonnull ToLongFunction<? super V> valueSizer
+		) {
+			// originalHash + hash, then the content slot. A collision bucket carries no originalHashes array - every
+			// key in it shares the same improved hash - and it never has sub-nodes, so this is a leaf of the walk
+			long size = layout.sizeOfObject(2L * Integer.BYTES + layout.referenceSize())
+				+ sizeOfContent(layout, this.content);
+
+			// the arity comes from THIS node's own array, the one being priced right above
+			final int payloadArity = payloadArity();
+			for (int i = 0; i < payloadArity; i++) {
+				size += keySizer.applyAsLong(getKey(i));
+				size += valueSizer.applyAsLong(getValue(i));
+			}
+			return size;
 		}
 
 		@SuppressWarnings("unchecked")

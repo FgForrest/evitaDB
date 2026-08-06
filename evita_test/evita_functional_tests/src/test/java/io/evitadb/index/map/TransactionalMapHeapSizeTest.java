@@ -61,9 +61,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * # The one figure that is inferred rather than measured
  *
  * A `HashMap`'s bucket-table capacity cannot be read from outside the JDK, so {@link MapHeapSize} reconstructs it
- * from the entry count. {@link InferredTableCapacity} pins both sides of that: a map created pre-sized above its
- * content under-reports by exactly its unused table slots, and the gap vanishes the moment the map outgrows the
- * capacity it was built with.
+ * from the entry count — and reports the **larger** of what growing and copying would have produced, because
+ * under-reporting memory is the direction that leads to under-provisioning. {@link InferredTableCapacity} pins every
+ * consequence of that: a grown map sitting exactly on a load-factor threshold reads one doubling high, the same
+ * content copied reads exactly, and a map created pre-sized above its content reads low by its unused slots until it
+ * outgrows the capacity it was built with.
  *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */
@@ -130,9 +132,10 @@ class TransactionalMapHeapSizeTest {
 
 		@Test
 		void shouldMatchMeasuredHeapAcrossEveryResizeBoundary() {
-			// walk through the sizes at which HashMap doubles its table (12/13, 24/25, 48/49, 96/97) so an
-			// off-by-one in the capacity reconstruction cannot hide between the test points
-			for (int entries : new int[]{1, 12, 13, 24, 25, 48, 49, 96, 97, 200}) {
+			// walk the sizes around each doubling (12/13, 24/25, 48/49, 96/97) so an off-by-one in the capacity
+			// reconstruction cannot hide between the test points. The threshold sizes themselves are excluded and
+			// asserted separately - see ThresholdSizesRoundUp for why they are deliberately not exact
+			for (int entries : new int[]{1, 13, 25, 49, 97, 200}) {
 				final TransactionalMap<Integer, Integer> map =
 					new TransactionalMap<>(fill(new HashMap<>(), entries));
 
@@ -164,6 +167,46 @@ class TransactionalMapHeapSizeTest {
 	@Nested
 	@DisplayName("infers the bucket table when it cannot be read")
 	class InferredTableCapacity {
+
+		@Test
+		void shouldRoundUpAnOrganicallyGrownMapSittingExactlyOnAThreshold() {
+			// the deliberate cost of reporting the larger of the two construction paths. A map GROWN to exactly 12
+			// entries still sits on a 16-slot table, because growth doubles only when the count *exceeds* the
+			// threshold - but the same 12 entries handed to `new HashMap<>(source)` get 32 slots, and nothing
+			// afterwards can tell the two apart. The higher figure is the one reported, so this reads one doubling
+			// high. It costs a few dozen bytes; the alternative reads LOW on a freshly loaded collection
+			final VMLayout layout = VMLayout.current();
+			for (int entries : new int[]{12, 24, 48, 96}) {
+				final TransactionalMap<Integer, Integer> map =
+					new TransactionalMap<>(fill(new HashMap<>(), entries));
+
+				final int grownCapacity = Integer.highestOneBit(entries - 1) << 1;
+				final long extraSlots = layout.sizeOfArray(2 * grownCapacity, layout.referenceSize())
+					- layout.sizeOfArray(grownCapacity, layout.referenceSize());
+
+				assertEquals(
+					JolHeapSize.ownedSize(map) + extraSlots,
+					map.getHeapSizeInBytes(BOXED, BOXED),
+					"a grown map on the threshold must over-report by exactly one doubling at " + entries
+				);
+			}
+		}
+
+		@Test
+		void shouldMatchACopiedMapSittingExactlyOnAThreshold() {
+			// the other side of the same coin, and the reason the model was chosen: a map copied straight from its
+			// source really does own the larger table, so for it the figure is exact
+			for (int entries : new int[]{12, 24, 48, 96}) {
+				final Map<Integer, Integer> source = fill(new HashMap<>(), entries);
+				final TransactionalMap<Integer, Integer> map = new TransactionalMap<>(new HashMap<>(source));
+
+				assertEquals(
+					JolHeapSize.ownedSize(map),
+					map.getHeapSizeInBytes(BOXED, BOXED),
+					"figure diverged for a copied map at " + entries + " entries"
+				);
+			}
+		}
 
 		@Test
 		void shouldUnderReportAPreSizedMapByExactlyItsUnusedTableSlots() {
