@@ -28,6 +28,7 @@ import io.evitadb.roaringbitmap.PeekableIntIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBatchIterator;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -279,6 +280,17 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 	@Override
 	public int[] getArray() {
 		return RoaringBitmapBackedBitmap.toSignedArray(this.roaringBitmap);
+	}
+
+	/**
+	 * This wrapper's own object — the `roaringBitmap` reference and the memoized cardinality — plus the
+	 * roaring bitmap it exclusively owns, priced at its containers' allocated capacity.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(layout.referenceSize() + Integer.BYTES)
+			+ this.roaringBitmap.getHeapSizeInBytes(ROARING_HEAP_LAYOUT);
 	}
 
 	@Nonnull

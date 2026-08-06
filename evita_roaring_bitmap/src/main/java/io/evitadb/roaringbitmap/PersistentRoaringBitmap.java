@@ -2261,6 +2261,51 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
+	 * Computes the **actual heap footprint** of this bitmap: its own object, the {@link RoaringArray}
+	 * backbone with its `keys` / `values` arrays, the parallel {@link #shared} flags, and every container
+	 * with its backing array measured at that array's allocated length.
+	 *
+	 * Prefer this over {@link #getLongSizeInBytes()} whenever the answer is reported to anyone. That method
+	 * is an *estimate of the payload*, derived from cardinality and carrying no headers of any kind; its own
+	 * documentation warns it can be 10x out, and the true worst case is worse than that. Because no
+	 * container ever trims its backing array on removal, a bitmap grown large and then emptied reports a
+	 * payload figure two orders of magnitude below the heap it is actually holding. This method reads the
+	 * allocated lengths instead, which nothing outside this package can see.
+	 *
+	 * **Containers aliased with another bitmap are counted in full.** The copy-on-write sharing described in
+	 * this class's documentation is almost always sharing with a *superseded version* of the same logical
+	 * bitmap — the commit path merges via {@link #or(PersistentRoaringBitmap, PersistentRoaringBitmap)} and
+	 * {@link #andNot(PersistentRoaringBitmap, PersistentRoaringBitmap)}, so a committed bitmap aliases its
+	 * predecessor for every chunk the transaction did not touch. That predecessor is collected shortly
+	 * afterwards, leaving this bitmap the sole owner, so excluding aliased containers would report a figure
+	 * that is true for milliseconds and badly under-reports the steady state. The {@link #shared} flags could
+	 * not support the other choice in any case: a flag is raised on aliasing and lowered only when *this*
+	 * bitmap clones the container for its own write, never when the co-owner dies.
+	 *
+	 * Runs in `O(containers)` — no iteration over the contained values.
+	 *
+	 * @param layout the running VM's object layout; this module depends on nothing but `jsr305` and so
+	 *               cannot detect it for itself
+	 * @return the bitmap's heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull final HeapLayout layout) {
+		// this object: the highLowContainer and shared references
+		long size = layout.sizeOfObject(2L * layout.referenceSize());
+		// the RoaringArray: its keys/values references, the `size` counter and the `frozen` flag
+		size += layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES + 1L);
+		// the backbone arrays at their allocated lengths - `keys` and `values` grow together, while
+		// `shared` is allowed to lag behind them, so all three are read rather than derived from one
+		size += layout.sizeOfArray(this.highLowContainer.keys.length, Character.BYTES);
+		size += layout.sizeOfArray(this.highLowContainer.values.length, layout.referenceSize());
+		size += layout.sizeOfArray(this.shared.length, 1);
+		final int containers = this.highLowContainer.size();
+		for (int i = 0; i < containers; i++) {
+			size += this.highLowContainer.getContainerAtIndex(i).getHeapSizeInBytes(layout);
+		}
+		return size;
+	}
+
+	/**
 	 * Checks whether the bitmap is empty.
 	 *
 	 * @return true if this bitmap contains no set bit
