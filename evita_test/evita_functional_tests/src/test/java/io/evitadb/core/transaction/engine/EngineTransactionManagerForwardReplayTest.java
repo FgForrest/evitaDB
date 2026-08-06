@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.TestCatalogFolderContexts;
@@ -39,6 +40,8 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.engine.DefaultEnginePersistenceService;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -61,6 +64,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.spi.store.engine.EnginePersistenceService.STORAGE_PROTOCOL_VERSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -317,6 +321,95 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 		} finally {
 			this.persistenceService = null;
 		}
+	}
+
+	@Test
+	@DisplayName("should replay a crashed catalog removal rather than wedging, leaving the folder tombstoned")
+	void shouldReplayCrashedCatalogRemoval() {
+		// A removal used to be unreplayable because its completion phase wiped the folder, and recovery had no
+		// way to tell how far that wipe had got. Committing a tombstone instead makes the completion state pure
+		// bookkeeping - a name removal and a tombstone, both idempotent - so a crash between the WAL append and
+		// the bootstrap rewrite stops bricking startup (#649).
+		appendCommittedStateWithBoundCatalog("catalogA", "catalogA_1");
+		this.persistenceService.appendWal(
+			3L, UUID.randomUUID(), new RemoveCatalogSchemaMutation("catalogA")
+		);
+		this.persistenceService.close();
+
+		this.persistenceService = new DefaultEnginePersistenceService(
+			this.storageOptions, this.transactionOptions, this.scheduler
+		);
+
+		final ExpandedEngineState initialState = wrapAsExpanded(this.persistenceService.getEngineState());
+		final AtomicReference<ExpandedEngineState> lastSetState = new AtomicReference<>();
+		final Evita evita = mockEvita(this.paths.storage(), initialState, lastSetState);
+		final SystemChangeObserver changeObserver = mock(SystemChangeObserver.class);
+		final ObservableExecutorService executor = mock(ObservableExecutorService.class);
+
+		@SuppressWarnings({"rawtypes"}) final EnginePersistenceService rawService = this.persistenceService;
+
+		//noinspection unchecked
+		try (
+			EngineTransactionManager manager = new EngineTransactionManager(
+				evita, changeObserver, executor, rawService
+			)
+		) {
+			final EngineState<LogFileRecordReference> persisted = this.persistenceService.getEngineState();
+			// reaching v3 at all is the assertion that replay ran: a wedge would leave the bootstrap at v2
+			assertEquals(
+				3L, persisted.version(),
+				"Forward replay must advance the bootstrap to walV; a wedged engine leaves it at v2."
+			);
+			assertFalse(
+				containsCatalog(persisted.activeCatalogs(), "catalogA"),
+				"The replayed state must no longer carry the removed catalog."
+			);
+			assertEquals(
+				1, persisted.retiredFolders().length,
+				"The replayed state must carry the tombstone the completion updater would have staged."
+			);
+			assertEquals("catalogA_1", persisted.retiredFolders()[0].folderId().id());
+			// the wipe itself is deliberately NOT re-attempted here - the tombstone is the instruction, and the
+			// boot drain acts on it
+		} finally {
+			this.persistenceService = null;
+		}
+	}
+
+	/**
+	 * Primes the storage directory with a committed state at version 2 in which one catalog is active and bound
+	 * to a folder, which is the precondition a removal needs.
+	 *
+	 * The mutation payload at v2 is immaterial - the bootstrap's `walReference` covers that record, so it is
+	 * never replayed; only the `EngineState` it publishes matters.
+	 *
+	 * @param catalogName name of the catalog to register as active
+	 * @param folderName  folder token to bind it to
+	 */
+	private void appendCommittedStateWithBoundCatalog(
+		@Nonnull String catalogName,
+		@Nonnull String folderName
+	) {
+		this.persistenceService.appendWalAndStoreState(
+			2L,
+			UUID.randomUUID(),
+			new MarkCatalogMissingMutation(catalogName),
+			txRef -> EngineState.<LogFileRecordReference>builder()
+				.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+				.version(2L)
+				.introducedAt(OffsetDateTime.now())
+				.walFileReference((LogFileRecordReference) txRef.walReference())
+				.activeCatalogs(new String[]{catalogName})
+				.inactiveCatalogs(ArrayUtils.EMPTY_STRING_ARRAY)
+				.readOnlyCatalogs(ArrayUtils.EMPTY_STRING_ARRAY)
+				.missingCatalogs(ArrayUtils.EMPTY_STRING_ARRAY)
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding(catalogName, new CatalogFolderId(folderName))
+					}
+				)
+				.build()
+		);
 	}
 
 	/**
