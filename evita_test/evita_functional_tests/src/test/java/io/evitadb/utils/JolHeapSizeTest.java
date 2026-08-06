@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -167,6 +168,53 @@ class JolHeapSizeTest {
 
 			// three reference slots and an array header - nothing else, however heavy those three classes are
 			assertEquals(JolHeapSize.shallowSize(classes), JolHeapSize.ownedSize(classes));
+		}
+	}
+
+	@Nested
+	@DisplayName("can enter the shapes the index graphs are built from")
+	class MeasurableShapes {
+
+		/**
+		 * A record, the shape `Unsafe.objectFieldOffset` refuses outright.
+		 *
+		 * @param alpha a primitive component
+		 * @param beta  a reference component
+		 */
+		private record ProbeRecord(int alpha, String beta) {
+		}
+
+		@Test
+		void shouldMeasureARecord() {
+			// JOL cannot resolve field offsets on a record unless `-Djol.magicFieldOffset=true` is on the surefire
+			// argLine, and records are everywhere in the index graphs - AttributeIndexKey, RepresentativeReferenceKey,
+			// ComparatorSource, ChainDescriptor. Without the flag this throws "Cannot get the field offset", and
+			// SortIndex, ChainIndex, AttributeIndex and every entity index above them become unverifiable. This test
+			// exists so removing the flag fails here, loudly, instead of quietly disabling half the heap-size suite
+			final ProbeRecord probe = new ProbeRecord(1, "beta");
+
+			// header + int + reference, padded - the same arithmetic any other object of that shape gets
+			final VMLayout layout = VMLayout.current();
+			assertEquals(
+				layout.sizeOfObject(Integer.BYTES + layout.referenceSize()),
+				JolHeapSize.shallowSize(probe)
+			);
+			// and the walk enters it, reaching the String and its byte[]
+			assertEquals(
+				JolHeapSize.shallowSize(probe) + JolHeapSize.ownedSize(probe.beta()),
+				JolHeapSize.ownedSize(probe)
+			);
+		}
+
+		@Test
+		void shouldMeasureABoundMethodReference() {
+			// the other refused shape: a method reference that captured a receiver. `EntityCollection` builds its
+			// index maps with exactly this (`EntityIndex.class::cast`)
+			final Function<Object, Object> bound = String.class::cast;
+
+			// the captured receiver is a Class, which the walk excludes by path - so only the lambda object remains
+			assertEquals(JolHeapSize.shallowSize(bound), JolHeapSize.ownedSize(bound));
+			assertTrue(JolHeapSize.ownedSize(bound) > 0);
 		}
 	}
 

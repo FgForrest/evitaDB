@@ -709,7 +709,24 @@
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
 					-->
-					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
+						`Unsafe.objectFieldOffset` refuses outright - records and field-carrying lambdas. Without it
+						the heap-size tests cannot measure `AttributeIndexKey`, `ComparatorSource`,
+						`ChainDescriptor` and friends, which means `SortIndex`, `ChainIndex`, `AttributeIndex` and
+						every entity index above them cannot be verified against a real walk at all. It affects only
+						the path that would otherwise throw: the whole heap-size regression returns identical
+						figures with it on, and the record sizes it reports are arithmetically exact. Note that
+						the add-opens flags below cannot substitute for it, because this is not a package-access
+						restriction.
+					-->
+					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us
+						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang=ALL-UNNAMED
+						--add-opens java.base/java.math=ALL-UNNAMED
+						--add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
