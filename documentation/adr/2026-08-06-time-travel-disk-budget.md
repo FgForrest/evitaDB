@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 12:40
+updated: 2026-08-06 14:00
 status: accepted
 kind: feature
 issues: [761]
@@ -10,6 +10,8 @@ areas:
   - evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog
   - evita_store/evita_store_server/src/main/java/io/evitadb/store/wal
   - evita_api/src/main/java/io/evitadb/api/configuration
+  - evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/task
+  - evita_engine/src/main/java/io/evitadb/core/session
 supersedes: []
 superseded-by: []
 relates: []
@@ -148,6 +150,32 @@ to "I cannot configure my fleet uniformly".
   touch their own entry, whereas any single value can be overwritten by a competing update and
   silently drop the lower pin. A round blocked by the floor is deferred, and releasing a pin
   reschedules the guard so the deferred reclamation is not stranded until the next compaction.
+- **A pin and a horizon advance are serialized on `historyHorizonLock`.** `catalogVersionPinned`
+  takes it, and `advanceHistoryHorizon` samples the floor *inside* it rather than before it. Without
+  both halves the floor is only a snapshot: a pin taken after the sample but before the trim is
+  invisible, which is precisely the window a point-in-time backup falls into. The lock is
+  uncontended unless time travel is on, so the cost lands only where the correctness is needed.
+  Serialization alone is not sufficient, because `BackupTask` resolves its bootstrap record *before*
+  it pins — so the task re-verifies the record is still reachable once the pin is registered and
+  throws `TemporalDataNotAvailableException` if it lost the race. The pin is what makes that check
+  conclusive rather than another guess.
+- **`getRetentionFloor()` reports "nothing is held" as `-1`, not `0`.** Version `0` is pinnable — it
+  is what a catalog goes live with and what a full backup pins before any history has been given up
+  — while the departure-driven reader floor uses `0` for "no reader". Collapsing the two makes a pin
+  at version `0` a silent no-op and lets the purge run unclamped over the files that consumer is
+  reading. `effectivePurgeVersion` therefore tests `>= 0`, and it is the clamp for **both** drivers —
+  the write-ahead log purge is frozen by a version-`0` pin exactly as the size guard is.
+- **A backup task pins in its constructor, so a task that is never run leaks that pin.** `Catalog`
+  cancels the task if `scheduler.submit` rejects it, which routes through the task's own tear-down.
+  This was harmless while a full backup pinned the newest version; now that it pins the oldest, a
+  leaked pin would freeze every reclamation for the rest of the catalog's life.
+- **A full backup pins the oldest retained version, not the version it is taken at.** It copies every
+  file in the catalog folder, historical ones included, so it needs the whole retained window rather
+  than one generation. Pinning the newest version protects nothing: the floor is a *minimum*, so
+  every candidate horizon at or below it passes the clamp untouched and history is reclaimed halfway
+  through the copy — leaving an archive whose bootstrap references files that were deleted before the
+  data pass reached them. Reading the oldest version a moment before pinning it is safe in the
+  conservative direction, because the horizon only ever rises.
 - **The guard is driven by compaction, never polled** — but it is scheduled at *two* points, and both
   are needed. `DefaultCatalogPersistenceService.retireDataFile` covers every
   `removeFileWhenNotUsed` call site, and `writeCatalogBootstrap` covers every published record. The
@@ -193,7 +221,7 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   `shouldProbeLogarithmically` asserts ≤ 20 header reads across 32,768 bootstrap records;
   `shouldCollapseRecordsSharingOneGeneration` covers the case that makes generations, not records,
   the unit.
-- `DefaultCatalogPersistenceServiceTest.TimeTravelSizeGuardTest` — four end-to-end tests against a
+- `DefaultCatalogPersistenceServiceTest.TimeTravelSizeGuardTest` — nine end-to-end tests against a
   real catalog forced to compact every round (`fileSizeCompactionThresholdBytes(1)`,
   `minimalActiveRecordShare`/`maxWasteActiveShare` at 0.99, `minCompactionIntervalMilliseconds(0)`,
   and `TransactionOptions.checkpointIntervalInMillis(0)`, which makes `checkpointCoordinator` null so
@@ -205,6 +233,25 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   the data-loss case: with the reader floor already at version 100 and a consumer pinning version 20,
   `effectivePurgeVersion(50)` must return 20. Calibrated against the unfixed code, where it returns
   50 — that is a point-in-time backup reading version 20 while the purge deletes up to 50.
+- `shouldHoldTheWholeRetainedWindowWhileAFullBackupRuns` — a full backup must pin the *oldest*
+  retained version, and a zero budget must not reclaim anything while it holds it. Calibrated twice:
+  reverting the pinned value fails with `expected: <0> but was: <8>` (the newest version instead of
+  the oldest), and reverting the `-1` floor sentinel fails on the reclamation assertion, because
+  a pin at version `0` was silently treated as "nothing is held".
+- `shouldScheduleTheGuardWhenADeferredCheckpointPublishes` — the only test in the class that runs with
+  a checkpoint coordinator, and the one that covers the publish-site scheduling. A 60 s
+  `checkpointIntervalInMillis` makes `isCheckpointDue()` false for the whole test (the coordinator
+  stamps its last-completed time at construction), so every round defers and `checkpoint()` publishes
+  on demand — no wall clock, no polling. Two traps it had to dodge: the checkpoint ticker shares the
+  scheduler and would publish early if drained, so only the guard's zero-delay task is run; and the
+  pre-publication guard must run *through* `DelayedAsyncTask`, because a direct call leaves the task
+  armed and `schedule()` coalesces into it, which looks exactly like the bug. Calibrated by removing
+  the call: `zero interactions with this mock`, and **no other test in the class notices** — which is
+  what made this the last unverified behaviour of the whole change.
+- `shouldRefuseAPointInTimeBackupOfAlreadyReclaimedHistory` — a backup whose record was reclaimed in
+  the window between resolving it and pinning it must fail with `TemporalDataNotAvailableException`
+  and release the pin it took. Calibrated by removing the re-verification, where it silently proceeds
+  to copy files that are no longer there.
 - Regression: `mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
   -Dgroups="storage | wal | transaction | session | cdc"`.
 

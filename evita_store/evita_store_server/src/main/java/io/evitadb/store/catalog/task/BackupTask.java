@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientCallableTask;
@@ -126,7 +127,20 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.onComplete = new AtomicReference<>(onComplete);
 		if (onStart != null) {
-			onStart.accept(this.bootstrapRecord.catalogVersion());
+			final long backedUpVersion = this.bootstrapRecord.catalogVersion();
+			onStart.accept(backedUpVersion);
+			// the record was resolved before the pin was taken, and history can be given up in between - by the time
+			// the pin lands, the files this record points at may already have been reclaimed. The pin itself makes the
+			// check conclusive rather than another guess: once it is registered no further advance can pass this
+			// version, so a window that is open now stays open for as long as the task holds it
+			final long oldestRetainedVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
+			if (oldestRetainedVersion > backedUpVersion) {
+				if (onComplete != null) {
+					this.onComplete.set(null);
+					onComplete.accept(backedUpVersion);
+				}
+				throw new TemporalDataNotAvailableException(oldestRetainedVersion);
+			}
 		}
 	}
 

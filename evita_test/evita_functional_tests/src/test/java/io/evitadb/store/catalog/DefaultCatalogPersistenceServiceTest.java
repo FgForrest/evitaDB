@@ -79,6 +79,7 @@ import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
@@ -133,6 +134,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1173,6 +1175,24 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Transaction options that defer every checkpoint instead of publishing it with its round.
+		 *
+		 * `CheckpointCoordinator` initialises its last-completed timestamp at construction and compares it against
+		 * this interval, so an interval far longer than the test can possibly take makes `isCheckpointDue()` false for
+		 * every round - each one builds its bootstrap record and stashes it rather than publishing it. Publication is
+		 * then entirely under the test's control through `checkpoint()`, with no wall clock involved.
+		 *
+		 * @return the transaction options
+		 */
+		@Nonnull
+		private TransactionOptions deferredCheckpointTransactionOptions() {
+			return TransactionOptions.builder()
+				.transactionWorkDirectory(getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.checkpointIntervalInMillis(60_000L)
+				.build();
+		}
+
+		/**
 		 * Writes {@link #VERSIONS_WRITTEN} catalog versions, each leaving the previous catalog data file behind.
 		 *
 		 * @param ioService the service under test
@@ -1472,6 +1492,168 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertEquals(
 					1, listCatalogDataFiles().size(),
 					"the deferred reclamation must happen once the pin is released"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should schedule the guard when a deferred checkpoint finally publishes its bootstrap record")
+		void shouldScheduleTheGuardWhenADeferredCheckpointPublishes() {
+			// the only test in this class that runs with a checkpoint coordinator. Its siblings set the interval to 0,
+			// which leaves the coordinator null so retirement and publication happen in the same breath - and that is
+			// exactly why scheduling the guard on retirement alone looked sufficient for as long as it did
+			final Scheduler scheduler = Mockito.mock(Scheduler.class);
+			final ArgumentCaptor<Runnable> scheduledTask = ArgumentCaptor.forClass(Runnable.class);
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					deferredCheckpointTransactionOptions(),
+					scheduler,
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				// The guard scheduled by `retireDataFile` runs here, before any of those records were published. It can
+				// see no history at all: the newest *published* record still pins the retired data file, so the guard
+				// counts that file as part of the active data set rather than as a generation it could give up.
+				//
+				// It has to run through the task rather than by a direct call, because what comes next depends on the
+				// task's own bookkeeping: `DelayedAsyncTask` coalesces a `schedule()` into an execution that is already
+				// pending, so unless this run actually happens the publication below would find the guard still armed
+				// from retirement and schedule nothing - which is indistinguishable from the bug under test.
+				//
+				// Only the guard's own task may run here. The checkpoint ticker shares this scheduler and calls
+				// `checkpointIfOwed()`, which would publish the very record this step must leave unpublished. They are
+				// told apart by their delay: the guard is a zero-delay task, the ticker carries the checkpoint interval
+				Mockito.verify(scheduler, Mockito.atLeastOnce())
+					.schedule(scheduledTask.capture(), Mockito.eq(0L), Mockito.any(TimeUnit.class));
+				scheduledTask.getAllValues().forEach(Runnable::run);
+
+				final List<File> beforePublish = listCatalogDataFiles();
+				assertEquals(
+					0L, ioService.computeRetainedHistoryBytes(),
+					"a deferred round has published nothing, so the guard must not see any history yet"
+				);
+				assertTrue(
+					beforePublish.size() > 1,
+					"the retired data files must still be on disk, uncounted, got " + beforePublish.size()
+				);
+
+				// from here on every scheduling is caused by the publication alone - publishing settles the debt, so
+				// the ticker is not re-armed and the guard is the only task left that can reach this scheduler
+				Mockito.clearInvocations(scheduler);
+				final ArgumentCaptor<Runnable> afterPublish = ArgumentCaptor.forClass(Runnable.class);
+				ioService.checkpoint();
+
+				assertTrue(
+					ioService.computeRetainedHistoryBytes() > 0L,
+					"publishing the deferred record must make the retired generation visible as history"
+				);
+
+				// publishing is what turns the retired generation into history, and it is the only moment that can
+				// notice - the compaction that retired the file is long past and will not come round again
+				Mockito.verify(scheduler, Mockito.atLeastOnce())
+					.schedule(afterPublish.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+				afterPublish.getAllValues().forEach(Runnable::run);
+
+				assertTrue(
+					listCatalogDataFiles().size() < beforePublish.size(),
+					"a zero budget must reclaim the history the publication just revealed"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should hold the whole retained window while a full backup is copying it")
+		void shouldHoldTheWholeRetainedWindowWhileAFullBackupRuns() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(listCatalogDataFiles().size() > 2);
+
+				final AtomicLong pinnedVersion = new AtomicLong(-1L);
+				ioService.createFullBackupTask(
+					version -> {
+						pinnedVersion.set(version);
+						ioService.catalogVersionPinned(version);
+					},
+					ioService::catalogVersionReleased
+				);
+
+				// a full backup copies every file in the folder, historical ones included, so it has to hold the
+				// oldest retained version - not the newest. A pin at the newest version clamps nothing, because the
+				// retention floor is a minimum: every candidate horizon at or below it passes through untouched
+				assertEquals(
+					ioService.getOldestRetainedCatalogVersion(), pinnedVersion.get(),
+					"a full backup must pin the oldest retained version, not the version it is nominally taken at"
+				);
+				assertTrue(
+					pinnedVersion.get() < ioService.getLastCatalogVersion(),
+					"the fixture must actually have history, otherwise this test cannot tell the two versions apart"
+				);
+
+				// with that pin held even a zero budget cannot pull the archive's contents out from under it
+				ioService.enforceTimeTravelSizeLimit();
+				assertTrue(
+					listCatalogDataFiles().size() > 1,
+					"history must not be reclaimed while a full backup is copying it"
+				);
+				assertTrue(
+					ioService.computeRetainedHistoryBytes() > 0L,
+					"the retained window must survive for the whole lifetime of the full backup"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should refuse a point-in-time backup whose history was reclaimed before it could pin it")
+		void shouldRefuseAPointInTimeBackupOfAlreadyReclaimedHistory() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				// the record a point-in-time backup would have resolved just before the budget ran
+				final CatalogBootstrap staleRecord = getFirstCatalogBootstrap(
+					TEST_CATALOG,
+					new StorageSettings(
+						timeTravelStorageOptions(0L), eagerCheckpointTransactionOptions()
+					).modifyForBootstrapFile()
+				).orElseThrow();
+
+				// the budget gives that history up in the window between resolving the record and pinning it
+				ioService.enforceTimeTravelSizeLimit();
+				assertTrue(ioService.getOldestRetainedCatalogVersion() > staleRecord.catalogVersion());
+
+				// the task must notice it lost the race rather than copy files that are no longer there
+				assertThrows(
+					TemporalDataNotAvailableException.class,
+					() -> new BackupTask(
+						TEST_CATALOG, null, staleRecord.catalogVersion(), false,
+						staleRecord, Mockito.mock(ExportFileService.class), ioService,
+						ioService::catalogVersionPinned, ioService::catalogVersionReleased
+					)
+				);
+
+				// and the pin it took while checking must not be left behind, or the catalog keeps its history forever
+				assertEquals(
+					-1L, ioService.getRetentionFloor(),
+					"the pin taken for the rejected backup must be released again"
 				);
 			}
 		}

@@ -3237,7 +3237,55 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void catalogVersionPinned(long catalogVersion) {
-		this.obsoleteFileMaintainer.catalogVersionPinned(catalogVersion);
+		// taken under the horizon lock so that a pin and a horizon advance can never interleave: either the pin lands
+		// first and `advanceHistoryHorizon` observes it when it samples the retention floor, or the advance completes
+		// first and the caller - which must re-verify its version is still reachable once the pin is in place - sees
+		// that it lost. A pin registered outside this lock can be taken against a version whose files are being
+		// deleted at that very moment, which is how a point-in-time backup loses the data underneath it.
+		// The lock is uncontended unless time travel is enabled, which is opt-in and off by default.
+		this.historyHorizonLock.lock();
+		try {
+			this.obsoleteFileMaintainer.catalogVersionPinned(catalogVersion);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+	}
+
+	/**
+	 * Returns the catalog version of the oldest bootstrap record still retained on disk - the lower end of the window
+	 * time travel can currently reach. Read under the horizon lock, because the driver that trims history replaces the
+	 * very file this reads.
+	 *
+	 * A consumer that needs the whole retained window rather than one particular version - a full backup copies every
+	 * file in the catalog folder - pins this value for its lifetime, which clamps
+	 * {@link WalPurgeCallback#effectivePurgeVersion(long)} down to it and so freezes reclamation entirely until the pin
+	 * is released. Reading it a moment before the pin is taken errs in the safe direction: the horizon only ever rises,
+	 * so a stale value can only be lower than the truth, and pinning lower merely holds back more than necessary.
+	 *
+	 * @return the oldest retained catalog version, or {@link #getLastCatalogVersion()} when no bootstrap record can be
+	 * read at all
+	 */
+	/**
+	 * Returns the lowest catalog version any consumer still holds - the floor every reclamation is clamped to. Zero
+	 * when nothing is held at all.
+	 *
+	 * Package-private so a test can assert that a pin was taken and released without reaching into the maintainer.
+	 *
+	 * @return the current retention floor
+	 */
+	long getRetentionFloor() {
+		return this.obsoleteFileMaintainer.getRetentionFloor();
+	}
+
+	public long getOldestRetainedCatalogVersion() {
+		this.historyHorizonLock.lock();
+		try {
+			return getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+				.map(CatalogBootstrap::catalogVersion)
+				.orElseGet(this::getLastCatalogVersion);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
 	}
 
 	@Override
@@ -3686,14 +3734,20 @@ public class DefaultCatalogPersistenceService
 	 * @param requestedFirstVersionToBeKept the first catalog version whose history should still be reachable
 	 */
 	void advanceHistoryHorizon(long requestedFirstVersionToBeKept) {
-		final long effectiveVersionToBeKept = this.walPurgeCallback.effectivePurgeVersion(
-			requestedFirstVersionToBeKept);
-		if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
-			// the horizon already sits at or above the request - there is nothing left below it to reclaim
+		if (requestedFirstVersionToBeKept <= this.historyHorizon.get()) {
+			// the horizon already sits at or above the raw request - clamping it to the retention floor can only lower
+			// it further, so there is nothing left below it to reclaim and no reason to sample the floor at all
 			return;
 		}
 		this.historyHorizonLock.lock();
 		try {
+			// the floor is sampled under the lock, never before it: `catalogVersionPinned` takes this same lock, so
+			// a pin this sample does not observe cannot have been taken yet, and one taken afterwards blocks here and
+			// then finds the horizon already moved. Sampling before the lock leaves exactly the window a point-in-time
+			// backup falls into - it pins the version it resolved, the sample taken moments earlier never sees the pin,
+			// and this call deletes the files the backup is about to read
+			final long effectiveVersionToBeKept = this.walPurgeCallback.effectivePurgeVersion(
+				requestedFirstVersionToBeKept);
 			// re-check under the lock, the competing driver may have moved past us while we were waiting for it
 			if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
 				return;

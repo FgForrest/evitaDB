@@ -256,13 +256,18 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 
 	/**
 	 * Returns the lowest catalog version below which nothing may be reclaimed - the minimum of the active-reader floor
-	 * and of every version explicitly pinned by a consumer, or {@code 0} when neither is known.
+	 * and of every version explicitly pinned by a consumer, or {@code -1} when neither is known.
 	 *
 	 * The two are combined rather than one replacing the other because they answer different questions: the floor is
 	 * the newest *departure* report and only ever rises, while the pins are the versions consumers hold **right now**
 	 * and can sit arbitrarily far in the past.
 	 *
-	 * @return the retention floor, or {@code 0} when nothing is known to be in use
+	 * The absent case is {@code -1} rather than {@code 0}, because **{@code 0} is a pinnable version**: it is the one
+	 * a catalog goes live with, and it is what a full backup pins whenever no history has been given up yet. Reporting
+	 * it as "nothing is held" - which is what the active-reader floor alone means by {@code 0} - would let a purge run
+	 * unclamped over the files that very consumer is reading.
+	 *
+	 * @return the retention floor, or {@code -1} when nothing is known to be in use
 	 */
 	public long getRetentionFloor() {
 		final long readerFloor = this.activeReaderFloor.get();
@@ -273,7 +278,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			}
 		}
 		if (pinFloor == Long.MAX_VALUE) {
-			return readerFloor;
+			// no pins at all - the departure-driven reader floor is all there is, and it uses 0 for "no reader"
+			return readerFloor > 0L ? readerFloor : -1L;
 		}
 		return readerFloor > 0L ? Math.min(readerFloor, pinFloor) : pinFloor;
 	}
@@ -553,8 +559,9 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		public long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
 			final long retentionFloor = this.retentionFloorSupplier.getAsLong();
 			// never purge beyond the minimal version still in use by a reader or pinned by a consumer such as
-			// a point-in-time backup, which holds a version in the past (time-travel invariant)
-			return retentionFloor > 0L ?
+			// a point-in-time backup, which holds a version in the past (time-travel invariant). A floor of zero is
+			// a real floor and must clamp - only the negative "nothing is held" report leaves the request alone
+			return retentionFloor >= 0L ?
 				Math.min(requestedFirstVersionToBeKept, retentionFloor) :
 				requestedFirstVersionToBeKept;
 		}

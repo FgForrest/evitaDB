@@ -70,6 +70,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	private final AtomicReference<LongConsumer> onComplete;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
+	private final long pinnedCatalogVersion;
 
 	public FullBackupTask(
 		@Nonnull String catalogName,
@@ -92,8 +93,14 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// note the version read here is only as recent as the last checkpoint - the factory that builds this task
 		// settles any outstanding one first, see DefaultCatalogPersistenceService#createFullBackupTask
 		this.lastCatalogVersion = catalogPersistenceService.getLastCatalogVersion();
+		// this task copies every file in the catalog folder, historical ones included, so it has to hold the whole
+		// retained window - not the version it is nominally taken at. Pinning the newest version protects nothing:
+		// the retention floor is a minimum, so for any candidate horizon at or below the newest version the clamp is
+		// a no-op and history is free to be reclaimed halfway through the copy, leaving an archive whose bootstrap
+		// references files that were deleted before the data pass reached them
+		this.pinnedCatalogVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
 		if (onStart != null) {
-			onStart.accept(this.lastCatalogVersion);
+			onStart.accept(this.pinnedCatalogVersion);
 		}
 	}
 
@@ -235,7 +242,8 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		this.catalogPersistenceService.set(null);
 		final LongConsumer onComplete = this.onComplete.getAndSet(null);
 		if (onComplete != null) {
-			onComplete.accept(this.lastCatalogVersion);
+			// must release exactly what was pinned in the constructor, or the catalog keeps its entire history forever
+			onComplete.accept(this.pinnedCatalogVersion);
 		}
 	}
 
