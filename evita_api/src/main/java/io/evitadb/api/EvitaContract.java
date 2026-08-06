@@ -462,8 +462,18 @@ public interface EvitaContract extends AutoCloseable {
 	 * successfully finished, the catalog `catalogNameToBeReplacedWith` will be known under the name of the
 	 * `catalogNameToBeReplaced` and the original contents of the `catalogNameToBeReplaced` will be purged entirely.
 	 *
-	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
-	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
+	 * In case exception occurs, **both catalogs are guaranteed to be untouched**. The replacement is a pointer
+	 * swap committed in a single engine-state transaction: nothing is copied, nothing is moved, and no folder is
+	 * removed until after that commit has succeeded. Every failure that is not a crash of the commit itself
+	 * therefore leaves the world exactly as it was, and the only residue a crash can leave is a folder that
+	 * outlived its removal, which the next start-up reclaims.
+	 *
+	 * Readers are not yanked. A query already in flight against either catalog runs to completion — sessions are
+	 * closed only once the method executing on them returns. Sessions held open across the operation are closed
+	 * on both sides, and a session opened against `catalogNameToBeReplaced` while the swap commits is refused,
+	 * because that is the catalog whose data is being discarded; on `catalogNameToBeReplacedWith` it is merely
+	 * postponed for the duration of the commit. A client that opens a session per query sees no failure it would
+	 * not see from the catalog simply having been renamed.
 	 *
 	 * At the end of this method the catalog is already replaced and the new name should be used for any further
 	 * operations with the catalog.
@@ -483,8 +493,18 @@ public interface EvitaContract extends AutoCloseable {
 	 * successfully finished, the catalog `catalogNameToBeReplacedWith` will be known under the name of the
 	 * `catalogNameToBeReplaced` and the original contents of the `catalogNameToBeReplaced` will be purged entirely.
 	 *
-	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
-	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
+	 * In case exception occurs, **both catalogs are guaranteed to be untouched**. The replacement is a pointer
+	 * swap committed in a single engine-state transaction: nothing is copied, nothing is moved, and no folder is
+	 * removed until after that commit has succeeded. Every failure that is not a crash of the commit itself
+	 * therefore leaves the world exactly as it was, and the only residue a crash can leave is a folder that
+	 * outlived its removal, which the next start-up reclaims.
+	 *
+	 * Readers are not yanked. A query already in flight against either catalog runs to completion — sessions are
+	 * closed only once the method executing on them returns. Sessions held open across the operation are closed
+	 * on both sides, and a session opened against `catalogNameToBeReplaced` while the swap commits is refused,
+	 * because that is the catalog whose data is being discarded; on `catalogNameToBeReplacedWith` it is merely
+	 * postponed for the duration of the commit. A client that opens a session per query sees no failure it would
+	 * not see from the catalog simply having been renamed.
 	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
