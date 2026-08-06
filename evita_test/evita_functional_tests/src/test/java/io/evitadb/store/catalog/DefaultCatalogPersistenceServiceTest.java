@@ -71,6 +71,7 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
@@ -1274,6 +1275,79 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		outputKeeper.close();
+	}
+
+	/**
+	 * Covers the separation of a catalog's storage prefix — the name its files carry inside its folder — from the
+	 * catalog's own name, which is what allows a rename to stop touching the filesystem. See issue #649.
+	 */
+	@Nested
+	@DisplayName("Storage prefix discovery")
+	class StoragePrefixDiscovery {
+
+		@Test
+		@DisplayName("Takes the prefix from the bootstrap file rather than from the catalog name")
+		void shouldDiscoverStoragePrefixFromBootstrapFileRatherThanCatalogName() throws IOException {
+			final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+			final StorageSettings storageSettings = new StorageSettings(
+				getStorageOptions(), getTransactionOptions()
+			);
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					catalogName,
+					new CatalogFolderId(catalogName),
+					getStorageOptions(),
+					getTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				ioService.storeHeader(
+					UUIDUtil.randomUUID(), CatalogState.ALIVE, 0L, 1, null, Collections.emptyList(),
+					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+				);
+			}
+
+			// re-name the bootstrap file so nothing in the folder carries the catalog's own name any more
+			final Path catalogFolder = getStorageOptions().storageDirectory().resolve(catalogName);
+			Files.move(
+				catalogFolder.resolve(getCatalogBootstrapFileName(catalogName)),
+				catalogFolder.resolve(getCatalogBootstrapFileName("adopted.folder"))
+			);
+
+			assertTrue(
+				getFirstCatalogBootstrap(catalogName, catalogFolder, storageSettings).isPresent(),
+				"the bootstrap record must still be found once the files stop carrying the catalog name"
+			);
+		}
+
+		@Test
+		@DisplayName("Refuses a folder that holds files but no bootstrap file")
+		void shouldThrowExceptionWhenFolderHasFilesButNoBootstrapFile() throws IOException {
+			final StorageSettings storageSettings = new StorageSettings(
+				getStorageOptions(), getTransactionOptions()
+			);
+			final Path catalogFolder = getStorageOptions().storageDirectory()
+				.resolve("folderWithoutBootstrap");
+			Files.createDirectories(catalogFolder);
+			Files.writeString(catalogFolder.resolve("stray" + CATALOG_FILE_SUFFIX), "not a bootstrap file");
+
+			// falling back to the catalog name here would bind the service to a prefix no file on disk uses
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> getFirstCatalogBootstrap("folderWithoutBootstrap", catalogFolder, storageSettings)
+			);
+		}
+
+		@Test
+		@DisplayName("Does not match a foreign prefix when the prefix contains a regex wildcard")
+		void shouldNotMatchForeignFilesWhenPrefixContainsRegexWildcard() {
+			// `.` is legal in a catalog name and is a regex wildcard - unquoted it matches any character at all
+			final Pattern pattern = getCatalogDataStoreFileNamePattern("my.catalog");
+			assertTrue(pattern.matcher("my.catalog_1" + CATALOG_FILE_SUFFIX).matches());
+			assertFalse(pattern.matcher("myXcatalog_1" + CATALOG_FILE_SUFFIX).matches());
+		}
+
 	}
 
 	/**

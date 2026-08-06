@@ -138,29 +138,49 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
+	 *
+	 * The argument is the *storage prefix* the folder's files are named with, which historically equalled the catalog
+	 * name but no longer has to — see `DefaultCatalogPersistenceService#discoverStoragePrefix` and issue #649.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return name of the bootstrap file
 	 */
 	@Nonnull
-	static String getCatalogBootstrapFileName(@Nonnull String catalogName) {
-		return catalogName + BOOT_FILE_SUFFIX;
+	static String getCatalogBootstrapFileName(@Nonnull String storagePrefix) {
+		return storagePrefix + BOOT_FILE_SUFFIX;
 	}
 
 	/**
 	 * Returns name of the catalog data file that contains catalog schema and catalog indexes.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     rotation index of the data file
+	 * @return name of the catalog data file
 	 */
 	@Nonnull
-	static String getCatalogDataStoreFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + CATALOG_FILE_SUFFIX;
+	static String getCatalogDataStoreFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + CATALOG_FILE_SUFFIX;
 	}
 
 	/**
-	 * Returns the pattern used to match the data store file names for a specific catalog.
+	 * Returns the pattern used to match the data store file names carrying the passed storage prefix.
 	 *
-	 * @param catalogName the name of the catalog to get the file name pattern for
-	 * @return the pattern used to match the data store file names
+	 * The prefix is quoted rather than interpolated raw. Catalog names legally contain `.`
+	 * (`ClassifierUtils.SUPPORTED_FORMAT_PATTERN` allows `[\p{Alnum}_.\-~]`), which is a regex wildcard, so an
+	 * unquoted prefix matches files belonging to a *different* prefix — `my.catalog` would also match
+	 * `myXcatalog_1.catalog`. That was harmless only while a catalog owned its folder exclusively and the prefix was
+	 * a validated catalog name; once the prefix is discovered from disk and a folder can hold files under both an old
+	 * and a new prefix, an over-permissive pattern selects the wrong catalog's data files.
+	 *
+	 * The suffix is quoted for the same reason — `.catalog` begins with a regex wildcard, so unquoted it would also
+	 * match a file name ending `Xcatalog`.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return the pattern used to match the data store file names, capturing the rotation index as group 1
 	 */
 	@Nonnull
-	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String catalogName) {
-		return Pattern.compile(catalogName + "_(\\d+)" + CATALOG_FILE_SUFFIX);
+	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String storagePrefix) {
+		return Pattern.compile(Pattern.quote(storagePrefix) + "_(\\d+)" + Pattern.quote(CATALOG_FILE_SUFFIX));
 	}
 
 	/**
@@ -231,13 +251,13 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Returns name of the Write-Ahead-Log file that contains all mutations that were not yet propagated to the catalog
 	 * data file.
 	 *
-	 * @param catalogName name of the catalog
-	 * @param fileIndex   index of the WAL file
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     index of the WAL file
 	 * @return name of the WAL file
 	 */
 	@Nonnull
-	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
+	static String getWalFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + WAL_FILE_SUFFIX;
 	}
 
 	/**

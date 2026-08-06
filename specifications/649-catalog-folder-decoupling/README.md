@@ -786,3 +786,20 @@ decision 5. Strengthen the `EvitaContract#replaceCatalog` JavaDoc once they pass
 the same commit, regenerate the index with `tools/generate-adr-index.sh`. The copy-vs-pointer fork and
 the plain-counter-vs-`SequenceService` fork are what make this clear the ADR bar; both rejection reasons
 in §5.6 must survive into the record.
+
+## 7. Gates that must be checked before the work is called done
+
+These are ordering hazards discovered during implementation, not part of any single step. Each fails
+*silently* if missed — which is why they are a checklist rather than a note.
+
+- [ ] **Step 5 must not land before step 7, or these two sites must be converted first.**
+  `DefaultCatalogPersistenceService#replaceWith`'s renaming block and the private static
+  `getFileNameWithCatalogRename` still build and compare file names from the **catalog name**, not
+  from the storage prefix discovered in step 2. That is correct only while the two are equal, which
+  holds through step 4. Step 5 is what first makes a prefix diverge from a name, and step 7 deletes
+  both sites outright — so the hazard exists only in the window between them. If that window is ever
+  going to be open, convert both to `this.storagePrefix` before step 5 merges. The failure mode is
+  the dangerous kind: `replaceWith` would match nothing and rename nothing, reporting success.
+
+- [ ] **Re-check this list before the branch merges**, not only before each step. A step reordering
+  is exactly the event that makes a dormant gate live.
