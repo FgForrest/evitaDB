@@ -57,6 +57,7 @@ import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
 import io.evitadb.utils.IOUtils;
@@ -74,8 +75,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -917,7 +919,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 *
 	 * - Catalogs registered as active or inactive whose folder is no longer present → `becomeMissing`.
 	 * - Catalogs that previously sat in the `missingCatalogs` bucket whose folder has reappeared → `reappeared`.
-	 * - Folders on disk that are unknown to the engine state → `autoDiscovered`.
+	 * - Folders on disk that are unknown to the engine state **and offered for adoption** → `autoDiscovered`.
+	 *
+	 * A registered catalog is looked up through its **binding**, never by assuming its folder is named after it —
+	 * that assumption is exactly what this line of work removes. An unreferenced folder is put through
+	 * {@link CatalogFolderClassifier}, and only a {@link CatalogFolderState#FOREIGN} one is adoptable; everything
+	 * else is reported and left where it is. Before this, *every* unknown directory was registered as a catalog,
+	 * which turned an operator's stray folder into a catalog the engine claimed to own.
 	 *
 	 * Each list is sorted alphabetically so the resulting WAL trail is deterministic across reboots over the same
 	 * on-disk shape. The persistence service does not rewrite the bootstrap here — `Evita` drains the divergence
@@ -933,26 +941,28 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull StorageSettings storageSettings,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
-		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
-		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
-		for (final Path dir : directories) {
-			catalogsOnDisk.add(dir.getName(dir.getNameCount() - 1).toString());
+		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+			storageSettings.storageDirectory(), engineState
+		);
+		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			foldersOnDisk.add(classification.folderName());
 		}
 
 		final ArrayList<String> becomeMissing = new ArrayList<>(16);
 		final ArrayList<String> reappeared = new ArrayList<>(16);
 		final ArrayList<String> autoDiscovered = new ArrayList<>(16);
 
-		// Active / inactive catalogs whose folder vanished while the engine was down.
+		// Active / inactive catalogs whose bound folder vanished while the engine was down.
 		for (final String catalog : engineState.activeCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				continue;
 			}
 			log.warn("Registered active catalog `{}` is missing on disk — staging MISSING transition.", catalog);
 			becomeMissing.add(catalog);
 		}
 		for (final String catalog : engineState.inactiveCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				continue;
 			}
 			log.warn("Registered inactive catalog `{}` is missing on disk — staging MISSING transition.", catalog);
@@ -961,16 +971,38 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Previously-missing catalogs whose folder reappeared — they will be demoted back to INACTIVE.
 		for (final String catalog : engineState.missingCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				log.info("Previously missing catalog `{}` has reappeared on disk — staging INACTIVE restoration.", catalog);
 				reappeared.add(catalog);
 			}
 		}
 
-		// Whatever folders remain on disk are unknown to the engine — auto-discovered.
-		for (final String catalogName : catalogsOnDisk) {
-			log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}", catalogName);
-			autoDiscovered.add(catalogName);
+		// Everything the engine state does not reference, sorted into what may be adopted and what may not.
+		for (final CatalogFolderClassification classification : classifications) {
+			final String folderName = classification.folderName();
+			switch (classification.state()) {
+				case REFERENCED -> {
+					// already accounted for above, through the binding rather than through the folder name
+				}
+				case FOREIGN -> {
+					log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}",
+						folderName);
+					autoDiscovered.add(folderName);
+				}
+				case UNCLAIMED -> log.warn(
+					"Storage folder `{}` is shaped like one evitaDB allocated but no catalog claims it — leaving " +
+						"it untouched. Rename it to a name without the `_<number>` suffix to have it adopted.",
+					folderName
+				);
+				case JUNK -> log.warn(
+					"Storage folder `{}` holds no catalog bootstrap file and is not referenced — leaving it " +
+						"untouched.", folderName
+				);
+				case PROVISIONAL, RETIRED -> log.info(
+					"Storage folder `{}` is {} and awaits removal — cleanup is not wired up yet, so it is left " +
+						"in place for now.", folderName, classification.state()
+				);
+			}
 		}
 
 		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty()) {
@@ -982,6 +1014,27 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		Collections.sort(reappeared);
 		Collections.sort(autoDiscovered);
 		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered);
+	}
+
+	/**
+	 * Tells whether the folder a catalog is bound to is actually present on disk.
+	 *
+	 * The lookup goes through the binding rather than assuming the folder carries the catalog's name. Once a
+	 * folder outlives a rename the two differ, and matching by name would report a perfectly healthy catalog as
+	 * missing — which stages a MISSING transition and takes it out of service.
+	 *
+	 * @param engineState   state carrying the name-to-folder bindings
+	 * @param foldersOnDisk names of every directory found under the storage root
+	 * @param catalogName   catalog whose folder is being looked for
+	 * @return true when the catalog is bound to a folder that exists
+	 */
+	private static boolean boundFolderPresent(
+		@Nonnull EngineState<LogFileRecordReference> engineState,
+		@Nonnull Set<String> foldersOnDisk,
+		@Nonnull String catalogName
+	) {
+		final CatalogFolderId folderId = engineState.boundFolderIdFor(catalogName);
+		return folderId != null && foldersOnDisk.contains(folderId.id());
 	}
 
 	/**

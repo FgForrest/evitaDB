@@ -432,21 +432,85 @@ files after the target catalog *chooses* the prefix rather than assuming it. Rec
    the removal ahead of the binding commit, which makes the overlap unreachable and turns a crash in the
    window into an `unclaimed` folder: litter, warned about, not deleted.
 
-### Design decisions taken for the classifier, not yet implemented
+### Landed: classification and allocation, both as pure units
 
-- **Extract a pure classifier.** `computeCatalogInventoryDivergence` is `private static` and reachable
-  only through the persistence-service constructor, which is why the mandated test-first order is
-  currently impossible. A separate classifier over (storage directory, engine state) is testable
-  directly and is what the tests get written against.
-- **Matching moves from directory *name* to *binding*.** Today `catalogsOnDisk` compares directory names
-  to catalog names and dumps every unknown directory into `autoDiscovered`. Under §3.5 only **foreign**
-  (suffix-free, has a `*.boot`) is adoptable; the rest split six ways.
-- **Referenced always wins, and nothing referenced is ever deleted.** For the residual overlaps a stale
-  marker or tombstone on a *bound* folder is litter to clear and warn about, never grounds for deletion —
-  the binding is the authority (Invariant A). Worth asserting as a standalone property test across every
-  marker combination, independently of the six-row table.
-- `.provisional` and `.catalogname` become constants on the `CatalogPersistenceService` SPI interface,
-  beside the existing `RESTORE_FLAG = ".restored"`.
+`CatalogFolderState` / `CatalogFolderClassification` / `CatalogFolderClassifier` and
+`CatalogFolderAllocator`, all in `io.evitadb.store.engine`, plus `PROVISIONAL_FLAG` and
+`CATALOG_NAME_FLAG` beside the existing `RESTORE_FLAG` on the `CatalogPersistenceService` SPI.
+
+Both are deliberately **pure and free-standing** rather than methods on the persistence service.
+`computeCatalogInventoryDivergence` is `private static` and reachable only through a constructor, which
+is what made the mandated test-first order impossible; a function of (storage directory, engine state)
+is testable directly. The allocator takes an `IntSupplier` rather than the engine's `SequenceService`,
+which keeps the storage layer free of a dependency on engine internals.
+
+Decisions worth keeping:
+
+- **Evaluation order is not the table's declaration order.** `REFERENCED` is checked first — a bound
+  folder loads whatever else it holds, because the binding is the authority (Invariant A) and deleting a
+  bound folder is data loss by definition. Then the two rows carrying positive evidence of our ownership.
+  Then *no bootstrap file* → `JUNK`, checked **before** the suffix: both rows warn-and-leave, so the
+  choice is purely about the advice, and telling someone to rename a bootstrap-less folder for adoption
+  would be wrong. Only then does the suffix split `FOREIGN` from `UNCLAIMED`.
+- **An unreadable directory classifies as `UNCLAIMED`.** "Cannot determine" resolves to the
+  non-destructive row rather than to a guess, and boot does not fail over one bad folder.
+- **`FOREIGN` carries a null catalog name on purpose.** The name must come from the bootstrap header at
+  adoption time; taking it from the directory name is the hole that lets an import shadow a live catalog.
+- **The classifier never calls `Files.exists`.** One `newDirectoryStream` pass answers both questions it
+  has, so a permissions change cannot be silently misread as absence.
+- **`allocate` writes `.provisional` itself**, so "everything we allocate is marked from the instant it
+  exists" is a single-place guarantee rather than a convention each caller has to remember.
+
+### Wiring the classifier into boot changes two behaviours
+
+`computeCatalogInventoryDivergence` now looks a registered catalog up through its **binding** instead of
+assuming the folder carries its name, and puts every unreferenced folder through the classifier instead
+of registering it. Two consequences that are not obvious from the diff:
+
+1. **An unreferenced folder with a `_<digits>` suffix is no longer adopted.** It classifies as
+   `UNCLAIMED` and is warned about. That is the suffix-free discovery rule working as designed, but it
+   does mean a catalog legitimately named `orders_2024`, appearing on disk while the engine was down,
+   is now reported rather than registered. The warning names the fix (rename it without the suffix).
+   The window is narrow because `createNewEngineState` — the no-engine-state-at-all path — still takes
+   every directory verbatim, so booting fresh over existing data adopts everything as before.
+2. **A folder holding no `*.boot` is no longer registered as a catalog.** Previously *every* unknown
+   directory became one, so a stray folder turned into a catalog the engine claimed to own. It is now
+   `JUNK`: warned about, left alone.
+
+Four existing tests failed on this, all for the same reason: their fixtures stand a discovered catalog up
+as a **bare empty directory**, which is the old "every directory is a catalog" assumption written into a
+test. They now create a folder holding a bootstrap file, via a named helper that says why. The `d`
+fixtures stay bare on purpose — a *reappeared* catalog is found through its binding, never through
+discovery, and leaving them bare keeps that distinction visible.
+
+Fixing a fixture silently deletes the coverage of the rule that broke it, so two tests were added at the
+divergence level asserting the new behaviour directly: a bootstrap-less folder and a suffixed folder are
+each neither adopted **nor removed**, contents intact.
+
+`createNewEngineState` was deliberately left alone. It still lists directories verbatim and registers
+them as **active** (divergence registers as *inactive* — a pre-existing inconsistency). Routing it
+through the classifier would change the upgrade path for installations whose engine state is absent,
+which wants its own step and its own tests.
+
+### Verification
+
+Full suite: **20937 tests, 1 failure, 1 error, 37 skipped** in the functional module, against 20909 / 1
+failure / 4 errors at step 4. The two survivors are the known pre-existing ones — `CdcCallbackDispatcherTest`
+(JVM-global thread count, still unruled-on) and `ExportS3ServiceTest` (no Docker). Step 4's other three
+errors were `EvitaSessionServiceFunctionalTest` gRPC timeouts under machine load and are gone.
+
+The +28 count delta was reconciled per container rather than assumed: 26 are the new tests (15 classifier,
+9 allocator, 2 divergence), and the remaining 2 are `Forced resolution overrides (DebugMode …)` 6→7 and
+`Sort index first-touch cost …` appearing with 1 — both sort-index performance tests unrelated to this
+work, reflecting how loaded the machine was during the step 4 run.
+
+### Still open in step 5
+
+`.provisional` clearing wired into the create/restore/duplicate paths (the allocator exposes
+`clearProvisionalMarker`, nothing calls it yet), the tombstone drain, foreign/legacy adoption with the
+boot-time rename, the `.catalogname` marker, and rewiring `computeCatalogInventoryDivergence` onto the
+classifier — it still matches directory names against catalog names and dumps every unknown directory
+into `autoDiscovered`. The two units that landed are not referenced by production code yet.
 
 ### The three §0 open items do not gate step 5
 

@@ -509,8 +509,12 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			// state knows nothing about so we exercise auto-discovery too.
 			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
 			Files.createDirectory(storageDirectory.resolve("flapping"));
-			Files.createDirectory(storageDirectory.resolve("discovered"));
 			Files.createDirectory(storageDirectory.resolve("present"));
+			// A folder is only offered for adoption when it actually holds a catalog, so the discovered one
+			// needs a bootstrap file - a bare directory is classified as junk and deliberately left alone.
+			// `flapping` and `present` need none: both are reached through their binding, not by discovery.
+			Files.createDirectory(storageDirectory.resolve("discovered"));
+			Files.createFile(storageDirectory.resolve("discovered").resolve("discovered.boot"));
 
 			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
 				2L,
@@ -546,6 +550,58 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			assertEquals(2L, reloaded.version());
 			assertEquals(List.of("flapping"), Arrays.asList(reloaded.missingCatalogs()));
 			assertEquals(List.of("present"), Arrays.asList(reloaded.inactiveCatalogs()));
+		}
+
+		@Test
+		@DisplayName("should neither adopt nor remove an unreferenced folder holding no bootstrap file")
+		void shouldLeaveFolderWithoutBootstrapFileAlone() throws IOException {
+			// Registering every unknown directory is the hole this closes: it turned an operator's stray
+			// folder into a catalog the engine claimed to own. The folder must survive untouched all the
+			// same - we have no evidence it is ours, and removing it would be unrecoverable.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path stray = Files.createDirectory(storageDirectory.resolve("stray"));
+			Files.createFile(stray.resolve("notes.txt"));
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				"A folder without a bootstrap file must not be offered for adoption!"
+			);
+			assertTrue(Files.isDirectory(stray), "The folder must be left exactly where it is!");
+			assertTrue(Files.exists(stray.resolve("notes.txt")), "Its contents must be left alone too!");
+		}
+
+		@Test
+		@DisplayName("should neither adopt nor remove an unreferenced folder carrying a generation suffix")
+		void shouldLeaveSuffixedUnreferencedFolderAlone() throws IOException {
+			// Discovery is restricted to suffix-free names, so a folder shaped like one evitaDB allocated is
+			// reported rather than reclaimed - it is most likely copied in from another instance.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path unclaimed = Files.createDirectory(storageDirectory.resolve("products_7"));
+			Files.createFile(unclaimed.resolve("products.boot"));
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+			assertTrue(
+				divergence.autoDiscovered().isEmpty(),
+				"A suffixed folder must not be offered for adoption!"
+			);
+			assertTrue(Files.exists(unclaimed.resolve("products.boot")), "The folder must be left untouched!");
 		}
 
 	}

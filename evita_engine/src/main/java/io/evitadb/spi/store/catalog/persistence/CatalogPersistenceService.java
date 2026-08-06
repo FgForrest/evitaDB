@@ -129,6 +129,28 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	String RESTORE_FLAG = ".restored";
 
 	/**
+	 * Marker file written into a catalog directory the instant it is created, and removed **before** the engine
+	 * state commits the binding that points at it. Its presence on an unreferenced folder therefore means an
+	 * operation that was materialising that folder died part-way through, and the folder holds no data anyone
+	 * can still reach — it is the only positive evidence that lets boot-time cleanup delete something.
+	 *
+	 * This is the opposite polarity to {@link #RESTORE_FLAG}: `.restored` says *"complete, adapt the name on
+	 * load"*, `.provisional` says *"incomplete, do not trust"*. Both are needed; they answer different questions.
+	 */
+	String PROVISIONAL_FLAG = ".provisional";
+
+	/**
+	 * Marker file holding the name of the catalog whose data a folder carries. Written whenever the binding
+	 * changes, so a folder that outlived a rename still says which catalog it belongs to — folder names are
+	 * cosmetic and are only brought back in line at the next boot, while the server is not running.
+	 *
+	 * It exists for the operator doing disaster recovery against a bare storage directory with no server to
+	 * ask; nothing in the engine reads it to make a decision, because the engine state is the sole authority
+	 * on where a catalog lives.
+	 */
+	String CATALOG_NAME_FLAG = ".catalogname";
+
+	/**
 	 * Pre-compiled regex pattern that matches any entity collection file name and extracts the entity type primary
 	 * key (group 1) and the file rotation index (group 2) from the name. Used for bulk discovery of all collection
 	 * files in a catalog directory without knowing the entity types in advance.

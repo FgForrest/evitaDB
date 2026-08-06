@@ -101,6 +101,22 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 		cleanupTestPaths(this.testPaths);
 	}
 
+	/**
+	 * Creates a folder in the shape boot-time discovery is willing to adopt: suffix-free and holding a catalog
+	 * bootstrap file. A bare directory is classified as junk and deliberately left alone, since registering
+	 * every unknown directory is what turned an operator's stray folder into a catalog the engine claimed.
+	 *
+	 * Folders standing in for a *reappeared* catalog need none of this — those are found through their binding
+	 * rather than through discovery — which is why the `d` fixtures below stay bare.
+	 *
+	 * @param catalogName name of the catalog whose folder is being faked
+	 * @throws IOException when the folder or the bootstrap file cannot be created
+	 */
+	private void createDiscoverableCatalogFolder(@Nonnull String catalogName) throws IOException {
+		final Path folder = Files.createDirectory(this.storageDirectory.resolve(catalogName));
+		Files.createFile(folder.resolve(catalogName + ".boot"));
+	}
+
 	@Test
 	@DisplayName("should mark inactive catalog with missing folder as MISSING via WAL on boot")
 	void shouldMarkCatalogWithMissingFolderAsMissing() {
@@ -154,7 +170,7 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	@DisplayName("should register auto-discovered folder as INACTIVE via WAL on boot")
 	void shouldRegisterAutoDiscoveredFolderAsInactive() throws IOException {
 		// Empty baseline, single folder on disk → auto-discovered.
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY);
 
 		try (final Evita evita = bootEvita()) {
@@ -178,7 +194,7 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 		// 2) RestoreCatalogSchemaMutation(d) and RestoreCatalogSchemaMutation(c) in EITHER order — Phase 2
 		//    dispatches them in parallel so their relative WAL order is non-deterministic by design.
 		Files.createDirectory(this.storageDirectory.resolve("d"));
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, new String[]{"b"}, new String[]{"d"});
 
 		try (final Evita evita = bootEvita()) {
@@ -209,7 +225,7 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should detect no further divergence on second boot (idempotency)")
 	void shouldNotEmitFurtherWalMutationsOnSecondBoot() throws IOException {
-		Files.createDirectory(this.storageDirectory.resolve("c"));
+		createDiscoverableCatalogFolder("c");
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY, ArrayUtils.EMPTY_STRING_ARRAY);
 
 		// First boot — drains the auto-discovery and bumps version once.
