@@ -673,8 +673,8 @@ public record EngineState<T extends LogRecordReference>(
 		 *
 		 * If no `introducedAt` value was carried over from a copy-constructor or set explicitly, the
 		 * current time is used — that's the right default only for genuinely new engine states.
-		 * Reconciliation rewrites (e.g. `DefaultEnginePersistenceService.syncEngineStateByFolderContents`)
-		 * must go through `builder(EngineState)` so the original timestamp is preserved.
+		 * Any rewrite of an existing state must go through `builder(EngineState)` so the original timestamp is
+		 * preserved — the boot-time reconciliation in `DefaultEnginePersistenceService` most of all.
 		 *
 		 * @return new EngineState instance
 		 */

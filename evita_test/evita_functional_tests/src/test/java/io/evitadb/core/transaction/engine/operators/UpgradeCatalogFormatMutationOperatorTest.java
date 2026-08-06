@@ -126,7 +126,9 @@ class UpgradeCatalogFormatMutationOperatorTest {
 		};
 
 		final UpgradeCatalogFormatMutationOperator operator =
-			new UpgradeCatalogFormatMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY), recordingExecutor);
+			new UpgradeCatalogFormatMutationOperator(
+				TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY), recordingExecutor
+			);
 
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);

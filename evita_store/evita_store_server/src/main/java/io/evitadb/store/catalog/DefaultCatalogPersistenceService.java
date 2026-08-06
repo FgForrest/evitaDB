@@ -1284,6 +1284,7 @@ public class DefaultCatalogPersistenceService
 		final String[] entries = folder.list(
 			(dir, name) -> !CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
 				&& !CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
+				&& !CatalogPersistenceService.RESTORE_FLAG.equals(name)
 		);
 		return entries == null || entries.length == 0;
 	}
@@ -1476,14 +1477,14 @@ public class DefaultCatalogPersistenceService
 	 * Normal callers must never use it.
 	 *
 	 * The method constructs a {@link UnusableCatalog} stub as the nominal {@link CatalogContract}
-	 * passed to the load ctor — the ctor's only use of that instance is to satisfy the
-	 * `verifyCatalogNameMatches` check, which never dereferences anything beyond `getName` on the
-	 * non-restore path. The `allowInlineV4ToV5Upgrade = true` flag unlocks the inline v4→v5 migration
+	 * passed to the load ctor — the ctor's only use of that instance is to satisfy
+	 * `reconcileStoredCatalogIdentity`, which never dereferences anything beyond `getName` unless the stored
+	 * name actually differs. The `allowInlineV4ToV5Upgrade = true` flag unlocks the inline v4→v5 migration
 	 * inside `verifyAndUpgradeStorageFormat` that would otherwise throw
 	 * {@link CatalogRequiresUpgradeException}.
 	 *
 	 * @param catalogName        the catalog to upgrade
-	 * @param catalogStoragePath directory the catalog data resides in, resolved by the engine
+	 * @param catalogFolderId    token identifying the folder the catalog data resides in
 	 * @param storageOptions     storage configuration options
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler          scheduler for background tasks

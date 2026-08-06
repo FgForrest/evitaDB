@@ -524,7 +524,13 @@ public interface EvitaContract extends AutoCloseable {
 
 	/**
 	 * Deletes catalog with name `catalogName` along with its contents on disk. At the end of this method the catalog
-	 * is guaranteed to be removed from the Evita instance and its contents on disk are also removed.
+	 * is guaranteed to be removed from the Evita instance.
+	 *
+	 * Removing the files is deliberately *not* part of that guarantee. The removal commits a tombstone for the
+	 * catalog's storage folder and then attempts the wipe; a wipe the operating system refuses — a reader still
+	 * holding the directory open — leaves the folder for the next start-up to reclaim rather than failing an
+	 * operation that has already succeeded (#649). The catalog is gone either way, and its name is immediately
+	 * free to reuse.
 	 *
 	 * @param catalogName name of the removed catalog
 	 */
@@ -538,7 +544,8 @@ public interface EvitaContract extends AutoCloseable {
 	}
 
 	/**
-	 * Deletes catalog with name `catalogName` along with its contents on disk.
+	 * Deletes catalog with name `catalogName`, and its contents on disk on a best-effort basis — see
+	 * {@link #deleteCatalogIfExists(String)} for why the wipe is allowed to be postponed to the next start-up.
 	 *
 	 * @param catalogName name of the removed catalog
 	 * @return progress that can be used to track the progress of the operation

@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
@@ -293,9 +294,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Any other combination still throws — those indicate actual corruption or tampering and require operator
 		// intervention.
 		//
-		// This check runs BEFORE `syncEngineStateByFolderContents` so a drifted state cannot be
-		// silently "healed" by the reconciliation (which rewrites the bootstrap file in place).
-		// Preserving the drift on disk is critical for post-mortem diagnosis.
+		// This check runs BEFORE the classify/drain/divergence block below so a drifted state cannot be
+		// silently "healed" on the way past. That block is a pure value computation and rewrites no bootstrap,
+		// but the drain it runs first does delete folders — and preserving the drift on disk untouched is
+		// critical for post-mortem diagnosis.
 		final long walVersion = this.mutationLog == null ? 0L : this.mutationLog.getLastWrittenVersion();
 		final long stateVersion = this.engineState.version();
 		Assert.isPremiseValid(
@@ -1062,6 +1064,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					// removal failed - a removed one is reported through `drainedFolders`, a surviving one keeps
 					// its tombstone so the next boot tries again
 				}
+				// an arrow-form switch *statement* is not exhaustiveness-checked, so a seventh state would
+				// otherwise be dropped on the floor here - in the one place that decides what happens to a
+				// folder nobody claims
+				default -> throw new GenericEvitaInternalError(
+					"Unhandled catalog folder state `" + classification.state() + "` for folder `" +
+						folderName + "`!"
+				);
 			}
 		}
 
@@ -1148,8 +1157,40 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 */
 	@Nonnull
 	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageSettings storageSettings) {
-		// Get all directories in the storage directory to identify active catalogs
-		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
+		// A directory name is NOT a catalog name. This path runs whenever the engine bootstrap is absent - a
+		// storage root copied to another host, restored from a filesystem backup, or one whose bootstrap was
+		// corrupted and removed - which is exactly the disaster-recovery situation, and it is the one boot path
+		// that has no engine state to consult. Taking every directory name as a catalog name was correct only
+		// while a folder was named after its catalog. Now that folders carry a generation, it would register
+		// catalog `products_1` for a folder holding catalog `products`, and the load would then *adapt the
+		// stored name to match* - permanently renaming the catalog after its own directory, silently, with no
+		// way back short of restoring a backup.
+		//
+		// So the same classification the normal boot path uses decides here too, against an empty state: a
+		// suffix-free folder holding a bootstrap is foreign and adoptable, which registers a legacy installation
+		// exactly as before, while anything carrying a generation suffix is unclaimed - reported, left alone,
+		// and recovered by renaming it suffix-free. Reading the catalog's real name out of the folder's
+		// `.catalogname` marker would recover more of these automatically and is the natural next step; it is
+		// not needed for correctness, and it must not be taken before the ambiguity of two folders claiming one
+		// name is resolved.
+		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+			storageSettings.storageDirectory(),
+			EngineState.<LogFileRecordReference>builder().version(1L).build()
+		);
+		final List<String> adoptableCatalogs = new ArrayList<>(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			if (classification.state() == CatalogFolderState.FOREIGN) {
+				adoptableCatalogs.add(classification.folderName());
+			} else {
+				log.warn(
+					"Storage folder `{}` was found without any engine state to explain it and cannot be claimed " +
+						"({}) — leaving it untouched. Rename it to a name with no `_<number>` suffix to have it " +
+						"registered.",
+					classification.folderName(), classification.state()
+				);
+			}
+		}
+		Collections.sort(adoptableCatalogs);
 
 		// Create new engine state with initial values
 		final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
@@ -1157,11 +1198,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			1L,  // Initial version
 			OffsetDateTime.now(),
 			null,  // No WAL file reference initially
-			// Extract directory names as active catalogs
-			Arrays.stream(directories)
-			      .map(it -> it.getName(it.getNameCount() - 1).toString())
-			      .sorted()
-			      .toArray(String[]::new),
+			adoptableCatalogs.toArray(String[]::new),
 			ArrayUtils.EMPTY_STRING_ARRAY,  // No inactive catalogs initially
 			ArrayUtils.EMPTY_STRING_ARRAY   // No read-only catalogs initially
 		);
@@ -1193,10 +1230,12 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 	@Override
 	public void dropCatalogFolder(@Nonnull CatalogFolderId folderId) {
-		final Path folder = pathOf(folderId);
-		if (folder.toFile().exists()) {
-			FileUtils.deleteDirectory(folder);
-		}
+		// No existence pre-check. `exists` answers false both for "absent" and for "cannot be determined" - it
+		// reports an AccessDeniedException as absence - so a guard here would turn a folder the operating system
+		// merely refuses to talk about into a reported success, and the caller would discharge its tombstone
+		// against data that is still on disk. `deleteDirectory` already returns quietly on a folder that is
+		// genuinely gone, so the guard bought nothing and cost that.
+		FileUtils.deleteDirectory(pathOf(folderId));
 	}
 
 	@Override

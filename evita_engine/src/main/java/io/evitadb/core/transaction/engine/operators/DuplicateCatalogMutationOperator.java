@@ -57,6 +57,11 @@ import java.util.function.Consumer;
  * drift — the default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to log a loud
  * error and stop.
  *
+ * Forward-replay is **not** implemented, and the blocker is sharper than "the folder may exist": the target
+ * folder is allocated during the work phase and its token lives only in an in-memory reservation, which a
+ * restart discards. `DuplicateCatalogMutation` does not carry it, so replay cannot know which folder the copy
+ * was written into — and binding the wrong one would leave the copy unreferenced.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor

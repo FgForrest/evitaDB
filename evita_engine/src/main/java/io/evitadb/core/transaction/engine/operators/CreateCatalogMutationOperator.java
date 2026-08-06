@@ -30,7 +30,6 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogTransitioningException;

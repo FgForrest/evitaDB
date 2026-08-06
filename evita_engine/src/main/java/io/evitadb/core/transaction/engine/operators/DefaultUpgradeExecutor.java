@@ -32,7 +32,6 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
-import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;

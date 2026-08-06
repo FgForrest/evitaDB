@@ -241,15 +241,15 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService,
 		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
-		// Single choke point for the catalog-name-to-folder mapping (#649). Every operator resolves catalog
-		// folders through this resolver rather than joining the catalog name onto the storage directory, so
-		// that decoupling the folder from the name later touches one implementation instead of every site.
-		// Checked here rather than left to fail at first use: every operator captures the resolver at
+		// Single choke point for the catalog-name-to-folder mapping (#649). Every operator acts on catalog
+		// folders through this context rather than joining the catalog name onto the storage directory, which
+		// is what let the folder be decoupled from the name in one implementation instead of at every site.
+		// Checked here rather than left to fail at first use: every operator captures the context at
 		// construction but only dereferences it when a mutation runs, so a missing one would otherwise
 		// surface as an NPE deep inside an unrelated operator - possibly during WAL replay at boot.
 		final CatalogFolderContext folderContext = Objects.requireNonNull(
 			evita.getCatalogFolderContext(),
-			"Catalog folder resolver is not available on the Evita instance!"
+			"Catalog folder context is not available on the Evita instance!"
 		);
 		this.folderContext = folderContext;
 

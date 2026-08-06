@@ -324,8 +324,8 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should not mutate bootstrap when WAL is ahead by more than one on startup")
 		void shouldNotMutateBootstrapWhenWalAheadByMoreThanOne() throws IOException {
-			// Regression guard for the `syncEngineStateByFolderContents` ordering bug. If folder-sync
-			// reconciliation ran BEFORE the startup invariant check, a drifted state on disk would be "silently"
+			// Regression guard for the boot-time reconciliation ordering bug. If folder reconciliation ran
+			// BEFORE the startup invariant check, a drifted state on disk would be "silently"
 			// mended — the bootstrap file
 			// would be rewritten with the reconciled catalog arrays even though startup was about to
 			// throw. Any such rewrite is forbidden: on a drifted state we must surface the problem

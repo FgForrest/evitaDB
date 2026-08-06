@@ -349,6 +349,49 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldMintFreshCatalogIdWhenRestoredUnderItsOriginalName() throws IOException {
+		// The ordinary restore: a backup of `testCatalog` restored as `testCatalog`. The stored name already
+		// matches, so only the restore flag distinguishes it — and it is the quadrant neither other test covers.
+		// Collapsing the identity condition back to `if (nameDiffers)` passes both of those and silently gives
+		// every same-name restore its source's id, which is exactly what clients key their caches on.
+		final Path renamedCatalogPath = prepareInvalidCatalogContents();
+		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
+
+		try (
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				TEST_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
+			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
+			assertEquals(TEST_CATALOG, catalogHeader.catalogName());
+			assertNotEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"Copied bytes are a new lineage whatever the name says — the flag alone decides this!"
+			);
+			// and the schema was left alone, because nothing about the name changed: keeping that gate separate
+			// is what stops an ordinary restore from bumping a schema version for no reason
+			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
+				final CatalogSchemaStoragePart storedSchema = persistenceService
+					.getStoragePartPersistenceService(lastCatalogVersion)
+					.getStoragePart(lastCatalogVersion, 1, CatalogSchemaStoragePart.class);
+				assertEquals(CATALOG_SCHEMA.version(), storedSchema.catalogSchema().version());
+				return null;
+			});
+			assertFalse(
+				renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().exists(),
+				"The restore flag must be consumed, or every later load would mint another identity!"
+			);
+		}
+	}
+
+	@Test
 	void shouldAdaptCatalogContentsStoringADifferentNameEvenWithoutRestoreFlag() throws IOException {
 		// The authority flip of #649: the name a catalog is loaded under comes from the engine state, not from
 		// the folder, so a header naming something else is no longer evidence of a mistake - it is the ordinary
@@ -357,7 +400,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		prepareInvalidCatalogContents();
 
 		try (
-			var persistenceService = new DefaultCatalogPersistenceService(
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				RENAMED_CATALOG,
 				new CatalogFolderId(RENAMED_CATALOG),
@@ -385,7 +428,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
 
 		try (
-			var persistenceService = new DefaultCatalogPersistenceService(
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				RENAMED_CATALOG,
 				new CatalogFolderId(RENAMED_CATALOG),

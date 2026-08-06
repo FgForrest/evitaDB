@@ -203,7 +203,16 @@ public interface CatalogContract {
 	void terminateAndDelete();
 
 	/**
-	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `updatedSchema.getName()`, so that it becomes the catalog known under that name.
+	 *
+	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
+	 * occupies; the operation rewrites the name held in that folder's header and schema and hands back a catalog
+	 * instance addressing the same data under the new name (#649). Retiring the folder the replaced catalog used
+	 * to occupy is the caller's concern — it is tombstoned through the engine state, not deleted here.
+	 *
+	 * @param updatedSchema        schema carrying the name this catalog is to be known under
+	 * @param catalogToBeReplaced  catalog being superseded, or `null` when this is a rename onto a free name
+	 * @return future producing the catalog instance serving the new name
 	 */
 	@Nonnull
 	ProgressingFuture<CatalogContract> replace(

@@ -81,8 +81,10 @@ import java.util.stream.Stream;
  * {@link #getCause()} methods. The catalog can provide only its name, state and folder binding.
  *
  * Being the placeholder for a catalog that has no persistence service, it cannot perform folder-level work
- * itself and is handed a {@link CatalogFolderOperations} handle for the two things it still has to do — wipe
- * the folder on {@link #terminateAndDelete()} and measure it for {@link #getStatistics()}.
+ * itself and is handed a {@link CatalogFolderOperations} handle for the folder-level work it still has to do —
+ * measuring the folder for {@link #getStatistics()}, and wiping it on {@link #terminateAndDelete()}. Note that
+ * catalog removal no longer goes through the latter: it tombstones the folder and wipes it through the folder
+ * context, so `terminateAndDelete` currently has no callers at all (#649).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -208,8 +210,9 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Override
 	public void terminateAndDelete() {
-		// stays a CatalogContract method invoked polymorphically alongside Catalog#terminateAndDelete - only
-		// the wipe itself is delegated, because this placeholder has no persistence service of its own
+		// Kept in step with Catalog#terminateAndDelete, which is the contract this implements - only the wipe
+		// itself is delegated, because this placeholder has no persistence service of its own. Nothing calls
+		// either implementation since removal became a tombstone plus a folder-context wipe (#649).
 		this.folderOperations.dropCatalogFolder(this.catalogFolderId);
 	}
 

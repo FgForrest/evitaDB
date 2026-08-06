@@ -34,7 +34,6 @@ import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
-import io.evitadb.spi.store.engine.model.CatalogFolderId;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -62,8 +61,8 @@ public class MarkCatalogMissingMutationOperator
 	implements EngineMutationOperator<Void, MarkCatalogMissingMutation> {
 
 	/**
-	 * Storage root directory used to build the placeholder catalog path for the `UnusableCatalog`
-	 * instance that reports the missing folder.
+	 * Everything the engine knows about catalog storage folders — used here to build the `UnusableCatalog`
+	 * placeholder that reports which folder went missing.
 	 */
 	@Nonnull private final CatalogFolderContext folderContext;
 

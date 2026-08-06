@@ -40,7 +40,6 @@ import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -74,8 +73,8 @@ public class UpgradeCatalogFormatMutationOperator
 	implements EngineMutationOperator<Void, UpgradeCatalogFormatMutation> {
 
 	/**
-	 * Resolver used to build the placeholder catalog path for the transient `UnusableCatalog`
-	 * installed while the upgrade is running.
+	 * Everything the engine knows about catalog storage folders — used here to build the transient
+	 * `UnusableCatalog` installed while the upgrade is running.
 	 */
 	@Nonnull private final CatalogFolderContext folderContext;
 	/**

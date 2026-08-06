@@ -39,7 +39,6 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -56,10 +55,10 @@ import java.util.function.Consumer;
  *    bucket entry through `Builder#withRestoredFromMissing(...)`.
  *
  * Forward-replay is intentionally **not** implemented here. Although the completion phase looks pure (wrap the
- * restored folder into an `UnusableCatalog` stub), the folder-existence precondition
- * (`catalogFolder.toFile().exists()`) is side-effect dependent on the completion of the restore work phase. Rather
- * than re-deriving that invariant at replay time, we prefer to wedge loudly via the default `Optional.empty()` in
- * `EngineMutationOperator`.
+ * restored folder into an `UnusableCatalog` stub), it rests on a precondition the work phase established: that
+ * the folder resolved for the catalog exists and holds the restored data. At replay time that folder may or may
+ * not have been written, and the reservation naming it did not survive the restart — so rather than re-deriving
+ * the invariant we wedge loudly via the default `Optional.empty()` in `EngineMutationOperator`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
