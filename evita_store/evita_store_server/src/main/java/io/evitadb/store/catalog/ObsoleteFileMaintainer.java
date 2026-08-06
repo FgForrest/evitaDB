@@ -269,7 +269,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 					lastKnownMinimalActiveVersion,
 					Math::max
 				);
-				this.purgeTask.schedule();
+				this.purgeTask.trySchedule();
 			}
 		}
 	}
