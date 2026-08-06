@@ -24,17 +24,21 @@
 package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TASK;
@@ -111,6 +115,36 @@ class DelayedAsyncTaskTest implements TestConstants {
 			"Task never ran again after an execution threw - its planned tick was left behind."
 		);
 		assertEquals(2, executed.get());
+	}
+
+	/**
+	 * Several callers schedule this task from paths that must not fail - the commit thread retiring a data file, a
+	 * backup's tear-down giving back its folder hold, the tail of a run that has just thrown. All of them used to read
+	 * a `closed` flag and then call `schedule()`, which is check-then-act: a `close()` landing between the two turns
+	 * the request into a `GenericEvitaInternalError` thrown out of a path with no business failing, and in the last
+	 * case it would replace the exception that actually explains the failure.
+	 */
+	@Test
+	void shouldRefuseToScheduleAClosedTaskInsteadOfThrowing() throws IOException {
+		final AtomicInteger executed = new AtomicInteger();
+		final DelayedAsyncTask tested = new DelayedAsyncTask(
+			TEST_CATALOG, "testTask", this.scheduler,
+			() -> {
+				executed.incrementAndGet();
+				return -1;
+			},
+			0, TimeUnit.MILLISECONDS, 0
+		);
+
+		assertTrue(tested.trySchedule(), "an open task must accept the scheduling request");
+
+		tested.close();
+
+		assertFalse(tested.trySchedule(), "a closed task must report the refusal rather than throw");
+		assertThrows(
+			GenericEvitaInternalError.class, tested::schedule,
+			"the intolerant entry point stays intolerant - callers that can handle it use `trySchedule`"
+		);
 	}
 
 	@Test

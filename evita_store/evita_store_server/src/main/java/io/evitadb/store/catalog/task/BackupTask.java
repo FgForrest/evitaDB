@@ -143,28 +143,54 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// `tearDown` is unreachable, and the caller's cancel-on-rejected-submission has no task to cancel. A hold left
 		// open by that path is not a delayed reclamation, it is the permanent end of reclamation for this catalog -
 		// silently, because the exception it rides out on looks perfectly handled
+		boolean versionPinned = false;
 		try {
 			if (onStart != null) {
 				final long backedUpVersion = this.bootstrapRecord.catalogVersion();
 				onStart.accept(backedUpVersion);
+				// from here on the pin is registered, and everything below can throw: the reachability check reads the
+				// bootstrap file under the horizon lock. A pin left behind by that throw is not a delayed reclamation
+				// either - it is the retention floor of this catalog frozen at this version for the rest of its life
+				versionPinned = true;
 				// the record was resolved before the pin was taken, and history can be given up in between - by the
 				// time the pin lands, the files this record points at may already have been reclaimed. The pin itself
 				// makes the check conclusive rather than another guess: once it is registered no further advance can
 				// pass this version, so a window that is open now stays open for as long as the task holds it
 				final long oldestRetainedVersion = catalogPersistenceService.getOldestRetainedCatalogVersion();
 				if (oldestRetainedVersion > backedUpVersion) {
-					if (onComplete != null) {
-						this.onComplete.set(null);
-						onComplete.accept(backedUpVersion);
-					}
 					throw new TemporalDataNotAvailableException(oldestRetainedVersion);
 				}
 			}
 		} catch (RuntimeException ex) {
-			if (this.directoryReadHold != null) {
-				this.directoryReadHold.close();
+			try {
+				if (this.directoryReadHold != null) {
+					this.directoryReadHold.close();
+				}
+			} catch (RuntimeException unwindFailure) {
+				// `ex` is the exception that explains why this task does not exist - it must be the one that gets out
+				ex.addSuppressed(unwindFailure);
+			} finally {
+				// in a `finally` for the same reason `tearDown` puts it there: giving the folder back re-drives the
+				// reclamation it deferred, which is real work that can throw
+				if (versionPinned) {
+					releaseVersionPin();
+				}
 			}
 			throw ex;
+		}
+	}
+
+	/**
+	 * Gives back the catalog version pin taken in the constructor, exactly once.
+	 *
+	 * The consumer is read out of the field and cleared in the same operation, so the constructor's unwind path and
+	 * {@link #tearDown()} cannot both fire it - a release that runs twice does not merely no-op, it decrements the pin
+	 * of whichever other consumer holds that version and quietly takes their protection away.
+	 */
+	private void releaseVersionPin() {
+		final LongConsumer theOnComplete = this.onComplete.getAndSet(null);
+		if (theOnComplete != null) {
+			theOnComplete.accept(this.bootstrapRecord.catalogVersion());
 		}
 	}
 
@@ -310,10 +336,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		} finally {
 			// in a `finally` because giving the folder back re-drives the reclamation it deferred, which is real work
 			// that can throw - and a pin left behind by that throw freezes the catalog's retention floor for good
-			final LongConsumer onComplete = this.onComplete.getAndSet(null);
-			if (onComplete != null) {
-				onComplete.accept(this.bootstrapRecord.catalogVersion());
-			}
+			releaseVersionPin();
 		}
 	}
 

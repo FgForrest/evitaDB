@@ -71,6 +71,7 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.InvalidClassifierFormatException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
@@ -1946,6 +1947,48 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should give the version pin back when the backup constructor throws after taking it")
+		void shouldUnwindTheVersionPinWhenTheBackupConstructorThrows() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				// warm-up, so the task takes the folder hold as well as the pin and both unwinds are exercised
+				writeSeveralWarmUpGenerations(ioService);
+				final DefaultCatalogPersistenceService failingService = Mockito.spy(ioService);
+				// the reachability check reads the bootstrap file under the horizon lock, and it runs *after* the pin
+				// has landed. A constructor that throws leaves no object behind: `tearDown` is unreachable and the
+				// caller's cancel-on-rejected-submission has nothing to cancel
+				Mockito.doThrow(new GenericEvitaInternalError("simulated bootstrap read failure"))
+					.when(failingService).getOldestRetainedCatalogVersion();
+
+				assertThrows(
+					GenericEvitaInternalError.class,
+					() -> failingService.createBackupTask(
+						null, null, false,
+						failingService::catalogVersionPinned,
+						failingService::catalogVersionReleased
+					)
+				);
+
+				assertEquals(
+					-1L, ioService.getRetentionFloor(),
+					"a pin the constructor took must not outlive the constructor that threw - it would freeze " +
+						"reclamation for this catalog for good"
+				);
+				assertFalse(
+					ioService.isCatalogDirectoryHeld(),
+					"and neither must the folder hold it took first"
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("should let a backup give its holds back after the catalog has already closed")
 		void shouldToleratePinAndHoldReleaseAfterTheServiceClosed() {
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
@@ -2066,6 +2109,159 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					"the persistence service serving a pinned version must still be readable"
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("should keep the in-memory history of a pinned version when other consumers move past it")
+		void shouldClampTheOffsetIndexHistoryPurgeToTheRetentionFloor() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// deliberately NOT compacting: every version then lands in one shared offset index, which is
+					// exactly the arrangement a backup of the *current* data reads through
+					nonCompactingStorageOptions(),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				final long pinnedVersion = 2L;
+				final long lastVersion = ioService.getLastCatalogVersion();
+				final CatalogOffsetIndexStoragePartPersistenceService sharedService =
+					ioService.getStoragePartPersistenceService(pinnedVersion);
+				// precondition - one shared service across the versions, otherwise the per-version root history this
+				// test is about does not exist and every assertion below holds vacuously
+				assertSame(sharedService, ioService.getStoragePartPersistenceService(lastVersion));
+				assertEquals(
+					pinnedVersion, readCatalogHeaderVersionAt(sharedService, pinnedVersion),
+					"the fixture must retain a distinguishable state per version"
+				);
+
+				// a consumer that reads through the shared services - a backup of the current data is the one there is
+				// today - holds the version it started on
+				ioService.catalogVersionPinned(pinnedVersion);
+
+				// every other session moves on and the last of them departs, reporting a floor far above the pin
+				ioService.catalogConsumersLeft(lastVersion, lastVersion);
+				// the release only records a watermark; the roots are actually dropped by the next promotion, which is
+				// the commit that lands while the consumer above is still reading
+				writeOneMoreGeneration(ioService, lastVersion + 1L);
+
+				// unclamped, the roots for the pinned version are dropped and the read *silently succeeds* against the
+				// oldest root still retained - `Roots.floorIndex` clamps rather than failing, so the consumer gets a
+				// different, newer state under the version it asked for
+				assertEquals(
+					pinnedVersion, readCatalogHeaderVersionAt(sharedService, pinnedVersion),
+					"a pinned version must still resolve to its own state, not to a newer one"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should give up no history at all once the service has been closed")
+		void shouldNotAdvanceTheHorizonOnAClosedService() {
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				TEST_CATALOG,
+				eagerCompactionStorageOptions(true, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
+				eagerCheckpointTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			);
+			writeSeveralGenerations(ioService);
+			final long bootstrapSizeBeforeClose = bootstrapFileSize();
+			final int dataFilesBeforeClose = listCatalogDataFiles().size();
+			// precondition - there is history to give up, otherwise a no-op is indistinguishable from the fix
+			assertTrue(dataFilesBeforeClose > 2, "expected several generations, got " + dataFilesBeforeClose);
+
+			ioService.close();
+
+			// closing the guard task is `cancel(false)`: a run that had already begun keeps going right through the
+			// teardown, and this is that run arriving at the point where it decided to advance. Trimming here rewrites
+			// the bootstrap file of a catalog that is gone and swaps in a write handle nothing will ever close
+			assertDoesNotThrow(() -> ioService.advanceHistoryHorizon(ioService.getLastCatalogVersion()));
+
+			assertEquals(
+				bootstrapSizeBeforeClose, bootstrapFileSize(),
+				"a closed service must not rewrite its bootstrap file"
+			);
+			assertEquals(
+				dataFilesBeforeClose, listCatalogDataFiles().size(),
+				"a closed service must not reclaim data files"
+			);
+		}
+
+		/**
+		 * Writes one further generation on top of whatever the fixture already produced, keeping the catalog identity
+		 * it was created with. Promotion is what actually consumes the deferred purge watermark a departure recorded.
+		 *
+		 * @param ioService      the service under test
+		 * @param catalogVersion the catalog version to write
+		 */
+		private void writeOneMoreGeneration(
+			@Nonnull DefaultCatalogPersistenceService ioService,
+			long catalogVersion
+		) {
+			final CatalogOffsetIndexStoragePartPersistenceService service =
+				ioService.getStoragePartPersistenceService(catalogVersion);
+			service.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+			ioService.storeHeader(
+				service.getCatalogHeader(catalogVersion).catalogId(),
+				CatalogState.ALIVE,
+				catalogVersion,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(service)
+			);
+		}
+
+		/**
+		 * Storage options that never compact, so every catalog version is served by one shared offset index and its
+		 * per-version root history is what a reader resolves through.
+		 *
+		 * @return the storage options
+		 */
+		@Nonnull
+		private StorageOptions nonCompactingStorageOptions() {
+			return StorageOptions.builder()
+				.storageDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.workDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+				.computeCRC32(true)
+				.build();
+		}
+
+		/**
+		 * Reads the catalog header the given service resolves for the given catalog version and returns the version it
+		 * actually belongs to - which is the same one only while that version's roots are still retained.
+		 *
+		 * @param service        the persistence service to read through
+		 * @param catalogVersion the catalog version to resolve
+		 * @return the catalog version of the header the read resolved to
+		 */
+		private long readCatalogHeaderVersionAt(
+			@Nonnull CatalogOffsetIndexStoragePartPersistenceService service,
+			long catalogVersion
+		) {
+			final CatalogHeader<?, ?> header = Objects.requireNonNull(
+				service.getStoragePart(catalogVersion, 1L, CatalogHeader.class)
+			);
+			return header.version();
+		}
+
+		/**
+		 * Size of the catalog bootstrap file on disk - the thing a trim shortens.
+		 *
+		 * @return the bootstrap file size in bytes
+		 */
+		private long bootstrapFileSize() {
+			return getTestDirectory()
+				.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
+				.resolve(TEST_CATALOG)
+				.resolve(getCatalogBootstrapFileName(TEST_CATALOG))
+				.toFile()
+				.length();
 		}
 	}
 

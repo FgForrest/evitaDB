@@ -31,6 +31,7 @@ import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,7 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileName;
@@ -58,6 +60,7 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -225,12 +228,28 @@ class ObsoleteFileMaintainerTest {
 	 */
 	@Nonnull
 	private ObsoleteFileMaintainer newMaintainerWithInertScheduler(boolean timeTravelEnabled) {
+		return newMaintainerWithInertScheduler(timeTravelEnabled, NO_OP_SUPPLIER);
+	}
+
+	/**
+	 * Builds an {@link ObsoleteFileMaintainer} with an inert scheduler and the supplied source of the oldest retained
+	 * data file info.
+	 *
+	 * @param timeTravelEnabled           whether the maintainer should operate in time-travel mode
+	 * @param oldestDataFilesInfoSupplier source of the oldest retained bootstrap record and its catalog header
+	 * @return a freshly constructed maintainer that the caller is responsible for closing
+	 */
+	@Nonnull
+	private ObsoleteFileMaintainer newMaintainerWithInertScheduler(
+		boolean timeTravelEnabled,
+		@Nonnull Supplier<DataFilesBulkInfo> oldestDataFilesInfoSupplier
+	) {
 		return new ObsoleteFileMaintainer(
 			CATALOG_NAME,
 			Mockito.mock(Scheduler.class),
 			this.catalogStoragePath,
 			timeTravelEnabled,
-			NO_OP_SUPPLIER
+			oldestDataFilesInfoSupplier
 		);
 	}
 
@@ -408,13 +427,14 @@ class ObsoleteFileMaintainerTest {
 		}
 
 		@Test
-		@DisplayName("A parked file does not outlive the maintainer that parked it")
+		@DisplayName("A parked file does not outlive the maintainer that parked it, and is collected exactly once")
 		void shouldPurgeDeferredFilesWhenTheMaintainerCloses() throws IOException {
 			final Path deferredFile;
+			final AtomicInteger removalLambdaRuns = new AtomicInteger();
 			try (ObsoleteFileMaintainer maintainer = newMaintainer(false)) {
 				deferredFile = createCatalogFile(0);
 				maintainer.acquireDirectoryReadHold();
-				maintainer.removeFileWhenNotUsed(0L, deferredFile, () -> {});
+				maintainer.removeFileWhenNotUsed(0L, deferredFile, removalLambdaRuns::incrementAndGet);
 			}
 
 			// the hold is deliberately still open here - a catalog that is closing empties its folder regardless,
@@ -423,6 +443,12 @@ class ObsoleteFileMaintainerTest {
 			assertFalse(
 				deferredFile.toFile().exists(),
 				"a parked file must not be left on disk by the maintainer that parked it"
+			);
+			// the removal from the parked list is the claim token, and a lambda that runs twice does not no-op: it
+			// closes a persistence service resolved *below* the version it names, which is a different, live one
+			assertEquals(
+				1, removalLambdaRuns.get(),
+				"the removal lambda of a parked file must run exactly once"
 			);
 		}
 
@@ -437,6 +463,100 @@ class ObsoleteFileMaintainerTest {
 			return Files.createFile(
 				ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(
 					getCatalogDataStoreFileName(CATALOG_NAME, fileIndex)
+				)
+			);
+		}
+
+	}
+
+	/**
+	 * A deletion pass that does not get the catalog folder to itself has to come back, and the two reasons it can be
+	 * turned away have different answers: a directory hold is given back by its own release, while a competing pass is
+	 * nobody's business to retry. The same applies in time: a round that threw half-way must be retried in full rather
+	 * than recorded as done.
+	 */
+	@Nested
+	@DisplayName("Deletion passes that had to be given up")
+	class DeferredDeletionPasses {
+
+		@Test
+		@DisplayName("A round that threw is retried in full when the same version arrives again")
+		void shouldRetryTheWholeRoundAfterItThrew() {
+			final AtomicInteger sweepAttempts = new AtomicInteger();
+			final AtomicInteger sweepsCompleted = new AtomicInteger();
+			final Supplier<DataFilesBulkInfo> failingOnce = () -> {
+				if (sweepAttempts.incrementAndGet() == 1) {
+					throw new IllegalStateException("simulated failure of the unreachable-file sweep");
+				}
+				sweepsCompleted.incrementAndGet();
+				return null;
+			};
+			try (ObsoleteFileMaintainer maintainer = newMaintainerWithInertScheduler(true, failingOnce)) {
+				final WalPurgeCallback callback = maintainer.createWalPurgeCallback();
+
+				assertThrows(IllegalStateException.class, () -> callback.purgeFilesUpTo(5L));
+				// the write-ahead log driver retries with the very same version, because the horizon it would have
+				// recorded is only set once the whole round returns
+				callback.purgeFilesUpTo(5L);
+
+				assertEquals(
+					1, sweepsCompleted.get(),
+					"the retry must actually perform the sweep the failed round never got to"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("A sweep turned away by a directory hold is performed by the next deletion pass")
+		void shouldPerformTheDeferredSweepOnTheNextPass() throws IOException {
+			final Path unreachableFile = Files.createFile(
+				ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(
+					getCatalogDataStoreFileName(CATALOG_NAME, 0))
+			);
+			final Path retainedFile = Files.createFile(
+				ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(
+					getCatalogDataStoreFileName(CATALOG_NAME, 1))
+			);
+			try (ObsoleteFileMaintainer maintainer = newMaintainerWithInertScheduler(true, this::oldestGeneration)) {
+				maintainer.acquireDirectoryReadHold();
+				maintainer.reclaimUnreachableFiles();
+				assertTrue(
+					unreachableFile.toFile().exists(),
+					"the sweep must not run at all while a consumer is reading the folder"
+				);
+				maintainer.releaseDirectoryReadHold();
+
+				// any other pass will do - what matters is that the sweep is carried by it rather than waiting for a
+				// second guard trigger that an idle catalog may never produce
+				maintainer.removeFileWhenNotUsed(0L, retainedFile, () -> {});
+
+				assertFalse(
+					unreachableFile.toFile().exists(),
+					"the deferred sweep must be performed by the next pass that gets the folder"
+				);
+			}
+		}
+
+		/**
+		 * The oldest retained generation used by the sweep above - catalog file index `1` with no collections at all.
+		 *
+		 * @return the oldest retained bootstrap record and its catalog header
+		 */
+		@Nonnull
+		private DataFilesBulkInfo oldestGeneration() {
+			return new DataFilesBulkInfo(
+				new CatalogBootstrap(1L, 1, OffsetDateTime.now(), new FileLocation(0L, 1)),
+				new CatalogHeader<>(
+					PersistenceService.STORAGE_PROTOCOL_VERSION,
+					1L,
+					null,
+					Map.of(),
+					Map.of(),
+					UUID.randomUUID(),
+					CATALOG_NAME,
+					CatalogState.ALIVE,
+					0,
+					1.0
 				)
 			);
 		}

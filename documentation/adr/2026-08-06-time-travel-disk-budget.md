@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 17:30
+updated: 2026-08-06 19:15
 status: accepted
 kind: feature
 issues: [761]
@@ -241,7 +241,7 @@ to "I cannot configure my fleet uniformly".
 
 ### The deleter × guard matrix
 
-Every path that removes something from the catalog folder answers to a different set of guards.
+Every path that makes previously readable history unreadable answers to a different set of guards.
 **Every defect found on this line of work is one of them failing to consult one of these** — which
 is why the matrix is the artifact worth keeping, not the prose around it. A cell reading *none* must
 be a decision somebody wrote down, never an omission nobody noticed. Restate it in the description
@@ -252,7 +252,16 @@ of any change that touches a deleter or a guard.
 `purgeFile`. It is not — there are three doors, and the two that were missing are exactly the two
 cells a later review found empty. Enumerate the **call sites of the thing that deletes**, then ask
 each what it consults; a row named after a scheduled task will keep hiding the inline caller behind
-it. The sinks are `purgeFile`, `reclaimFilesUnreachableFrom`, and `removeWalFiles`.
+it.
+
+**A sink is not only a file unlink.** The second version of this matrix enumerated *file* deleters,
+and that omission cost a data-integrity defect of its own: releasing an offset index's per-version
+roots makes that version unreadable exactly as surely as deleting its file, and it does so *silently*
+— `Roots.floorIndex` clamps a request below everything retained to the oldest root it still has, so
+the read succeeds and returns a different, newer state. Anything that makes history unreadable is a
+sink: a file unlink, an in-memory root purge, a persistence service close. The sinks are `purgeFile`,
+`reclaimFilesUnreachableFrom`, `removeWalFiles`, `OffsetIndex.purge`, and the ad-hoc deleter in
+`purgeAllObsoleteFiles`.
 
 **1. `DefaultCatalogPersistenceService.trimBootstrapFile`** — drops bootstrap records and closes the
 catalog persistence services that fall below the new floor. Runs in **both** time-travel modes.
@@ -282,14 +291,21 @@ lambda runs in both modes.
 maintained and every parked file when the catalog goes away.
 - *Version floor:* **none, deliberately.** It sets the floor to `0` on purpose: the catalog is being
   discarded, so no version can still be owed anything.
-- *Directory hold:* **none, deliberately** — and this is the one cell where the hold is knowingly
-  overridden. The original comment here read *"database shuts down and there will be no active
-  sessions"*, which is **false**: `Evita.closeInternal` closes catalogs *before* `Scheduler.shutdown`
-  cancels the tasks queued against them, so a full backup can be holding the folder at exactly this
-  moment. Honouring the hold would not save that backup — its catalog is being torn down underneath
-  it either way — and would strand files on disk with nothing left to collect them. It fails loudly
-  instead, which is the honest outcome. *Revisit if:* backups ever become cancellable ahead of
-  catalog close, in which case draining them first is strictly better.
+- *Directory hold:* **the hold is overridden, the lock is not** — and this is the one cell where the
+  distinction matters. The original comment here read *"database shuts down and there will be no
+  active sessions"*, which is **false**: `Evita.closeInternal` closes catalogs *before*
+  `Scheduler.shutdown` cancels the tasks queued against them, so a full backup can be holding the
+  folder at exactly this moment. Honouring the **hold** would not save that backup — its catalog is
+  being torn down underneath it either way — and would strand files on disk with nothing left to
+  collect them. It fails loudly instead, which is the honest outcome. But it does take
+  `directoryAccessLock`, because `purgeTask.close()` is `cancel(false)` and does not stop a pass that
+  is already executing: without the lock the two walk the same lists side by side and a removal lambda
+  runs twice, which does not no-op — `removeCatalogPersistenceServiceForVersion` resolves the closest
+  service *at or below* the version it is given, so the second run closes a different, still-registered
+  one. Blocking is safe here and nowhere else: `close()` holds nothing, and a pass is bounded. The
+  constraint that makes that true is that nobody calls it while holding `cpsvLock`, which the removal
+  lambdas take. *Revisit if:* backups ever become cancellable ahead of catalog close, in which case
+  draining them first is strictly better.
 
 **5. `ObsoleteFileMaintainer.reclaimUnreachableFiles` → `reclaimFilesUnreachableFrom`** — deletes
 catalog and entity-collection files that no retained bootstrap record can reach. Time travel **on**
@@ -303,6 +319,33 @@ through this method rather than calling the sink directly, which is what keeps i
 **6. `AbstractMutationLog.removeWalFiles`** — deletes write-ahead log files. Runs in both modes.
 - *Version floor:* **none.** Pre-existing and unchanged by this work; see the open follow-up.
 - *Directory hold:* **none.** Same follow-up.
+
+**7. `DefaultCatalogPersistenceService.catalogConsumersLeft` → `OffsetIndex.purge`** — releases the
+per-version roots of the shared catalog and entity-collection offset indexes. Unlinks nothing, but
+makes every released version unreadable through those services. Runs in both modes, on session close.
+- *Version floor:* the retention floor, via `clampToRetentionFloor`, sampled and applied under
+  `historyHorizonLock`. The departure report alone cannot express what has to be kept — it says
+  "everyone at or below V has left", which only ever rises, while the thing that needs protecting is
+  a consumer that *arrived* on a version and is still standing on it. A backup of the **current**
+  data is exactly that consumer: it reads each collection through the shared services, so without the
+  clamp it produces an archive stitched from several versions and labelled with the one it started
+  from.
+- *Directory hold:* **none, and correctly so.** It removes nothing from the folder; a consumer
+  listing the directory is unaffected by it.
+
+**8. `DefaultCatalogPersistenceService.purgeAllObsoleteFiles`** — the startup / write-ahead-log-replay
+sweep. Deletes every file in the folder that the chosen bootstrap record does not reach.
+- *Version floor:* **none, deliberately.** It runs once, from replay, on a catalog being brought up,
+  before any session or backup exists to hold anything; both guards would read state that is empty by
+  construction.
+- *Directory hold:* **none**, same reason.
+- *Survivor rules:* it carries **its own copy** rather than going through `TimeTravelRetention`. The
+  two agree on catalog data files; on a *dropped* collection they do not — its `orElse(false)` keeps
+  the file where `TimeTravelRetention` reclaims it — so this door is the more conservative of the
+  pair and the drift can only ever leave a file behind, never remove one that is needed. Unifying
+  them was declined: it would make replay delete more than it does today, which is not a change worth
+  making off the back of a review with no failing test behind it. *Revisit if:* replay leftovers are
+  ever observed to accumulate, or the two rules gain a second disagreement.
 
 ### Acquire and release both have to survive a throw
 
@@ -324,6 +367,76 @@ at least once. The rules the code now follows:
   (`versionsWithSkippedPin`), because releasing a pin that was never taken is not a no-op: by the time
   the session closes the catalog may be back, and the release would decrement whatever pin somebody
   else holds at that version.
+- **A constructor that acquires two things must unwind both, in tear-down order.** `BackupTask` takes
+  the folder hold first and the version pin second, and everything after the pin can throw — the
+  reachability re-verification reads the bootstrap file under the horizon lock. The unwind mirrors
+  `tearDown`: close the hold, then release the pin in a `finally`, and release it through the
+  `onComplete` **field** (`getAndSet(null)`), never the constructor parameter, so the unwind and the
+  already-fired rejection path cannot both give the same pin back and decrement somebody else's.
+- **A release that re-drives real work must not be able to fail its caller.** `retentionStateChanged`
+  is reached from session close, from a pin release and from a folder hold being given back, and it
+  can synchronously trim the bootstrap file. A throw there propagated out of
+  `unregisterSessionConsumingCatalogInVersion` *before* the departure notification, so the reader
+  floor would believe that session was still present for the rest of the catalog's life. It now logs
+  instead — **and re-records the owed request first**: the debt is taken out of
+  `pendingHistoryHorizonRequest` with `getAndSet(-1)` before the attempt, and `advanceHistoryHorizon`
+  only puts it back when the *floor* refuses it, so a swallowed trim failure would otherwise be the
+  one thing that loses it for good.
+
+### A marker records what finished, not what started
+
+Three places here record "this far is done", and two of them recorded it *before* doing the work.
+The failure is identical and silent in both: the retry arrives with the same version, the marker
+turns it into a no-op, and the round is booked as complete with its work never performed.
+
+- `advanceHistoryHorizon` sets `historyHorizon` only after both the trim and the purge return.
+- `ObsoleteWalPurgeCallback.purgeFilesUpTo` sets `lastObservedCatalogVersion` only after both the
+  maintained-file purge and the unreachable sweep return. Before this, a trim that succeeded followed
+  by a purge that threw left the horizon back, and the retry then passed the horizon's monotonicity
+  check, no-oped the trim, and fell into the callback's *already observed* branch — recording the
+  round complete with the purge never having run.
+- `OffsetIndex`'s purge watermark is the deliberate exception: it records intent and the **next
+  promotion** consumes it. That is what makes the clamp in matrix row 7 observable only after a
+  further commit, and it is why the test for it writes one more generation.
+
+### Nothing may throw out of a shutdown or a commit path
+
+Four sites read a `closed` flag and then called `DelayedAsyncTask.schedule()`. Every one of them is
+check-then-act, and a `close()` landing between the two throws `GenericEvitaInternalError` out of a
+path that must not fail: the commit thread retiring a data file, the maintainer parking a deferred
+purge, a backup's tear-down giving the folder back, and the tail of a run that has just thrown — where
+it would replace the exception that actually explains the failure. All four now use `trySchedule()`,
+which makes the decision **under `schedulingLock`**, the same lock `close()` tears down under.
+
+The same shape one level up: `enforceTimeTravelSizeLimit` and `advanceHistoryHorizon` now read
+`closed` while holding `historyHorizonLock`, and `close()` flips it under that lock. Closing the guard
+task is `cancel(false)` and does not stop a run that has already begun, so without the fence a run in
+flight at shutdown could reach the trim — swapping in a fresh bootstrap write handle that nothing will
+ever close, concurrently with the teardown closing the old one, and racing the service map's own
+teardown. Flipping the flag under the lock is what turns those checks from a guess into a decision;
+no teardown work happens beneath it, so no lock order is created.
+
+### A deferred pass needs somebody to bring it back
+
+`runWithDirectoryExclusivity` can turn a pass away for two reasons, and they are reported apart
+because only one of them has a driver. A **directory hold** is given back by its own release, which
+reschedules. Losing the `tryLock` to a **competing deleter** is rescheduled by nothing: the round is
+simply skipped while the horizon advances as if it had reclaimed, and on a catalog that goes idle
+right afterwards it never happens at all. The maintained-file purge now reschedules its own task on
+contention; the unreachable sweep — which has no task of its own, being driven by the size guard and
+the write-ahead log purge — sets `pendingUnreachableSweep` and is carried by the next pass that gets
+the folder.
+
+**Borrowed work must not be able to fail its host.** Both the parked warm-up purges and the deferred
+sweep run inside whichever pass happens to get the folder next, and one of those passes is
+`removeFileWhenNotUsed` at `catalogVersion <= 0` — inline on the commit thread, under `cpsvLock`. The
+sweep in particular reads the bootstrap file and a catalog header, so it has real I/O to fail at, and
+an unwrapped throw would fail a flush on behalf of a completely unrelated round. Both are therefore
+caught and logged where they are carried, with the asymmetry that matters: the sweep is **re-armed**
+(its round still has to happen), a failed parked purge is **not** (its removal lambda has already run,
+and running it again closes a service that is still registered). Neither wraps the pass the caller
+actually asked for — that one still propagates, which is what lets the write-ahead log driver retry a
+round that threw.
 
 ### `DelayedAsyncTask` had to stop losing wake-ups first
 
@@ -452,6 +565,41 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   *is* covered is everything downstream of it — the deferred warm-up purge and the sweep a hold turns
   away both come back — so a regression would surface as those tests going intermittent rather than
   as silence.
+- `HistoryHorizonClampTest.shouldClampTheOffsetIndexHistoryPurgeToTheRetentionFloor` — matrix row 7,
+  the data-integrity one. Non-compacting options on purpose, so every version lands in one shared
+  offset index; a version is pinned, the last other consumer departs reporting a floor far above it,
+  one more generation is written (promotion is what consumes the purge watermark), and the pinned
+  version must still resolve to *its own* state. Calibrated by removing the clamp: `expected: <2> but
+  was: <8>` — the read silently returned the newest state under the version it asked for, which is
+  precisely the archive-stitched-from-several-versions failure.
+- `HistoryHorizonClampTest.shouldNotAdvanceTheHorizonOnAClosedService` — a guard run that reaches its
+  advance after `close()` must give up nothing. Calibrated by removing the closed fence:
+  `GenericEvitaInternalError: ObsoleteFileMaintainer is closed`, thrown after the bootstrap file had
+  already been rewritten.
+- `shouldUnwindTheVersionPinWhenTheBackupConstructorThrows` — a spied service throws from
+  `getOldestRetainedCatalogVersion`, which runs *after* the pin lands. Both the pin and the folder
+  hold must be back. Calibrated by removing the unwind: `expected: <-1> but was: <0>`, i.e. the
+  catalog's retention floor frozen at the backed-up version for the rest of its life.
+  `shouldRefuseAPointInTimeBackupOfAlreadyReclaimedHistory` fails the same way, which is the second
+  independent witness.
+- `DeferredDeletionPasses.shouldRetryTheWholeRoundAfterItThrew` — the sweep throws once, and the retry
+  with the same version must actually perform it. Calibrated by moving `lastObservedCatalogVersion`
+  back to the front of the method: `expected: <1> but was: <0>`.
+- `DeferredDeletionPasses.shouldPerformTheDeferredSweepOnTheNextPass` — a sweep turned away while the
+  folder was held is carried by the next pass rather than waiting for a second guard trigger.
+  Calibrated by removing the `pendingUnreachableSweep` drain: `expected: <false> but was: <true>`.
+- `DelayedAsyncTaskTest.shouldRefuseToScheduleAClosedTaskInsteadOfThrowing` — `trySchedule()` reports
+  a closed task, `schedule()` still throws. Calibrated by making `trySchedule` call `assertNotClosed`.
+- **Uncovered, deliberately, and each for a stated reason.** (a) The owed-request re-check in
+  `advanceHistoryHorizon` guards a record-then-release interleaving with no seam between the two
+  statements; the non-racy half is covered by
+  `shouldRetryTheRemainderOfAPartiallyClampedHorizonRequest`. (b) The claim token in
+  `drainDeferredEagerPurges` guards a concurrent close-versus-park double drain; single-threaded the
+  first drain empties the list, so the token is unobservable — the *exactly once* assertion in
+  `shouldPurgeDeferredFilesWhenTheMaintainerCloses` is a regression guard for the simple path, not a
+  calibration of the token. (c) `computeRetainedHistoryBytes` taking `historyHorizonLock` is a lock
+  addition with no observable behaviour to assert. (d) `retentionStateChanged` swallowing and
+  re-recording needs a trim that fails on transient I/O.
 - Regression: `mvn -pl evita_test/evita_functional_tests test -P unitAndFunctional
   -Dgroups="storage | wal | transaction | session | cdc"` — 3707 tests. The full `unitAndFunctional`
   suite is the gate for the `DelayedAsyncTask` change, which is engine-wide: the storage subset does
@@ -520,6 +668,32 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   guard task was considered and rejected — the guard exists only when a budget is configured, and the
   request being drained is the write-ahead log driver's, which has no other way back. Correctness of
   the drain outranks the latency of a session close.
+- **Decided — the current backup keeps reading the shared services, clamped, rather than isolating
+  itself.** The alternative to matrix row 7's clamp was to give the `pastMoment == null &&
+  catalogVersion == null` path the isolated services the historical path already builds from its
+  captured bootstrap record. **Rejected because** `createCatalogOffsetIndexStoragePartService` and
+  `createEntityCollectionPersistenceService` each construct a `WriteOnlyFileHandle` over the file they
+  open, wired to the shared `ObservableOutputKeeper` and the shared checkpoint coordinator. For the
+  historical path those are files nobody is writing; for the current path they are the **live** data
+  files, so isolation would put a second write handle on every one of them for the duration of every
+  ordinary backup. That is a new hazard on the most-used backup path in exchange for avoiding a
+  bounded, pre-existing memory cost. *Revisit if:* the offset index ever gains a genuinely read-only
+  construction path, which would make isolation strictly better — it removes the backup's dependence
+  on the retention floor altogether.
+- **Consequence of that clamp — a long backup retains offset-index roots for its duration.** The
+  clamp holds root history down to the lowest pin, so while a backup runs, every commit adds a root
+  that would otherwise have been released. Bounded by the backup's duration, not by the depth of
+  history — roots already released are never resurrected — and identical to the behaviour before this
+  branch, when the backup registered itself as a session and held the same floor down. The new risk it
+  adds is that a *leaked* pin now grows the heap as well as freezing reclamation, which is why the two
+  leak paths (backup constructor, tear-down ordering) are fixed rather than deferred.
+- **Open — with time travel on, every session open takes `historyHorizonLock`.** `catalogVersionPinned`
+  takes it to fence the pin against a concurrent advance, and `enforceTimeTravelSizeLimit` holds it
+  across a directory listing, `O(log n)` header reads and the trim. Session open therefore stalls
+  behind a guard run. **Declined for now** because the fix is not obviously safe: sampling the floor
+  into a local before the I/O-heavy part would shorten the hold but changes the pin-fence argument
+  that matrix rows 1 and 7 both rest on. Measure the stall before touching it; the lock is uncontended
+  whenever time travel is off, which is the default.
 - **Follow-up — shrink the folder hold to a hardlink snapshot.** A full backup currently holds the
   folder for the whole of its copy. Hard-linking the catalog folder into a sibling directory
   (`Files.createLink`, same volume, works on POSIX and NTFS), releasing the hold, and zipping from the

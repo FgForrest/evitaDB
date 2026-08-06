@@ -147,6 +147,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	private final List<MaintainedFile> deferredEagerPurges = new CopyOnWriteArrayList<>();
 	/**
+	 * Set when a sweep of the files no retained bootstrap record can reach had to be given up because another pass held
+	 * the folder, so that the next pass which does get it performs the sweep on its behalf.
+	 *
+	 * The sweep is the one deletion pass whose driver is outside this class - it is triggered by the size guard and by
+	 * the write-ahead log purge - so a round it loses to a *competing deleter* is otherwise simply skipped while the
+	 * horizon advances as if it had reclaimed. Losing to a directory **hold** is different and needs no flag: releasing
+	 * the hold drives the guard again. Setting it in both cases costs one idempotent sweep and removes the distinction
+	 * from the reasoning.
+	 */
+	private final AtomicBoolean pendingUnreachableSweep = new AtomicBoolean();
+	/**
 	 * The supplier of the catalog header and bootstrap record for the oldest catalog version that is still retained on
 	 * disk (the first record in the bootstrap file). The catalog data file referenced by this bootstrap is, by
 	 * definition, the lowest index that is kept and therefore is guaranteed not to have been purged.
@@ -197,12 +208,16 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 			// `purgeFile`, and warm-up is exactly when a backup is most exposed: it holds the folder precisely because
 			// every flush strands the generation before it. Deferring costs a delayed unlink and a persistence service
 			// that stays registered a little longer; not deferring unlinks a file a backup is copying
-			if (!runWithDirectoryExclusivity(() -> purgeFile(fileToMaintain))) {
+			if (runWithDirectoryExclusivity(() -> purgeFile(fileToMaintain)) != DeletionPassOutcome.RAN) {
 				this.deferredEagerPurges.add(fileToMaintain);
-				if (!this.closed.get()) {
-					// a maintainer that closed in the meantime drains the parked list itself; scheduling a task it
-					// has already closed would only throw
-					this.purgeTask.schedule();
+				// the entry is parked *before* the flag is read, which is what makes this hand-over total: a `close()`
+				// that has not yet flipped the flag when we read it must flip it afterwards, and its own drain then
+				// finds this entry; a `close()` that already flipped it may have drained before the park, so the
+				// parking thread drains instead. Both draining is harmless - the removal is the claim token
+				if (this.closed.get()) {
+					drainDeferredEagerPurges();
+				} else {
+					this.purgeTask.trySchedule();
 				}
 			}
 		} else {
@@ -367,20 +382,62 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	public void close() {
 		if (this.closed.compareAndSet(false, true)) {
 			IOUtils.closeQuietly(this.purgeTask::close);
-			// clear all files immediately - the catalog is going away, so nothing that could still be reading them
-			// has anywhere to read them from. This is the one deleter that deliberately ignores the directory hold:
-			// a consumer walking a folder whose catalog is closing has already lost, and it finds out loudly. See
-			// the deleter matrix in `documentation/adr/2026-08-06-time-travel-disk-budget.md`
-			this.lastKnownMinimalActiveVersion.set(0L);
-			for (MaintainedFile maintainedFile : this.maintainedFiles) {
-				purgeFile(maintainedFile);
+			// closing the task is `cancel(false)`, so a pass that is already executing keeps going. Taking the lock is
+			// what stops the loop below from walking the same lists alongside it and running a removal lambda a second
+			// time - and a lambda that closes a persistence service resolves *closest below* the version it is given,
+			// so the second run does not no-op, it closes a different service that is still registered.
+			//
+			// Waiting here is safe, and this is the one deleter allowed to: `close()` holds nothing else and a pass is
+			// bounded. The constraint that makes it true is that nobody calls this while holding the catalog
+			// persistence service lock, which the removal lambdas take - verified at every call site.
+			this.directoryAccessLock.lock();
+			try {
+				// clear all files immediately - the catalog is going away, so nothing that could still be reading them
+				// has anywhere to read them from. This is the one deleter that deliberately ignores the directory
+				// **hold** (it still takes the lock, see above): a consumer walking a folder whose catalog is closing
+				// has already lost, and it finds out loudly. See the deleter matrix in
+				// `documentation/adr/2026-08-06-time-travel-disk-budget.md`
+				this.lastKnownMinimalActiveVersion.set(0L);
+				final List<MaintainedFile> filesToPurge = List.copyOf(this.maintainedFiles);
+				// removed before they are purged, so a file handed over concurrently is not dropped unpurged by a
+				// blanket `clear()` of a list that has grown since the snapshot was taken
+				this.maintainedFiles.removeAll(filesToPurge);
+				for (MaintainedFile maintainedFile : filesToPurge) {
+					purgeFile(maintainedFile);
+				}
+				// anything the eager warm-up path parked would otherwise stay on disk with nothing left to collect it
+				drainDeferredEagerPurges();
+			} finally {
+				this.directoryAccessLock.unlock();
 			}
-			this.maintainedFiles.clear();
-			// anything the eager warm-up path parked would otherwise stay on disk with nothing left to collect it
-			for (MaintainedFile deferredPurge : this.deferredEagerPurges) {
-				purgeFile(deferredPurge);
+			// a warm-up purge that lost the lock to the block above parks *after* it drained - claim whatever landed
+			// there in the meantime. Anything arriving after this point sees `closed` and drains itself
+			drainDeferredEagerPurges();
+		}
+	}
+
+	/**
+	 * Runs and forgets every purge the warm-up eager path parked.
+	 *
+	 * The removal from the list is the claim token and its result is checked: `close()` and a concurrently parking
+	 * commit thread can both reach here for the same entry, and a removal lambda that runs twice closes a persistence
+	 * service that is still registered, because
+	 * {@link DefaultCatalogPersistenceService#removeCatalogPersistenceServiceForVersion(long)} resolves the closest
+	 * service at or **below** the version it is given.
+	 */
+	private void drainDeferredEagerPurges() {
+		for (MaintainedFile deferredPurge : this.deferredEagerPurges) {
+			if (this.deferredEagerPurges.remove(deferredPurge)) {
+				try {
+					purgeFile(deferredPurge);
+				} catch (RuntimeException ex) {
+					// this is somebody else's work being carried by whichever pass got the folder - including the
+					// commit thread - so a failure is reported here rather than handed to a caller that has nothing
+					// to do with it. Deliberately **not** re-parked: the removal lambda has already run, and running
+					// it a second time closes a persistence service that is still registered
+					log.error("Failed to purge the deferred obsolete file `{}`", deferredPurge.path(), ex);
+				}
 			}
-			this.deferredEagerPurges.clear();
 		}
 	}
 
@@ -414,7 +471,11 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		// therefore invisible to it, which was masked only by a full backup registering itself as if it were a
 		// read-write session. The hold is what makes that registration removable.
 		// Nothing is lost by deferring: `releaseDirectoryReadHold` reschedules this task
-		runWithDirectoryExclusivity(this::purgeObsoleteFilesUnguarded);
+		if (runWithDirectoryExclusivity(this::purgeObsoleteFilesUnguarded) == DeletionPassOutcome.LOCK_CONTENDED) {
+			// a hold turning this pass away is rescheduled by the last release; another *deleter* turning it away is
+			// rescheduled by nobody, and this task is the only driver these files have
+			this.purgeTask.trySchedule();
+		}
 		return -1L;
 	}
 
@@ -476,9 +537,19 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		// file a session can reach is still reachable from a retained record, and this sweep deletes only files
 		// that are not. Gating here on pins instead - which every session takes - stops reclamation for as long as
 		// anything is connected, and during warm-up that is the whole of a bulk import
-		runWithDirectoryExclusivity(
-			() -> reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath)
-		);
+		if (runWithDirectoryExclusivity(this::sweepUnreachableFiles) != DeletionPassOutcome.RAN) {
+			// unlike the maintained-file purge this sweep has no task of its own, so a round it gives up is otherwise
+			// simply lost while the horizon advances as if it had reclaimed. Hand it to the purge task instead
+			this.pendingUnreachableSweep.set(true);
+			this.purgeTask.trySchedule();
+		}
+	}
+
+	/**
+	 * The body of {@link #reclaimUnreachableFiles()}, to be run only with the folder held exclusively.
+	 */
+	private void sweepUnreachableFiles() {
+		reclaimFilesUnreachableFrom(this.oldestDataFilesInfoSupplier.get(), this.catalogStoragePath);
 	}
 
 	/**
@@ -492,29 +563,65 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * reschedules, and one of them runs on the commit thread underneath the catalog persistence service lock - which
 	 * a deletion pass may itself need, so waiting here would invert the order.
 	 *
+	 * The two ways a pass can be turned away are reported apart, because only one of them has somebody to bring it
+	 * back. A folder **hold** is rescheduled by its own release; losing the lock to a *competing deleter* is
+	 * rescheduled by nothing, and the round would simply be skipped.
+	 *
 	 * @param deletionPass the pass to run while no consumer is reading the folder
-	 * @return true when the pass ran, false when the folder was held or another pass was already running
+	 * @return how the attempt ended
 	 */
-	private boolean runWithDirectoryExclusivity(@Nonnull Runnable deletionPass) {
+	@Nonnull
+	private DeletionPassOutcome runWithDirectoryExclusivity(@Nonnull Runnable deletionPass) {
 		if (!this.directoryAccessLock.tryLock()) {
-			return false;
+			return DeletionPassOutcome.LOCK_CONTENDED;
 		}
 		try {
 			if (this.directoryReadHolds.get() > 0) {
-				return false;
+				return DeletionPassOutcome.FOLDER_HELD;
 			}
 			// whatever the eager warm-up path handed over goes first - it is the only deleter with no driver of its
 			// own to bring it back, so this is where its work gets done
-			if (!this.deferredEagerPurges.isEmpty()) {
-				final List<MaintainedFile> deferred = List.copyOf(this.deferredEagerPurges);
-				this.deferredEagerPurges.removeAll(deferred);
-				deferred.forEach(this::purgeFile);
+			drainDeferredEagerPurges();
+			// and so does a sweep a competing pass turned away - see `pendingUnreachableSweep`
+			if (this.pendingUnreachableSweep.compareAndSet(true, false)) {
+				try {
+					sweepUnreachableFiles();
+				} catch (RuntimeException ex) {
+					// borrowed work must not be able to fail its host. One of the passes that carries it is the
+					// warm-up eager purge, which runs inline on the commit thread under the catalog persistence
+					// service lock - and this sweep reads the bootstrap file and a catalog header, so it has real
+					// I/O to fail at. Re-armed rather than dropped: the round it belongs to still has to happen
+					this.pendingUnreachableSweep.set(true);
+					log.error(
+						"Failed to reclaim the unreachable files of catalog folder `{}` on behalf of another pass - " +
+							"the sweep stays pending and the next pass will carry it.",
+						this.catalogStoragePath, ex
+					);
+				}
 			}
 			deletionPass.run();
-			return true;
+			return DeletionPassOutcome.RAN;
 		} finally {
 			this.directoryAccessLock.unlock();
 		}
+	}
+
+	/**
+	 * How an attempt to run a deletion pass with the catalog folder to itself ended.
+	 */
+	private enum DeletionPassOutcome {
+		/**
+		 * The pass ran with the folder held exclusively.
+		 */
+		RAN,
+		/**
+		 * A consumer is reading the folder. The last {@link #releaseDirectoryReadHold()} brings the work back.
+		 */
+		FOLDER_HELD,
+		/**
+		 * Another deletion pass held the lock. Nothing brings the work back on its own - the caller must.
+		 */
+		LOCK_CONTENDED
 	}
 
 	/**
@@ -545,10 +652,12 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		} finally {
 			this.directoryAccessLock.unlock();
 		}
-		if (lastOne && !this.closed.get()) {
+		if (lastOne) {
 			// this also drains whatever the eager warm-up path parked while the folder was held - see
-			// `runWithDirectoryExclusivity`
-			this.purgeTask.schedule();
+			// `runWithDirectoryExclusivity`. `trySchedule` rather than a `closed` check followed by `schedule`: a
+			// hold is routinely given back on a task tear-down that runs after its catalog has been closed, and that
+			// path must not be the one that throws
+			this.purgeTask.trySchedule();
 		}
 	}
 
@@ -714,13 +823,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		@Override
 		public void purgeFilesUpTo(long firstActiveCatalogVersion) {
 			if (firstActiveCatalogVersion > this.lastObservedCatalogVersion) {
-				this.lastObservedCatalogVersion = firstActiveCatalogVersion;
 				// first purge all maintained files
 				this.maintainedFilePurgeCallback.accept(firstActiveCatalogVersion);
 				// then purge all obsolete files in the folders - the threshold is derived from the oldest bootstrap
 				// record still retained on disk (whose data file is guaranteed to exist), not from an exact-version
 				// lookup that may reference an already purged file
 				this.unreachableFileSweep.run();
+				// recorded only once both steps have returned, for the same reason `advanceHistoryHorizon` sets its
+				// marker last: a round that threw half-way is retried with the same version, and a marker moved up
+				// front makes that retry fall into the `else` below - the trim then no-ops as well, and the horizon
+				// is recorded as reached with the purge never having run
+				this.lastObservedCatalogVersion = firstActiveCatalogVersion;
 			} else {
 				// this callback was already called with this or newer catalog version
 			}

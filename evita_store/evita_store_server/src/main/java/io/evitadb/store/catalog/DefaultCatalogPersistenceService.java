@@ -222,6 +222,17 @@ public class DefaultCatalogPersistenceService
 	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 
 	/**
+	 * How many times {@link #advanceHistoryHorizon(long)} re-samples the retention floor within a single call before
+	 * leaving the remainder of the request to the next event that lowers it.
+	 *
+	 * A bound rather than a `while` loop on purpose: the retry exists to catch the one interleaving in which the
+	 * consumer that was blocking the request leaves *between* the sample and the record of the refusal, and every
+	 * further round can only be a fresh pin arriving - which brings its own release, and with it its own drain. An
+	 * unbounded loop would hand a busy catalog the ability to keep one thread inside the horizon lock indefinitely.
+	 */
+	private static final int MAX_HORIZON_ADVANCE_ATTEMPTS = 3;
+
+	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
 	static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
@@ -410,6 +421,19 @@ public class DefaultCatalogPersistenceService
 	 * Serializes the two independent drivers of {@link #advanceHistoryHorizon(long)}. The steps behind it - trimming
 	 * the bootstrap file and reclaiming the data files below the new horizon - only make sense as one atomic unit:
 	 * the purge derives its threshold by re-reading the oldest record of the freshly trimmed bootstrap file.
+	 *
+	 * It is also the fence every *reader* of the retention floor stands behind - {@link #catalogVersionPinned(long)},
+	 * {@link #catalogConsumersLeft(long, long)} and the size guard all sample it under this lock - so a pin can never
+	 * land in the middle of a decision taken against a floor that did not include it. And {@link #close()} flips
+	 * {@link #closed} beneath it, which is what makes the closed checks inside the two long-running paths conclusive
+	 * rather than best-effort.
+	 *
+	 * Lock order: {@link #bootstrapWriteLock} and {@link #cpsvLock} are taken beneath it, by way of
+	 * {@link #trimBootstrapFile(long)}. It is never taken while any other lock of this class is held - notably not
+	 * from the commit thread's {@link #retireDataFile}, which runs under {@link #cpsvLock} and only ever *schedules*
+	 * the guard rather than driving it. {@link #checkpointLock} and this one are disjoint: no path takes both.
+	 * Moving the floor readers under this lock introduced no new edge - session close already took it a few
+	 * statements later through {@link #retentionStateChanged()}.
 	 */
 	private final ReentrantLock historyHorizonLock = new ReentrantLock();
 	/**
@@ -2883,6 +2907,17 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void purgeAllObsoleteFiles() {
+		// A deleter in its own right, and the only one that consults neither the retention floor nor the directory
+		// hold. That is a decision, not an omission: it runs once, from write-ahead log replay on a catalog that is
+		// being brought up, before any session or backup can exist to hold anything. Both guards would be reading
+		// state that is empty by construction.
+		//
+		// It also carries its own copy of the survivor rules rather than going through `TimeTravelRetention`. The two
+		// agree on catalog data files; on a *dropped* collection they do not - `orElse(false)` below keeps the file
+		// where `TimeTravelRetention` reclaims it - so this one is the more conservative of the pair and the drift can
+		// only ever leave a file behind, never remove one that is needed. Unifying them would make replay delete more
+		// than it does today, which is not a change worth making off the back of a review. See the deleter matrix in
+		// `documentation/adr/2026-08-06-time-travel-disk-budget.md`, where this door is listed with that exemption
 		try {
 			final CatalogBootstrap catalogBootstrap = this.storageSettings.timeTravelEnabled() ?
 				// if time travel is enabled we need to keep all the files that are referenced in the bootstrap file
@@ -3151,9 +3186,23 @@ public class DefaultCatalogPersistenceService
 
 	@Override
 	public void close() {
-		if (!this.closed) {
+		// The flag is flipped under the horizon lock, and that is what makes the `closed` checks in
+		// `enforceTimeTravelSizeLimit` and `advanceHistoryHorizon` conclusive rather than best-effort: both read it
+		// while holding this same lock, so a run that observes an open service cannot have the service closed
+		// underneath it half-way through. Closing the guard task is `cancel(false)` and does not stop a run that has
+		// already begun - and a run that gets as far as trimming the bootstrap file swaps in a fresh write handle
+		// that nothing will ever close, concurrently with the teardown below closing the old one.
+		// Only the flag is set under the lock - no teardown work happens beneath it, so no lock order is created
+		final boolean alreadyClosed;
+		this.historyHorizonLock.lock();
+		try {
+			alreadyClosed = this.closed;
 			this.closed = true;
-			// the guard only ever reads and reclaims history - a run in flight during shutdown has nothing to settle
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
+		if (!alreadyClosed) {
+			// the guard only ever reads and reclaims history, and the flag above has fenced it out by now
 			if (this.timeTravelSizeGuardTask != null) {
 				IOUtils.closeQuietly(this.timeTravelSizeGuardTask::close);
 			}
@@ -3233,19 +3282,42 @@ public class DefaultCatalogPersistenceService
 			lastKnownMinimalActiveVersionRead,
 			lastKnownMinimalActiveVersionWritten
 		);
-		this.catalogStoragePartPersistenceService.values().forEach(
-			it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
+		// recorded first, so the clamp below is computed against the floor this very departure just raised rather than
+		// against the one it supersedes
 		this.obsoleteFileMaintainer.catalogConsumersLeft(
 			lastKnownMinimalActiveVersionRead,
 			lastKnownMinimalActiveVersionWritten
 		);
-		this.entityCollectionPersistenceServices.values()
-			.forEach(
-				it -> it.catalogConsumersLeft(
-					lastKnownMinimalActiveVersionRead,
-					lastKnownMinimalActiveVersionWritten
-				)
-			);
+		// This is a **deleter too**, even though it unlinks nothing: releasing a version's offset-index roots makes
+		// that version unreadable through the shared services just as surely as deleting its file would, and it does
+		// so silently - `Roots.floorIndex` clamps a request below everything retained to the oldest root it still has,
+		// so the read succeeds and returns a *different, newer* state. A backup of the current data resolves each
+		// collection separately through those very services, so it would write an archive stitched together from
+		// several versions and label it with the one it started from.
+		//
+		// Departure reports cannot express what has to be kept: they say "everyone at or below V has left", which only
+		// ever rises, while the thing that needs protecting is a consumer that arrived on a version and is still
+		// standing on it. That is exactly what the retention floor is, so this clamps by it like every other deleter.
+		// It costs nothing in the ordinary case - every session pins the version it registered at, so the pin floor
+		// tracks the departure floor - and it costs the roots accumulated during a backup while one is running.
+		//
+		// Sampled and applied under the horizon lock, the same fence `catalogVersionPinned` and `advanceHistoryHorizon`
+		// use, so a pin cannot land in the middle of the release. The lock is already taken further down this same
+		// call path by `retentionStateChanged`, so this adds no new blocking to session close.
+		this.historyHorizonLock.lock();
+		try {
+			final long releasableHistoryVersion = clampToRetentionFloor(lastKnownMinimalActiveVersion);
+			this.catalogStoragePartPersistenceService.values().forEach(
+				it -> it.purgeHistoryOlderThan(releasableHistoryVersion));
+			// both arguments are the already clamped floor - the collection services only take the minimum of the two
+			// and the clamp above has already resolved it
+			this.entityCollectionPersistenceServices.values()
+				.forEach(
+					it -> it.catalogConsumersLeft(releasableHistoryVersion, releasableHistoryVersion)
+				);
+		} finally {
+			this.historyHorizonLock.unlock();
+		}
 		// the departure just published a new active-reader floor, which is the other half of the retention floor. This
 		// is reported *after* the maintainer has recorded it, so the drained request is clamped against the new value
 		// rather than the one that refused it
@@ -3729,11 +3801,12 @@ public class DefaultCatalogPersistenceService
 	 */
 	private void scheduleTimeTravelSizeGuard() {
 		final DelayedAsyncTask theGuardTask = this.timeTravelSizeGuardTask;
-		// `close()` closes the guard task but leaves the field set, and scheduling a closed task throws. The closed
-		// check is what keeps a late arrival - a task cancelled after its catalog went away - from throwing out of a
-		// tear-down path that has no business failing
-		if (theGuardTask != null && !this.closed) {
-			theGuardTask.schedule();
+		// `close()` closes the guard task but leaves the field set, and scheduling a closed task throws. `trySchedule`
+		// is what keeps a late arrival - a task cancelled after its catalog went away - from throwing out of a
+		// tear-down path that has no business failing, or out of the commit thread retiring a data file. Reading a
+		// `closed` flag here and then calling `schedule()` would not do it: the close can land between the two
+		if (theGuardTask != null) {
+			theGuardTask.trySchedule();
 		}
 	}
 
@@ -3819,9 +3892,26 @@ public class DefaultCatalogPersistenceService
 		}
 		final long owedRequest = this.pendingHistoryHorizonRequest.getAndSet(-1L);
 		if (owedRequest > -1L) {
-			// if a lower pin still holds it back, `advanceHistoryHorizon` simply records it again - this converges
-			// rather than losing the request on the first release that happens not to be the blocking one
-			advanceHistoryHorizon(owedRequest);
+			try {
+				// if a lower pin still holds it back, `advanceHistoryHorizon` simply records it again - this converges
+				// rather than losing the request on the first release that happens not to be the blocking one
+				advanceHistoryHorizon(owedRequest);
+			} catch (RuntimeException ex) {
+				// The debt was taken out of the field *before* the attempt, and `advanceHistoryHorizon` only puts it
+				// back when the retention floor refuses it - a trim that failed on transient I/O would drop it for
+				// good, and nobody ever asks again: the write-ahead log driver deletes its files before reporting the
+				// floor they imply and then forgets them
+				this.pendingHistoryHorizonRequest.accumulateAndGet(owedRequest, Math::max);
+				// and it must not propagate either. Every caller is a notification - a session closing, a pin being
+				// released, a folder hold being given back - and the session-close path in particular reports the
+				// consumer's departure *after* this returns, so a throw here would leave the reader floor believing
+				// that session is still there for the rest of the catalog's life
+				log.warn(
+					"Failed to give up catalog `{}` history up to version {} - the request stays recorded and will " +
+						"be retried on the next event that lowers the retention floor: {}",
+					this.catalogName, owedRequest, ex.getMessage(), ex
+				);
+			}
 		}
 		scheduleTimeTravelSizeGuard();
 	}
@@ -3850,29 +3940,49 @@ public class DefaultCatalogPersistenceService
 		}
 		this.historyHorizonLock.lock();
 		try {
-			// the floor is sampled under the lock, never before it: `catalogVersionPinned` takes this same lock, so
-			// a pin this sample does not observe cannot have been taken yet, and one taken afterwards blocks here and
-			// then finds the horizon already moved. Sampling before the lock leaves exactly the window a point-in-time
-			// backup falls into - it pins the version it resolved, the sample taken moments earlier never sees the pin,
-			// and this call deletes the files the backup is about to read
-			final long effectiveVersionToBeKept = clampToRetentionFloor(requestedFirstVersionToBeKept);
-			// whatever the floor refused is still owed, whether this call made partial progress or none at all.
-			// Recording it only on the no-progress path loses every partially clamped request: with the horizon at 10,
-			// a pin at 20 and a request for 50, the horizon moves to 20 and the last 30 versions are never asked again
-			if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
-				this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
+			for (int attempt = 0; attempt < MAX_HORIZON_ADVANCE_ATTEMPTS; attempt++) {
+				if (this.closed) {
+					// read under the same lock `close()` sets it under, so this is a decision and not a guess: past
+					// this point the service may be torn down at any moment, and a trim would rewrite the bootstrap
+					// file of a catalog that is gone and leave a write handle behind that nothing will close
+					return;
+				}
+				// the floor is sampled under the lock, never before it: `catalogVersionPinned` takes this same lock,
+				// so a pin this sample does not observe cannot have been taken yet, and one taken afterwards blocks
+				// here and then finds the horizon already moved. Sampling before the lock leaves exactly the window a
+				// point-in-time backup falls into - it pins the version it resolved, the sample taken moments earlier
+				// never sees the pin, and this call deletes the files the backup is about to read
+				final long effectiveVersionToBeKept = clampToRetentionFloor(requestedFirstVersionToBeKept);
+				// whatever the floor refused is still owed, whether this call made partial progress or none at all.
+				// Recording it only on the no-progress path loses every partially clamped request: with the horizon at
+				// 10, a pin at 20 and a request for 50, the horizon moves to 20 and the last 30 are never asked again
+				if (effectiveVersionToBeKept < requestedFirstVersionToBeKept) {
+					this.pendingHistoryHorizonRequest.accumulateAndGet(requestedFirstVersionToBeKept, Math::max);
+				}
+				// the competing driver may have moved past us while we were waiting for it
+				if (effectiveVersionToBeKept > this.historyHorizon.get()) {
+					// first trim the bootstrap records, then reclaim the files the remaining records cannot reach
+					trimBootstrapFile(effectiveVersionToBeKept);
+					this.walPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
+					// the marker is set only once both steps have succeeded. Setting it first would make a failed trim
+					// permanent: the retry arrives with the same version, the monotonicity check above swallows it,
+					// and the bootstrap file stays untrimmed for the rest of the catalog's life
+					this.historyHorizon.set(effectiveVersionToBeKept);
+				}
+				if (effectiveVersionToBeKept >= requestedFirstVersionToBeKept) {
+					// nothing was refused, so there is no debt for anybody to come back and drain
+					return;
+				}
+				// The recorded debt is drained by whoever lowers the floor next - but that release may already have
+				// run its drain, in the window between this call sampling the floor and recording the refusal. It
+				// found nothing owed, returned, and is not coming back: the blocker is gone and the debt is nobody's.
+				// Re-sampling the floor here, still under the lock, is what closes that window - the release either
+				// happened before this sample (and the sample sees it) or after the record (and its drain sees that)
+				if (clampToRetentionFloor(requestedFirstVersionToBeKept) <= effectiveVersionToBeKept) {
+					// still clamped by a live consumer, whose departure will drain the request recorded above
+					return;
+				}
 			}
-			// re-check under the lock, the competing driver may have moved past us while we were waiting for it
-			if (effectiveVersionToBeKept <= this.historyHorizon.get()) {
-				return;
-			}
-			// first trim the bootstrap records, then reclaim the files the remaining records cannot reach
-			trimBootstrapFile(effectiveVersionToBeKept);
-			this.walPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
-			// the marker is set only once both steps have succeeded. Setting it first would make a failed trim
-			// permanent: the retry arrives with the same version, the monotonicity check above swallows it, and the
-			// bootstrap file stays untrimmed for the rest of the catalog's life
-			this.historyHorizon.set(effectiveVersionToBeKept);
 		} finally {
 			this.historyHorizonLock.unlock();
 		}
@@ -3927,6 +4037,13 @@ public class DefaultCatalogPersistenceService
 		// semantics cannot happen while a reader holds it open
 		this.historyHorizonLock.lock();
 		try {
+			if (this.closed) {
+				// closing the guard task is `cancel(false)`, so a run that had already started keeps going right
+				// through the shutdown. `close()` flips the flag under this very lock, which is what lets this read
+				// stand for the whole run rather than for the instant it was taken - everything below either happens
+				// entirely before the teardown, or not at all
+				return -1L;
+			}
 			final long limitBytes = this.storageSettings.timeTravelSizeLimitBytes();
 			// Files below what the oldest retained record pins are not history - no bootstrap record can reach them,
 			// so no budget can justify keeping them. Reclaim them unconditionally, before measuring anything.
@@ -4058,6 +4175,11 @@ public class DefaultCatalogPersistenceService
 		if (!this.storageSettings.timeTravelEnabled()) {
 			return 0L;
 		}
+		// the same lock the guard holds across its own measurement, and for the same reason it states there: this
+		// opens a read handle on the bootstrap file, which the trim replaces atomically - and on platforms without
+		// POSIX rename semantics a reader holding it open is what makes that replacement fail. A gauge must not be
+		// able to break the driver it observes
+		this.historyHorizonLock.lock();
 		try {
 			final Path bootstrapFilePath = this.catalogStoragePath.resolve(
 				getCatalogBootstrapFileName(this.catalogName));
@@ -4082,6 +4204,8 @@ public class DefaultCatalogPersistenceService
 				this.catalogName, ex.getMessage()
 			);
 			return 0L;
+		} finally {
+			this.historyHorizonLock.unlock();
 		}
 	}
 
