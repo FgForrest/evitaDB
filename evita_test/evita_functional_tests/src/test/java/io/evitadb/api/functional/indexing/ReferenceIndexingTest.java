@@ -344,6 +344,167 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 				);
 			}
 		}
+
+		@Test
+		@DisplayName("Should accept entity with references of multiple names and cardinalities")
+		void shouldAcceptEntityWithReferencesOfMultipleNames() {
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+						.withReferenceTo(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE)
+						.withReferenceTo(Entities.STORE, Entities.STORE, Cardinality.ONE_OR_MORE)
+						.verifySchemaStrictly()
+						.updateVia(session);
+
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setReference(Entities.BRAND, 1)
+						.setReference(Entities.CATEGORY, 1)
+						.setReference(Entities.CATEGORY, 2)
+						.setReference(Entities.CATEGORY, 3)
+						.setReference(Entities.STORE, 1)
+						.setReference(Entities.STORE, 2)
+						.upsertVia(session);
+				}
+			);
+
+			ReferenceIndexingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
+						.orElseThrow();
+					assertEquals(1, product.getReferences(Entities.BRAND).size());
+					assertEquals(3, product.getReferences(Entities.CATEGORY).size());
+					assertEquals(2, product.getReferences(Entities.STORE).size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should fail to violate mandatory cardinality when references of other names are present")
+		void shouldFailToViolateMandatoryReferenceCardinalityWhenOtherReferencesArePresent() {
+			try {
+				ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE)
+							.withReferenceTo(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE)
+							.withReferenceTo(Entities.STORE, Entities.STORE, Cardinality.EXACTLY_ONE)
+							.verifySchemaStrictly()
+							.updateVia(session);
+
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setReference(Entities.BRAND, 1)
+							.setReference(Entities.BRAND, 2)
+							.setReference(Entities.CATEGORY, 1)
+							.upsertVia(session);
+					}
+				);
+
+				fail("ReferenceCardinalityViolatedException is expected to be thrown");
+
+			} catch (ReferenceCardinalityViolatedException ex) {
+				assertEquals(
+					"Expected reference cardinalities are violated in entity `PRODUCT`: reference `STORE` is " +
+						"expected to be `EXACTLY_ONE` - but entity contains 0 references.",
+					ex.getMessage()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should report all mandatory references that are missing on the entity")
+		void shouldReportAllMissingMandatoryReferences() {
+			try {
+				ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+							.withReferenceTo(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE)
+							.withReferenceTo(Entities.STORE, Entities.STORE, Cardinality.ONE_OR_MORE)
+							.verifySchemaStrictly()
+							.updateVia(session);
+
+						session.createNewEntity(Entities.PRODUCT, 1)
+							.setReference(Entities.CATEGORY, 1)
+							.setReference(Entities.CATEGORY, 2)
+							.upsertVia(session);
+					}
+				);
+
+				fail("ReferenceCardinalityViolatedException is expected to be thrown");
+
+			} catch (ReferenceCardinalityViolatedException ex) {
+				// both missing references must be reported in a single exception - the order of the violations
+				// follows the iteration order of the schema reference index and is not asserted on purpose
+				assertTrue(
+					ex.getMessage().startsWith("Expected reference cardinalities are violated in entity `PRODUCT`: "),
+					ex.getMessage()
+				);
+				assertTrue(
+					ex.getMessage().contains(
+						"reference `BRAND` is expected to be `EXACTLY_ONE` - but entity contains 0 references"
+					),
+					ex.getMessage()
+				);
+				assertTrue(
+					ex.getMessage().contains(
+						"reference `STORE` is expected to be `ONE_OR_MORE` - but entity contains 0 references"
+					),
+					ex.getMessage()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Should fail to violate mandatory cardinality when the last reference of the name is removed")
+		void shouldFailToViolateMandatoryReferenceCardinalityWhenLastReferenceOfNameIsRemoved() {
+			ReferenceIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+						.withReferenceTo(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE)
+						.verifySchemaStrictly()
+						.updateVia(session);
+
+					session.createNewEntity(Entities.PRODUCT, 1)
+						.setReference(Entities.BRAND, 1)
+						.setReference(Entities.CATEGORY, 1)
+						.setReference(Entities.CATEGORY, 2)
+						.upsertVia(session);
+				}
+			);
+
+			try {
+				ReferenceIndexingTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(Entities.BRAND, 1)
+							.upsertVia(session);
+					}
+				);
+
+				fail("ReferenceCardinalityViolatedException is expected to be thrown");
+
+			} catch (ReferenceCardinalityViolatedException ex) {
+				assertEquals(
+					"Expected reference cardinalities are violated in entity `PRODUCT`: reference `BRAND` is " +
+						"expected to be `EXACTLY_ONE` - but entity contains 0 references.",
+					ex.getMessage()
+				);
+			}
+		}
 	}
 
 	@Nested

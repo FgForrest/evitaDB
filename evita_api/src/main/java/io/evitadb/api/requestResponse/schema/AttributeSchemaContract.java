@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
@@ -43,6 +44,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -343,5 +345,32 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * of ten using `indexedDecimalPlaces` as exponent.
 	 */
 	int getIndexedDecimalPlaces();
+
+	/**
+	 * Returns the locale-agnostic {@link AttributeKey} of this attribute.
+	 *
+	 * Implementations backed by an immutable schema are expected to return a shared, canonical instance - the write
+	 * path creates these keys per attribute per entity only to compare them or to look values up by them, and the
+	 * schema outlives every such use. Callers must therefore treat the returned key as shared and must not rely on
+	 * its identity; all engine usages are equality-based.
+	 *
+	 * @return attribute key without a locale
+	 */
+	@Nonnull
+	default AttributeKey getAttributeKey() {
+		return new AttributeKey(getName());
+	}
+
+	/**
+	 * Returns the {@link AttributeKey} of this attribute for the passed locale, or the locale-agnostic one when
+	 * `locale` is null. See {@link #getAttributeKey()} for the sharing contract.
+	 *
+	 * @param locale locale of the requested key, null for the locale-agnostic one
+	 * @return attribute key for the passed locale
+	 */
+	@Nonnull
+	default AttributeKey getAttributeKey(@Nullable Locale locale) {
+		return locale == null ? getAttributeKey() : new AttributeKey(getName(), locale);
+	}
 
 }
