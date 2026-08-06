@@ -26,6 +26,7 @@ package io.evitadb.index;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -73,6 +74,7 @@ import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
@@ -100,11 +102,17 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   - cross-reference integrity between products and their reflected category references holds
  *     before and after the reload boundary
  *
- * Total budget: 13 seeds * ~1s each = ~13s wall clock; not tagged `@Tag(SLOW)` so it ships in the
- * default fast loop.
+ * **Why this lives in `evita_long_running_tests`.** The original budget note claimed "13 seeds * ~1s
+ * each = ~13s wall clock" and the class shipped in the default fast loop untagged. That estimate only
+ * holds on an idle machine: measured in isolation the class runs ~19s, but inside the full
+ * `unitAndFunctional` suite — where dozens of embedded evitaDB instances contend for the same cores —
+ * it takes 316-371s. Each of the 13 seeds builds a full catalog and crosses a commit + reload
+ * boundary, so the cost scales with how oversubscribed the host is, not with the work itself. Per
+ * `.claude/rules/testing.md` a soak loop belongs here, never in the fast loop.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Tag(SLOW)
 @Tag(INDEXING)
 @Tag(REFERENCE)
 @Tag(TRANSACTION)
@@ -144,6 +152,25 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	 * fresh removal. Mirrors the long-running test's soft cap but scaled to the small dataset.
 	 */
 	private static final int MAX_REMOVED_ENTITIES = 4;
+
+	/**
+	 * Transaction-acceptance timeout for this test's embedded instances — six times the 20s
+	 * `TransactionOptions#DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE`.
+	 *
+	 * Three bounds in `TransactionManager` derive from this value and all three are measured in **wall
+	 * clock**, so CPU contention pushes a healthy-but-slow commit toward them: the conflict-resolution
+	 * lock, the WAL-append lock, and — via `safetyDeadlineMs()`, which is `max(60_000, this * 5)` — the
+	 * dangling-commit sweeper in `PendingCommitProgressRegistry#sweepRecordsOlderThan`. At the default
+	 * that sweeper deadline is 100s. Under full-suite load this test's commits crossed it and were
+	 * failed as "dangling" although the pipeline was merely starved; that is the flake this constant
+	 * removes.
+	 *
+	 * Widening it here rather than retuning the engine leaves the production guard untouched — a commit
+	 * pending 100s on a live deployment really is pathological. Inside this test the guard stays real:
+	 * 600s against a ~19s isolated runtime is a ~30x margin, so a genuine hang still surfaces as a
+	 * descriptive `TransactionException` instead of a silent stall.
+	 */
+	private static final long CHURN_TOLERANT_ACCEPTANCE_TIMEOUT_MS = 120_000L;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -580,13 +607,21 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Builds the standard Evita configuration anchored at the per-test path triplet.
+	 * Builds the standard Evita configuration anchored at the per-test path triplet, widening the
+	 * transaction-acceptance timeout to [#CHURN_TOLERANT_ACCEPTANCE_TIMEOUT_MS] so the run survives CPU
+	 * contention.
 	 *
 	 * @return the configuration used to construct the `Evita` instance
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return newTestEvitaConfigurationBuilder(this.paths).build();
+		return newTestEvitaConfigurationBuilder(this.paths)
+			.transaction(
+				TransactionOptions.builder()
+					.waitForTransactionAcceptanceInMillis(CHURN_TOLERANT_ACCEPTANCE_TIMEOUT_MS)
+					.build()
+			)
+			.build();
 	}
 
 	/**
