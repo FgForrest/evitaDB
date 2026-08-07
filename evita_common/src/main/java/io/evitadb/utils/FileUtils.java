@@ -220,23 +220,6 @@ public class FileUtils {
 
 
 	/**
-	 * Checks whether the directory is empty or contains any file.
-	 *
-	 * @param path Path to directory
-	 * @return True if directory is empty, false otherwise
-	 */
-	public static boolean isDirectoryEmpty(@Nonnull Path path) {
-		try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(path, entry -> entry.toFile().isFile())) {
-			return !dirStream.iterator().hasNext();
-		} catch (IOException ex) {
-			throw new UnexpectedIOException(
-				"Failed to read directory: " + path,
-				"Failed to read directory!", ex
-			);
-		}
-	}
-
-	/**
 	 * Moves a source file to a target file, replacing the target file if it already exists.
 	 * This method ensures atomic move if supported by the underlying file system.
 	 *

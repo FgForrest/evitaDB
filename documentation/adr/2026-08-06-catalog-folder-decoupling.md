@@ -143,6 +143,12 @@ different operation from replacement, and it would supersede this record.
   `recordBootstrap` would address a `<newName>.boot` that does not exist.
 - **The delete of a superseded folder must follow `terminate()`**, never precede it. Deleting a
   directory whose handles are still open is exactly the failure this work removes.
+- **Deleting a catalog's storage is no longer something a catalog instance can do.** Both routes that
+  offered it — `CatalogContract#terminateAndDelete` and the `CatalogPersistenceService#closeAndDelete`
+  it delegated to — were removed once removal became a tombstone plus a folder-context wipe, rather
+  than left in place unused. A folder belongs to the engine state, and a second delete route reachable
+  from an object that only knows its own directory is how a caller ends up wiping a folder the engine
+  still references. Re-adding one needs this decision reversed, not merely a caller.
 - **`holdsNoCatalogData` must exclude every marker this project writes.** A marker it misses reads as
   data and turns a freshly allocated folder into an occupied one.
 - **A folder is validated before adoption touches it.** Adoption renames the folder and only then dispatches

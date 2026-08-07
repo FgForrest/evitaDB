@@ -57,7 +57,8 @@ import java.util.function.Consumer;
  * It is also what makes the removal **replayable**. Recovery no longer has to reason about how far a wipe got: the
  * completion state is a tombstone plus a name removal, both idempotent, and the folder is reclaimed by the boot
  * drain whether or not the crashed attempt managed anything. Before the tombstone the operator had to wedge the
- * engine, because re-running `terminateAndDelete` against a folder that may or may not still exist was not safe.
+ * engine, because the removal wiped the folder in place, and re-running that against a folder that may or may not
+ * still exist was not safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

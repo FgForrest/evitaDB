@@ -212,12 +212,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		this.writeHandle
 	);
 
-	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
-		try (var paths = Files.list(catalogDirectory)) {
-			return (int) paths.count();
-		}
-	}
-
 	@Nonnull
 	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
 		final Catalog mockCatalog = mock(Catalog.class);
@@ -543,29 +537,6 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				}
 			}
 		);
-	}
-
-	@Test
-	void shouldTerminateAndDeleteCatalog() throws IOException {
-		shouldSerializeAndDeserializeCatalogHeader();
-
-		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
-		try (
-			var cps = new DefaultCatalogPersistenceService(
-				Mockito.mock(CatalogContract.class),
-				TEST_CATALOG,
-				new CatalogFolderId(TEST_CATALOG),
-				getStorageOptions(),
-				getTransactionOptions(),
-				Mockito.mock(Scheduler.class),
-				Mockito.mock(ExportFileService.class)
-			)
-		) {
-			assertTrue(catalogDirectory.toFile().exists());
-			assertTrue(countFiles(catalogDirectory) > 0);
-			cps.closeAndDelete();
-			assertFalse(catalogDirectory.toFile().exists());
-		}
 	}
 
 	@Test

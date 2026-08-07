@@ -92,7 +92,8 @@ import java.util.stream.Stream;
  *
  * Lifecycle: an instance is created by {@link CatalogPersistenceServiceFactory} (loaded via `ServiceLoader`) and
  * lives as long as the catalog is open. It must be closed with {@link #close()} when the catalog shuts down.
- * Calling {@link #closeAndDelete()} additionally removes all persistent files from disk.
+ * Removing the files themselves is not this service's job: the folder a catalog occupies is owned by the engine
+ * and is wiped through the folder context once the engine state no longer references it (#649).
  *
  * The interface is parameterized to allow the storage-module implementation to use its own concrete types for
  * WAL file references, collection file references, and entity collection headers without exposing those types
@@ -451,11 +452,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	);
-
-	/**
-	 * Method deletes entire catalog persistent storage and closes the persistence factory.
-	 */
-	void closeAndDelete();
 
 	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from

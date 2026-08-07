@@ -2493,13 +2493,6 @@ public class DefaultCatalogPersistenceService
 	}
 
 	@Override
-	public void closeAndDelete() {
-		// close factory first and then delete The directory
-		this.close();
-		FileUtils.deleteDirectory(this.catalogStoragePath);
-	}
-
-	@Override
 	public long appendWalAndDiscardDeferringSync(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,

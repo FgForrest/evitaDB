@@ -1123,15 +1123,6 @@ public final class Catalog
 			});
 	}
 
-	@Override
-	public void terminateAndDelete() {
-		try {
-			this.terminateInternally();
-		} finally {
-			this.persistenceService.closeAndDelete();
-		}
-	}
-
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(

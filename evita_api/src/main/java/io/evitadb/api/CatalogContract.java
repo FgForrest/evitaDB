@@ -198,11 +198,6 @@ public interface CatalogContract {
 		throws SchemaAlteringException;
 
 	/**
-	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
-	 */
-	void terminateAndDelete();
-
-	/**
 	 * Relabels this catalog as `updatedSchema.getName()`, so that it becomes the catalog known under that name.
 	 *
 	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
