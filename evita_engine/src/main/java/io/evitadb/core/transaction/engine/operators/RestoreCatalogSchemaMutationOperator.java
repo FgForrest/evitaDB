@@ -52,7 +52,7 @@ import java.util.function.Consumer;
  *    that the engine state did not know about, registering it as `INACTIVE`.
  * 3. **Flapping recovery** — `Evita`'s boot drains a `RestoreCatalogSchemaMutation` for each name previously sat
  *    in the `missingCatalogs` bucket whose folder has reappeared. The operator additionally clears the missing
- *    bucket entry through `Builder#withRestoredFromMissing(...)`.
+ *    bucket entry, and the binding it kept alive, through `Builder#withCatalogNoLongerMissing(...)`.
  *
  * Forward-replay is intentionally **not** implemented here. Although the completion phase looks pure (wrap the
  * restored folder into an `UnusableCatalog` stub), it rests on a precondition the work phase established: that
@@ -107,22 +107,24 @@ public class RestoreCatalogSchemaMutationOperator
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-							// `withRestoredFromMissing` is a no-op for the restore-from-backup and auto-discovery
-							// paths, and clears the missing-bucket entry for the flapping-recovery path. Chained
-							// unconditionally so the operator stays single-shape.
+							// `withCatalogNoLongerMissing` is a no-op for the auto-discovery path, and for the
+							// other two it clears the missing-bucket entry *and* the binding that entry was
+							// keeping alive. That second half is load-bearing here: without it the binding to
+							// the folder that vanished survives, `withCatalog` declines to overwrite it, and
+							// the restored data below is left unreferenced (#649).
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
-								.withRestoredFromMissing(catalogName)
+								.withCatalogNoLongerMissing(catalogName)
 								.withCatalog(
 									RestoreCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
 										catalogName, catalogFolder, CatalogState.INACTIVE,
 										CatalogInactiveException::new
 									),
-									// A restore and an auto-discovery both register a name the state has never
-									// seen, so the folder travels with it. Only the flapping-recovery path
-									// arrives already bound, and there this token is ignored in favour of the
-									// binding the catalog left behind.
+									// The name carries no binding by this point in any of the three paths, so the
+									// folder resolved above is the one that gets recorded. For flapping recovery
+									// that is the folder the catalog already occupied, which has just reappeared;
+									// for the other two it is the folder this operation filled.
 									catalogFolder
 								)
 								.build();

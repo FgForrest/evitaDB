@@ -1545,7 +1545,7 @@ public final class Evita implements EvitaContract {
 					CompletableFuture.allOf(phase1.toArray(CompletableFuture[]::new)).join();
 				}
 				// Phase 2 — `reappeared` and `autoDiscovered` operate on disjoint name sets, so they can run
-				// in parallel. The broadened applicability rules and operator path (`Builder#withRestoredFromMissing`)
+				// in parallel. The broadened applicability rules and operator path (`Builder#withCatalogNoLongerMissing`)
 				// handle the MISSING → INACTIVE bucket move for `reappeared`; for `autoDiscovered` names the
 				// missing-bucket clearance is a no-op.
 				final List<CompletableFuture<?>> phase2 = new ArrayList<>(

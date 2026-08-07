@@ -212,6 +212,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 								final Builder stateAfterAddingRenamedCatalog = ExpandedEngineState
 									.builder(expandedEngineState)
 									.withVersion(version)
+									// The target may be sitting in the missing bucket, and `stageCatalog` below
+									// would then put its name into `activeCatalogs` while it is still listed as
+									// missing. Nothing asserts the buckets are disjoint, so that survives the
+									// commit and wedges the next boot: the same name is staged both as loadable
+									// and as reappeared, and the reappearance mutation then fails against its own
+									// live stub. Clearing it first is what keeps the buckets exclusive (#649).
+									.withCatalogNoLongerMissing(catalogNameToBeReplaced)
 									.withCatalogBoundTo(replacedCatalog, prevailingFolderId);
 								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {
 									stateAfterAddingRenamedCatalog.withoutCatalog(catalogNameToBeReplacedWith);

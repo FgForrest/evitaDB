@@ -87,7 +87,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
  * 1. **Restore from backup** — folder is on disk, catalog name is unknown to the engine,
  * 2. **Auto-discovery** — same as (1) but driven by Evita's boot reconciliation, indistinguishable here,
  * 3. **Flapping recovery** — folder reappeared and the name is currently parked in `missingCatalogs`; the operator
- *    must clear the missing-bucket entry through `Builder#withRestoredFromMissing(...)`.
+ *    must clear the missing-bucket entry through `Builder#withCatalogNoLongerMissing(...)`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -287,7 +287,7 @@ class RestoreCatalogSchemaMutationOperatorTest {
 			assertRestoredAsInactive(afterRestore, catalogFolder);
 			assertEquals(2L, afterRestore.version());
 			// missingCatalogs stays empty for the auto-discovery / restore-from-backup branches —
-			// the call to `withRestoredFromMissing` is unconditional but a no-op when the bucket
+			// the call to `withCatalogNoLongerMissing` is unconditional but a no-op when the bucket
 			// did not contain the catalog name.
 			assertEquals(0, afterRestore.engineState().missingCatalogs().length);
 

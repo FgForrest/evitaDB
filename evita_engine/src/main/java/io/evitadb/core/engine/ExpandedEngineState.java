@@ -606,19 +606,38 @@ public record ExpandedEngineState(
 		}
 
 		/**
-		 * Stages removal of the catalog from the `missingCatalogs` bucket — used by
-		 * `RestoreCatalogSchemaMutationOperator` to support the flapping-recovery transition (MISSING → INACTIVE).
+		 * Stages removal of the catalog from the `missingCatalogs` bucket, **and drops the binding that bucket
+		 * entry was keeping alive**.
 		 *
-		 * The call is a no-op when the catalog is not currently in the missing bucket, so it is safe to chain
-		 * unconditionally before `withCatalog(...)` — auto-discovery (catalog name unknown) and flapping recovery
-		 * (catalog name in missing bucket) share the same operator path and only the latter has any work to do here.
+		 * Both halves are needed, and the second one is the whole point. {@link #withMissingCatalog(String)}
+		 * deliberately keeps the binding, because it names the folder that vanished and that is what a later
+		 * reappearance is matched against. But a name that is still bound is a name
+		 * {@link #withCatalog(CatalogContract, CatalogFolderId)} will not rebind — it establishes a binding only
+		 * for a name the state has never seen. So clearing the bucket alone leaves the catalog pointing at the
+		 * folder that went missing while its real data sits in the folder this operation just filled, and the
+		 * next boot stages the name MISSING all over again.
 		 *
-		 * @param catalogName name of the catalog whose missing-bucket entry should be cleared
+		 * Dropping the binding here rather than widening `withCatalog` is deliberate: the three-way split between
+		 * `withCatalog(catalog)`, `withCatalog(catalog, folderId)` and `withCatalogBoundTo(...)` is what stops a
+		 * create carrying a stale token from silently relocating a live catalog, and it is worth keeping. Making
+		 * the binding *absent* leaves that guard intact and simply tells the truth: a catalog whose folder is
+		 * gone is bound to nothing.
+		 *
+		 * The call is a no-op — on both arrays — when the catalog is not in the missing bucket, so it is safe to
+		 * chain unconditionally. Every path that re-registers a name which may be missing must call it first:
+		 * recovery, restore-from-backup, auto-discovery, a fresh create under the name, and a replace onto it.
+		 *
+		 * @param catalogName name of the catalog that is no longer missing
 		 * @return this builder instance
 		 */
 		@Nonnull
-		public Builder withRestoredFromMissing(@Nonnull String catalogName) {
-			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+		public Builder withCatalogNoLongerMissing(@Nonnull String catalogName) {
+			final String[] remainingMissing = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			//noinspection ArrayEquality - the helper returns the very same instance when nothing was removed
+			if (remainingMissing != this.missingCatalogs) {
+				this.missingCatalogs = remainingMissing;
+				this.catalogFolders = EngineState.withoutBinding(this.catalogFolders, catalogName);
+			}
 			return this;
 		}
 

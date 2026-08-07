@@ -351,6 +351,60 @@ class ExpandedEngineStateTest {
 		}
 
 		@Test
+		@DisplayName("Rebinds a catalog that stops being missing to the folder it is re-registered with")
+		void shouldRebindCatalogLeavingTheMissingBucket() {
+			// `withMissingCatalog` keeps the binding on purpose - it names the folder that vanished. But a name
+			// that is still bound is one `withCatalog` will not rebind, so leaving it in place would point the
+			// recovered catalog at the folder that went away while its data sits in the one just filled. The
+			// catalog would then be staged MISSING again on the very next boot (#649).
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.missingCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("orders_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalogNoLongerMissing("orders")
+				.withCatalog(contract("orders", 1), new CatalogFolderId("orders_7"))
+				.build();
+
+			assertEquals(new CatalogFolderId("orders_7"), built.boundFolderIdFor("orders"));
+			assertEquals(0, built.engineState().missingCatalogs().length);
+		}
+
+		@Test
+		@DisplayName("Leaves a bound catalog alone when it was never in the missing bucket")
+		void shouldNotTouchBindingOfCatalogThatWasNotMissing() {
+			// The call is chained unconditionally by three operators, so it has to be inert for the far more
+			// common case - otherwise it becomes a silent unbinding of a perfectly healthy catalog.
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.activeCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("orders_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalogNoLongerMissing("orders")
+				.build();
+
+			assertEquals(new CatalogFolderId("orders_1"), built.boundFolderIdFor("orders"));
+		}
+
+		@Test
 		@DisplayName("Keeps the folder when a catalog's instance is swapped, and refuses an unbound one")
 		void shouldKeepFolderOnInstanceSwapAndRejectUnbound() {
 			// An instance swap replaces the object behind a name that is already registered, so it must leave

@@ -91,6 +91,12 @@ public class CreateCatalogMutationOperator
 					return ExpandedEngineState
 						.builder(expandedEngineState)
 						.withVersion(version)
+						// A name in the missing bucket is invisible to `getCatalogNames()` after a restart, so
+						// applicability lets a create through onto it - and the binding that bucket entry kept
+						// alive would then refuse to move, leaving the new catalog's folder unreferenced and the
+						// name staged MISSING again on the next boot. Nothing is lost by clearing it: a missing
+						// catalog is one whose folder is gone (#649).
+						.withCatalogNoLongerMissing(catalogName)
 						.withCatalog(
 							CreateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
