@@ -254,9 +254,25 @@ different operation from replacement, and it would supersede this record.
 - **Renaming an ALIVE catalog that has committed a transaction breaks the next boot** — and this predates the
   work: `replaceWith`'s `version() + 1` and `verifyIntegrity`'s WAL assertion are unchanged from before it. The
   rename advances the catalog version without appending anything to the WAL, so the next boot compares
-  bootstrap version against WAL version and refuses to open the catalog. It was invisible until the WAL
-  provider was fixed, because the WAL being looked for did not exist and so could not disagree. Whether a
-  rename should advance the transactional version line at all is the open question.
+  bootstrap version against WAL version and refuses to open the catalog with `Catalog WAL version mismatch!`.
+  It was invisible until the WAL provider above was fixed, because the WAL being looked for did not exist and
+  so could not disagree — the transactions were dropped in silence instead.
+
+  **The broken window is exactly one restart.** The rebuilt transaction manager seeds from the header, so the
+  first commit after the rename writes both a WAL record and a bootstrap at the next version and the two agree
+  again. Only "rename, then restart before committing anything" fails.
+
+  Three ways out were weighed. **Relaxing the assertion to `bootstrap >= WAL` is wrong**: that is precisely the
+  shape the WAL-provider defect produced (empty WAL at 0, bootstrap at 3), so it would re-mask the failure that
+  was just made visible. **Manufacturing a WAL transaction for the rename** is disproportionate to a
+  one-restart window and would put a non-transactional operation into the transaction stream. **Not consuming
+  a version for an operation that moves no data** is the right shape — the assertion states that every version
+  in the line came from a transaction, and the rename is the only thing violating it. It is unimplemented
+  because of a question this work could not settle: `replaceWith` writes a `CatalogSchemaStoragePart` and a
+  header at the version it picks, and whether `OffsetIndex` accepts a write at an *already-flushed* version is
+  not established — `roots` is a version-keyed map resolved by `floorRoot`, and a second root at an existing
+  version would be resolved arbitrarily. Settle that first; if the offset index refuses, the fix has to move
+  to making the WAL agree instead.
 - **Client-visible:** a duplicated or restored catalog now has an id distinct from its source, including
   restore-in-place after a disaster. That is the intended outcome — the restored catalog lost everything
   committed after the backup point, so reusing the id would let a client keep serving what it believes
