@@ -5077,6 +5077,54 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Address a renamed catalog's write-ahead log by its folder prefix, not by its new name")
+	void shouldKeepWriteAheadLogAddressableAfterRename() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+
+		// A WAL file exists only once a transaction has been committed against a live catalog. Every other
+		// rename test in this class renames a catalog that never had one - which is exactly why they stayed
+		// green while the WAL file name was still being derived from the catalog name stored in the header.
+		final EvitaSessionContract session = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		session.upsertEntity(
+			session.createNewEntity(Entities.PRODUCT, 1)
+			       .setAttribute("testAttribute", "committed before the rename")
+		);
+		assertNotNull(session.closeNowWithProgress().onChangesVisible().toCompletableFuture().join());
+
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// A rename rewrites the name inside the header and leaves the files on the prefix they were created
+		// with, so the WAL has to be looked up under that prefix (#649). Looked up under the *new* name instead
+		// - which is what the header's own file-name provider yields, since it is built from the name the
+		// header stores - the lookup addresses a file that does not exist, reports it empty and creates it.
+		// That happens while the service is being reopened, so a second `.wal` appearing here is the whole
+		// defect: the committed transaction is now in a file nothing will ever read, and the next boot sees two
+		// files whose indexes are not consecutive and refuses to open the catalog.
+		final File[] walFiles = catalogFolder(renamedCatalogName).toFile()
+			.listFiles((dir, name) -> name.endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX));
+		assertNotNull(walFiles);
+		assertEquals(
+			1, walFiles.length,
+			() -> "Exactly one WAL file may exist after a rename, found: " +
+				Arrays.toString(Arrays.stream(walFiles).map(File::getName).toArray(String[]::new))
+		);
+		assertEquals(
+			CatalogPersistenceService.getWalFileName(TEST_CATALOG, 0), walFiles[0].getName(),
+			"The WAL must keep the prefix the folder's files were created with, not take the new catalog name!"
+		);
+	}
+
+	@Test
 	@DisplayName("Replace a catalog by repointing at the source folder and retiring the superseded one")
 	void shouldReplaceCatalogAsAPointerSwap() throws IOException {
 		setupCatalogWithProductAndCategory();

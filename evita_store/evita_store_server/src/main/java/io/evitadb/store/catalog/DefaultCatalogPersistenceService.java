@@ -1078,7 +1078,12 @@ public class DefaultCatalogPersistenceService
 				)
 			);
 		} else {
-			currentWalFileRef = catalogHeader.walFileReference();
+			// same rebase as the constructors perform: a header's own provider names files after the catalog
+			// name the header stores, which stopped tracking the folder's file prefix when rename became a
+			// pointer swap. Doing it here too covers every caller, including any added later.
+			currentWalFileRef = catalogHeader.walFileReference() == null ?
+				null :
+				new LogFileRecordReference(walFileNameProvider, catalogHeader.walFileReference());
 		}
 		return ofNullable(currentWalFileRef)
 			.map(
@@ -1695,8 +1700,15 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.getEntityTypeFileIndexes().size()
 		);
 
+		// The reference is ALWAYS rebased onto the provider built from the discovered storage prefix. A header's
+		// own provider is fabricated by `CatalogHeaderSerializer` from the catalog name it stored, and since
+		// #649 that name and the folder's file prefix diverge permanently: `replaceWith` writes the new name
+		// into the header and deliberately leaves the files where they are. Trusting the header's provider
+		// therefore addresses `<newName>_N.wal`, a file that does not exist - the WAL of every renamed catalog
+		// that had committed a transaction would be silently abandoned and a fresh empty one created beside it.
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
-			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
+			new LogFileRecordReference(this.walFileNameProvider) :
+			new LogFileRecordReference(this.walFileNameProvider, catalogHeader.walFileReference());
 
 		final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
 			.toFile();
@@ -1726,12 +1738,11 @@ public class DefaultCatalogPersistenceService
 			);
 		}
 
+		// no restore-flag special case: the rebase above already covers it, and the restore direction (files
+		// renamed, header lagging) is the mirror of the rename direction (header rewritten, files staying)
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName,
-			restoreFlagExists ?
-				// the catalog name has changed, so we need to reinitialize the WAL file name provider
-				new LogFileRecordReference(this.walFileNameProvider, logFileRecordReference) :
-				logFileRecordReference,
+			logFileRecordReference,
 			this.storageSettings, scheduler,
 			this::advanceHistoryHorizon,
 			this.catalogStoragePath, this.walKryoPool
@@ -1847,8 +1858,12 @@ public class DefaultCatalogPersistenceService
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion);
 
+		// rebased onto the discovered prefix for the reason given in the load constructor - and this is the very
+		// constructor that runs immediately after `replaceWith`, so it is the first place the header's name and
+		// the folder's file prefix disagree
 		final LogFileRecordReference logFileRecordReference = catalogHeader.walFileReference() == null ?
-			new LogFileRecordReference(this.walFileNameProvider) : catalogHeader.walFileReference();
+			new LogFileRecordReference(this.walFileNameProvider) :
+			new LogFileRecordReference(this.walFileNameProvider, catalogHeader.walFileReference());
 
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName, logFileRecordReference,
@@ -2586,7 +2601,14 @@ public class DefaultCatalogPersistenceService
 		if (theCatalogWal == null) {
 			return Optional.empty();
 		} else {
-			return theCatalogWal.getFirstNonProcessedTransaction(getCatalogHeader(catalogVersion).walFileReference())
+			// the reference is resolved to a path through its OWN file-name provider, so it needs the same rebase
+			// the constructors perform - handed the header's provider it addresses `<newName>_N.wal` after a
+			// rename, finds nothing, and reports the catalog as having no unprocessed transactions at all
+			final LogFileRecordReference headerWalReference = getCatalogHeader(catalogVersion).walFileReference();
+			return theCatalogWal.getFirstNonProcessedTransaction(
+					headerWalReference == null ?
+						null : new LogFileRecordReference(this.walFileNameProvider, headerWalReference)
+				)
 				.map(TransactionMutationWithWalFileReference::transactionMutation);
 		}
 	}
@@ -3012,6 +3034,16 @@ public class DefaultCatalogPersistenceService
 			final File[] filesToDelete = Objects.requireNonNull(
 				this.catalogStoragePath.toFile()
 					.listFiles((dir, name) -> {
+						// evitaDB's own markers are labels about the folder, not obsolete content - and this
+						// filter's tail deletes everything it does not recognise, so a marker missing from here
+						// is silently destroyed. `.catalogname` is the only record of which catalog a generated
+						// folder holds, and losing it costs the operator the one way to read a storage root back
+						// (#649). Kept in step with `holdsNoCatalogData`, which excludes the same three.
+						if (CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
+							|| CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
+							|| CatalogPersistenceService.RESTORE_FLAG.equals(name)) {
+							return false;
+						}
 						// bootstrap file is never removed
 						if (name.equals(getCatalogBootstrapFileName(this.storagePrefix))) {
 							return false;

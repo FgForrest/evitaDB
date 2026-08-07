@@ -114,8 +114,23 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 	@Override
 	default boolean isCatalogAvailable(@Nonnull String catalogName) {
 		// the catalog lives inside the benchmark-owned storage root, one level deeper than it used to
-		final File targetDirectory = benchmarkStorageDirectory(catalogName).resolve(catalogName).toFile();
-		return targetDirectory.exists() && FileUtils.sizeOfDirectory(targetDirectory) > 0;
+		final File storageRoot = benchmarkStorageDirectory(catalogName).toFile();
+		// A catalog no longer occupies a folder named after it: allocation produces `<name>_<generation>`, and
+		// which generation a given run drew is not knowable from here (#649). Testing only the bare name made
+		// every reusable dataset report itself absent, so each benchmark regenerated what it was meant to reuse.
+		// The bare name still has to be accepted - a folder adopted from an older layout keeps it.
+		final File[] candidates = storageRoot.listFiles(
+			(dir, name) -> name.equals(catalogName) || name.startsWith(catalogName + '_')
+		);
+		if (candidates == null) {
+			return false;
+		}
+		for (final File candidate : candidates) {
+			if (candidate.isDirectory() && FileUtils.sizeOfDirectory(candidate) > 0) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override

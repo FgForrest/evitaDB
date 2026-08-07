@@ -98,7 +98,15 @@ public class CatalogFolderAllocator {
 	) {
 		IOException lastFailure = null;
 		for (int attempt = 1; attempt <= MAX_ALLOCATION_ATTEMPTS; attempt++) {
-			final String folderName = catalogName + '_' + generationSupplier.getAsInt();
+			// The token is constructed BEFORE anything touches the filesystem, and the path is joined from the
+			// token rather than from the raw name. `CatalogFolderId` is what enforces single-segment-ness, and
+			// `Path#resolve` discards its base when handed an absolute argument - so validating afterwards would
+			// let a catalog name like `/tmp/x` create a directory and its marker outside the storage root, then
+			// throw and leave both behind. This ordering makes an illegal name fail before any side effect.
+			final CatalogFolderId folderId = new CatalogFolderId(
+				catalogName + '_' + generationSupplier.getAsInt()
+			);
+			final String folderName = folderId.id();
 			final Path folder = storageDirectory.resolve(folderName);
 			try {
 				Files.createDirectory(folder);
@@ -111,7 +119,7 @@ public class CatalogFolderAllocator {
 			}
 			try {
 				Files.createFile(folder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG));
-				return new CatalogFolderId(folderName);
+				return folderId;
 			} catch (IOException ex) {
 				// The directory itself was created, so it is ours and nothing else can be occupying it. Remove it
 				// before moving on: an unmarked empty folder is indistinguishable from an operator's leftovers,
@@ -167,7 +175,12 @@ public class CatalogFolderAllocator {
 		final Path source = storageDirectory.resolve(folderId.id());
 		IOException lastFailure = null;
 		for (int attempt = 1; attempt <= MAX_ALLOCATION_ATTEMPTS; attempt++) {
-			final String folderName = catalogName + '_' + generationSupplier.getAsInt();
+			// constructed before the move for the reason given in `allocate` - the token is what proves the
+			// target is a single segment inside the storage root, so it has to exist before anything moves
+			final CatalogFolderId adoptedId = new CatalogFolderId(
+				catalogName + '_' + generationSupplier.getAsInt()
+			);
+			final String folderName = adoptedId.id();
 			try {
 				// no REPLACE_EXISTING: an occupied target must fail the attempt rather than destroy whatever
 				// holds the name, which is the same atomic test-and-set `createDirectory` gives the allocator
@@ -176,7 +189,7 @@ public class CatalogFolderAllocator {
 					"Adopted storage folder `{}` for catalog `{}` and renamed it to `{}`.",
 					folderId.id(), catalogName, folderName
 				);
-				return new CatalogFolderId(folderName);
+				return adoptedId;
 			} catch (IOException ex) {
 				log.debug("Folder `{}` could not be renamed to `{}` ({}), trying the next generation.",
 					folderId.id(), folderName, ex.getMessage());

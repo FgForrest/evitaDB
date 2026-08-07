@@ -156,9 +156,16 @@ different operation from replacement, and it would supersede this record.
   already taken by a registered catalog living elsewhere — must be rejected *before* the rename. Otherwise boot
   reconciliation fails after the operator's import has been moved.
 - **`folderIdForBinding` prefers a live binding, then a reservation, then a dead binding.** The existence test in
-  the first branch is what makes restoring a backup over a catalog in the missing bucket work: such a catalog
-  keeps its binding by design, so a plain bound-before-reserved order would register the folder that vanished and
-  orphan the one the backup was written into.
+  the first branch exists for restoring a backup over a catalog in the missing bucket: such a catalog keeps its
+  binding by design, so a plain bound-before-reserved order would hand back the folder that vanished rather than
+  the one the backup was written into. ⚠ **It returns the right token but that token does not survive the
+  commit** — `bindingsIncluding` keeps an existing binding untouched, so the restore still binds the vanished
+  folder. See the open follow-up below; the ordering here is necessary but not sufficient.
+- **A header's WAL file-name provider must never be trusted.** `CatalogHeaderSerializer` fabricates it from the
+  catalog name it stored, and since a rename rewrites that name while leaving the files on their prefix, the two
+  diverge permanently. Every site that takes `catalogHeader.walFileReference()` rebases it onto the provider
+  built from the discovered prefix. Skip the rebase and the WAL of a renamed catalog is addressed under a name
+  no file carries — which reports empty rather than missing, so the failure is silent data loss, not an error.
 - **Adoption's rename is best-effort and is not retried.** A folder that could not be renamed binds
   under its bare name and works identically; once bound it classifies as `REFERENCED`, which is
   matched before the foreign row, so adoption never revisits it. The plan's claim that the migration
@@ -234,6 +241,22 @@ different operation from replacement, and it would supersede this record.
   folder into `CatalogBootstrap(0, 0, now, null)` and surfaces much later as "no schema found, the data
   are probably corrupted". It is what turned a one-line defect in this work into a lost session, and is
   worth tightening now that folders are allocated separately from being written.
+- **A catalog in the MISSING bucket keeps a binding nothing can overwrite.** `bindingsIncluding` returns the
+  binding array unchanged when the name is already bound, and the bucket entry is cleared only by
+  `withRestoredFromMissing` — create and replace call neither. So restoring a backup over a MISSING catalog
+  binds the folder that vanished and leaves the restored data unreferenced; creating a catalog under a MISSING
+  name loses it at the next restart; replacing one puts the name in `activeCatalogs` and `missingCatalogs` at
+  once and wedges the next boot. This matters more than it looks, because `isAdoptableCatalogName` refuses any
+  folder whose bare name belongs to a registered catalog — missing ones included — so restore is the only
+  recovery route there is. The candidate fix is to have `withRestoredFromMissing` drop the binding as well as
+  the bucket entry; it is not taken here because it changes the three-way builder split above, which is a
+  stated invariant rather than an implementation detail.
+- **Renaming an ALIVE catalog that has committed a transaction breaks the next boot** — and this predates the
+  work: `replaceWith`'s `version() + 1` and `verifyIntegrity`'s WAL assertion are unchanged from before it. The
+  rename advances the catalog version without appending anything to the WAL, so the next boot compares
+  bootstrap version against WAL version and refuses to open the catalog. It was invisible until the WAL
+  provider was fixed, because the WAL being looked for did not exist and so could not disagree. Whether a
+  rename should advance the transactional version line at all is the open question.
 - **Client-visible:** a duplicated or restored catalog now has an id distinct from its source, including
   restore-in-place after a disaster. That is the intended outcome — the restored catalog lost everything
   committed after the backup point, so reusing the id would let a client keep serving what it believes

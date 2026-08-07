@@ -45,12 +45,14 @@ import io.evitadb.core.exception.ExportServiceImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SequentialTask;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.Functions;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -304,6 +306,11 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		long totalBytesExpected,
 		boolean deleteAfterRestore
 	) {
+		// The name is client-supplied and reaches folder allocation before any mutation validates it -
+		// `RestoreCatalogSchemaMutation` runs its check at *registration*, which is after a folder has been
+		// created and the whole archive written into it. Checking here makes a malformed name a client error
+		// rather than an internal one, and keeps it from ever reaching a path join.
+		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		return new SequentialTask<>(
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
