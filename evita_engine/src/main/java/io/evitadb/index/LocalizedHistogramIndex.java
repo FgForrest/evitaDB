@@ -34,6 +34,7 @@ import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -271,6 +272,26 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		for (final Entry<Locale, OwnerFilterIndex> entry : this.filterIndexes.entrySet()) {
 			sink.accept(persistedLeafPagesOf(entry.getKey(), entry.getValue()));
 		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Both maps are keyed by {@link Locale}, which the JVM interns per language tag and the schema hands to every
+	 * index built from it, so only the entry slots are charged for the keys.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// one per locale variant: a filter index does not charge its `attributeIndexKey`, on the ruling that the
+		// attribute index filing it in a map owns that instance, but a histogram MINTS one per locale in
+		// `insertValue` and is the only holder - see `SimpleHistogramIndex` for the same charge in the singular
+		final long mintedKeys = this.filterIndexes.size() * layout.sizeOfObject(3L * layout.referenceSize());
+		// the filterIndexes / cardinalities slots
+		return getBaseHeapSizeInBytes(2L * layout.referenceSize())
+			+ this.filterIndexes.getHeapSizeInBytes(locale -> 0L, OwnerFilterIndex::getHeapSizeInBytes)
+			+ this.cardinalities.getHeapSizeInBytes(locale -> 0L, AttributeCardinalityIndex::getHeapSizeInBytes)
+			+ mintedKeys;
 	}
 
 	@Nonnull

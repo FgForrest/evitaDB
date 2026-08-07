@@ -62,6 +62,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -780,6 +781,42 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
 		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * The cardinality maps are keyed by {@link AttributeIndexKey} instances this index mints itself — a separate
+	 * `computeIfAbsent` from the one the attribute index performs, so the two maps hold distinct objects and each
+	 * charges its own. The histogram map is keyed by the schema's histogram names and charges slots alone.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// the reference name, attribute name and locale of an attribute key all belong to the schema
+		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
+		// the cardinalityDirty / pkCardinalities / referencedPrimaryKeysIndex / cardinalityIndexes
+		// / histogramIndexes slots
+		return getReducedBaseHeapSizeInBytes(5L * layout.referenceSize())
+			+ this.cardinalityDirty.getHeapSizeInBytes()
+			+ this.pkCardinalities.getHeapSizeInBytes(key -> boxedInteger, cardinality -> boxedInteger)
+			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
+				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
+			)
+			+ this.cardinalityIndexes.getHeapSizeInBytes(
+				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
+			)
+			+ this.histogramIndexes.getHeapSizeInBytes(
+				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
+			)
+			// the three components this class registers: a cardinality map component holding its map plus the index
+			// key, a group cardinality one holding the dirty flag, both cardinality maps and the reference name, and
+			// a histogram map component whose leaf-page snapshot is charged for its slot alone - see
+			// `ReferencedTypeEntityIndex` for why
+			+ layout.sizeOfObject(2L * layout.referenceSize())
+			+ layout.sizeOfObject(4L * layout.referenceSize())
+			+ layout.sizeOfObject(3L * layout.referenceSize());
 	}
 
 	@Override

@@ -67,6 +67,7 @@ import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -709,6 +710,37 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			this.histogramIndexes, this.dirty, getTransactionalLayerMaintainer(),
 			histogramName, locale, value, ownerPK, indexedDecimalPlaces
 		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #priceIndex} is {@link io.evitadb.index.price.VoidPriceIndex#INSTANCE} — one instance for the whole JVM
+	 * that this index shares with every other reference-type index — so only its slot is charged.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the reference name, attribute name and locale of an attribute key all belong to the schema
+		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
+		// the priceIndex / indexPrimaryKeyCardinality / cardinalityIndexes / histogramIndexes slots
+		return getBaseHeapSizeInBytes(4L * layout.referenceSize())
+			+ this.indexPrimaryKeyCardinality.getHeapSizeInBytes()
+			+ this.cardinalityIndexes.getHeapSizeInBytes(
+				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
+			)
+			+ this.histogramIndexes.getHeapSizeInBytes(
+				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
+			)
+			// the four components this class registers: a price one over the void singleton, a cardinality and a
+			// histogram map component holding their map plus the index key, and a reference-type cardinality one
+			// holding its index plus the reference name
+			+ layout.sizeOfObject(layout.referenceSize())
+			+ 2L * layout.sizeOfObject(2L * layout.referenceSize())
+			// the histogram component also holds the leaf-page snapshot of the last flush - `Map.of()` until one
+			// happens, and NOT charged beyond its slot even after: pricing it needs the same walk `AttributeIndex`
+			// does for its own chain snapshot, which is a change of its own
+			+ layout.sizeOfObject(3L * layout.referenceSize());
 	}
 
 	@Override

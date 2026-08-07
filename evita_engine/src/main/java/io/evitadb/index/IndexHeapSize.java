@@ -25,6 +25,8 @@ package io.evitadb.index;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.dataType.ComparableCurrency;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
@@ -33,6 +35,8 @@ import io.evitadb.utils.VMLayout;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Instant;
+import java.util.Set;
 import java.util.function.ToLongFunction;
 
 /**
@@ -63,13 +67,31 @@ public final class IndexHeapSize {
 	 * - **The leaf keys**, but only when the leaves chose {@link io.evitadb.index.bPlusTree.BoxedObjectColumn}. The
 	 *   front-coded and primitive columns store their keys as values and ignore the sizer entirely.
 	 *
+	 * # The three keys that are not evitaDB data types
+	 *
+	 * A tree does not store the attribute value the client supplied — it stores the **normalized** form
+	 * {@link io.evitadb.index.attribute.FilterIndex#getNormalizer} produced, and for three attribute types that form
+	 * is a class {@link EvitaDataTypes} has never heard of: an `OffsetDateTime` normalizes to {@link Instant}, a
+	 * `Currency` to {@link ComparableCurrency} and a `Locale` to {@link ComparableLocale}, each so that natural order
+	 * over the tree agrees with the order the query layer promises. They are priced here rather than delegated,
+	 * because `estimateSize` throws for a type outside evitaDB's own set and would take a real catalog's statistics
+	 * request down with it. Both wrappers hold a JVM-interned instance and are charged for the wrapper alone.
+	 *
 	 * A key that is not {@link Serializable} **throws** rather than being priced at zero. Every value entering these
 	 * trees is verified `Serializable` on the way in, so reaching this branch means the invariant broke somewhere
 	 * upstream — and a zero would hide that behind a plausible-looking total instead of surfacing it.
 	 * {@link EvitaDataTypes#estimateSize} throws in the same spirit for a type evitaDB does not support.
 	 */
 	public static final ToLongFunction<Object> OWNED_KEY_SIZER = key -> {
-		if (key instanceof final Serializable serializable) {
+		if (key instanceof Instant) {
+			// a seconds `long` and a nanos `int`
+			final VMLayout layout = VMLayout.current();
+			return layout.sizeOfObject(Long.BYTES + Integer.BYTES);
+		} else if (key instanceof ComparableCurrency || key instanceof ComparableLocale) {
+			// a wrapper over an instance the JVM interns per currency code / language tag
+			final VMLayout layout = VMLayout.current();
+			return layout.sizeOfObject(layout.referenceSize());
+		} else if (key instanceof final Serializable serializable) {
 			return EvitaDataTypes.estimateSize(serializable);
 		}
 		throw new GenericEvitaInternalError(
@@ -116,6 +138,46 @@ public final class IndexHeapSize {
 		return layout.sizeOfObject(12L * layout.referenceSize())
 			+ 5L * layout.sizeOfObject(Long.BYTES)
 			+ layout.sizeOfArray(1, Long.BYTES);
+	}
+
+	/**
+	 * Prices an immutable {@link java.util.Set#copyOf} result — the shape every persisted-baseline manifest an
+	 * {@link EntityIndex} keeps between flushes takes.
+	 *
+	 * # Why the shape has to be modelled rather than counted
+	 *
+	 * `Set.copyOf` picks one of three implementations by element count, and they differ by more than a constant: an
+	 * empty copy is a JVM-wide singleton owned by nobody, one or two elements are held in **fields** with no array at
+	 * all, and three or more allocate an open-addressed table of **twice** the element count. Charging a flat
+	 * per-entry cost would read a two-element set high and a large one low by half.
+	 *
+	 * An empty set is charged nothing for the same reason {@link java.util.Collections#emptySet()} is: a fresh index
+	 * parks all four of its baselines on singletons, and billing them would give every never-flushed index a
+	 * footprint it does not have.
+	 *
+	 * @param set          the immutable set to price
+	 * @param elementSizer prices one element's owned payload; returns `0` for elements the set borrows
+	 * @return the owned heap footprint of the set in bytes, including alignment padding
+	 */
+	public static <T> long immutableSetSizeInBytes(
+		@Nonnull Set<T> set,
+		@Nonnull ToLongFunction<? super T> elementSizer
+	) {
+		final int size = set.size();
+		if (size == 0) {
+			return 0L;
+		}
+		final VMLayout layout = VMLayout.current();
+		// `Set12` keeps its one or two elements in fields; `SetN` keeps a size and a table twice as wide as its
+		// content, which is what keeps its probe sequences short
+		long result = size <= 2 ?
+			layout.sizeOfObject(2L * layout.referenceSize()) :
+			layout.sizeOfObject(Integer.BYTES + layout.referenceSize())
+				+ layout.sizeOfArray(2 * size, layout.referenceSize());
+		for (final T element : set) {
+			result += elementSizer.applyAsLong(element);
+		}
+		return result;
 	}
 
 	private IndexHeapSize() {

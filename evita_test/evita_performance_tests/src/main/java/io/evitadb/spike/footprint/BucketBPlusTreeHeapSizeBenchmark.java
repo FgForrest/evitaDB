@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.footprint;
 
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -87,7 +88,9 @@ public class BucketBPlusTreeHeapSizeBenchmark {
 	 */
 	@Benchmark
 	public void heapSize(TreeState state, Blackhole blackhole) {
-		blackhole.consume(state.tree.getHeapSizeInBytes());
+		// the sizer every index built on such a tree passes: the walk has to price each key it owns, and a tree
+		// measured without one would be timing a path no caller takes
+		blackhole.consume(state.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER));
 	}
 
 	/**

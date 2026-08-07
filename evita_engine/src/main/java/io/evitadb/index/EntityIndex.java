@@ -70,6 +70,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -111,6 +112,13 @@ public abstract class EntityIndex implements
 	Versioned,
 	IndexDataStructure
 {
+	/**
+	 * Capacity the {@link #components} list is pre-sized to — chosen to hold the three intrinsic components plus
+	 * every extension a subclass registers without a single grow. Named because the heap estimate models the backing
+	 * array from it: an unread capacity would have to be guessed.
+	 */
+	private static final int INITIAL_COMPONENT_CAPACITY = 8;
+
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
@@ -209,7 +217,7 @@ public abstract class EntityIndex implements
 	 * components (attribute, hierarchy, facet) and extended by subclass constructors via
 	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing.
 	 */
-	private final List<IndexComponent> components = new ArrayList<>(8);
+	private final List<IndexComponent> components = new ArrayList<>(INITIAL_COMPONENT_CAPACITY);
 
 	/**
 	 * Read-only accessor exposed for `EntityIndexReloadPlanSymmetryTest`. Returns an unmodifiable
@@ -779,6 +787,90 @@ public abstract class EntityIndex implements
 	@Override
 	public int version() {
 		return this.version;
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its entity-id bitmaps, every sub-index it owns, and the
+	 * persisted-baseline manifest it keeps between flushes.
+	 *
+	 * This is the figure `MEMORY_FOOTPRINT` reports for one index. It walks the whole index tree, so it is
+	 * `O(contents)` and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Returns the heap this base occupies, in bytes — everything an implementation inherits from it, so a subclass
+	 * adds only what it declares itself.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * {@link #indexKey} is **not** charged. The enclosing collection files this index in a map keyed by the very
+	 * instance handed to the constructor, so that map owns it and the index pays for its reference slot alone —
+	 * the same ruling {@link io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex} makes for its own key.
+	 *
+	 * {@link #components} is the flush ordering, and its slots hold two different kinds of thing. `hierarchyIndex`
+	 * and `facetIndex` register **themselves**, so those slots point at structures charged above and following them
+	 * would bill the index tree twice. Every other slot holds a **dedicated wrapper** — an
+	 * {@link io.evitadb.index.component.AttributeIndexComponent} here, a
+	 * {@link io.evitadb.index.component.PriceIndexComponent} and the cardinality and histogram components in the
+	 * subclasses — which is an object of its own that nothing else holds, and which must be charged for its shell.
+	 * Charging it is not optional: they are small, but there is one per index and a catalog has hundreds of
+	 * thousands. Each is charged **by the class that constructs it**, so a component added tomorrow is priced
+	 * where it is registered rather than silently going free.
+	 *
+	 * The four `original*` baselines are charged for their sets and for the storage-key records the last flush
+	 * minted, but not for what those records point at: an {@link EntityIndexKey} is this index's own, an
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey} belongs to the attribute
+	 * index that minted it, and reference names, histogram names and locales all belong to the schema. A fresh index
+	 * parks all four on {@link Collections#emptySet()} and is charged nothing for them.
+	 *
+	 * {@link #entityIdsByLanguage} is keyed by {@link Locale}, which the schema shares with every index it touches,
+	 * so only the entry slots are charged for the keys.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding
+	 */
+	protected final long getBaseHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id, primaryKey, version and the two booleans, then the attributeIndex / dirty / entityIds
+		// / entityIdsByLanguage / indexKey / facetIndex / hierarchyIndex / originalAttributeIndexes
+		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components slots, plus whatever
+		// the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields are
+		// sized in a single call
+		long size = layout.sizeOfObject(
+			Long.BYTES + 2L * Integer.BYTES + 2L + 12L * layout.referenceSize() + ownFieldBytes
+		);
+		size += this.dirty.getHeapSizeInBytes();
+		size += this.entityIds.getHeapSizeInBytes();
+		size += this.entityIdsByLanguage.getHeapSizeInBytes(
+			locale -> 0L, TransactionalBitmap::getHeapSizeInBytes
+		);
+		size += this.attributeIndex.getHeapSizeInBytes();
+		size += this.facetIndex.getHeapSizeInBytes();
+		size += this.hierarchyIndex.getHeapSizeInBytes();
+		// the flush ordering: spine and slots, since two of the slots hold the sub-indexes charged above
+		size += layout.sizeOfObject(2L * Integer.BYTES + layout.referenceSize())
+			+ layout.sizeOfArray(Math.max(INITIAL_COMPONENT_CAPACITY, this.components.size()), layout.referenceSize());
+		// the one wrapper this base registers itself, holding the attribute index and the index key
+		size += layout.sizeOfObject(2L * layout.referenceSize());
+		size += IndexHeapSize.immutableSetSizeInBytes(
+			this.originalAttributeIndexes,
+			key -> layout.sizeOfObject(3L * layout.referenceSize())
+		);
+		size += IndexHeapSize.immutableSetSizeInBytes(
+			// the price list name and the currency are the schema's, the record handling an enum constant
+			this.originalPriceIndexes,
+			key -> layout.sizeOfObject(3L * layout.referenceSize() + Integer.BYTES)
+		);
+		// reference names, owned by the schema that named them
+		size += IndexHeapSize.immutableSetSizeInBytes(this.originalFacetIndexes, referenceName -> 0L);
+		size += IndexHeapSize.immutableSetSizeInBytes(
+			this.originalHistogramKeys,
+			key -> layout.sizeOfObject(3L * layout.referenceSize())
+		);
+		return size;
 	}
 
 	/**

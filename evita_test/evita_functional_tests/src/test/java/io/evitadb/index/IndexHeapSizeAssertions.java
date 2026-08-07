@@ -26,16 +26,20 @@ package io.evitadb.index;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.JolHeapSize;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -76,7 +80,17 @@ public final class IndexHeapSizeAssertions {
 		// allocating. `Map.of()` is one immutable instance for the whole JVM (every empty leaf-page snapshot of every
 		// attribute index in the catalog is that object), and the two empty singletons are the codebase's own
 		// equivalents - charging any of them would bill one object to every index that has nothing there
-		Map.of(), EmptyBitmap.INSTANCE, EmptyFormula.INSTANCE
+		Map.of(), EmptyBitmap.INSTANCE, EmptyFormula.INSTANCE,
+		// `Set.of()` is a THIRD empty set, distinct from both `Collections.emptySet()` and `Collections.EMPTY_SET`:
+		// it is `ImmutableCollections.EMPTY_SET`, what `Set.copyOf` of anything empty returns, and what all four
+		// persisted baselines of every never-flushed entity index point at. Naming the wrong one of the three
+		// subtracts nothing at all and looks exactly like the arithmetic under-charging by forty bytes
+		Set.of(),
+		// the price index every reference-type index parks on, and the comparator every naturally-ordered B+ tree
+		// takes. Both are one instance for the whole JVM; the comparator is an enum constant, so subtracting it
+		// also subtracts the constant's name and its byte array - seventy-two bytes that otherwise read as a
+		// shortfall in whichever tree happened to be walked
+		VoidPriceIndex.INSTANCE, Comparator.naturalOrder()
 	};
 
 	private IndexHeapSizeAssertions() {
@@ -223,11 +237,35 @@ public final class IndexHeapSizeAssertions {
 	}
 
 	/**
+	 * Prices the cached collection views a structure's maps are carrying — `count` of them, at one object each.
+	 *
+	 * # Why this is reported low, against rule 3
+	 *
+	 * `HashMap` allocates its `keySet` / `values` / `entrySet` view on first use and **caches it in the map**
+	 * (trap 6), and an entity index's constructor snapshots its persisted baseline by iterating its own maps that
+	 * way — so a freshly built one already carries fourteen of them before any caller has touched it. They are real
+	 * bytes and nothing else owns them, yet `MapHeapSize` cannot see one without calling the very accessor that
+	 * would create it, which would make measuring a map grow it.
+	 *
+	 * Rule 3 says report the higher figure where several are defensible. This is the deliberate exception: the
+	 * alternative is charging a phantom view to every map in the catalog, and the error here is a **flat**
+	 * per-index constant that does not move with the data — the shape the rules classify as a convention rather
+	 * than a defect. Charging it would trade a bounded 224 bytes per index for an unbounded over-report.
+	 *
+	 * @param count how many cached views the structure's maps hold
+	 * @return the bytes the arithmetic knowingly leaves out
+	 */
+	public static long cachedMapViewBytes(int count) {
+		return count * VMLayout.current().sizeOfObject(VMLayout.current().referenceSize());
+	}
+
+	/**
 	 * Asserts that an index's arithmetic sits exactly `expectedExcess` bytes above a JOL walk.
 	 *
 	 * Every divergence in this layer is deliberate and has a known magnitude rather than a vague direction — so they
 	 * are pinned with the number, not waved through with a `>=`. An assertion that only said "at least as much" would
-	 * keep passing if the arithmetic drifted by a kilobyte.
+	 * keep passing if the arithmetic drifted by a kilobyte. A **negative** excess is the legitimate way to pin a
+	 * divergence that reads low — {@link #cachedMapViewBytes} is the only one in this suite.
 	 *
 	 * @param reported       what the index says it occupies
 	 * @param expectedExcess how far above the measurement the arithmetic is expected to sit, and why

@@ -31,6 +31,7 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -176,6 +177,20 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		if (!this.filterIndex.isEmpty() || !this.cardinality.isEmpty()) {
 			sink.accept(persistedLeafPagesOf(null, this.filterIndex));
 		}
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the filterIndex / cardinality slots
+		return getBaseHeapSizeInBytes(2L * layout.referenceSize())
+			+ this.filterIndex.getHeapSizeInBytes()
+			+ this.cardinality.getHeapSizeInBytes()
+			// a filter index does not charge its `attributeIndexKey`, on the ruling that the attribute index filing
+			// it in a map owns that instance. A histogram has no such map - it MINTS the key in its constructor and
+			// is the only holder - so the shell is charged here. Its three references are the reference and
+			// histogram names this index already borrows, and a locale the schema interns
+			+ layout.sizeOfObject(3L * layout.referenceSize());
 	}
 
 	@Nonnull

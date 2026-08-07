@@ -332,6 +332,16 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return getReducedBaseHeapSizeInBytes(0L);
+	}
+
 	@Override
 	public String toString() {
 		return "ReducedEntityIndex (" + StringUtils.uncapitalize(getIndexKey().toString()) + ")";

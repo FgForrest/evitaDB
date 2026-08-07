@@ -75,9 +75,17 @@ import java.util.function.ToLongFunction;
  * implied.
  *
  * A bin that has treeified — eight hash collisions in one bucket on a table of at least 64 — holds `TreeNode`s,
- * which carry six more references and a flag than the `Node`s priced here, so such a map reads slightly low. It
- * cannot be detected without the same blocked reflection, and the key types in play (boxed ints, locales, attribute
- * keys) do not collide that way in practice.
+ * which carry six more references and a flag than the `Node`s priced here, so such a map reads **24 bytes per entry**
+ * low. It cannot be detected without the same blocked reflection: nothing the map exposes says which of its bins
+ * converted.
+ *
+ * This is the one error term that grows with the data, so it is worth knowing which keys can reach it. A record key
+ * is the exposed shape, because its generated hash is a plain `31 * first + second` with no avalanche of its own:
+ * an {@code AttributeCardinalityKey} whose indexed value happens to equal the record id hashes to `32 * recordId`,
+ * which leaves five always-zero low bits and confines the whole map to thirty-two buckets however wide the table
+ * grows. Real attribute values do not line up with entity primary keys that way, and no such clustering appeared in
+ * the 523k-index catalog this was measured against — but a synthetic fixture reproduces it immediately, and reads
+ * exactly like a per-entry defect in whatever arithmetic sits above the map.
  *
  * @author Claude (heap-size accounting), FG Forrest a.s. (c) 2026
  */

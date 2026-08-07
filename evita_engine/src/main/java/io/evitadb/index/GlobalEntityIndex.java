@@ -49,6 +49,7 @@ import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -328,6 +329,16 @@ public class GlobalEntityIndex extends EntityIndex
 	@Override
 	public boolean isEmpty() {
 		return super.isEmpty() && this.priceIndex.isPriceIndexEmpty();
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the priceIndex slot
+		return getBaseHeapSizeInBytes(layout.referenceSize())
+			+ this.priceIndex.getHeapSizeInBytes()
+			// the price component this class registers, holding the price index alone
+			+ layout.sizeOfObject(layout.referenceSize());
 	}
 
 	/**

@@ -43,6 +43,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey.StreamKind;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramRangeIndexLeafPagePart;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -417,6 +418,43 @@ public abstract class HistogramIndex
 	@Override
 	public void resetDirty() {
 		// no own dirty flag — sub-structures track their own dirtiness
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — the filter and cardinality indexes it holds for every locale
+	 * variant, and the shell they hang off.
+	 *
+	 * Like every walk in this layer it is `O(contents)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and
+	 * must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Returns the heap this base occupies, in bytes — everything an implementation inherits from it, so a subclass
+	 * adds only what it declares itself.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * Nothing this base holds is content: {@link #histogramName} and {@link #referenceName} are the schema's own
+	 * strings, handed in at construction and outliving every index built from them, and the map that files this
+	 * index is keyed by that very histogram name. {@link #valueType} addresses a {@link Class}, which the JVM owns
+	 * for the lifetime of its class loader. {@link #valueNormalizer} is a lambda — the identity function for every
+	 * type but `BigDecimal` — whose captured state is a scale `int`, and which JOL cannot walk to confirm either
+	 * way. All four are therefore reference slots and nothing more.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding
+	 */
+	protected final long getBaseHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id and indexedDecimalPlaces, then the histogramName / referenceName / valueType / valueNormalizer slots
+		// plus whatever the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's
+		// fields are sized in a single call
+		return layout.sizeOfObject(
+			Long.BYTES + Integer.BYTES + 4L * layout.referenceSize() + ownFieldBytes
+		);
 	}
 
 	@Nonnull
