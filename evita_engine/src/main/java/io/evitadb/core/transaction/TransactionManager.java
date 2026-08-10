@@ -1441,6 +1441,11 @@ public class TransactionManager implements Closeable {
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
+							// this continuity check is also what guards the write-ahead log against reordered,
+							// duplicated or dropped transactions - the log's cumulative checksum cannot see them,
+							// because folding a checksum into the state that produced it resets that state (the
+							// full account is on `AbstractMutationLog#checksum`). Relaxing this to "greater than"
+							// or dropping it would leave that entire class of damage undetected.
 							Assert.isPremiseValid(
 								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
