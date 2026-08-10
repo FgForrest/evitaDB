@@ -34,8 +34,9 @@ import java.util.Comparator;
 /**
  * Primitive {@link ValueColumn} backed by **two** parallel arrays — a {@code long[]} of epoch-seconds and an
  * {@code int[]} of nanoseconds — for temporal attribute keys. The inverted-index normalizer converts every
- * {@code OffsetDateTime} attribute value to an {@link Instant} before it becomes a bucket key (see
- * {@code FilterIndex.getNormalizer}), so the tree stores {@code Instant} keys ordered by natural order.
+ * {@code OffsetDateTime} attribute value — and every {@code LocalDateTime} one, anchored at UTC — to an
+ * {@link Instant} before it becomes a bucket key (see {@code FilterIndex.getNormalizer}), so the tree stores
+ * {@code Instant} keys ordered by natural order.
  *
  * An {@link Instant} is exactly {@code epochSecond} (a {@code long}) plus {@code nano} (an {@code int} in
  * {@code [0, 999_999_999]}); decomposing it into the pair {@code (seconds, nanos)} is therefore a **lossless
@@ -49,7 +50,8 @@ import java.util.Comparator;
  * occurs and the two arrays can never drift apart (every mutation touches both, with identical indices/lengths).
  *
  * Selected only when the tree comparator is natural order and the normalized key type is {@link Instant} (i.e. the
- * declared attribute type is {@code OffsetDateTime} or {@code Instant}); see {@link ValueColumnFactory}. Otherwise the
+ * declared attribute type is {@code OffsetDateTime}, {@code Instant} or {@code LocalDateTime}); see
+ * {@link ValueColumnFactory}. Otherwise the
  * leaf keeps the universal {@link BoxedObjectColumn}.
  *
  * @param <M> the boxed key type as seen by the tree's generic API (always {@link Instant} at runtime)

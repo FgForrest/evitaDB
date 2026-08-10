@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-05 16:20
+updated: 2026-08-10 08:45
 status: accepted
 kind: optimization
 issues: [1390]
@@ -9,7 +9,7 @@ prs: [1395]
 areas: [evita_api/requestResponse/schema/dto, evita_api/requestResponse/data, evita_engine/index/mutation]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path]
+relates: [2026-07-27-write-path-performance-tuning, 2026-08-01-bplustree-cursor-free-insert-path, 2026-08-10-stored-value-normalization-split]
 ---
 
 # Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
@@ -204,6 +204,9 @@ B remains the larger prize and should be sequenced after its exploration produce
   spent the collation-cache and trunk-merge levers, this one spends the schema-handling lever.
 - `2026-08-01-bplustree-cursor-free-insert-path` — the other allocation-removal record from the same
   round of Senesi profiling, on the index side rather than the schema side.
+- `2026-08-10-stored-value-normalization-split` — same attribute-mutation write path; that record
+  constrains what a mutation may do to the value itself, where this one speeds up how the schema
+  around it is resolved.
 
 ## Timeline
 
