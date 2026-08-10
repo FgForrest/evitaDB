@@ -32,7 +32,7 @@ Direction: **Client -> Server**
 
 Indicates that the client wants to establish a connection within the existing socket. This connection is **not** the actual WebSocket communication channel, but is rather a frame within it asking the server to allow future operation requests.
 
-The server must receive the connection initialisation message within the allowed waiting time specified in the `connectionInitWaitTimeout` parameter during the server setup. If the client does not request a connection within the allowed timeout, the server will close the socket with the event: `4408: Connection initialisation timeout`.
+**Note:** the current server implementation does not enforce a dedicated timeout on receiving this message — there is no `connectionInitWaitTimeout` parameter, and no `4408` close event is dispatched. A client that never sends `ConnectionInit` keeps the socket open until it closes it itself or the underlying connection is otherwise terminated.
 
 If the server receives more than one `ConnectionInit` message at any given time, the server will close the socket with the event `4429: Too many initialisation requests`.
 
@@ -187,12 +187,3 @@ For the sake of clarity, the following examples demonstrate the communication pr
 1. _Client_ immediately dispatches a `ConnectionInit` message optionally providing a payload as agreed with the server
 1. _Server_ validates the connection initialisation request and dispatches a `ConnectionAck` message to the client on successful connection
 1. _Client_ has received the acknowledgement message and is now ready to request operation executions
-
-### Connection initialisation timeout
-
-1. _Client_ sends a WebSocket handshake request with the sub-protocol: `rest-transport-ws`
-1. _Server_ accepts the handshake and establishes a WebSocket communication channel (which we call "socket")
-1. _Client_ does not dispatch a `ConnectionInit` message
-1. _Server_ waits for the `ConnectionInit` message for the duration specified in the `connectionInitWaitTimeout` parameter
-1. _Server_ waiting time has passed
-1. _Server_ closes the socket by dispatching the event `4408: Connection initialisation timeout`

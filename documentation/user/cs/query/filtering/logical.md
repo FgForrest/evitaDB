@@ -1,12 +1,12 @@
 ---
 title: Logické filtrování
-perex: Logické výrazy jsou základem každého dotazovacího jazyka a evitaDB není výjimkou. Umožňují vám kombinovat více filtrovacích výrazů do jednoho jednoznačného výrazu.
+perex: Logické výrazy jsou základem každého dotazovacího jazyka a evitaDB není výjimkou. Umožňují vám kombinovat více filtračních výrazů do jednoho jednoznačného výrazu.
 date: '26.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 <Note type="warning">
 

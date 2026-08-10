@@ -1,11 +1,11 @@
 ---
 title: 'C#'
-perex: 'Hlavním cílem C# driveru pro evitaDB bylo vytvořit co nejpodobnější API tomu v Javě, a to kvůli konzistenci a usnadnění přechodu vývojářů mezi jazyky. Nicméně mezi těmito dvěma jazyky existují drobné rozdíly, takže C# API není stoprocentně totožné s tím v Javě. Mnohé z uvedených rozdílů jsou převážně v sémantice a jazykových konvencích.'
+perex: 'Hlavním cílem C# driveru pro evitaDB bylo vytvořit co nejpodobnější API tomu v Javě, a to kvůli konzistenci a usnadnění přechodu vývojářů mezi jazyky. Nicméně mezi těmito dvěma jazyky existují drobné rozdíly, takže C# API není stoprocentně totožné s tím v Javě. Mnoho z těchto rozdílů je převážně v sémantice a jazykových konvencích.'
 date: '10.11.2023'
 author: Ing. Tomáš Pozler
 preferredLang: cs
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '78fa5b536d1f3268373739452a5b5841134350f5'
 ---
 <LS to="e,j,g,r">
 Tato kapitola popisuje C# driver pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají detaily implementace v C#, změňte si prosím preferovaný jazyk v pravém horním rohu.

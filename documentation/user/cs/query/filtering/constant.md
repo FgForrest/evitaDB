@@ -1,12 +1,12 @@
 ---
 title: Konstantní filtrování
-perex: Pokud potřebujete získat entity podle jejich primárních klíčů nebo ověřit, že entity s konkrétními primárními klíči existují v databázi, je konstantní filtrační omezení tím pravým místem. Filtrování entit podle jejich primárních klíčů je nejrychlejší způsob, jak získat přístup k entitám v evitaDB.
+perex: Pokud potřebujete získat entity podle jejich primárních klíčů nebo ověřit, že entity s konkrétními primárními klíči existují v databázi, je konstantní filtrační omezení tím správným místem. Filtrování entit podle jejich primárních klíčů je nejrychlejší způsob, jak získat přístup k entitám v evitaDB.
 date: '26.5.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Primární klíč entity v množině
 

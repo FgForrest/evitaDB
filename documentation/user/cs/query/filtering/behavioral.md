@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: 'bb96ccb40cb364520a11f5b6d733ff33c7e7a15c'
+commit: '651df95a8191b549dc2d91d587f7cca8973faa5e'
 ---
 ## V rozsahu
 
@@ -160,4 +160,4 @@ Omezení mimo `userFilter` (kategorie, lokalizace, měna, rozsah, ceník) se nik
 
 Celý UX příběh za těmito pravidly — včetně bohaté algebry skupin faset
 (`facetGroupsConjunction`, `…Disjunction`, `…Negation`, `…Exclusivity`) a důvodu, proč existuje samostatné `histogramHaving` místo opětovného použití `attributeBetween` — najdete v blogovém příspěvku
-[*Skrytá choreografie panelu fasetového filtru*](/documentation/blog/en/25-faceted-filter-choreography.md).
+[*Skrytá choreografie panelu fasetového filtru*](/documentation/blog/en/26-faceted-filter-choreography.md).

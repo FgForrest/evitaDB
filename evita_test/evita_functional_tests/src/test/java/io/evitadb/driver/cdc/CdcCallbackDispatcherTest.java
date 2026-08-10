@@ -28,6 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.lang.management.ManagementFactory;
@@ -80,6 +81,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(GRPC)
 @Tag(CDC)
 @Tag(STREAM)
+// shouldNotCreateThreadsWhenCallbacksAreRefused reads ThreadMXBean#getTotalStartedThreadCount(), which is
+// JVM-wide - under `parallel=all` every sibling class booting an embedded Evita+gRPC+GraphQL instance
+// inflates the same counter, so the assertion sees ambient concurrency rather than this class's behavior.
+// @Isolated forces the whole class to run alone in its fork, the same pattern as ConsoleWriterTest.
+@Isolated
 class CdcCallbackDispatcherTest {
 
 	@Nested

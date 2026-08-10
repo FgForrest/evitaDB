@@ -1,12 +1,12 @@
 ---
-title: Dotaz na náš dataset
+title: Dotazujte se na náš dataset
 perex: Tento článek vám ukáže, jak se připojit k naší demo instanci nebo jak spustit demo instanci na vlastním hardwaru a experimentovat s dotazovacím jazykem evitaDB.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 Ačkoli je mnohem lepší pracovat se schématem a daty, která odpovídají vašemu vlastnímu e-commerce případu použití, věříme, že mnoho z vás bude chtít otestovat Query API bez zbytečné práce. Proto jsme pro vás připravili ukázkové schéma virtuálního e-shopu s daty pro více než tisíc produktů, se kterými si můžete ihned pohrát.
 

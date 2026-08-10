@@ -1,12 +1,12 @@
 ---
 title: Psaní testů
-perex: Testy píše každý – i vy. Máme pravdu, že ano?! Psaní testů by mělo být potěšením, a proto se snažíme vám poskytnout podporu pro rychlé a snadné psaní testů s evitaDB. Vaše integrační testy by neměly trvat minuty, ale sekundy.
+perex: Testy píše každý – i vy. Máme pravdu, že ano?! Psaní testů by mělo být radostí, a proto se snažíme vám poskytnout podporu pro rychlé a snadné psaní testů s evitaDB. Vaše integrační testy by neměly trvat minuty, ale sekundy.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: b099f2eb053febfc92a091167343a3ea7103589c
 ---
 <LS to="e">
 Výběr jazyka evitaQL pro tento článek nedává smysl.

@@ -54,6 +54,7 @@ import java.util.EnumSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -153,7 +154,7 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("should checkpoint on close so no service goes away owing a device flush")
+	@DisplayName("should publish an owed checkpoint on close so a clean restart need not replay it")
 	void shouldCheckpointPendingSyncsOnClose() {
 		try (DefaultCatalogPersistenceService cps = createService(NEVER_ELAPSES_MILLIS)) {
 			cps.getStoragePartPersistenceService(0L)
@@ -166,14 +167,60 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 		}
 		// must not throw - close settles the outstanding device flushes rather than abandoning them
 
-		// reopening lands on the last CHECKPOINTED version, which is the state a restart legitimately sees:
-		// everything past it is replayed from the write-ahead log
+		// The round that deferred had already built its bootstrap record and left the index at its own version, so
+		// close publishes that state as it stands. It waits for nothing and drains nothing - `TransactionManager`
+		// fails pending transactions on close rather than finishing them, so anything newer than the last completed
+		// round remains the write-ahead log's business. What this buys is that a clean restart resumes here instead
+		// of replaying from whichever checkpoint the ticker last happened to reach.
 		try (final DefaultCatalogPersistenceService reopened = createLoadingService(NEVER_ELAPSES_MILLIS)) {
-			assertTrue(
-				reopened.getLastCatalogVersion() < 2L,
-				"A version whose bootstrap record was never written must not come back as persisted."
+			assertEquals(
+				2L, reopened.getLastCatalogVersion(),
+				"The checkpoint owed when the service closed must have been published, so the restart resumes from it."
 			);
 		}
+	}
+
+	@Test
+	@DisplayName("should write no bootstrap record on close when no checkpoint is owed")
+	void shouldNotCheckpointOnCloseWhenNothingIsOwed() {
+		final Path bootstrapFile = getTestDirectory()
+			.resolve(DIR_DEFERRED_CHECKPOINT_TEST)
+			.resolve(CATALOG_NAME)
+			.resolve(getCatalogBootstrapFileName(CATALOG_NAME));
+
+		final long lengthBeforeClose;
+		// a real interval, so a coordinator genuinely exists - interval 0 creates none at all, and closing without
+		// one would prove nothing about whether close checkpoints only when it is owed
+		try (final DefaultCatalogPersistenceService cps = createService(NEVER_ELAPSES_MILLIS)) {
+			cps.getStoragePartPersistenceService(0L)
+				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+			storeHeaderAt(cps, 2L);
+			final long lengthBeforeCheckpoint = bootstrapFile.toFile().length();
+			// settle the debt before closing, exactly as the ticker or a backup would
+			cps.checkpoint();
+			assertEquals(
+				2L, cps.getLastCatalogVersion(),
+				"Precondition: the checkpoint must be settled, leaving nothing owed at close."
+			);
+			lengthBeforeClose = bootstrapFile.toFile().length();
+			// `getLastCatalogVersion` answers from the in-memory `bootstrapUsed`, so on its own it cannot tell
+			// "the record was written" from "the service merely thinks so". Proving the checkpoint above grew the
+			// file is what makes the comparison after close meaningful: it establishes that this measurement
+			// detects an appended record, so an unchanged length afterwards is evidence of no append rather than
+			// evidence of a file nothing ever writes to.
+			assertTrue(
+				lengthBeforeClose > lengthBeforeCheckpoint,
+				"Precondition: settling a checkpoint must append a bootstrap record."
+			);
+		}
+
+		// the calibration for the test above: close publishes what is OWED, and a settled checkpoint owes nothing.
+		// Records here are fixed-size, so an unchanged length is an unchanged record count - without this assertion
+		// the test above would pass just as happily if close wrote a bootstrap record unconditionally.
+		assertEquals(
+			lengthBeforeClose, bootstrapFile.toFile().length(),
+			"Close must not append a bootstrap record when the last round already checkpointed."
+		);
 	}
 
 	@Test
