@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
@@ -70,6 +71,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -635,8 +637,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException;
 
 	/**
@@ -648,8 +649,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> createFullBackupTask(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
 
 	/**

@@ -23,6 +23,9 @@
 
 package io.evitadb.core.catalog;
 
+import io.evitadb.api.CatalogVersionPin;
+
+import javax.annotation.Nonnull;
 
 /**
  * Interface allowing to hold a particular catalog version against reclamation for as long as something outside the
@@ -43,15 +46,14 @@ public interface CatalogConsumerControl {
 	 * since a full backup holds the *oldest* retained version, that phantom consumer would hold back conflict-key
 	 * release and offset-index purging for the whole duration of the copy.
 	 *
-	 * @param version the version of the catalog that must remain readable
-	 */
-	void pinCatalogVersion(long version);
-
-	/**
-	 * Releases one hold taken by {@link #pinCatalogVersion(long)}.
+	 * The pin is handed back as a lease rather than by a matching `unpin(version)` call: a release that resolves the
+	 * catalog by name a second time lands on whatever instance holds that name *then*, which after a rename or a
+	 * replace is not the one that granted it. See {@link CatalogVersionPin}.
 	 *
-	 * @param version the version of the catalog that no longer needs to remain readable
+	 * @param version the version of the catalog that must remain readable
+	 * @return the lease holding that version, to be closed exactly once when it is no longer needed
 	 */
-	void unpinCatalogVersion(long version);
+	@Nonnull
+	CatalogVersionPin pinCatalogVersion(long version);
 
 }

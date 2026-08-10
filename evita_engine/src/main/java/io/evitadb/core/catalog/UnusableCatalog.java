@@ -23,6 +23,7 @@
 
 package io.evitadb.core.catalog;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
@@ -70,6 +71,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 /**
@@ -255,8 +257,7 @@ public final class UnusableCatalog implements CatalogContract {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
@@ -264,8 +265,7 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}

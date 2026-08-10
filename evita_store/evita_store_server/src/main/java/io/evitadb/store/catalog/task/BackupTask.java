@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
@@ -70,7 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -93,7 +94,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	private final CatalogBootstrap bootstrapRecord;
 	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
-	private final AtomicReference<LongConsumer> onComplete;
+	/**
+	 * Holds the version this task is reading against reclamation. Idempotent and bound to the catalog instance that
+	 * granted it, so the constructor's unwind path and {@link #tearDown()} cannot release it twice, and a catalog
+	 * replaced mid-backup cannot be handed a release it never granted - either would decrement the pin of whichever
+	 * other consumer holds that version and quietly take their protection away.
+	 */
+	private final CatalogVersionPin versionPin;
 	/**
 	 * Holds the catalog folder while a warm-up snapshot is being copied, `null` outside warm-up where the version pin
 	 * is sufficient on its own. Released by {@link #tearDown()}.
@@ -108,8 +115,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		@Nonnull CatalogBootstrap bootstrapRecord,
 		@Nonnull ExportService exportService,
 		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		super(
 			catalogName,
@@ -131,7 +137,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		this.bootstrapRecord = bootstrapRecord;
 		this.exportFileService = new AtomicReference<>(exportService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
-		this.onComplete = new AtomicReference<>(onComplete);
 		// this task reads everything through the bootstrap record it captured, so the version pin below is normally the
 		// whole protection it needs - the trim is clamped to that version, so the record stays retained and the sweep
 		// only ever removes what it cannot reach. Warm-up is the exception: every flush rewrites the bootstrap file
@@ -143,15 +148,14 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		// `tearDown` is unreachable, and the caller's cancel-on-rejected-submission has no task to cancel. A hold left
 		// open by that path is not a delayed reclamation, it is the permanent end of reclamation for this catalog -
 		// silently, because the exception it rides out on looks perfectly handled
-		boolean versionPinned = false;
+		CatalogVersionPin pin = CatalogVersionPin.NONE;
 		try {
 			if (onStart != null) {
 				final long backedUpVersion = this.bootstrapRecord.catalogVersion();
-				onStart.accept(backedUpVersion);
 				// from here on the pin is registered, and everything below can throw: the reachability check reads the
 				// bootstrap file under the horizon lock. A pin left behind by that throw is not a delayed reclamation
 				// either - it is the retention floor of this catalog frozen at this version for the rest of its life
-				versionPinned = true;
+				pin = onStart.apply(backedUpVersion);
 				// the record was resolved before the pin was taken, and history can be given up in between - by the
 				// time the pin lands, the files this record points at may already have been reclaimed. The pin itself
 				// makes the check conclusive rather than another guess: once it is registered no further advance can
@@ -171,27 +175,13 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				ex.addSuppressed(unwindFailure);
 			} finally {
 				// in a `finally` for the same reason `tearDown` puts it there: giving the folder back re-drives the
-				// reclamation it deferred, which is real work that can throw
-				if (versionPinned) {
-					releaseVersionPin();
-				}
+				// reclamation it deferred, which is real work that can throw. Closing a lease that was never granted
+				// is a no-op, so this needs no flag tracking whether the pin landed
+				pin.close();
 			}
 			throw ex;
 		}
-	}
-
-	/**
-	 * Gives back the catalog version pin taken in the constructor, exactly once.
-	 *
-	 * The consumer is read out of the field and cleared in the same operation, so the constructor's unwind path and
-	 * {@link #tearDown()} cannot both fire it - a release that runs twice does not merely no-op, it decrements the pin
-	 * of whichever other consumer holds that version and quietly takes their protection away.
-	 */
-	private void releaseVersionPin() {
-		final LongConsumer theOnComplete = this.onComplete.getAndSet(null);
-		if (theOnComplete != null) {
-			theOnComplete.accept(this.bootstrapRecord.catalogVersion());
-		}
+		this.versionPin = pin;
 	}
 
 	/**
@@ -340,7 +330,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		} finally {
 			// in a `finally` because giving the folder back re-drives the reclamation it deferred, which is real work
 			// that can throw - and a pin left behind by that throw freezes the catalog's retention floor for good
-			releaseVersionPin();
+			this.versionPin.close();
 		}
 	}
 

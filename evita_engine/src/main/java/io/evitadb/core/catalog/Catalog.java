@@ -25,6 +25,7 @@ package io.evitadb.core.catalog;
 
 import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
@@ -168,6 +169,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -1379,11 +1381,10 @@ public final class Catalog
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
-			pastMoment, catalogVersion, includingWAL, onStart, onComplete
+			pastMoment, catalogVersion, includingWAL, onStart
 		);
 		return submitBackupTask(backupTask);
 	}
@@ -1391,11 +1392,10 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createFullBackupTask(
-			onStart, onComplete
+			onStart
 		);
 		return submitBackupTask(backupTask);
 	}

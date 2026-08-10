@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
@@ -182,6 +183,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToIntBiFunction;
@@ -2988,8 +2990,7 @@ public class DefaultCatalogPersistenceService
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
 		// A backup is only as recent as the bootstrap record it copies, and it may be taken WITHOUT the write-ahead
 		// log - in which case that record is the sole pointer to the data and a stale one silently yields an older
@@ -3012,15 +3013,14 @@ public class DefaultCatalogPersistenceService
 		return new BackupTask(
 			this.catalogName, pastMoment, catalogVersion, includingWAL,
 			bootstrapRecord, this.exportService, this,
-			onStart, onComplete
+			onStart
 		);
 	}
 
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> createFullBackupTask(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		// same reasoning as createBackupTask - the task captures the last checkpointed version on construction
 		checkpoint();
@@ -3028,7 +3028,7 @@ public class DefaultCatalogPersistenceService
 			this.catalogName,
 			this.exportService,
 			this,
-			onStart, onComplete
+			onStart
 		);
 	}
 

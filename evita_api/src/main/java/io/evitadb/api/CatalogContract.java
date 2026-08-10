@@ -59,7 +59,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 /**
@@ -349,8 +349,8 @@ public interface CatalogContract {
 	 *                       when set not null, the pastMoment parameter is ignored
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -359,8 +359,7 @@ public interface CatalogContract {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException;
 
 	/**
@@ -369,14 +368,13 @@ public interface CatalogContract {
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
 
 	/**

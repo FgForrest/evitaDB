@@ -1455,8 +1455,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			pastMoment, catalogVersion, includingWAL,
 			// a backup holds a version against reclamation, but it is not a session at that version - registering it
 			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
-			ccControl::pinCatalogVersion,
-			ccControl::unpinCatalogVersion
+			ccControl::pinCatalogVersion
 		);
 	}
 
@@ -1475,8 +1474,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return theCatalog.fullBackup(
 			// a backup holds a version against reclamation, but it is not a session at that version - registering it
 			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
-			ccControl::pinCatalogVersion,
-			ccControl::unpinCatalogVersion
+			ccControl::pinCatalogVersion
 		);
 	}
 

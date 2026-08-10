@@ -24,6 +24,7 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.ServerOptions;
@@ -142,6 +143,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1670,6 +1672,23 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Builds the acquisition a backup task is handed: it pins the version on the given service and hands back a
+		 * lease that releases on **that** service, which is what production does through
+		 * `CatalogConsumerControl#pinCatalogVersion`. These tests hold the service directly rather than a catalog, so
+		 * the instance the lease is bound to is simply the one under test.
+		 *
+		 * @param ioService the persistence service the pin is taken on
+		 * @return the acquisition function
+		 */
+		@Nonnull
+		private static LongFunction<CatalogVersionPin> pinOn(@Nonnull DefaultCatalogPersistenceService ioService) {
+			return version -> {
+				ioService.catalogVersionPinned(version);
+				return CatalogVersionPin.pinnedOn(version, ioService::catalogVersionReleased);
+			};
+		}
+
+		/**
 		 * Builds an export service whose handle writes the archive into memory, so a backup task can be run all the
 		 * way to completion without touching the export storage.
 		 *
@@ -1809,9 +1828,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			) {
 				writeSeveralGenerations(ioService);
 
-				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(
-					ioService::catalogVersionPinned, ioService::catalogVersionReleased
-				);
+				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(pinOn(ioService));
 				assertTrue(
 					ioService.getRetentionFloor() >= 0L,
 					"the fixture must actually be holding the retained window, otherwise this asserts nothing"
@@ -1855,9 +1872,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			) {
 				writeSeveralGenerations(ioService);
 
-				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(
-					ioService::catalogVersionPinned, ioService::catalogVersionReleased
-				);
+				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(pinOn(ioService));
 				assertTrue(
 					ioService.getRetentionFloor() >= 0L,
 					"the full backup must be holding the retained window while it runs"
@@ -1909,9 +1924,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.createFullBackupTask(
 					version -> {
 						pinnedVersion.set(version);
-						ioService.catalogVersionPinned(version);
-					},
-					ioService::catalogVersionReleased
+						return pinOn(ioService).apply(version);
+					}
 				);
 
 				// a full backup copies every file in the folder, historical ones included, so it has to hold the
@@ -1971,7 +1985,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					() -> new BackupTask(
 						TEST_CATALOG, null, staleRecord.catalogVersion(), false,
 						staleRecord, Mockito.mock(ExportFileService.class), ioService,
-						ioService::catalogVersionPinned, ioService::catalogVersionReleased
+						pinOn(ioService)
 					)
 				);
 
@@ -2015,11 +2029,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 				assertThrows(
 					GenericEvitaInternalError.class,
-					() -> failingService.createBackupTask(
-						null, null, false,
-						failingService::catalogVersionPinned,
-						failingService::catalogVersionReleased
-					)
+					() -> failingService.createBackupTask(null, null, false, pinOn(failingService))
 				);
 
 				assertEquals(

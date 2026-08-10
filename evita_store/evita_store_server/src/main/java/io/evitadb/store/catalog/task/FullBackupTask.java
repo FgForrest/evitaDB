@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog.task;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientCallableTask;
@@ -50,7 +51,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -68,7 +69,13 @@ import static java.util.Optional.ofNullable;
 public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFetch> {
 	private final String catalogName;
 	private final AtomicReference<ExportService> exportFileService;
-	private final AtomicReference<LongConsumer> onComplete;
+	/**
+	 * Holds the oldest retained catalog version against reclamation for as long as this task is copying it. Released
+	 * by {@link #tearDown()}, which every completion path - success, failure and cancellation - routes through. The
+	 * lease releases on the catalog instance that granted it and is idempotent, so neither a replacement taking over
+	 * this catalog's name nor a tear-down reached twice can turn the release into a decrement of somebody else's pin.
+	 */
+	private final CatalogVersionPin versionPin;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
 	private final long pinnedCatalogVersion;
@@ -81,8 +88,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	public FullBackupTask(
 		@Nonnull String catalogName,
 		@Nonnull ExportService exportService, @Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		super(
 			catalogName,
@@ -95,7 +101,6 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		this.catalogName = catalogName;
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.exportFileService = new AtomicReference<>(exportService);
-		this.onComplete = new AtomicReference<>(onComplete);
 		// note the version read here is only as recent as the last checkpoint - the factory that builds this task
 		// settles any outstanding one first, see DefaultCatalogPersistenceService#createFullBackupTask
 		this.lastCatalogVersion = catalogPersistenceService.getLastCatalogVersion();
@@ -114,9 +119,8 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		// a constructor that throws leaves no object to tear down, so the hold has to be given back here or never.
 		// Leaking it does not delay reclamation for this catalog, it ends it
 		try {
-			if (onStart != null) {
-				onStart.accept(this.pinnedCatalogVersion);
-			}
+			this.versionPin = onStart == null ?
+				CatalogVersionPin.NONE : onStart.apply(this.pinnedCatalogVersion);
 		} catch (RuntimeException ex) {
 			this.directoryReadHold.close();
 			throw ex;
@@ -271,11 +275,9 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		try {
 			this.directoryReadHold.close();
 		} finally {
-			final LongConsumer onComplete = this.onComplete.getAndSet(null);
-			if (onComplete != null) {
-				// must release exactly what was pinned in the constructor, or the catalog keeps its history forever
-				onComplete.accept(this.pinnedCatalogVersion);
-			}
+			// idempotent, and bound to the catalog instance that granted it - so reaching this twice releases once,
+			// and a catalog replaced mid-backup cannot receive a release it never granted
+			this.versionPin.close();
 		}
 	}
 
