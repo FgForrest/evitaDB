@@ -917,6 +917,56 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Two bootstrap records may legitimately carry the same catalog version, because some operations *materialise* a
+	 * version rather than produce one: the identity reconciliation performed when a catalog is loaded under a
+	 * different name, and a rename, which moves no data and appends nothing to the WAL. A version block spanning
+	 * such a pair must not be reported inverted - `startVersion` is derived from the previous record's version plus
+	 * one, which overshoots `endVersion` exactly when the two records share a version.
+	 */
+	@Test
+	void shouldNotReportInvertedVersionBlockWhenTwoBootstrapRecordsShareAVersion() {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				new CatalogFolderId(catalogName),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+
+			// version 2 is recorded twice - the second record materialises the version instead of producing it
+			ioService.recordBootstrap(1L, catalogName, 0, null);
+			ioService.recordBootstrap(2L, catalogName, 0, null);
+			ioService.recordBootstrap(2L, catalogName, 0, null);
+			ioService.recordBootstrap(3L, catalogName, 0, null);
+
+			for (final TimeFlow timeFlow : TimeFlow.values()) {
+				final PaginatedList<MaterializedVersionBlock> catalogVersions =
+					ioService.getCatalogVersions(timeFlow, 1, 20);
+				for (final MaterializedVersionBlock record : catalogVersions.getData()) {
+					assertTrue(
+						record.startVersion() <= record.endVersion(),
+						"Block " + record.startVersion() + ".." + record.endVersion() +
+							" starts after it ends (" + timeFlow + ")!"
+					);
+				}
+			}
+		}
+	}
+
 	@Test
 	void shouldTrimBootstrapRecords() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();

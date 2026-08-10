@@ -2628,8 +2628,15 @@ public class DefaultCatalogPersistenceService
 			catalogVersion);
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
 			catalogVersion);
+		// An ALIVE catalog keeps its version: `verifyIntegrity` asserts the WAL's last written version equals the
+		// bootstrap's, which states that every version in the line was produced by a transaction. A rename moves no
+		// data and appends nothing to the WAL, so consuming a version for it breaks that invariant and leaves the
+		// catalog unopenable until the next commit puts the two counters back in step. Writing the header, the
+		// schema part and the bootstrap record at an already-flushed version is the same thing
+		// `reconcileStoredCatalogIdentity` does on the load path. WARMING_UP resets to 0 rather than bumping, so it
+		// is unaffected.
 		final long newCatalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
-			0L : catalogHeader.version() + 1;
+			0L : catalogHeader.version();
 
 		// first changes and replace name of the catalog in the catalog schema in catalog that replaces the original
 		CatalogSchemaStoragePart.serializeWithCatalogName(
@@ -2922,7 +2929,12 @@ public class DefaultCatalogPersistenceService
 							if (nextBootstrap != null) {
 								materializedVersionBlocks.add(
 									new MaterializedVersionBlock(
-										currentBootstrap.catalogVersion() + 1,
+										// clamped for the same reason as the ascending branch above: two records may
+										// carry the same version when one of them materialises a version rather than
+										// producing it (a rename, or the identity reconciliation at load), and without
+										// the clamp such a pair reports a block that starts after it ends
+										Math.min(
+											currentBootstrap.catalogVersion() + 1, nextBootstrap.catalogVersion()),
 										nextBootstrap.catalogVersion(),
 										nextBootstrap.timestamp()
 									)

@@ -895,8 +895,15 @@ public class TransactionManager implements Closeable {
 		final Catalog previousLivingCatalog = getLivingCatalog();
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
+			// what this guards is that the live view never regresses to an older state - so the comparison is
+			// "must not go backwards", not "must strictly advance". Republishing the same version used to be
+			// possible only by publishing the very same instance again; a rename is the second way, since it
+			// produces a new instance holding the same data under a new name and deliberately consumes no
+			// catalog version (it appends nothing to the WAL that a version could be accounted against).
+			// The identity escape stays: relaxing `<` to `<=` only ever admits more, but dropping the escape
+			// would reject a republication of the very same instance that used to be allowed at any version
 			Assert.isPremiseValid(
-				previousLivingCatalog.getVersion() < catalogVersion || (previousLivingCatalog == livingCatalog),
+				previousLivingCatalog.getVersion() <= catalogVersion || previousLivingCatalog == livingCatalog,
 				"Catalog versions must be in order! " +
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);

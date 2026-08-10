@@ -5122,6 +5122,159 @@ class EvitaTest implements EvitaTestSupport {
 			CatalogPersistenceService.getWalFileName(TEST_CATALOG, 0), walFiles[0].getName(),
 			"The WAL must keep the prefix the folder's files were created with, not take the new catalog name!"
 		);
+
+		// The rename consumes no catalog version, so the WAL's last written version still agrees with the
+		// bootstrap's and the catalog opens. Consuming one - which a rename appends nothing to the WAL to
+		// justify - leaves the two counters one apart and `verifyIntegrity` refuses the boot outright.
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals(
+			"committed before the rename", readProductAttribute(renamedCatalogName, 1),
+			"The transaction committed before the rename must survive the restart!"
+		);
+	}
+
+	@Test
+	@DisplayName("Keep a renamed catalog's version accounting intact across restarts and further commits")
+	void shouldNotLoseACatalogVersionToARename() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+		commitProduct(TEST_CATALOG, 1, "before the rename");
+
+		final long versionBeforeRename = this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// A rename moves no data and writes no transaction, so it must not consume a catalog version: the WAL
+		// would have no record for the version it consumed, and every version in the line is supposed to have
+		// come from a transaction. That is what `verifyIntegrity` asserts at boot.
+		assertEquals(
+			versionBeforeRename,
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion),
+			"A rename must not consume a catalog version - it writes nothing to the write-ahead log!"
+		);
+
+		// first restart - the window the version mismatch used to close, since nothing has been committed
+		// since the rename to put the two counters back in step
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals(
+			versionBeforeRename,
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion),
+			"The version must survive the restart unchanged!"
+		);
+		assertEquals("before the rename", readProductAttribute(renamedCatalogName, 1));
+
+		// the catalog is still writable under its new name, and the version line continues from where it was
+		commitProduct(renamedCatalogName, 2, "after the rename");
+		assertTrue(
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion) > versionBeforeRename,
+			"A transaction committed after the rename must advance the version!"
+		);
+
+		// second restart - now with a WAL record written after the rename, which is the state the previous
+		// behaviour happened to survive and therefore the one that hid the defect
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("before the rename", readProductAttribute(renamedCatalogName, 1));
+		assertEquals("after the rename", readProductAttribute(renamedCatalogName, 2));
+	}
+
+	@Test
+	@DisplayName("Keep a replaced catalog's version accounting intact across restarts and further commits")
+	void shouldNotLoseACatalogVersionToAReplace() {
+		final String sourceCatalogName = TEST_CATALOG + "_source";
+		this.evita.defineCatalog(sourceCatalogName);
+		this.evita.updateCatalog(
+			sourceCatalogName,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+		commitProduct(sourceCatalogName, 1, "committed in the source");
+
+		final long versionBeforeReplace = this.evita.queryCatalog(
+			sourceCatalogName, EvitaSessionContract::getCatalogVersion);
+
+		// the replaced name is served by the source's folder afterwards, so this exercises the same
+		// `replaceWith` path a rename does - TEST_CATALOG is already defined by the fixture
+		this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+
+		assertEquals(
+			versionBeforeReplace,
+			this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion),
+			"A replace must not consume a catalog version - it writes nothing to the write-ahead log!"
+		);
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("committed in the source", readProductAttribute(TEST_CATALOG, 1));
+
+		commitProduct(TEST_CATALOG, 2, "committed after the replace");
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("committed in the source", readProductAttribute(TEST_CATALOG, 1));
+		assertEquals("committed after the replace", readProductAttribute(TEST_CATALOG, 2));
+	}
+
+	/**
+	 * Commits a single product into a live catalog and waits until the change becomes visible, so the caller can
+	 * rely on the transaction having reached the write-ahead log before it continues.
+	 *
+	 * @param catalogName    the catalog to commit into
+	 * @param primaryKey     the primary key of the product to create
+	 * @param attributeValue the value stored in the `testAttribute` attribute
+	 */
+	private void commitProduct(@Nonnull String catalogName, int primaryKey, @Nonnull String attributeValue) {
+		final EvitaSessionContract session = this.evita.createSession(
+			new SessionTraits(catalogName, SessionFlags.READ_WRITE));
+		session.upsertEntity(
+			session.createNewEntity(Entities.PRODUCT, primaryKey)
+			       .setAttribute("testAttribute", attributeValue)
+		);
+		assertNotNull(session.closeNowWithProgress().onChangesVisible().toCompletableFuture().join());
+	}
+
+	/**
+	 * Reads the `testAttribute` of a single product back, failing when the entity is not there at all.
+	 *
+	 * @param catalogName the catalog to read from
+	 * @param primaryKey  the primary key of the product to read
+	 * @return the value stored in the `testAttribute` attribute
+	 */
+	@Nonnull
+	private String readProductAttribute(@Nonnull String catalogName, int primaryKey) {
+		return this.evita.queryCatalog(
+			catalogName,
+			theSession -> {
+				final String attribute = theSession.getEntity(Entities.PRODUCT, primaryKey, attributeContentAll())
+					.orElseThrow()
+					.getAttribute("testAttribute");
+				return Objects.requireNonNull(attribute);
+			}
+		);
 	}
 
 	@Test
