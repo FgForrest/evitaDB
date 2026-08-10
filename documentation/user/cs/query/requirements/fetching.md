@@ -6,7 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '10bc35fa0f1cbf30917d2628c2fb4d51c3140414'
+commit: '651df95a8191b549dc2d91d587f7cca8973faa5e'
 ---
 <LS to="e,j,c,r">
 
