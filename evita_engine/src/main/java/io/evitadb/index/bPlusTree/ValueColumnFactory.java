@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 
@@ -65,8 +66,10 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	 * byte-compare fast path" section.
 	 *
 	 * A primitive column is chosen only when the comparator is natural order. Temporal keys (normalized type
-	 * {@link Instant}, i.e. declared {@code OffsetDateTime} / {@code Instant}) select the parallel-array
-	 * {@link InstantValueColumn}; integral keys with a supported {@link LongKeyCodec} select {@link LongValueColumn}.
+	 * {@link Instant}, i.e. declared {@code OffsetDateTime} / {@code Instant} / {@code LocalDateTime}) select the
+	 * parallel-array {@link InstantValueColumn}; integral keys with a supported {@link LongKeyCodec} — which includes
+	 * {@code LocalDate} and {@code LocalTime}, each of which fits losslessly in a single {@code long} — select
+	 * {@link LongValueColumn}.
 	 * {@code BigDecimal} keys (normalized upstream to a scaled {@code int}) select the 4-byte {@link IntValueColumn}.
 	 * Otherwise the universal boxed {@link BoxedObjectColumn} (keyed by {@code Comparable.class}, the raw key type the
 	 * tree uses today) is returned, which is behavior-identical to the universal boxed leaf.
@@ -117,15 +120,18 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	/**
 	 * Maps a plain attribute type to the type actually stored as the tree key, mirroring the only normalization in
 	 * {@code FilterIndex.getNormalizer} that changes the stored class: {@link OffsetDateTime} is stored as its
-	 * {@link Instant}. All other types (numbers, {@code LocalDate} / {@code LocalTime}, {@code String},
-	 * {@code Currency}, {@code Locale}, …) keep their own class. The single source of truth for this remap lives here.
+	 * {@link Instant}, and so is {@link LocalDateTime} (anchored at UTC — a constant offset, hence a lossless,
+	 * order-preserving mapping). All other types (numbers, {@code LocalDate} / {@code LocalTime}, {@code String},
+	 * {@code Currency}, {@code Locale}, …) keep their own class; `LocalDate` and `LocalTime` each fit losslessly in a
+	 * single {@code long} and are better served by the cheaper {@link LongValueColumn}. The single source of truth for
+	 * this remap lives here — it must stay in lockstep with `FilterIndex.getNormalizer`.
 	 *
 	 * @param plainType the plain (non-array) declared attribute type
 	 * @return the normalized key type used by the tree
 	 */
 	@Nonnull
 	private static Class<?> normalizedTypeOf(@Nonnull Class<?> plainType) {
-		if (OffsetDateTime.class.isAssignableFrom(plainType)) {
+		if (OffsetDateTime.class.isAssignableFrom(plainType) || LocalDateTime.class.isAssignableFrom(plainType)) {
 			return Instant.class;
 		}
 		return plainType;
