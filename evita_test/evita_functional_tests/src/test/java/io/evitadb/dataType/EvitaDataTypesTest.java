@@ -2415,6 +2415,126 @@ class EvitaDataTypesTest {
 	}
 
 	@Nested
+	@DisplayName("Conversion to supported stored type")
+	class ConversionToSupportedStoredType {
+
+		@Test
+		@DisplayName(
+			"should keep LocalDateTime as"
+			+ " LocalDateTime"
+		)
+		void shouldKeepLocalDateTime() {
+			// the query-path variant rewrites this
+			// value to an OffsetDateTime at UTC; a
+			// value on its way into storage must
+			// keep the type its schema declares
+			final LocalDateTime input =
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				);
+
+			assertSame(
+				input,
+				EvitaDataTypes.toSupportedStoredType(
+					input
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep a LocalDateTime array"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateTimeArray() {
+			final LocalDateTime[] input = {
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				),
+				LocalDateTime.of(
+					2021, 6, 16, 11, 45
+				)
+			};
+
+			assertSame(
+				input,
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still normalize Float to"
+			+ " BigDecimal"
+		)
+		void shouldStillNormalizeFloat() {
+			assertEquals(
+				new BigDecimal("3.14"),
+				EvitaDataTypes.toSupportedStoredType(
+					3.14f
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still convert non-@SupportedEnum"
+			+ " to String"
+		)
+		void shouldStillConvertNonSupportedEnum() {
+			assertEquals(
+				"CATALOG",
+				EvitaDataTypes.toSupportedStoredType(
+					ClassifierType.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still reject an unsupported type"
+		)
+		void shouldStillRejectUnsupportedType() {
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredType(
+						new HashMap<String, String>()
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep LocalDate and LocalTime"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateAndLocalTime() {
+			final LocalDate date =
+				LocalDate.of(2021, 6, 15);
+			final LocalTime time =
+				LocalTime.of(10, 30);
+
+			assertSame(
+				date,
+				EvitaDataTypes.toSupportedStoredType(
+					date
+				)
+			);
+			assertSame(
+				time,
+				EvitaDataTypes.toSupportedStoredType(
+					time
+				)
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Size estimation")
 	class EstimateSizeTest {
 
