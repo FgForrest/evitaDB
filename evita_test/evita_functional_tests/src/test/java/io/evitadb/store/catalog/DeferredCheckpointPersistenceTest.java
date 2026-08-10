@@ -195,6 +195,7 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			storeHeaderAt(cps, 2L);
+			final long lengthBeforeCheckpoint = bootstrapFile.toFile().length();
 			// settle the debt before closing, exactly as the ticker or a backup would
 			cps.checkpoint();
 			assertEquals(
@@ -202,6 +203,15 @@ class DeferredCheckpointPersistenceTest implements EvitaTestSupport {
 				"Precondition: the checkpoint must be settled, leaving nothing owed at close."
 			);
 			lengthBeforeClose = bootstrapFile.toFile().length();
+			// `getLastCatalogVersion` answers from the in-memory `bootstrapUsed`, so on its own it cannot tell
+			// "the record was written" from "the service merely thinks so". Proving the checkpoint above grew the
+			// file is what makes the comparison after close meaningful: it establishes that this measurement
+			// detects an appended record, so an unchanged length afterwards is evidence of no append rather than
+			// evidence of a file nothing ever writes to.
+			assertTrue(
+				lengthBeforeClose > lengthBeforeCheckpoint,
+				"Precondition: settling a checkpoint must append a bootstrap record."
+			);
 		}
 
 		// the calibration for the test above: close publishes what is OWED, and a settled checkpoint owes nothing.

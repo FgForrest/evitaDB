@@ -47,7 +47,6 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -56,7 +55,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -203,7 +201,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			),
 			Mockito.mock(Scheduler.class),
 			offsetDateTime -> {},
-			null
+			AbstractMutationLog.WalPurgeCallback.NO_OP
 		);
 	}
 
@@ -220,7 +218,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			walFileSizeBytes,
 			10,
-			null
+			AbstractMutationLog.WalPurgeCallback.NO_OP
 		);
 	}
 
@@ -233,8 +231,9 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	 * @param logFileRecordReference the reference the log is opened against
 	 * @param walFileSizeBytes       the maximum size of each WAL file in bytes
 	 * @param walFileCountKept       how many WAL files rotation leaves unqueued for removal
-	 * @param onWalPurgeCallback     invoked when a purge actually removes files; a test that lets the purge fire
-	 *                               must pass one, because `removeWalFiles` dereferences it unconditionally
+	 * @param onWalPurgeCallback     invoked when a purge actually removes files; `removeWalFiles` dereferences it
+	 *                               unconditionally, so a test that never purges still passes
+	 *                               {@link AbstractMutationLog.WalPurgeCallback#NO_OP} rather than `null`
 	 * @return a configured CatalogWriteAheadLog instance
 	 */
 	@Nonnull
@@ -243,7 +242,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		@Nonnull LogFileRecordReference logFileRecordReference,
 		long walFileSizeBytes,
 		int walFileCountKept,
-		@Nullable AbstractMutationLog.WalPurgeCallback onWalPurgeCallback
+		@Nonnull AbstractMutationLog.WalPurgeCallback onWalPurgeCallback
 	) {
 		return new CatalogWriteAheadLog(
 			catalogVersion,
