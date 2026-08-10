@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-10 18:45
+updated: 2026-08-10 18:55
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -180,12 +180,18 @@ different operation from replacement, and it would supersede this record.
 
 ## Verification
 
-- Full functional suite across the work — **20 968 tests**, **20 983** after the version fix — green
-  apart from the environmental non-passes below, each of which reproduces on unrelated commits and
-  none of which is caused by this work. `ExportS3ServiceTest` needs a Docker environment, and two
-  wall-clock waits (`SharedRgeiSoakTest`, a two-minute Awaitility condition in
-  `SystemGraphQLSubscriptionsFunctionalTest`) time out under fork contention and pass in isolation.
-  One run also exhausted the shared JVM's heap, taking two dataset fixtures with it.
+- Full functional suite across the work — **20 968 tests**, **20 983** after the version fix, **21 073**
+  after the rebase onto `dev` `1f67194ca` — green apart from the environmental non-passes below, each of
+  which reproduces on unrelated commits and none of which is caused by this work. The last run is the one
+  to quote: **21 073 tests, 0 failures, 3 errors**, being `ExportS3ServiceTest` (needs a Docker
+  environment) and two `EvitaClientReadWriteTest` methods whose dataset fixture fails to set up under fork
+  contention — all 64 of that class pass in isolation in 50 s against 321 s under the suite, and the
+  failing method changes between runs, which is the tell.
+
+  Earlier runs also lost wall-clock waits in `SharedRgeiSoakTest` and a two-minute Awaitility condition in
+  the GraphQL subscription tests, and one exhausted the shared JVM's heap, taking two dataset fixtures
+  with it. `dev` has since moved `SharedRgeiSoakTest` out of the fast loop in `9031a2159`, independently
+  reaching the same conclusion recorded below.
 
   `SharedRgeiSoakTest.shouldSurviveSeed[5]` was pinned down properly while verifying the version fix,
   since it failed four consecutive full-suite runs and had been green in an earlier session. It is
