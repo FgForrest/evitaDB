@@ -24,41 +24,24 @@
 package io.evitadb.core.catalog;
 
 
-import io.evitadb.api.SessionTraits;
-
-import javax.annotation.Nonnull;
-
 /**
- * Interface allowing to exchange information that particular catalog version is being consumed by someone and signall
- * that is no longer necessary.
+ * Interface allowing to hold a particular catalog version against reclamation for as long as something outside the
+ * session lifecycle - a backup copying that version - still needs to read it, and to give that hold back afterwards.
+ *
+ * Sessions do not come through here. `SessionRegistry` pins and releases their versions itself, as one half of the
+ * read-only/read-write consumer census it keeps; this interface exposes the pin alone, without that census.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface CatalogConsumerControl {
 
 	/**
-	 * Registers a session consuming catalog in the specified version.
-	 *
-	 * @param version the version of the catalog
-	 * @param traits the traits of the session consuming the catalog
-	 */
-	void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits);
-
-	/**
-	 * Unregisters a session that is consuming a catalog in the specified version.
-	 *
-	 * @param version the version of the catalog
-	 * @param traits the traits of the session that was consuming the catalog
-	 */
-	void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits);
-
-	/**
 	 * Holds a catalog version against reclamation without claiming to be a session at that version.
 	 *
 	 * A backup needs exactly the retention half of what a session registration does, and none of the rest of it.
-	 * Routing it through {@link #registerConsumerOfCatalogInVersion(long, SessionTraits)} additionally counts it as a
-	 * read-write consumer of that version - and since a full backup holds the *oldest* retained version, that phantom
-	 * consumer holds back conflict-key release and offset-index purging for the whole duration of the copy.
+	 * A session registration additionally enters the version in the consumer census `SessionRegistry` keeps - and
+	 * since a full backup holds the *oldest* retained version, that phantom consumer would hold back conflict-key
+	 * release and offset-index purging for the whole duration of the copy.
 	 *
 	 * @param version the version of the catalog that must remain readable
 	 */

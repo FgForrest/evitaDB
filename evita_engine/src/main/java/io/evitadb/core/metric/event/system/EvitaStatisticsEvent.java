@@ -224,7 +224,7 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 		this.trafficRecordingEnabled = serverConfiguration.trafficRecording().enabled() ? 1 : 0;
 
 		final StorageOptions storageConfiguration = configuration.storage();
-		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandles();
+		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandlesOrDefault();
 		this.compactionMinimalActiveRecordSharePercent = Math.toIntExact(Math.round(storageConfiguration.minimalActiveRecordShare() * 100.0));
 		this.compactionFileSizeThresholdBytes = storageConfiguration.fileSizeCompactionThresholdBytes();
 		this.timeTravelEnabled = storageConfiguration.timeTravelEnabled() ? 1 : 0;

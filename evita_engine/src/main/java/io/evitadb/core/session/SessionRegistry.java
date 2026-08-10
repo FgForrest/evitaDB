@@ -391,17 +391,20 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * Returns control object that allows external objects signalize work with the catalog of particular version.
+	 * Returns control object that allows a backup to hold a catalog version against reclamation for as long as it
+	 * is copying that version.
 	 *
-	 * @param catalogName the name of the catalog
+	 * @param catalogName the name of the catalog whose consumer census is ensured to exist
 	 * @return the control object
 	 */
 	@Nonnull
 	public CatalogConsumerControl createCatalogConsumerControl(@Nonnull String catalogName) {
-		return new CatalogConsumerControlInternal(
-			this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions()),
-			this.catalogSupplier
-		);
+		// the returned control holds versions through the catalog itself and never consults the census - but the
+		// census is kept present for this name regardless, because the map outlives a single registry (a rename
+		// hands it to the registry built by `withDifferentCatalogSupplier`) and the removal path reads it with a
+		// bare `get`. Ensuring it here costs nothing and is the behaviour every caller has had so far.
+		this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions());
+		return new CatalogConsumerControlInternal(this.catalogSupplier);
 	}
 
 	/**
@@ -747,18 +750,7 @@ public final class SessionRegistry {
 	 */
 	@RequiredArgsConstructor
 	private static class CatalogConsumerControlInternal implements CatalogConsumerControl {
-		private final VersionConsumingSessions versionConsumingSessions;
 		private final Supplier<Catalog> catalog;
-
-		@Override
-		public void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
-			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits, this.catalog);
-		}
-
-		@Override
-		public void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
-			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, traits, this.catalog);
-		}
 
 		@Override
 		public void pinCatalogVersion(long version) {

@@ -825,7 +825,7 @@ public class DefaultCatalogPersistenceService
 				recordCount,
 				recordCount,
 				(catalogBootstrap, lookedUpMoment) ->
-					catalogBootstrap.timestamp().compareTo(lookedUpMoment) <= 0 ? -1 : 1
+					!catalogBootstrap.timestamp().isAfter(lookedUpMoment) ? -1 : 1
 			);
 			// the comparator above never reports a hit, so the result is always the negated insertion point
 			final int firstRecordAfterMoment = -1 * localizedIndex - 1;
