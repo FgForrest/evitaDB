@@ -1,12 +1,12 @@
 ---
 title: Načítání
-perex: Omezení požadavků na načítání pomáhají řídit množství dat vracených v odpovědi na dotaz. Tato technika se používá ke snížení objemu dat přenášených po síti a ke snížení zátěže serveru. Načítání je podobné spojování a výběru sloupců v SQL, ale je inspirováno načítáním dat v protokolu GraphQL, kdy se postupně sledují vztahy v datech.
+perex: Omezení při načítání požadavků pomáhají kontrolovat množství dat vrácených v odpovědi na dotaz. Tato technika se používá ke snížení objemu dat přenášených po síti a ke snížení zátěže serveru. Načítání je podobné spojování a výběru sloupců v SQL, ale je inspirováno načítáním dat v protokolu GraphQL, kdy se postupně sledují vztahy v datech.
 date: '5.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
-commit: 77da5b36c170430534ee4d9a4a2903da4de68555
 translated: 'true'
+commit: '10bc35fa0f1cbf30917d2628c2fb4d51c3140414'
 ---
 <LS to="e,j,c,r">
 

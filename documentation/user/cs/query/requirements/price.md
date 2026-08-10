@@ -1,12 +1,12 @@
 ---
 title: Cena
 date: '9.6.2025'
-perex: Tato kapitola se zabývá prací s cenami s daní i bez daně pro B2C a B2B scénáře a také nastavením priorit výchozích ceníků pro zajištění konzistentních cen ve vašich dotazech.
+perex: Tato kapitola se zabývá zpracováním cen s daní i bez daně pro B2C a B2B scénáře a také nastavením priorit výchozích ceníků pro zajištění konzistentních cen ve vašich dotazech.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Typ ceny
 

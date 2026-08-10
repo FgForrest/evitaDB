@@ -5,7 +5,7 @@ date: '22.2.2023'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '21a5e24c2e0820f1bca79eb810e72b21dfee0332'
 ---
 evitaDB je licencována pod [Business Source License 1.1](https://github.com/FgForrest/evitaDB/blob/dev/LICENSE). 
 Technicky vzato se nejedná o open source licenci, ale je to [open source přátelská](https://itsfoss.com/making-the-business-source-license-open-source-compliant/) licence, protože se po uplynutí určité doby specifikované v licenci automaticky převádí na open source licenci.

@@ -1,11 +1,11 @@
 ---
-title: Zobrazit menu kategorií
-perex: Drtivá většina katalogů zobrazuje položky prostřednictvím hierarchicky uspořádaného menu kategorií různých typů, obvykle tak, že zobrazuje položky z kategorie, kterou si uživatel vybral, a zároveň i ze všech podkategorií této kategorie. Protože se jedná o velmi běžný scénář, nabízí evitaDB v této oblasti celou sadu expresivních nástrojů a zároveň optimalizuje své indexy tak, aby byly dotazy do hierarchické struktury rychlejší než dotazy bez tohoto cílení.
+title: Zobrazit nabídku kategorií
+perex: Drtivá většina katalogů zobrazuje položky prostřednictvím hierarchicky uspořádané nabídky kategorií různých typů, obvykle tak, že zobrazuje položky z kategorie, kterou uživatel vybral, a také ze všech podkategorií této kategorie. Protože se jedná o velmi běžný scénář, nabízí evitaDB kompletní sadu výrazných nástrojů pro tuto oblast a zároveň optimalizuje své indexy tak, aby dotazy do hierarchické struktury byly rychlejší než dotazy bez tohoto zaměření.
 date: '4.2.2023'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 Menu je běžný způsob navigace v katalogu. Často se používá k zobrazení kategorií a podkategorií. Tato kapitola poskytuje příklady, jak vykreslit menu kategorií v typických scénářích. Menu lze vykreslit společně s vypsanými položkami v rámci jednoho požadavku. Neměli byste potřebovat samostatný požadavek na vykreslení menu, pokud jej nepředvyrábíte kvůli cachování (což je dobrá praxe u velkých variant menu, jako je [mega-menu](#mega-menu)). Všechny příklady v této kapitole budou dotazovat kolekci `Product` pro získání příslušného menu kategorií, ale nebudou vypisovat samotné produkty, jak by tomu bylo v reálném scénáři.
 

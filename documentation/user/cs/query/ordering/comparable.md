@@ -1,12 +1,12 @@
 ---
 title: Porovnatelné řazení
-perex: Přirozené řazení u porovnatelných datových typů je nejběžnějším typem řazení. Umožňuje třídit entity podle jejich atributů v jejich přirozeném pořadí (číselném, abecedním, časovém atd.).
+perex: Přirozené řazení na porovnatelných datových typech je nejběžnějším typem řazení. Umožňuje třídit entity podle jejich atributů v přirozeném pořadí (číselném, abecedním, časovém atd.).
 date: '25.6.2023'
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Atribut natural
 
