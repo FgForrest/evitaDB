@@ -149,6 +149,9 @@ the one most likely to be re-proposed and is the one to read this record for.
 - `FilterIndexTest.TemporalNormalization` pins the encoding itself: UTC instant, idempotence, order preservation, and
   `LocalDate`/`LocalTime` passing through untouched. `InstantValueColumnTest` pins the column selection on both sides —
   `LocalDateTime` → `InstantValueColumn`, `LocalDate`/`LocalTime` → `LongValueColumn`.
+- `FilterIndexLegacyLocalDateTimeSerializerTest` — round-trips a 2026.1-shaped part through the legacy serializer
+  and rehydrates it exactly as `AttributeIndexLoader` does. The rehydration case fails with `ClassCastException`
+  without the re-anchoring, which is what makes it a real guard rather than a restatement.
 - `EvitaDataTypesTest` — the pre-existing "Conversion to supported type" suite (8 tests, including
   `shouldConvertLocalDateTimeToOffsetDateTime`) still passes unchanged, pinning the query-path contract as deliberately
   retained; new "Conversion to supported stored type" suite adds 6.
@@ -185,14 +188,28 @@ the one most likely to be re-proposed and is the one to read this record for.
   using the evitaDB server system default timezone" — wrong on both counts — and now states only that `LocalDateTime`
   is a first-class attribute type whose wall clock round-trips. The adjacent `<LS to="c">` block still carries the old
   claim for the C# driver and was left alone; nobody verified what that driver actually does.
-- No migration is needed, and the persisted-index question was checked rather than assumed. Bucket keys are stored
-  **already normalized** (`InvertedIndex` applies the normalizer in `addRecord`, and `AttributeIndexLoader` feeds
-  `part.getHistogramPoints()` into the tree verbatim), so changing a normalizer is in principle an on-disk format
-  change for that attribute type. It is not one here: `ValueColumnFactory` and `InstantValueColumn` arrived in
-  `15dc1acee` (2026-06-17), contained only in `v2026.2.x` — the whole primitive-column format postdates 2026.1 — and
-  within 2026.2 no catalog can hold un-normalized `LocalDateTime` bucket keys, because a declared `LocalDateTime`
-  attribute could not be written at all and an auto-evolved one became `OffsetDateTime`. Any future change to
-  `getNormalizer` for a type that *has* been persisted needs a BWC reader; this one does not.
+- **A 2026.1 catalog does need its `LocalDateTime` filter indexes migrated** — an earlier revision of this record
+  claimed the opposite, having checked only that no *2026.2* catalog could hold such keys. Bucket keys are persisted
+  **already normalized** (`InvertedIndex` applies the normalizer in `addRecord`; `AttributeIndexLoader` feeds
+  `part.getHistogramPoints()` into the tree verbatim), so changing a normalizer *is* an on-disk format change for that
+  attribute type. 2026.1 had no `LocalDateTime` branch and persisted raw wall-clock values, while the current tree
+  picks `InstantValueColumn` for that declared type and hard-casts — so loading such a catalog died with
+  `ClassCastException`. `FilterIndexStoragePartSerializer_2026_1` (registered for the 2026.1 `FilterIndexStoragePart`
+  uid in `IndexStoragePartConfigurer`) now re-anchors those values at UTC on read. It is self-healing: the next write
+  persists `Instant` keys through the current serializer, after which the legacy reader is never consulted again.
+- `Migration_2026_2` already re-keys `String` (NFD) and `BigDecimal` (scaled-int) filter parts eagerly at upgrade
+  time, which is the same class of problem. `LocalDateTime` is handled in the BWC *reader* instead, deliberately: the
+  reader covers every read path unconditionally — including any part a migration sweep does not visit — and it is
+  self-healing, whereas the eager route would have to enumerate parts for a type far rarer than `String`. The two
+  compose: a part re-keyed by the migration is read through this same reader first, so it is already anchored.
+- Other index kinds were checked and are **not** affected. Unique indexes select their leaf column through the same
+  `ValueColumnFactory.forKey` and keep raw values, which looks like the same trap, but a `unique` `OffsetDateTime` and
+  a `unique` `LocalDateTime` attribute each write 200 distinct values end-to-end without error — so the reading was
+  wrong and the empirical result governs. `HistogramIndex` is 2026.2-only (no `_2026_1` reader) and `SortIndex` does
+  not use `ValueColumnFactory` at all.
+- **Invariant for the next person:** any future change to `FilterIndex.getNormalizer` for a type that has already been
+  persisted is an on-disk format change, and needs a matching conversion in the BWC reader for the format that wrote
+  it. The normalizer is not merely a runtime detail.
 - 2026.2 was still in testing when this surfaced, so no catalog in the wild carries an attribute auto-evolved to
   `OffsetDateTime` by the defect. Should a test catalog have one, its schema and index remain internally consistent —
   only the declared type is wrong, and re-evolving it is enough.
