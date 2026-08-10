@@ -927,6 +927,12 @@ public class EvitaDataTypes {
 	 * query processing pipeline. Use {@link #toTargetType(Serializable, Class)} for explicit type
 	 * conversion.
 	 *
+	 * It must **not** be used to normalize a value on its way into storage: the `LocalDateTime`
+	 * rewrite above would strip an attribute of the very type its schema declares. Use
+	 * {@link #toSupportedStoredType(Serializable)} there. The rewrite is harmless on the query path
+	 * because every attribute constraint coerces its value to the attribute's declared type anyway
+	 * (`toTargetType`), and both directions of that coercion preserve the wall clock.
+	 *
 	 * @param unknownObject the value to validate and normalize
 	 * @return normalized value, or `null` if input is `null`
 	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB (includes Float
@@ -934,6 +940,50 @@ public class EvitaDataTypes {
 	 */
 	@Nullable
 	public static Serializable toSupportedType(@Nullable Serializable unknownObject) throws UnsupportedDataTypeException {
+		return toSupportedType(unknownObject, true);
+	}
+
+	/**
+	 * Validates and normalizes a value that is about to be **stored** in the database — an entity
+	 * attribute value carried by a mutation, as opposed to a value used in a query.
+	 *
+	 * The normalization is identical to {@link #toSupportedType(Serializable)} with one deliberate
+	 * exception: a `LocalDateTime` is passed through untouched instead of being rewritten to an
+	 * `OffsetDateTime` at UTC. `LocalDateTime` is itself one of the supported data types, so an
+	 * attribute *declared* as `LocalDateTime` has to be able to carry one. Rewriting the value in
+	 * the mutation constructor — before the schema is ever consulted — made such an attribute
+	 * impossible to write at all, and silently derived an `OffsetDateTime` attribute when the
+	 * schema was auto-evolved from the value instead of being declared up front.
+	 *
+	 * Query values deliberately keep the rewrite; see {@link #toSupportedType(Serializable)}.
+	 *
+	 * @param unknownObject the value to validate and normalize
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 */
+	@Nullable
+	public static Serializable toSupportedStoredType(
+		@Nullable Serializable unknownObject
+	) throws UnsupportedDataTypeException {
+		return toSupportedType(unknownObject, false);
+	}
+
+	/**
+	 * Shared implementation of {@link #toSupportedType(Serializable)} and
+	 * {@link #toSupportedStoredType(Serializable)}.
+	 *
+	 * @param unknownObject           the value to validate and normalize
+	 * @param coerceLocalDateTime     when `true`, `LocalDateTime` is rewritten to `OffsetDateTime`
+	 *                                at UTC; when `false` it is passed through as the supported
+	 *                                type it already is
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type is not supported by evitaDB
+	 */
+	@Nullable
+	private static Serializable toSupportedType(
+		@Nullable Serializable unknownObject,
+		boolean coerceLocalDateTime
+	) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
 			// nulls are allowed
 			return null;
@@ -949,8 +999,9 @@ public class EvitaDataTypes {
 			}
 			// normalize doubles to big decimal
 			return new BigDecimal(unknownObject.toString());
-		} else if (unknownObject instanceof LocalDateTime) {
-			// always convert local date time to zoned
+		} else if (coerceLocalDateTime && unknownObject instanceof LocalDateTime) {
+			// always convert local date time to zoned - on the query path only, a stored value must
+			// keep the type its attribute schema declares
 			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
 		} else if (unknownObject.getClass().isEnum()) {
 			return unknownObject.getClass().isAnnotationPresent(SupportedEnum.class) ?
@@ -980,6 +1031,67 @@ public class EvitaDataTypes {
 	public static Serializable toSupportedTypeOrItsArray(
 		@Nullable Serializable unknownObject
 	) throws UnsupportedDataTypeException {
+		return toSupportedTypeOrItsArray(unknownObject, true);
+	}
+
+	/**
+	 * Scalar-or-array counterpart of {@link #toSupportedStoredType(Serializable)} — the entry point
+	 * used by attribute mutations, which must preserve the data type the attribute schema declares.
+	 * For scalar values delegates to {@link #toSupportedStoredType(Serializable)}; for arrays
+	 * normalizes each element individually and returns a new array if any element changed.
+	 *
+	 * @param unknownObject the value to validate and normalize (scalar or array, may be `null`)
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type (or array component type) is not supported
+	 */
+	@Nullable
+	public static Serializable toSupportedStoredTypeOrItsArray(
+		@Nullable Serializable unknownObject
+	) throws UnsupportedDataTypeException {
+		return toSupportedTypeOrItsArray(unknownObject, false);
+	}
+
+	/**
+	 * Resolves the component type for an array rebuilt from normalized elements. The type is taken from the first
+	 * **non-null** normalized element, falling back to the source array's component type when every element is `null`.
+	 *
+	 * Deriving it from element zero alone is not enough: a leading `null` says nothing about what the remaining
+	 * elements normalized to, so `{null, 1.5f}` would rebuild as a `Float[]` and then throw on `Array.set` when the
+	 * normalized `BigDecimal` is stored into it. The same applies to a query-path `{null, LocalDateTime}` array, whose
+	 * non-null element normalizes to `OffsetDateTime`.
+	 *
+	 * @param normalizedElements  the already-normalized elements
+	 * @param sourceComponentType component type of the source array, used when every element is `null`
+	 * @return component type the rebuilt array must be created with
+	 */
+	@Nonnull
+	private static Class<?> normalizedComponentType(
+		@Nonnull Serializable[] normalizedElements,
+		@Nonnull Class<?> sourceComponentType
+	) {
+		for (int i = 0; i < normalizedElements.length; i++) {
+			if (normalizedElements[i] != null) {
+				return normalizedElements[i].getClass();
+			}
+		}
+		return sourceComponentType;
+	}
+
+	/**
+	 * Shared implementation of {@link #toSupportedTypeOrItsArray(Serializable)} and
+	 * {@link #toSupportedStoredTypeOrItsArray(Serializable)}.
+	 *
+	 * @param unknownObject       the value to validate and normalize (scalar or array, may be `null`)
+	 * @param coerceLocalDateTime when `true`, `LocalDateTime` elements are rewritten to
+	 *                            `OffsetDateTime` at UTC; when `false` they are passed through
+	 * @return normalized value, or `null` if input is `null`
+	 * @throws UnsupportedDataTypeException if the type (or array component type) is not supported
+	 */
+	@Nullable
+	private static Serializable toSupportedTypeOrItsArray(
+		@Nullable Serializable unknownObject,
+		boolean coerceLocalDateTime
+	) throws UnsupportedDataTypeException {
 		if (unknownObject == null) {
 			return null;
 		} else if (unknownObject.getClass().isArray()) {
@@ -989,7 +1101,7 @@ public class EvitaDataTypes {
 			for (int i = 0; i < length; i++) {
 				final Object element = Array.get(unknownObject, i);
 				if (element instanceof Serializable s) {
-					final Serializable normalized = toSupportedType(s);
+					final Serializable normalized = toSupportedType(s, coerceLocalDateTime);
 					result[i] = normalized;
 					changed = changed || normalized != s;
 				} else if (element == null) {
@@ -1002,9 +1114,9 @@ public class EvitaDataTypes {
 			}
 			if (changed) {
 				// create a properly typed array with the normalized component type
-				final Class<?> componentType = result[0] != null
-					? result[0].getClass()
-					: unknownObject.getClass().getComponentType();
+				final Class<?> componentType = normalizedComponentType(
+					result, unknownObject.getClass().getComponentType()
+				);
 				final Object typedArray = Array.newInstance(componentType, length);
 				for (int i = 0; i < length; i++) {
 					Array.set(typedArray, i, result[i]);
@@ -1013,7 +1125,7 @@ public class EvitaDataTypes {
 			}
 			return unknownObject;
 		} else {
-			return toSupportedType(unknownObject);
+			return toSupportedType(unknownObject, coerceLocalDateTime);
 		}
 	}
 

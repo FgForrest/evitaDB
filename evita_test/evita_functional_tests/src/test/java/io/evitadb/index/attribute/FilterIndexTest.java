@@ -51,6 +51,9 @@ import org.junit.jupiter.api.Test;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.text.Normalizer;
@@ -69,6 +72,7 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies {@link FilterIndex} contract.
@@ -1581,6 +1585,68 @@ class FilterIndexTest {
 			assertSame(BigDecimal.class, EvitaDataTypes.resolveRangeInnerNumericType(BigDecimalNumberRange.class));
 			assertNull(EvitaDataTypes.resolveRangeInnerNumericType(Integer.class));
 			assertNull(EvitaDataTypes.resolveRangeInnerNumericType(DateTimeRange.class));
+		}
+
+	}
+
+	/**
+	 * Pins the index-side encoding of the temporal attribute types. `LocalDateTime` carries no offset of its own, so
+	 * it is anchored at UTC before it becomes a bucket key — the same `Instant` space `OffsetDateTime` already uses,
+	 * which is what lets the tree store it in the packed `InstantValueColumn` instead of boxing it. Because the
+	 * anchor is a *constant* offset the mapping is a lossless bijection and monotonic with `LocalDateTime`'s natural
+	 * order, so equality lookup and ordered iteration are unaffected. `LocalDate` and `LocalTime` are deliberately
+	 * left alone — each fits losslessly in a single `long`, so they take the cheaper `LongValueColumn`.
+	 */
+	@Nested
+	@DisplayName("Temporal attribute index encoding")
+	@Tag(ENGINE)
+	@Tag(INDEXING)
+	@Tag(ATTRIBUTE)
+	@Tag(DATA_TYPE)
+	class TemporalNormalization {
+
+		@Test
+		@DisplayName("LocalDateTime is normalized to its UTC instant")
+		void shouldNormalizeLocalDateTimeToUtcInstant() {
+			final LocalDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26);
+
+			assertEquals(
+				value.toInstant(ZoneOffset.UTC),
+				FilterIndex.getNormalizer(LocalDateTime.class, 0).apply(value)
+			);
+		}
+
+		@Test
+		@DisplayName("normalizing an already-normalized LocalDateTime value is a no-op")
+		void shouldBeIdempotentForLocalDateTime() {
+			// probe values are normalized more than once along a lookup path - a second pass must not throw
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(LocalDateTime.class, 0);
+			final Serializable once = normalizer.apply(LocalDateTime.of(2026, 5, 20, 12, 19, 26));
+
+			assertEquals(once, normalizer.apply(once));
+		}
+
+		@Test
+		@DisplayName("LocalDateTime normalization preserves natural order")
+		void shouldPreserveOrderForLocalDateTime() {
+			// a constant offset cannot reorder values - this is precisely what a region time zone would not guarantee
+			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(LocalDateTime.class, 0);
+			final LocalDateTime earlier = LocalDateTime.of(2026, 5, 20, 12, 19, 26);
+			final LocalDateTime later = LocalDateTime.of(2026, 5, 20, 14, 19, 26);
+
+			assertTrue(
+				((Instant) normalizer.apply(earlier)).isBefore((Instant) normalizer.apply(later))
+			);
+		}
+
+		@Test
+		@DisplayName("LocalDate and LocalTime pass through unnormalized")
+		void shouldLeaveLocalDateAndLocalTimeAlone() {
+			final LocalDate date = LocalDate.of(2026, 5, 20);
+			final LocalTime time = LocalTime.of(12, 19, 26);
+
+			assertSame(date, FilterIndex.getNormalizer(LocalDate.class, 0).apply(date));
+			assertSame(time, FilterIndex.getNormalizer(LocalTime.class, 0).apply(time));
 		}
 
 	}
