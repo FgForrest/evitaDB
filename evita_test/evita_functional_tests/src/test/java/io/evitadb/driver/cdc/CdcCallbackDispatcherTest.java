@@ -28,7 +28,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -81,11 +80,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(GRPC)
 @Tag(CDC)
 @Tag(STREAM)
-// shouldNotCreateThreadsWhenCallbacksAreRefused reads ThreadMXBean#getTotalStartedThreadCount(), which is
-// JVM-wide - under `parallel=all` every sibling class booting an embedded Evita+gRPC+GraphQL instance
-// inflates the same counter, so the assertion sees ambient concurrency rather than this class's behavior.
-// @Isolated forces the whole class to run alone in its fork, the same pattern as ConsoleWriterTest.
-@Isolated
+// Deliberately NOT @Isolated: nothing here reads a JVM-wide counter any more. The assertion that needed
+// isolation was `shouldNotCreateThreadsWhenCallbacksAreRefused`, which inferred a rescue from
+// ThreadMXBean#getTotalStartedThreadCount(); it is now `shouldNotRunAnyCallbackUnderSustainedRefusal`, which
+// observes the callback *running* instead. That is both load-immune and strictly stronger - a thread count
+// cannot see a rescue onto a cached pool or the common ForkJoin pool, so isolation would have bought a
+// reliable measurement of the wrong thing.
 class CdcCallbackDispatcherTest {
 
 	@Nested
