@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-10 18:55
+updated: 2026-08-10 19:15
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -91,6 +91,27 @@ folder), whereas Option B's cost is paid in disk and latency by every operation 
 would win if a future requirement made the source and the copy both live afterwards; that is a
 different operation from replacement, and it would supersede this record.
 
+## The second fork — what the engine holds, a path or a token
+
+Given a pointer swap, the engine still has to name the folder somehow. The first implementation used
+`java.nio.file.Path`: the engine resolved the folder and passed it down. The alternative — adopted — is
+an opaque `CatalogFolderId` that only `evita_store_server` may resolve.
+
+The layering argument alone was not decisive, because the engine *carries* folder paths without ever
+*using* them; on that reading a `Path` is merely untidy. Two findings settled it:
+
+- **The seam did not create the leak, but was about to institutionalise it.** Thirteen path-construction
+  sites already existed in the engine. Keeping `Path` would have frozen that leak into a *new* SPI
+  contract and a *new* `EngineState` serializer — at the single moment when changing both cost nothing.
+  Timing, not tidiness, is why this was done now rather than later.
+- **The token's textual form has to stay unconstrained**, which a `Path` does not express and a
+  `(name, generation)` pair cannot represent at all — see *Rejected outright*.
+
+The engine legitimately knows `storageOptions.storageDirectory()`, since that is configuration rather
+than layout. Error messages therefore state both facts side by side — `storage folder 'products_3'
+(storage root: '/data/evita')` — without the engine ever computing the join, which keeps the operator
+ergonomics the absolute path used to provide.
+
 ## Decisions taken
 
 | Decision | Why | Where |
@@ -109,6 +130,7 @@ different operation from replacement, and it would supersede this record.
 | A rename **consumes no catalog version** — `replaceWith` keeps an ALIVE catalog's version instead of bumping it | `verifyIntegrity` asserts that the WAL's last written version equals the bootstrap's, i.e. that every version in the line was produced by a transaction. A rename moves no data and appends nothing to the WAL, so consuming a version for it is the only thing violating that invariant. Writing header, schema part and bootstrap record at an already-flushed version is what the load path has always done | `DefaultCatalogPersistenceService#replaceWith`, `TransactionManager#notifyCatalogPresentInLiveView` |
 | `replaceWith` discards any owed checkpoint before it closes the service it is handing over | The bootstrap file is read back **by position** — the last record wins, whatever version it names — so a checkpoint owed by an earlier round publishes a pointer to the pre-rename root *after* the rename's own, and the service reopened at the end of the method loads the catalog under its previous name. Discarding is right on the merits: the rename's `recordBootstrap` flushes the index and forces the pending syncs, which is all the checkpoint owed | `DefaultCatalogPersistenceService#replaceWith` |
 | A fresh `catalogId` is minted whenever a catalog is materialised from copied bytes | A duplicate is a new lineage; carrying the source's id leaves the two indistinguishable by the field clients use to decide whether a cached view still holds | same method, driven by `.restored` |
+| `getCatalogStoragePath()` is **removed** from the public API rather than left returning a blank, and `getCause()`'s `BiFunction<String, Path, …>` changes with it — an accepted breaking change, labelled and shipped in one release | Under a token binding the engine cannot honestly populate a path, and a permanently-blank field is documentation-backed misinformation — worse than an absent one, because clients keep reading it. Zero callers were found outside the API files and one test, so the break is nominal; splitting it across releases would make clients absorb two | `CatalogContract`, `EvitaContract`, `UnusableCatalogDescriptor` |
 | Backups emit the canonical suffix-free, prefix-free shape | A backup zip is how a catalog travels between instances, so it must not carry one instance's folder generation into another | `BackupTask`, `FullBackupTask` |
 
 ## Rejected outright
@@ -121,6 +143,8 @@ different operation from replacement, and it would supersede this record.
 | Fixed in-folder file names (`catalog.boot`, `catalog_0.catalog`) via a storage-protocol bump | Needs a `Migration_2026_X` over every existing installation, while `*.boot` discovery achieves the same decoupling at zero migration cost | a protocol bump happens anyway for an unrelated reason — the literal names are marginally tidier |
 | Keep folder = name; use copy-then-swap only on Windows | Two code paths for one operation, with the harder path exercised least. The failure mode is not Windows-specific — it is "multi-step filesystem mutation with no durable record of progress"; Windows only makes it frequent | never |
 | Opaque UUID folder names | Maximum decoupling costs an operator the ability to identify a folder by eye and makes disaster recovery from a bare storage directory considerably harder | never |
+| Carry the binding as a `(name, generation)` pair instead of a free-form opaque token | It cannot represent the folders the design requires: an adopted foreign folder keeps its bare, suffix-free name, and a legacy folder whose boot rename fails is recorded under its bare name too. Neither has a generation, so the pair needs a sentinel — which is the token's textual form leaking back as a special case. The free-form string is the *minimum* representation that covers the design, not a preference | never — the bare-folder cases are load-bearing, not edge cases |
+| Report `-1` for `sizeOnDiskInBytes` on a corrupted catalog, since the placeholder can no longer stat the folder itself | It is a *second* client-visible regression, and the system-API catalog listing includes corrupted catalogs, so it is reachable. `UnusableCatalog` is handed a store-backed `CatalogFolderOperations` instead — the same seam the tombstone drain needs anyway, so it is not transitional scaffolding | never; the handle exists regardless |
 | Relax `verifyIntegrity` to `bootstrap >= WAL` so a rename's extra version passes | That is exactly the shape the WAL-provider defect produced — empty WAL at 0, bootstrap at 3 — so it would re-mask the silent transaction loss that fix had just made visible. The assertion is the only thing that catches it | never; the assertion is load-bearing |
 | Append a WAL transaction for the rename, so the two counters agree by construction | Disproportionate to a one-restart window, and it puts a non-transactional engine operation into the catalog's transaction stream, where every consumer would then have to recognise and skip it | only if a rename ever has to be replayable as part of the catalog's transaction history |
 | Drop the `previousLivingCatalog == livingCatalog` identity escape as redundant once the version comparison is `<=` | Unverified and wrong: `<` → `<=` only ever *admits* more, but deleting the escape *rejects* a same-instance republication at a version below the previous one, which the previous form allowed. Keeping both disjuncts makes the change a pure widening | never — the two disjuncts cover different cases |
@@ -236,6 +260,14 @@ different operation from replacement, and it would supersede this record.
 
 ## Consequences & open follow-ups
 
+- **A replace makes the target's version stream jump to the source's lineage.** Client-visible, and not a
+  regression — the old code computed `newCatalogVersion` from the *source* header too — but the mechanism
+  changed underneath it, so it is stated here rather than left to be rediscovered from a diff.
+- **`CatalogContract#terminateAndDelete` was a design constraint that no longer exists.** It was invoked
+  polymorphically on `UnusableCatalog`, the catalog *without* a persistence service, so the folder-level
+  delete had to reach it through an injected store-backed handle. The delete routes this decoupling made
+  dead were removed instead. Recorded because the constraint is a natural thing to re-derive from the old
+  shape and then design around, and there is no longer anything to design around.
 - **Forward replay of rename/replace is still not implemented.** The old blocker (an unrepeatable deep
   on-disk rename) is gone, and the disk work is now idempotent. What blocks it is narrower: the
   completion phase stages a *live catalog instance*, and at replay time every catalog is still a
