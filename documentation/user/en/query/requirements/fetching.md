@@ -1437,7 +1437,7 @@ referenceContent(
         <p>
         optional argument, if set to `EXISTING` only existing references to managed entities are returned;
         the default behavior is set to `ANY`, which returns all references set to the entity, regardless of whether 
-        they point to to existing or non-existing entities (see [managed references behaviour](../requirements/reference.md#managed-references-behaviour) chapter for more details)
+        they point to to existing or non-existing entities (see [managed references behaviour](#managed-references-behaviour) chapter for more details)
         </p>
     </dd>
     <dt>argument:string*</dt>

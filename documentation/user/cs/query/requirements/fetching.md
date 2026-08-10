@@ -1379,7 +1379,7 @@ referenceContent(
         <p>
         nepovinný argument, pokud je nastaven na `EXISTING`, vrací pouze existující reference na spravované entity;
         výchozí chování je nastaveno na `ANY`, což vrací všechny reference nastavené na entitě, bez ohledu na to,
-        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](reference.md#managed-references-behaviour))
+        zda ukazují na existující nebo neexistující entity (podrobnosti viz kapitola [chování spravovaných referencí](#chování-spravovaných-referencí))
         </p>
     </dd>
     <dt>argument:string*</dt>

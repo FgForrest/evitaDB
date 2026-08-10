@@ -160,4 +160,4 @@ Omezení mimo `userFilter` (kategorie, lokalizace, měna, rozsah, ceník) se nik
 
 Celý UX příběh za těmito pravidly — včetně bohaté algebry skupin faset
 (`facetGroupsConjunction`, `…Disjunction`, `…Negation`, `…Exclusivity`) a důvodu, proč existuje samostatné `histogramHaving` místo opětovného použití `attributeBetween` — najdete v blogovém příspěvku
-[*Skrytá choreografie panelu fasetového filtru*](/documentation/blog/en/25-faceted-filter-choreography.md).
+[*Skrytá choreografie panelu fasetového filtru*](/documentation/blog/en/26-faceted-filter-choreography.md).
