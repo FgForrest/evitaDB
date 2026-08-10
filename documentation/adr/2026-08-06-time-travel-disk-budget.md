@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-10 20:45
+updated: 2026-08-10 21:15
 status: accepted
 kind: feature
 issues: [761]
@@ -451,6 +451,13 @@ retention floor clamps it like any other request.
   `storeHeader` advances `processedVersion` through `walProcessedUntil` **only on the publish path** —
   the deferred-checkpoint branch returns before it. A deferred checkpoint therefore holds log removal
   back with it.
+- **`getFirstVersionOf`'s stub guard was tightened while wiring this up**, and it is the one piece of
+  shared write-ahead log code this change touches. It demanded only `TRANSACTION_PREFIX_SIZE` (4
+  bytes) while the read skips the cumulative checksum *and* the prefix (12) before reaching a record,
+  so an 8-byte stub — what a crash between rotation and the first append leaves behind — was let
+  through to a read that seeks past its own end. Inert for the pre-existing caller
+  (`resolveBlockStartVersionOf` already treats `-1` as "fall back") and reached by this feature on
+  precisely the crash-recovery path it exists for. No test of its own.
 - **It is submitted, not run inline.** What it drives is a bootstrap trim and a folder sweep;
   reclaiming disk nobody is waiting for must not lengthen the open of a catalog somebody is. Nothing
   downstream depends on it having run — every other driver re-derives its own horizon. It is wired to
