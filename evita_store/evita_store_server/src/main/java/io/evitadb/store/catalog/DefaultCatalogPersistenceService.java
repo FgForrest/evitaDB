@@ -2671,6 +2671,21 @@ public class DefaultCatalogPersistenceService
 			dataStoreMemoryBuffer
 		);
 
+		// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
+		// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
+		// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
+		// version it names - so that older pointer would land after the one just written and the service reopened
+		// at the end of this method would load the catalog under the name it had before the rename. Discarding it
+		// is right on the merits rather than merely expedient: the record written above already did everything the
+		// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
+		// at the fence inside `writeCatalogBootstrap`. The field is only ever set together with the coordinator's
+		// own debt, so it is the exact condition, and settling it keeps the cadence gauge honest - reporting a
+		// completion when nothing was owed would fill it with samples no checkpoint produced.
+		if (this.deferredCheckpointBootstrap != null) {
+			this.deferredCheckpointBootstrap = null;
+			Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
+		}
+
 		// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
 		// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
 		// progress waits forever on an operation that has already finished.
