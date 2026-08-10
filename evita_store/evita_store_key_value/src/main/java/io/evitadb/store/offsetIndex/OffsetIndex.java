@@ -2132,7 +2132,9 @@ public class OffsetIndex {
 		/**
 		 * Stores instance of the record to the non-flushed index.
 		 *
-		 * @param create - when true it affects {@link #nonFlushedValuesHistogram} results
+		 * @param create - when true it affects {@link #nonFlushedValuesHistogram} results; when false it still
+		 *               affects them if this version had already removed the same key, because the removal and
+		 *               this write fold into a plain overwrite whose cardinality effect cancels out
 		 */
 		public void put(@Nonnull RecordKey key, @Nonnull VersionedValue value, boolean create) {
 			if (create) {
