@@ -126,9 +126,13 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	@Override
 	public boolean cancel() {
 		final boolean cancel = super.cancel();
-		if (cancel) {
-			tearDown();
-		}
+		// the tear-down is deliberately NOT gated on `cancel` - `Scheduler#addTaskToQueue` fails the task before it
+		// throws the rejection, so the `cancel()` that `Catalog#submitBackupTask` runs on that path finds the future
+		// already done and answers FALSE while the constructor-acquired version pin and folder hold are still held.
+		// Gating cleanup on that answer leaks both for the life of the catalog, and since a full backup pins the
+		// *oldest* retained version, that stops every reclamation the catalog would otherwise do. `tearDown` is
+		// exactly-once by construction, so running it on an already-finished task costs nothing
+		tearDown();
 		return cancel;
 	}
 

@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-06 19:30
+updated: 2026-08-10 07:08
 status: accepted
 kind: feature
 issues: [761]

@@ -746,7 +746,9 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * This interface allows external objects signalize work with the catalog of particular version.
+	 * Holds a catalog version against reclamation on behalf of a backup, and gives that hold back - see
+	 * {@link CatalogConsumerControl}. Sessions are not held this way: they are pinned and released by
+	 * {@link VersionConsumingSessions}, which also keeps the consumer census this class stays out of.
 	 */
 	@RequiredArgsConstructor
 	private static class CatalogConsumerControlInternal implements CatalogConsumerControl {

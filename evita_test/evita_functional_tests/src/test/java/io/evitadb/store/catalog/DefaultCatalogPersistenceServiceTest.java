@@ -1796,6 +1796,52 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should give the retained window back when the scheduler rejects the full backup")
+		void shouldReleaseTheRetainedWindowWhenTheFullBackupIsRejected() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					timeTravelStorageOptions(0L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					inMemoryExportService()
+				)
+			) {
+				writeSeveralGenerations(ioService);
+
+				final ServerTask<?, FileForFetch> backupTask = ioService.createFullBackupTask(
+					ioService::catalogVersionPinned, ioService::catalogVersionReleased
+				);
+				assertTrue(
+					ioService.getRetentionFloor() >= 0L,
+					"the fixture must actually be holding the retained window, otherwise this asserts nothing"
+				);
+
+				// exactly what `Scheduler#addTaskToQueue` does when the queue is full and nothing can be purged to
+				// make room: it fails the task *first* so it is reported as failed regardless of the rejecting
+				// handler, and only then throws - which leaves `Catalog#submitBackupTask` cancelling a task whose
+				// future is already done
+				backupTask.fail(new IllegalStateException("Scheduler queue is full and no task could be purged."));
+				backupTask.cancel();
+
+				// a task that was constructed and then dropped still holds the pin its constructor took, and a full
+				// backup pins the *oldest* retained version - so a tear-down skipped here does not delay one
+				// reclamation, it stops every reclamation this catalog would ever do, silently and for good
+				assertEquals(
+					-1L, ioService.getRetentionFloor(),
+					"a backup the scheduler refused to queue must give the retained window back"
+				);
+
+				// and the reclamation it was holding off actually runs afterwards
+				ioService.enforceTimeTravelSizeLimit();
+				assertEquals(
+					1, listCatalogDataFiles().size(),
+					"the reclamation deferred for the rejected backup must happen once its pin is gone"
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("should give the retained window back once the full backup has finished with it")
 		void shouldReleaseTheRetainedWindowWhenTheFullBackupCompletes() {
 			try (
