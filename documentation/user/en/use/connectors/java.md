@@ -259,7 +259,7 @@ Timeout settings are configured via
     </dd>
     <dt>streamingTimeout</dt>
     <dd>
-        <p>**Default: `3600`**</p>
+        <p>**Default: `300`**</p>
         <p>Number of `streamingTimeoutUnit` time units the client should wait for server to send next streamed message
         before it cancels the stream.</p>
     </dd>
