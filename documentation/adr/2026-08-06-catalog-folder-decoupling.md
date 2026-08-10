@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-07 01:55
+updated: 2026-08-10 06:40
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -106,6 +106,7 @@ different operation from replacement, and it would supersede this record.
 | Tombstones are discharged by the **next engine mutation**, whichever it is | The delete happens after its own commit, so the operator that performed it has no further commit to record the success in — and a folder that is gone is never classified again, so nothing else would ever drop the entry | `EngineTransactionManager#updateEngineStateAfterEngineMutation` |
 | File names inside a folder are **discovered** from the single `*.boot`, never constructed from the catalog name | This is what lets the files stay put during a rename, and it cost no storage-format migration | `DefaultCatalogPersistenceService#discoverStoragePrefix` |
 | `verifyCatalogNameMatches` became `reconcileStoredCatalogIdentity` and adapts unconditionally | Once the name comes from the engine state rather than the folder, a header naming a different catalog is the ordinary trace of a rename whose header rewrite did not land — refusing would report a loadable catalog as corrupted | `DefaultCatalogPersistenceService` |
+| A rename **consumes no catalog version** — `replaceWith` keeps an ALIVE catalog's version instead of bumping it | `verifyIntegrity` asserts that the WAL's last written version equals the bootstrap's, i.e. that every version in the line was produced by a transaction. A rename moves no data and appends nothing to the WAL, so consuming a version for it is the only thing violating that invariant. Writing header, schema part and bootstrap record at an already-flushed version is what the load path has always done | `DefaultCatalogPersistenceService#replaceWith`, `TransactionManager#notifyCatalogPresentInLiveView` |
 | A fresh `catalogId` is minted whenever a catalog is materialised from copied bytes | A duplicate is a new lineage; carrying the source's id leaves the two indistinguishable by the field clients use to decide whether a cached view still holds | same method, driven by `.restored` |
 | Backups emit the canonical suffix-free, prefix-free shape | A backup zip is how a catalog travels between instances, so it must not carry one instance's folder generation into another | `BackupTask`, `FullBackupTask` |
 
@@ -119,6 +120,9 @@ different operation from replacement, and it would supersede this record.
 | Fixed in-folder file names (`catalog.boot`, `catalog_0.catalog`) via a storage-protocol bump | Needs a `Migration_2026_X` over every existing installation, while `*.boot` discovery achieves the same decoupling at zero migration cost | a protocol bump happens anyway for an unrelated reason — the literal names are marginally tidier |
 | Keep folder = name; use copy-then-swap only on Windows | Two code paths for one operation, with the harder path exercised least. The failure mode is not Windows-specific — it is "multi-step filesystem mutation with no durable record of progress"; Windows only makes it frequent | never |
 | Opaque UUID folder names | Maximum decoupling costs an operator the ability to identify a folder by eye and makes disaster recovery from a bare storage directory considerably harder | never |
+| Relax `verifyIntegrity` to `bootstrap >= WAL` so a rename's extra version passes | That is exactly the shape the WAL-provider defect produced — empty WAL at 0, bootstrap at 3 — so it would re-mask the silent transaction loss that fix had just made visible. The assertion is the only thing that catches it | never; the assertion is load-bearing |
+| Append a WAL transaction for the rename, so the two counters agree by construction | Disproportionate to a one-restart window, and it puts a non-transactional engine operation into the catalog's transaction stream, where every consumer would then have to recognise and skip it | only if a rename ever has to be replayable as part of the catalog's transaction history |
+| Drop the `previousLivingCatalog == livingCatalog` identity escape as redundant once the version comparison is `<=` | Unverified and wrong: `<` → `<=` only ever *admits* more, but deleting the escape *rejects* a same-instance republication at a version below the previous one, which the previous form allowed. Keeping both disjuncts makes the change a pure widening | never — the two disjuncts cover different cases |
 | Treat a **suffixed** folder carrying a `.catalogname` marker as adoptable, to close the window between an adoption's rename and its binding | It would equally make the orphan folder a replacement leaves behind adoptable, resurrecting a replaced catalog. The suffix rule exists precisely to stop that | never — close that window with a rebind mutation instead |
 
 ## Key technical details
@@ -174,11 +178,20 @@ different operation from replacement, and it would supersede this record.
 
 ## Verification
 
-- Full functional suite green across the work: **20 968 tests**. The recurring non-passes are
-  environmental and reproduce on unrelated commits — `ExportS3ServiceTest` needs a Docker
-  environment, and two wall-clock waits (`SharedRgeiSoakTest`, a two-minute Awaitility condition in
-  `SystemGraphQLSubscriptionsFunctionalTest`) time out under fork contention and pass in isolation.
-  One run also exhausted the shared JVM's heap, taking two dataset fixtures with it.
+- Full functional suite green across the work: **20 968 tests**, **20 983** after the version fix. The
+  recurring non-passes are environmental and reproduce on unrelated commits — `ExportS3ServiceTest`
+  needs a Docker environment, and two wall-clock waits (`SharedRgeiSoakTest`, a two-minute Awaitility
+  condition in `SystemGraphQLSubscriptionsFunctionalTest`) time out under fork contention and pass in
+  isolation. One run also exhausted the shared JVM's heap, taking two dataset fixtures with it.
+
+  `SharedRgeiSoakTest.shouldSurviveSeed[5]` was pinned down properly while verifying the version fix,
+  since it failed four consecutive full-suite runs and had been green in an earlier session. It is
+  **pre-existing and unrelated to any of this work**: it fails identically with all three version-fix
+  hunks reverted, and with the new tests `@Disabled` so they add no load. In isolation all 13 seeds
+  pass in 22.9 s against 315.2 s under the suite (13.8×), the run's surefire dumpstream is JVM
+  `[gc,alloc] Retried waiting for GCLocker too often` allocation stalls in exactly the failure window,
+  and the failure is a 100 s commit watchdog with no evitaDB-level exception preceding it. Do not
+  read a green suite as a precondition for this test — read the four-configuration table instead.
 - **`CatalogPointerSwapReaderAvailabilityTest`** is the acceptance criterion for the reader guarantee:
   a pool of readers spans a rename and a replace, every failure must be in the invalid-usage family,
   and across a replace the readers must observe the collection size on *both* sides of the swap and
@@ -190,6 +203,13 @@ different operation from replacement, and it would supersede this record.
 - **`EvitaTest`** pins the shape: a rename leaves the data in place, a replace repoints at the source
   folder and removes the superseded one, a duplicate lands in an allocated folder with its provisional
   marker cleared, and repeated replaces do not grow `retiredFolders`.
+- **`EvitaTest#shouldNotLoseACatalogVersionToARename` / `…ToAReplace`** are the end-to-end proof for the
+  version accounting: commit, rename or replace, assert the version did **not** move, restart, read the
+  data back, commit again, assert it advanced, restart again. Both assert the version directly rather
+  than inferring it from a successful boot, so a regression names the defect instead of merely failing
+  to open. Calibrated in both directions — see the two error strings in `0e1a13142`. They also turn out
+  to be the only coverage of the fourth WAL-provider site fixed in `5c1dc4919`, which shipped without
+  any: reaching it needs a commit *after* the rename plus a restart.
 - **`CatalogFolderClassifierTest`, `CatalogFolderCleanerTest`, `CatalogFolderAllocatorTest`** cover
   the classification table, the drain and generation burn-and-skip as pure units, written before the
   code they test — this is the step where a bug deletes user data.
@@ -248,31 +268,34 @@ different operation from replacement, and it would supersede this record.
   name loses it at the next restart; replacing one puts the name in `activeCatalogs` and `missingCatalogs` at
   once and wedges the next boot. This matters more than it looks, because `isAdoptableCatalogName` refuses any
   folder whose bare name belongs to a registered catalog — missing ones included — so restore is the only
-  recovery route there is. The candidate fix is to have `withRestoredFromMissing` drop the binding as well as
-  the bucket entry; it is not taken here because it changes the three-way builder split above, which is a
-  stated invariant rather than an implementation detail.
-- **Renaming an ALIVE catalog that has committed a transaction breaks the next boot** — and this predates the
-  work: `replaceWith`'s `version() + 1` and `verifyIntegrity`'s WAL assertion are unchanged from before it. The
-  rename advances the catalog version without appending anything to the WAL, so the next boot compares
-  bootstrap version against WAL version and refuses to open the catalog with `Catalog WAL version mismatch!`.
-  It was invisible until the WAL provider above was fixed, because the WAL being looked for did not exist and
-  so could not disagree — the transactions were dropped in silence instead.
+  recovery route there is.
 
-  **The broken window is exactly one restart.** The rebuilt transaction manager seeds from the header, so the
-  first commit after the rename writes both a WAL record and a bootstrap at the next version and the two agree
-  again. Only "rename, then restart before committing anything" fails.
+  **Fixed in `f04f33109`**, after this record was first written. `withRestoredFromMissing` became
+  `withCatalogNoLongerMissing` and now drops the binding along with the bucket entry, so the `withCatalog` that
+  follows establishes the new one; create and replace clear the bucket too. The three-way builder split — the
+  reason the fix was originally deferred — is left intact, because making the binding *absent* tells the truth
+  about a catalog whose folder is gone and needs no new way to overwrite a live binding.
+- **Renaming an ALIVE catalog that had committed a transaction broke the next boot — now fixed**, in
+  `0e1a13142`, after this record was first written. The defect predated the work (`replaceWith`'s
+  `version() + 1` and `verifyIntegrity`'s WAL assertion were byte-identical at the branch point) and was
+  invisible until the WAL provider was fixed, because the WAL being looked for did not exist and so could not
+  disagree — the transactions were dropped in silence instead. The broken window was exactly one restart: the
+  first commit after a rename put both counters back in step.
 
-  Three ways out were weighed. **Relaxing the assertion to `bootstrap >= WAL` is wrong**: that is precisely the
-  shape the WAL-provider defect produced (empty WAL at 0, bootstrap at 3), so it would re-mask the failure that
-  was just made visible. **Manufacturing a WAL transaction for the rename** is disproportionate to a
-  one-restart window and would put a non-transactional operation into the transaction stream. **Not consuming
-  a version for an operation that moves no data** is the right shape — the assertion states that every version
-  in the line came from a transaction, and the rename is the only thing violating it. It is unimplemented
-  because of a question this work could not settle: `replaceWith` writes a `CatalogSchemaStoragePart` and a
-  header at the version it picks, and whether `OffsetIndex` accepts a write at an *already-flushed* version is
-  not established — `roots` is a version-keyed map resolved by `floorRoot`, and a second root at an existing
-  version would be resolved arbitrarily. Settle that first; if the offset index refuses, the fix has to move
-  to making the WAL agree instead.
+  The blocking question at the time was whether `OffsetIndex` accepts a write at an *already-flushed* version.
+  **It does**, on four independent grounds: `getNonFlushedEntriesToPromote` asserts `>=` rather than `>`;
+  `flush` guards its advance with `<`, so an equal-version flush is a no-op and never a regression;
+  `Roots.append` supersedes the tail entry when `addVersions[0] == tail`, with a comment naming this case; and
+  decisively, `reconcileStoredCatalogIdentity` already performs the identical header + schema part +
+  `flush(catalogVersion)` + bootstrap sequence at an unbumped version on the load path, in production.
+
+  Two things the fix surfaced that the reasoning above had not. `TransactionManager#notifyCatalogPresentInLiveView`
+  asserted a *strictly* advancing version and a rename builds a **new** instance at the same version, so the
+  rename died on the assertion rather than on the boot — found by the first test run, after three review passes
+  and a full reading of the blast radius had missed it. And `getCatalogVersions`' descending branch lacked the
+  `Math.min` clamp its ascending sibling has, inverting a block to `(3, 2)` whenever two bootstrap records share
+  a version — **pre-existing and reachable without the rename at all**, since the identity reconciliation
+  already appends a record at an unbumped version on every load under a different name.
 - **Client-visible:** a duplicated or restored catalog now has an id distinct from its source, including
   restore-in-place after a disaster. That is the intended outcome — the restored catalog lost everything
   committed after the backup point, so reusing the id would let a client keep serving what it believes
