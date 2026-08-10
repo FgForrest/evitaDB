@@ -154,6 +154,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * The size of the cumulative CRC32C checksum written after each transaction in the WAL file.
 	 * The checksum is stored as a little-endian long (8 bytes).
+	 *
+	 * See the {@link #checksum} field for what this value does and does not detect — it is narrower than
+	 * "cumulative" suggests, and the difference has been rediscovered more than once.
 	 */
 	public static final int CUMULATIVE_CRC32_SIZE = 8;
 	/**
@@ -161,7 +164,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 *
 	 * - first catalog version mutation of the WAL file
 	 * - last catalog version mutation of the WAL file
-	 * - final cumulative CRC32C checksum of the entire WAL file content
+	 * - final cumulative CRC32C checksum, computed over the whole file including these two versions
+	 *
+	 * The third long is the CRC32C of every byte before it, but it does not attest to the file as a whole —
+	 * see the {@link #checksum} field.
 	 */
 	public static final int WAL_TAIL_LENGTH = 8 + 8 + CUMULATIVE_CRC32_SIZE;
 	/**
@@ -169,7 +175,33 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	protected static final long CUT_WAL_CACHE_AFTER_INACTIVITY_MS = 300_000L; // 5 minutes
 	/**
-	 * The calculator for computing checksums.
+	 * The running CRC32C written after every transaction. **This is the authoritative description of what that
+	 * value guarantees** — the constants above and the format documentation point here rather than restating it.
+	 *
+	 * Each stored value is the CRC32C of every byte preceding it in the file, exactly as the format documents.
+	 * Because that coverage includes the *previous stored checksums*, and `CRC(M ‖ CRC(M))` is the CRC **residue**
+	 * — a constant, whatever `M` was — the running value returns to that same constant at every stored checksum.
+	 * Both statements are therefore true at once: a checksum covers everything before it, **and** it carries no
+	 * information about anything before the preceding checksum.
+	 *
+	 * What that means in practice:
+	 *
+	 * - **Detected:** damage inside a transaction — a torn write, a hole left by out-of-order writeback, bit rot.
+	 *   This is the case recovery exists for, and it is why `computeCRC32C` and write ordering are coupled (see
+	 *   {@link #openWalChannel(Path)}).
+	 * - **Not detected:** whole transactions exchanged, duplicated, dropped, or spliced in from another WAL file;
+	 *   nor a wrong per-file seed. Each transaction's checksum verifies from the same constant wherever it sits.
+	 *   `CatalogWriteAheadLogTest#shouldNotDetectReorderedTransactions` pins this.
+	 * - **Covered elsewhere:** all of the above is rejected by the catalog-version continuity check during replay
+	 *   — {@link io.evitadb.core.transaction.TransactionManager} asserts every transaction carries exactly the
+	 *   next expected catalog version. Ordering is that check's job, never this one's.
+	 *
+	 * No arrangement of this scheme can do better: a chain that survives a transaction boundary has to *exclude*
+	 * the checksum bytes from its coverage. Nor would chaining defend against a forged transaction — anyone able
+	 * to rewrite the bytes can recompute the checksums over them. CRC detects accidents, not tampering.
+	 *
+	 * Not to be confused with the record-level cumulative checksum in
+	 * {@link io.evitadb.store.offsetIndex.model.StorageRecord}, which covers one record and is unrelated to this.
 	 */
 	protected final Checksum checksum;
 	/**
@@ -700,7 +732,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 *   the device in any order, so a crash can leave a *hole* — bytes missing in the middle of a
 	 *   transaction while later bytes landed. The file length is unchanged, so the framing still parses
 	 *   and nothing about the record looks wrong; the only thing that can tell a hole from valid data is
-	 *   the cumulative CRC32C chain, which recovery verifies per transaction and reacts to by truncating.
+	 *   the cumulative CRC32C, which recovery verifies per transaction and reacts to by truncating.
 	 * - **Write ordering (slow, the fallback).** With `computeCRC32C` switched off that chain degrades to
 	 *   {@link io.evitadb.store.checksum.Checksum#NO_OP}, whose comparison always answers "matches" — so a
 	 *   hole is waved straight through recovery and replayed as if it were real history. There is then no
@@ -818,9 +850,6 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		this.kryoPool = kryoPool;
 		this.processedVersion = new AtomicLong(version);
 		this.storageSettings = storageSettings;
-		this.checksum = storageSettings.createCumulativeChecksum(logRecordReference.cumulativeChecksum());
-		// we must calculate the checksum into the cumulative checksum instance
-		this.checksum.update(logRecordReference.cumulativeChecksum());
 		this.cutWalCacheTask = this.createDelayedAsyncTask(
 			"WAL cache cutter",
 			scheduler,
@@ -836,17 +865,28 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		this.maxWalFileSizeBytes = storageSettings.walFileSizeBytes();
 		this.walFileCountKept = storageSettings.walFileCountKept();
 		this.storageFolder = storageFolder;
-		final AtomicInteger currentWalFileIndex = new AtomicInteger(logRecordReference.fileIndex());
+		final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(storageFolder);
+		// Two different questions, and only one file index used to answer both of them. The reference says where
+		// REPLAY starts; the newest file on disk says where APPENDS resume. They coincide only when nothing rotated
+		// since the last published bootstrap record, which a restart cannot rely on - a catalog deliberately
+		// resumes from the last checkpoint and replays the remainder (see DefaultCatalogPersistenceService#close),
+		// and a crash publishes no bootstrap record at all. All that may be demanded of the reference is that the
+		// file it points into still exists, which rotation guarantees: a WAL file is dropped only once every
+		// version inside it has been processed (see #removeWalFiles).
+		final int activeWalFileIndex = firstAndLastWalFileIndex[1];
+		final int referencedWalFileIndex = logRecordReference.fileIndex();
 		try {
-			final int[] firstAndLastWalFileIndex = getFirstAndLastWalFileIndex(storageFolder);
-
-			final Path walFilePath = storageFolder.resolve(this.walFileNameProvider.apply(currentWalFileIndex.get()));
+			final Path walFilePath = storageFolder.resolve(this.walFileNameProvider.apply(activeWalFileIndex));
 			Assert.isPremiseValid(
-				firstAndLastWalFileIndex[1] == logRecordReference.fileIndex(),
+				referencedWalFileIndex >= firstAndLastWalFileIndex[0] &&
+					referencedWalFileIndex <= activeWalFileIndex,
 				() -> new WriteAheadLogCorruptedException(this.walKind,
-					"The last WAL file index in the storage (" + firstAndLastWalFileIndex[1] + ") " +
-						"does not match the expected index from the log record reference (" + walFilePath + ")!",
-					"WAL file index mismatch!"
+					"The WAL file the log record reference points at (" +
+						this.walFileNameProvider.apply(referencedWalFileIndex) + ") is not among the files present " +
+						"in the storage (" + this.walFileNameProvider.apply(firstAndLastWalFileIndex[0]) + " to " +
+						this.walFileNameProvider.apply(firstAndLastWalFileIndex[1]) + ") - replay cannot start " +
+						"from a file that is gone!",
+					"WAL file referenced by the log record reference is missing!"
 				)
 			);
 
@@ -855,25 +895,33 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			final FirstAndLastVersionsInWalFile versions = checkAndTruncate(
-				walFilePath, kryoPool, logRecordReference
+				walFilePath, kryoPool, activeWalFileIndex, logRecordReference
 			);
 
-			// the WAL file has been truncated - we need to adjust the log record reference accordingly
-			if (versions.logFileRecordReference() != null) {
+			// the WAL file has been truncated - we need to adjust the log record reference accordingly. Only when
+			// the truncation touched the very file the reference points into, though: `versions` describes the
+			// ACTIVE file, and adopting it while the reference lives in an older one would move replay's starting
+			// point forward past transactions that were never processed.
+			if (versions.logFileRecordReference() != null && activeWalFileIndex == referencedWalFileIndex) {
 				logRecordReference = versions.logFileRecordReference();
 			}
 
-			lastVersion.ifPresent(
-				firstAndLastVersionsInWalFile -> Assert.isPremiseValid(
-					firstAndLastVersionsInWalFile.lastVersion() + 1 == versions.firstVersion(),
-					() -> new WriteAheadLogCorruptedException(this.walKind,
-						currentWalFileIndex.get(),
-						firstAndLastVersionsInWalFile.lastVersion(),
-						versions.firstVersion(),
-						this.walFileNameProvider
+			// nothing to join when the active file holds no transaction yet - a crash between rotation creating
+			// the next file and the first append landing in it leaves exactly that, and the finalized run before
+			// it is already verified continuous by `verifyWalFileVersionsAndReturnLastFinalized`
+			if (versions.firstVersion() > -1) {
+				lastVersion.ifPresent(
+					firstAndLastVersionsInWalFile -> Assert.isPremiseValid(
+						firstAndLastVersionsInWalFile.lastVersion() + 1 == versions.firstVersion(),
+						() -> new WriteAheadLogCorruptedException(this.walKind,
+							activeWalFileIndex,
+							firstAndLastVersionsInWalFile.lastVersion(),
+							versions.firstVersion(),
+							this.walFileNameProvider
+						)
 					)
-				)
-			);
+				);
+			}
 
 			// create the WAL file if it does not exist
 			final boolean created = createWalFile(walFilePath, true, this.walKind);
@@ -889,9 +937,18 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				this.storageSettings.createCompressor().orElse(null)
 			);
 
+			// Where REPLAY starts and where APPENDS resume hold the same checksum only while the reference still
+			// sits in the newest file; once rotation has left it behind they diverge. Resolved from the active
+			// file so the value stored alongside it describes that file rather than the reference's position.
+			// Note this is bookkeeping, not a correctness guard: the value seeds nothing that is later verified
+			// (see the `checksum` field for why), so getting it wrong is invisible rather than corrupting.
+			final long activeFileCumulativeChecksum = resolveActiveFileCumulativeChecksum(
+				versions, logRecordReference, walFilePath, created
+			);
+
 			// if the file was just created, write the initial cumulative checksum
 			if (created) {
-				theOutput.writeLong(logRecordReference.cumulativeChecksum());
+				theOutput.writeLong(activeFileCumulativeChecksum);
 				this.contentLengthBuffer.clear();
 				this.contentLengthBuffer.put(theOutput.getBuffer(), 0, theOutput.position());
 				this.contentLengthBuffer.flip();
@@ -899,30 +956,95 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					walFileChannel.write(this.contentLengthBuffer) == CUMULATIVE_CRC32_SIZE,
 					"Failed to write initial cumulative checksum to WAL file!"
 				);
-				// every transaction appended later chains its checksum onto this seed, so it has to be on
-				// the device before any of them - the first append's force would cover it, but this file
-				// is created once and the sync is not worth economising on
+				// part of the file's declared format and read back by every scan, so it has to be on the
+				// device before any transaction lands after it - the first append's force would cover it,
+				// but this file is created once and the sync is not worth economising on
 				forceDurable(walFileChannel);
 			}
 
+			this.checksum = storageSettings.createCumulativeChecksum(activeFileCumulativeChecksum);
+			// we must calculate the checksum into the cumulative checksum instance
+			this.checksum.update(activeFileCumulativeChecksum);
+
 			this.currentWalFile.set(
 				new CurrentMutationLogFile(
-					currentWalFileIndex.get(),
+					activeWalFileIndex,
 					versions.firstVersion(),
 					versions.lastVersion(),
 					walFilePath,
 					walFileChannel,
 					theOutput,
 					walFileChannel.size(),
-					logRecordReference.cumulativeChecksum()
+					activeFileCumulativeChecksum
 				)
 			);
 		} catch (IOException e) {
 			throw new WriteAheadLogCorruptedException(this.walKind,
-				"Failed to open WAL file `" + this.walFileNameProvider.apply(currentWalFileIndex.get()) + "`!",
+				"Failed to open WAL file `" + this.walFileNameProvider.apply(activeWalFileIndex) + "`!",
 				"Failed to open the WAL file!",
 				e
 			);
+		}
+	}
+
+	/**
+	 * Resolves the cumulative checksum the active WAL file currently stands at.
+	 *
+	 * This is deliberately **not** the reference's checksum. The reference describes the last *processed*
+	 * transaction and is where replay starts; this value belongs to the newest file on disk, and the two diverge
+	 * the moment rotation happens after the last published bootstrap record.
+	 *
+	 * Be aware of what this value does and does not do — it is recorded and carried forward, but nothing verified
+	 * later depends on it. See the {@link #checksum} field for why a WAL checksum cannot carry state across a
+	 * transaction boundary; the practical consequence is that an error here is inert rather than corrupting.
+	 *
+	 * @param activeFileVersions  what scanning the active file found in it
+	 * @param logRecordReference  the reference the log was opened against
+	 * @param walFilePath         path of the active WAL file
+	 * @param created             whether the active file had to be created by this constructor
+	 * @return the cumulative checksum the active file stands at
+	 * @throws IOException if the active file's seed cannot be read
+	 */
+	private long resolveActiveFileCumulativeChecksum(
+		@Nonnull FirstAndLastVersionsInWalFile activeFileVersions,
+		@Nonnull LogFileRecordReference logRecordReference,
+		@Nonnull Path walFilePath,
+		boolean created
+	) throws IOException {
+		final LogFileRecordReference scannedReference = activeFileVersions.logFileRecordReference();
+		if (scannedReference != null) {
+			// the scan found a chain that differs from the reference's, and it describes the active file
+			return scannedReference.cumulativeChecksum();
+		}
+		if (activeFileVersions.firstVersion() > -1 || created) {
+			// either the scan confirmed the active file's chain already equals the reference's (that is what a
+			// null reference means there), or the file is brand new and is seeded from the reference
+			return logRecordReference.cumulativeChecksum();
+		}
+		// The active file holds no transaction at all - it carries only the 8-byte cumulative checksum header that
+		// rotation seeds a new file with. That header is the chain the previous file ended on, and is the only
+		// correct seed here. The reference must not be used instead: it stops at the last PROCESSED transaction,
+		// which can be several transactions short of the end of the previous file.
+		Assert.isPremiseValid(
+			walFilePath.toFile().length() >= CUMULATIVE_CRC32_SIZE,
+			() -> new WriteAheadLogCorruptedException(this.walKind,
+				"The newest WAL file `" + walFilePath + "` holds neither a transaction nor the cumulative " +
+					"checksum header rotation seeds it with - the chain it continues cannot be established!",
+				"WAL file is missing its cumulative checksum header!"
+			)
+		);
+		// the append channel is write-only, so the seed is read through a channel of its own
+		try (final FileChannel readChannel = FileChannel.open(walFilePath, StandardOpenOption.READ)) {
+			final ByteBuffer seedBuffer = ByteBuffer.allocate(CUMULATIVE_CRC32_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+			Assert.isPremiseValid(
+				readChannel.read(seedBuffer, 0) == CUMULATIVE_CRC32_SIZE,
+				() -> new WriteAheadLogCorruptedException(this.walKind,
+					"Failed to read the cumulative checksum header of WAL file `" + walFilePath + "`!",
+					"Failed to read the WAL file cumulative checksum header!"
+				)
+			);
+			seedBuffer.flip();
+			return seedBuffer.getLong();
 		}
 	}
 
@@ -1582,6 +1704,31 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull LogFileRecordReference logRecordReference
 	) {
+		return checkAndTruncate(walFilePath, catalogKryoPool, logRecordReference.fileIndex(), logRecordReference);
+	}
+
+	/**
+	 * Same as {@link #checkAndTruncate(Path, Pool, LogFileRecordReference)}, but told explicitly which WAL file
+	 * index is being scanned instead of taking it from the reference.
+	 *
+	 * The two differ whenever a restart resumes from a reference that rotation has left behind: the file to scan
+	 * and truncate is the newest one on disk, while the reference still points into an older, finalized file. Any
+	 * reference this method derives describes **the file it scanned**, so passing the index separately is what
+	 * keeps it from minting a reference carrying one file's index and another file's position and checksum.
+	 *
+	 * @param walFilePath        the path to the WAL file to check and truncate
+	 * @param catalogKryoPool    the Kryo object pool to use for deserialization
+	 * @param walFileIndex       index of the WAL file being scanned - stamped on any derived reference
+	 * @param logRecordReference the reference whose cumulative checksum decides whether a derived one is needed
+	 * @return the first and last catalog versions found in the scanned file
+	 */
+	@Nonnull
+	protected FirstAndLastVersionsInWalFile checkAndTruncate(
+		@Nonnull Path walFilePath,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		int walFileIndex,
+		@Nonnull LogFileRecordReference logRecordReference
+	) {
 		if (AbstractMutationLog.isWalEmptyOrNonExisting(walFilePath)) {
 			return FirstAndLastVersionsInWalFile.EMPTY;
 		}
@@ -1631,7 +1778,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 							// otherwise we need to return a new reference with corrected checksum and position
 							new LogFileRecordReference(
 								this.walFileNameProvider,
-								logRecordReference.fileIndex(),
+								walFileIndex,
 								new FileLocation(scanResult.lastTxStartPosition(), scanResult.lastTxLength()),
 								scanResult.cumulativeChecksum()
 							)
@@ -2190,7 +2337,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Writes the WAL (Write Ahead Log) tail information to the specified WAL file.
 	 * The method writes the first and last change versions specified to the tail of the WAL file,
-	 * followed by the final cumulative CRC32C checksum of the entire WAL file content.
+	 * followed by the final cumulative CRC32C checksum, computed over everything preceding it including those
+	 * two versions. That value does not attest to the file as a whole — see the {@link #checksum} field.
 	 *
 	 * @param firstCvInFile  the first change version present in the WAL file
 	 * @param lastCvInFile   the last change version present in the WAL file
