@@ -62,10 +62,26 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * `write 4.734 ms -> 0.203 ms (0.04x), read 0.088 ms -> 2.362 ms (26.90x)` — note the *small* measurement being
  * the slow one in the write row, which is noise, not scaling. Isolated, the same run passes in 5.8 s.
  *
- * `getThreadAllocatedBytes` has none of that exposure: it counts bytes this thread allocated, and neither a busy
- * machine nor a GC pause nor a sibling test can change that number. It is also a *faithful* stand-in here rather
- * than a loose correlate — the regression this test exists to catch was a `CumulativeWeightBPlusTree` rebuilt over
- * every distinct value, and a tree cannot be built without allocating it.
+ * `getThreadAllocatedBytes` has none of that exposure: it counts bytes this thread allocated, so neither a busy
+ * machine, nor a GC pause, nor a sibling test's own allocation can change that number. It is also a *faithful*
+ * stand-in here rather than a loose correlate — the regression this test exists to catch was a
+ * `CumulativeWeightBPlusTree` rebuilt over every distinct value, and a tree cannot be built without allocating it.
+ *
+ * ## The one thing per-thread allocation does not survive, and what is done about it
+ *
+ * A **shared cache that siblings evict** reaches this measurement anyway, because recomputing an evicted entry is
+ * charged — correctly — to the thread that needed it. {@link io.evitadb.comparator.CollationKeyCache} is exactly
+ * that: a JVM-static per-locale registry of fixed-size slot arrays, consulted on every comparison of the descent
+ * being measured. Two mitigations, both in this class:
+ *
+ * - the measurement runs under a **private {@link Locale} variant** ({@link #CZECH}), so no sibling shares its
+ *   cache instance;
+ * - each sample **descends to its own probe once before the commit** that discards the per-transaction helper, so
+ *   the keys along the path are present regardless of what `CollationKeyCache#sweepAll` — which is static and
+ *   reaches every locale, private ones included — did in the meantime.
+ *
+ * The warm-up cannot make the assertion decorative: `appendStorageParts` nulls `sortIndexChanges`
+ * unconditionally, so the *measured* operation is still the first touch after a commit.
  *
  * ## Calibration
  *
@@ -84,8 +100,25 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * directions. **If this test is ever changed, re-run that counterfactual**: an assertion that no longer fails when
  * the rebuild returns is decorative, and nothing else here would reveal that.
  *
+ * ### Why the cache state has to be controlled, in numbers
+ *
+ * Median allocated bytes for the first read, same commit and same machine, 2026-08-10:
+ *
+ * | collation-key cache state | 50 000 values | 200 000 values | growth |
+ * |---|---|---|---|
+ * | warm and private (this code) | 3 856 | 4 224 | 1.10x |
+ * | disabled outright (`-Devita.collationKeyCache.size=0`) | 45 616 | 68 888 | 1.51x |
+ * | **partially evicted by siblings** (full suite, before this hardening) | 13 368 | 61 672 | **4.61x** |
+ *
+ * Note that the *worst* ratio is neither extreme. A cold cache charges both points alike and stays well inside
+ * the threshold; it is **differential** eviction that breaks the test, because the larger index has four times as
+ * many keys to lose and therefore loses proportionally more of them. That is why disabling the cache is not a
+ * valid substitute for isolating it, and why a green run in isolation proved nothing before the private locale
+ * existed — the failure needed sibling classes to exist at all.
+ *
  * Re-measured under 48 busy spinners on a 24-core box (load average ~50), the allocation figures reproduced
- * *unchanged* across three rounds. The elapsed times printed alongside them did not: the same operations timed
+ * *unchanged* across three rounds — spinners allocate, but they do not touch this cache, which is precisely the
+ * blind spot the row above fills. The elapsed times printed alongside them did not: the same operations timed
  * 2.2x–2.85x under that load **after** median-of-nine smoothing, against the 3.0x limit the earlier form of this
  * test applied to a single unsmoothed sample. Some of that is real — a larger tree misses cache more on descent,
  * and contention amplifies the difference — which is the point: no wall-clock threshold both survives a loaded
@@ -96,7 +129,18 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 @Tag(SLOW)
 @DisplayName("Sort index first-touch cost does not scale with distinct value count")
 class SortIndexRankScalingTest {
-	private static final Locale CZECH = new Locale("cs");
+	/**
+	 * Czech collation rules under a **private locale variant**, so this test gets a
+	 * {@link io.evitadb.comparator.CollationKeyCache} instance no other test can reach.
+	 *
+	 * The cache registry is a JVM-static `ConcurrentHashMap<Locale, CollationKeyCache>` and each cache is a
+	 * fixed-size slot array, so under `parallel=all` in one reused fork every sibling class sorting plain `cs`
+	 * strings competes for the same slots. That competition lands on the two measurement points unevenly - the
+	 * 200 000-value index has four times as many keys to lose - which inflates the *ratio* this test asserts on.
+	 * A variant keys a separate registry entry while `Collator` still falls back to Czech rules, so the cache
+	 * state now depends on this test alone.
+	 */
+	private static final Locale CZECH = new Locale("cs", "CZ", "sortIndexRankScaling");
 	private static final String CZECH_ALPHABET = "aábcčdďeéěfghiíjklmnňoóprřsštťuúůvyýzž";
 	/**
 	 * Distinct-value count of the smaller measurement point.
@@ -180,9 +224,15 @@ class SortIndexRankScalingTest {
 		final long[] writeBytes = new long[SAMPLES];
 		final long[] writeNanos = new long[SAMPLES];
 		for (int sample = 0; sample < SAMPLES; sample++) {
-			sortIndex.appendStorageParts(1, new TrappedChanges());
 			final int freshId = distinctValues + 1 + sample;
 			final String value = valueFor(freshId);
+			// Descend to this value once BEFORE the commit, so the collation keys the measured descent will compare
+			// against are in the cache whatever the sweeper did to them. This cannot weaken the signal: the discard
+			// below sets `sortIndexChanges` to null unconditionally, so the measured operation is still the first
+			// touch after a commit - the rebuild this test exists to catch happens there and nowhere else, and it
+			// allocates three orders of magnitude more than every collation key on the path put together.
+			sortIndex.getRecordsEqualTo(value);
+			sortIndex.appendStorageParts(1, new TrappedChanges());
 			final long allocatedBefore = allocatedBytes(threads);
 			final long startedAt = System.nanoTime();
 			sortIndex.addRecord(value, freshId);
@@ -193,8 +243,10 @@ class SortIndexRankScalingTest {
 		final long[] readBytes = new long[SAMPLES];
 		final long[] readNanos = new long[SAMPLES];
 		for (int sample = 0; sample < SAMPLES; sample++) {
-			sortIndex.appendStorageParts(1, new TrappedChanges());
 			final String value = valueFor(distinctValues / 2 + sample);
+			// warmed before the commit for the same reason as the write loop above - see the comment there
+			sortIndex.getRecordsEqualTo(value);
+			sortIndex.appendStorageParts(1, new TrappedChanges());
 			final long allocatedBefore = allocatedBytes(threads);
 			final long startedAt = System.nanoTime();
 			sortIndex.getRecordsEqualTo(value);
