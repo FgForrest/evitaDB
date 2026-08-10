@@ -178,11 +178,12 @@ different operation from replacement, and it would supersede this record.
 
 ## Verification
 
-- Full functional suite green across the work: **20 968 tests**, **20 983** after the version fix. The
-  recurring non-passes are environmental and reproduce on unrelated commits — `ExportS3ServiceTest`
-  needs a Docker environment, and two wall-clock waits (`SharedRgeiSoakTest`, a two-minute Awaitility
-  condition in `SystemGraphQLSubscriptionsFunctionalTest`) time out under fork contention and pass in
-  isolation. One run also exhausted the shared JVM's heap, taking two dataset fixtures with it.
+- Full functional suite across the work — **20 968 tests**, **20 983** after the version fix — green
+  apart from the environmental non-passes below, each of which reproduces on unrelated commits and
+  none of which is caused by this work. `ExportS3ServiceTest` needs a Docker environment, and two
+  wall-clock waits (`SharedRgeiSoakTest`, a two-minute Awaitility condition in
+  `SystemGraphQLSubscriptionsFunctionalTest`) time out under fork contention and pass in isolation.
+  One run also exhausted the shared JVM's heap, taking two dataset fixtures with it.
 
   `SharedRgeiSoakTest.shouldSurviveSeed[5]` was pinned down properly while verifying the version fix,
   since it failed four consecutive full-suite runs and had been green in an earlier session. It is
