@@ -85,7 +85,7 @@ class LongRunningHierarchyIndexTest implements TimeBoundedTestSupport {
 		final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
 
 		runFor(
-			new GenerationalTestInput(1, 1),
+			input,
 			1_000,
 			new TestState(
 				new StringBuilder(),

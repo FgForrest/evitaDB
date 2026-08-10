@@ -841,7 +841,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		final int[] nextProductPK = {1};
 
 		final TestState finalState = runFor(
-			new GenerationalTestInput(1, 1), 100, new TestState(0),
+			input, 100, new TestState(0),
 			(random, testState) -> {
 				final int gen = testState.generation() + 1;
 				this.operationLog.setLength(0);
