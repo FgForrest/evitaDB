@@ -13,7 +13,7 @@ Tato kapitola popisuje Java driver pro evitaDB a nedává smysl pro jiné jazyky
 <LS to="j">
 Spuštění evitaDB v embedded režimu je detailně popsáno v kapitole [Spuštění evitaDB](../../get-started/run-evitadb.md?lang=java).
 Připojení ke vzdálené databázové instanci je popsáno v kapitole [Připojení ke vzdálené databázi](../../get-started/query-our-dataset.md?lang=java).
-Totéž platí pro [query API](../../use/api/query-data.md?lang=java) a [write API](../../use/api/write-data.md?lang=java).
+Totéž platí pro [query API](../api/query-data.md?lang=java) a [write API](../api/write-data.md?lang=java).
 Žádné z těchto témat tedy zde nebudeme pokrývat.
 
 ## Java remote client
@@ -37,12 +37,12 @@ implementation 'io.evitadb:evita_java_driver:2026.1.0'
 </CodeTabsBlock>
 </CodeTabs>
 
-Java remote client je postaven nad [gRPC API](./grpc.md). <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+Java remote client je postaven nad [gRPC API](grpc.md). <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 je thread-safe a v aplikaci se očekává použití pouze jedné instance. Klient interně spravuje
 pool gRPC spojení pro zajištění paralelní komunikace se serverem.
 
 <Note type="info">
-Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný, je potřeba zavolat na klientovi nějakou metodu. Obvyklým scénářem je [otevření nové session](../../get-started/create-first-database.md?lang=java#open-session-to-catalog-and-insert-your-first-entity) do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
+Instance klienta je vytvořena bez ohledu na to, zda je server dostupný. Pro ověření, že je server dosažitelný, je potřeba zavolat na klientovi nějakou metodu. Obvyklým scénářem je [otevření nové session](../../get-started/create-first-database.md?lang=java#otevřete-relaci-ke-katalogu-a-vložte-svou-první-entitu) do existujícího <Term location="/documentation/user/en/index.md">katalogu</Term>.
 </Note>
 
 <Note type="warning">
@@ -102,7 +102,7 @@ Nastavení spojení se konfiguruje pomocí
         <p>**Výchozí: `gRPC client at hostname`**</p>
         <p>
           Tato vlastnost umožňuje odlišit požadavky tohoto konkrétního klienta od požadavků ostatních klientů.
-          Tato informace může být použita v logování nebo při [troubleshootingu](../../use/api/troubleshoot.md).
+          Tato informace může být použita v logování nebo při [troubleshootingu](../api/troubleshoot.md).
         </p>
     </dd>
     <dt>host</dt>
@@ -124,12 +124,12 @@ Nastavení spojení se konfiguruje pomocí
     <dt>pingIntervalMillis</dt>
     <dd>
         <p>**Výchozí: `30000` (30 s)**</p>
-        <p>Interval HTTP/2 keep-alive PING v milisekundách. Pokud na spojení není po tuto dobu žádný provoz, klient odešle PING; pokud protistrana neodpoví ve stejném intervalu, spojení se uzavře. Interval je tedy *stall budget* — musí být výrazně vyšší než nejhorší tolerovatelná GC/CPU pauza, neslouží jako frekvence sondování, jinak může být pomalý, ale živý požadavek ukončen předčasně; proto je interval 30 s a ne mnohem kratší. Nastavte `0` pro úplné vypnutí pingů klienta (pak je spojení ukončeno pouze `idleTimeoutMillis`); jakákoli jiná hodnota musí být alespoň `1000` ms. Ping musí být také vždy nižší než `idleTimeoutMillis`, jinak jej podkladový HTTP klient tiše vypne — výchozí dvojice (`30000` ping, `300000` idle) toto splňuje a klient loguje varování, pokud vlastní dvojice toto nesplňuje. Samostatně musí být ping nižší než *serverový* `idleTimeoutInMillis` (viz [API konfigurace](../../operate/configure.md#api-configuration), výchozí 60 s), jinak server spojení ukončí dříve, než se naplánovaný ping vůbec stihne odeslat — výchozí hodnota serveru je zvolena přesně s ohledem na tento 30s výchozí ping klienta.</p>
+        <p>Interval HTTP/2 keep-alive PING v milisekundách. Pokud na spojení není po tuto dobu žádný provoz, klient odešle PING; pokud protistrana neodpoví ve stejném intervalu, spojení se uzavře. Interval je tedy *stall budget* — musí být výrazně vyšší než nejhorší tolerovatelná GC/CPU pauza, neslouží jako frekvence sondování, jinak může být pomalý, ale živý požadavek ukončen předčasně; proto je interval 30 s a ne mnohem kratší. Nastavte `0` pro úplné vypnutí pingů klienta (pak je spojení ukončeno pouze `idleTimeoutMillis`); jakákoli jiná hodnota musí být alespoň `1000` ms. Ping musí být také vždy nižší než `idleTimeoutMillis`, jinak jej podkladový HTTP klient tiše vypne — výchozí dvojice (`30000` ping, `300000` idle) toto splňuje a klient loguje varování, pokud vlastní dvojice toto nesplňuje. Samostatně musí být ping nižší než *serverový* `idleTimeoutInMillis` (viz [API konfigurace](../../operate/configure.md#konfigurace-api), výchozí 60 s), jinak server spojení ukončí dříve, než se naplánovaný ping vůbec stihne odeslat — výchozí hodnota serveru je zvolena přesně s ohledem na tento 30s výchozí ping klienta.</p>
     </dd>
     <dt>idleTimeoutMillis</dt>
     <dd>
         <p>**Výchozí: `300000` (300 s)**</p>
-        <p>Jak dlouho může být spojení v poolu neaktivní, než je uzavřeno. Toto je záměrně **odděleno od per-call `timeout`** (viz [Možnosti timeoutu](#timeout-options)): krátký deadline požadavku nesmí způsobit, že se fyzické spojení mezi požadavky znovu navazuje. Výchozí hodnota 300 s je výrazně vyšší než 30s ping, takže keep-alive watchdog zůstává aktivní a zdravá spojení jsou udržována — potvrzené pingy se počítají jako aktivita, takže živé spojení nikdy nevyprší, zatímco mrtvá protistrana je detekována během jednoho ping intervalu. Nastavte `0` pro úplné vypnutí idle timeoutu (spojení pak žije, dokud jej neukončí protistrana, ping failure nebo pool spojení). Udržujte tuto hodnotu vždy vyšší než `pingIntervalMillis`.</p>
+        <p>Jak dlouho může být spojení v poolu neaktivní, než je uzavřeno. Toto je záměrně **odděleno od per-call `timeout`** (viz [Možnosti timeoutu](#možnosti-timeoutu)): krátký deadline požadavku nesmí způsobit, že se fyzické spojení mezi požadavky znovu navazuje. Výchozí hodnota 300 s je výrazně vyšší než 30s ping, takže keep-alive watchdog zůstává aktivní a zdravá spojení jsou udržována — potvrzené pingy se počítají jako aktivita, takže živé spojení nikdy nevyprší, zatímco mrtvá protistrana je detekována během jednoho ping intervalu. Nastavte `0` pro úplné vypnutí idle timeoutu (spojení pak žije, dokud jej neukončí protistrana, ping failure nebo pool spojení). Udržujte tuto hodnotu vždy vyšší než `pingIntervalMillis`.</p>
     </dd>
 </dl>
 
@@ -330,7 +330,7 @@ je třeba použít parametr `--add-modules`
 ### Definice schématu
 
 Definice schématu se provádí anotací doménového objektu pomocí anotací z balíčku <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation</SourceClass> a je
-detailně popsána v [kapitole o schema API](../../use/api/schema-api.md#declarative-schema-definition).
+detailně popsána v [kapitole o schema API](../api/schema-api.md#deklarativní-definice-schématu).
 
 ### Načítání entity
 
@@ -345,12 +345,12 @@ rozhraní <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContra
 
 <Note type="info">
 
-Příklad pracuje se stejnou definicí produktu jako [příklad v kapitole schema API](../../use/api/schema-api.md#declarative-schema-definition)
+Příklad pracuje se stejnou definicí produktu jako [příklad v kapitole schema API](../api/schema-api.md#deklarativní-definice-schématu)
 <SourceClass>/documentation/user/en/use/api/example/declarative-model-example.java</SourceClass>.
 
 </Note>
 
-Načítání entit pouze pro čtení je detailně popsáno v [kapitole o read API](../../use/api/query-data.md#custom-contracts).
+Načítání entit pouze pro čtení je detailně popsáno v [kapitole o read API](../api/query-data.md#vlastní-kontrakty).
 
 ### Zápis entity
 
@@ -363,7 +363,7 @@ rozhraní <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContra
 
 </SourceCodeTabs>
 
-Zápis dat pomocí vlastních kontraktů je detailně popsán v [kapitole o write API](../../use/api/write-data.md#custom-contracts).
+Zápis dat pomocí vlastních kontraktů je detailně popsán v [kapitole o write API](../api/write-data.md#vlastní-kontrakty).
 
 ### Doporučení pro modelování dat
 
@@ -384,7 +384,7 @@ Definujete rozhraní nebo třídu s finálními poli, která jsou inicializován
 
 </SourceCodeTabs>
 
-Jak vidíte, rozhraní vypadá přesně jako [příklad v kapitole Schema API](../../use/api/schema-api.md#declarative-schema-definition)
+Jak vidíte, rozhraní vypadá přesně jako [příklad v kapitole Schema API](../api/schema-api.md#deklarativní-definice-schématu)
 s jediným rozdílem, že tato verze rozšiřuje rozhraní <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedInstance.java</SourceClass>.
 Deklarace signalizuje, že `<READ_INTERFACE>` je rozhraní `Product` a `<WRITE_INTERFACE>` je rozhraní
 `ProductEditor`.

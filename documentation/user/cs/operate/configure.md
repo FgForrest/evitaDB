@@ -11,9 +11,9 @@ evitaDB server je konfigurován ve formátu YAML a jeho výchozí nastavení je 
 kódem:
 
 ```yaml
-name: evitaDB                                     # [viz konfigurace Name](#name)
+name: evitaDB                                     # [viz konfigurace Name](#název)
 
-server:                                           # [viz konfigurace Server](#server-configuration)
+server:                                           # [viz konfigurace Server](#konfigurace-serveru)
   requestThreadPool:
     minThreadCount: 4
     maxThreadCount: 16
@@ -44,7 +44,7 @@ server:                                           # [viz konfigurace Server](#se
     trafficSamplingPercentage: 100
     trafficFlushIntervalInMilliseconds: 1m
 
-storage:                                          # [viz konfigurace Storage](#storage-configuration)
+storage:                                          # [viz konfigurace Storage](#konfigurace-úložiště)
   storageDirectory: "./data"
   workDirectory: "/tmp"
   lockTimeoutSeconds: 60
@@ -60,7 +60,7 @@ storage:                                          # [viz konfigurace Storage](#s
   minCompactionIntervalMilliseconds: 1m
   maxWasteActiveShare: 0.1
 
-export:                                           # [viz konfigurace Export](#export-configuration)
+export:                                           # [viz konfigurace Export](#konfigurace-exportu)
   fileSystem:
     enabled: null
     sizeLimitBytes: 1G
@@ -77,7 +77,7 @@ export:                                           # [viz konfigurace Export](#ex
     region: null
     requestTimeoutInMillis: 30s
 
-transaction:                                      # [viz konfigurace Transaction](#transaction-configuration)
+transaction:                                      # [viz konfigurace Transaction](#konfigurace-transakcí)
   transactionWorkDirectory: /tmp/evita/transaction
   transactionMemoryBufferLimitSizeBytes: 16MB
   transactionMemoryRegionCount: 256
@@ -88,7 +88,7 @@ transaction:                                      # [viz konfigurace Transaction
   checkpointIntervalInMillis: 1s
   conflictPolicy: ENTITY
 
-cache:                                            # [viz konfigurace Cache](#cache-configuration)
+cache:                                            # [viz konfigurace Cache](#konfigurace-cache)
   enabled: false
   reflection: CACHE
   reevaluateEachSeconds: 60
@@ -97,7 +97,7 @@ cache:                                            # [viz konfigurace Cache](#cac
   minimalUsageThreshold: 2
   cacheSizeInBytes: null
 
-api:                                              # [viz konfigurace API](#api-configuration)
+api:                                              # [viz konfigurace API](#konfigurace-api)
   workerGroupThreads: 4
   idleTimeoutInMillis: 60K
   requestTimeoutInMillis: 2K  
@@ -109,7 +109,7 @@ api:                                              # [viz konfigurace API](#api-c
     label: ["X-EvitaDB-Label"]
     clientId: ["X-EvitaDB-ClientID"]
     traceParent: ["traceparent"]
-  certificate:                                    # [viz konfigurace TLS](#tls-configuration) 
+  certificate:                                    # [viz konfigurace TLS](#konfigurace-tls) 
     generateAndUseSelfSigned: true
     folderPath: './evita-server-certificates/'
     custom:
@@ -126,7 +126,7 @@ api:                                              # [viz konfigurace API](#api-c
       enabled: false
       allowedClientCertificatePaths: []
   endpoints:
-    system:                                       # [viz konfigurace System API](#system-api-configuration)
+    system:                                       # [viz konfigurace System API](#konfigurace-system-api)
       enabled: null
       host: null
       exposeOn: null
@@ -135,7 +135,7 @@ api:                                              # [viz konfigurace API](#api-c
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    graphQL:                                      # [viz konfigurace GraphQL API](#graphql-api-configuration)
+    graphQL:                                      # [viz konfigurace GraphQL API](#konfigurace-graphql-api)
       enabled: null
       host: null
       exposeOn: null
@@ -145,7 +145,7 @@ api:                                              # [viz konfigurace API](#api-c
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    rest:                                         # [viz konfigurace REST API](#rest-api-configuration)
+    rest:                                         # [viz konfigurace REST API](#konfigurace-rest-api)
       enabled: null
       host: null
       exposeOn: null
@@ -154,7 +154,7 @@ api:                                              # [viz konfigurace API](#api-c
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    gRPC:                                         # [viz konfigurace gRPC API](#grpc-api-configuration)
+    gRPC:                                         # [viz konfigurace gRPC API](#konfigurace-grpc-api)
       enabled: null
       host: null
       exposeOn: null
@@ -164,7 +164,7 @@ api:                                              # [viz konfigurace API](#api-c
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    lab:                                          # [viz konfigurace evitaLab](#evitalab-configuration)
+    lab:                                          # [viz konfigurace evitaLab](#konfigurace-evitalab)
       enabled: null
       host: null
       exposeOn: null
@@ -176,7 +176,7 @@ api:                                              # [viz konfigurace API](#api-c
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
-    observability:                                # [viz konfigurace Observability](#observability-configuration)
+    observability:                                # [viz konfigurace Observability](#konfigurace-pozorovatelnosti)
       enabled: null
       host: null
       exposeOn: null
@@ -398,17 +398,17 @@ Tato sekce obsahuje obecná nastavení pro server evitaDB. Umožňuje konfigurov
     <dt>requestThreadPool</dt>
     <dd>
         <p>Nastavuje limity pro hlavní thread pool používaný pro obsluhu všech příchozích požadavků. Vlákna z tohoto poolu zpracovávají všechny
-        dotazy a aktualizace až do potvrzení/zrušení transakce. Více informací viz [samostatná kapitola](#thread-pool-configuration).</p>
+        dotazy a aktualizace až do potvrzení/zrušení transakce. Více informací viz [samostatná kapitola](#konfigurace-thread-poolu).</p>
     </dd>
     <dt>transactionThreadPool</dt>
     <dd>
         <p>Nastavuje limity pro thread pool transakcí používaný ke zpracování transakcí při jejich potvrzení. Tj. řešení konfliktů,
-        začlenění do hlavní větve a nahrazení sdílených indexů. Více informací viz [samostatná kapitola](#thread-pool-configuration).</p>
+        začlenění do hlavní větve a nahrazení sdílených indexů. Více informací viz [samostatná kapitola](#konfigurace-thread-poolu).</p>
     </dd>
     <dt>serviceThreadPool</dt>
     <dd>
         <p>Nastavuje limity pro service thread pool používaný pro servisní úlohy jako údržba, vytváření záloh,
-        obnovení záloh apod. Více informací viz [samostatná kapitola](#thread-pool-configuration).</p>
+        obnovení záloh apod. Více informací viz [samostatná kapitola](#konfigurace-thread-poolu).</p>
     </dd>
     <dt>queryTimeoutInMilliseconds</dt>
     <dd>
@@ -876,8 +876,8 @@ Tato sekce obsahuje možnosti konfigurace pro úložiště databáze určené pr
             čím jemnější rozsah, tím více mutací lze zpracovat souběžně bez blokování; čím hrubší rozsah,
             tím méně konfliktů je možné, ale za cenu nižší souběžnosti. Výchozí nastavení lze
             přepsat na úrovni katalogu, typu entity a položky schématu (atribut / asociovaná data / reference) – viz
-            [detailní popis řešení konfliktů](../deep-dive/transactions.md#1-conflict-resolution) pro celý model.
-            Viz sekci [Konfliktní politiky](#conflict-policies) pro popis dostupných politik.</p>
+            [detailní popis řešení konfliktů](../deep-dive/transactions.md#1-řešení-konfliktů) pro celý model.
+            Viz sekci [Konfliktní politiky](#konfliktní-politiky) pro popis dostupných politik.</p>
         <p>Hodnota je objekt s povinnou hrubou `policy` (`NONE` / `CATALOG` / `COLLECTION` / `ENTITY`) a
             volitelným seznamem `granularity` upřesňujícím rozsah `ENTITY`. Samotná hodnota bez objektu je akceptována jako zkratka pro
             pouze hrubou politiku. Příklady:</p>
@@ -1085,7 +1085,7 @@ Tato sekce konfigurace vám umožňuje selektivně povolit, zakázat a upravit s
             u kterého nedošlo k přenosu dat během období nečinnosti. Všimněte si, že jde o poměrně hrubý přístup
             a malé hodnoty mohou způsobit problémy u požadavků s dlouhou dobou zpracování. Výchozí hodnota je
             komfortně nad výchozím intervalem keep-alive ping Java driveru (30 s, viz
-            [Možnosti připojení](../use/connectors/java.md#connection-options)), takže aktivně pingující klientské
+            [Možnosti připojení](../use/connectors/java.md#možnosti-spojení)), takže aktivně pingující klientské
             spojení nebude nikdy ukončeno.</p>
     </dd>
     <dt>requestTimeoutInMillis</dt>
@@ -1245,7 +1245,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Zda povolit [TLS](./tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
+        <p>Zda povolit [TLS](tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
         <ol>
             <li>`FORCE_TLS`: Povolená je pouze šifrovaná (TLS) komunikace.</li>
             <li>`FORCE_NO_TLS`: Povolená je pouze nešifrovaná (non-TLS) komunikace.</li>
@@ -1260,7 +1260,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#mutual-tls) pro konkrétní API.</p>
+        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#vzájemné-tls) pro konkrétní API.</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
@@ -1275,22 +1275,22 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>parallelize</dt>
     <dd>
@@ -1300,12 +1300,12 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>
 
@@ -1315,32 +1315,32 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>
 
@@ -1350,22 +1350,22 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeDocsService</dt>
     <dd>
@@ -1376,12 +1376,12 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>
 
@@ -1392,39 +1392,39 @@ jediný vystavený endpoint na nezabezpečeném http protokolu, musí běžet na
 stáhnout veřejnou část serverového certifikátu.
 
 Umožňuje také stáhnout výchozí klientský privátní/veřejný klíč, pokud jsou `api.certificate.generateAndUseSelfSigned` a
-některé z `api.*.mTLS` současně nastaveny na `true`. Viz [výchozí nezabezpečené chování mTLS](tls.md#default-mtls-behaviour-not-secure) pro
+některé z `api.*.mTLS` současně nastaveny na `true`. Viz [výchozí nezabezpečené chování mTLS](tls.md#výchozí-chování-mtls-nebezpečné) pro
 více informací.
 
 <dl>
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_NO_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>
 
@@ -1439,36 +1439,36 @@ ostatních API.
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>gui</dt>
     <dd>
-        <p>[Viz konfiguraci](#gui-configuration)</p>
+        <p>[Viz konfiguraci](#konfigurace-gui)</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>
 
@@ -1487,7 +1487,7 @@ Tato konfigurace určuje, jak bude vlastní evitaLab webový klient poskytován 
         <p>**Výchozí**: `false`</p>
         <p>Zda má být evitaLab webový klient poskytován v režimu pouze pro čtení. To znamená, že jeho runtime data a
         konfigurace nemohou být měněny. Neznamená to, že vám neumožní měnit data
-        připojené instance evitaDB. Toto musí být nastaveno na [úrovni instance evitaDB](#server-configuration).</p>
+        připojené instance evitaDB. Toto musí být nastaveno na [úrovni instance evitaDB](#konfigurace-serveru).</p>
     </dd>
 </dl>
 
@@ -1500,22 +1500,22 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznamové funkce Java Fl
     <dt>enabled</dt>
     <dd>
         <p>**Výchozí:** `true`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Výchozí:** `:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>exposeOn</dt>
     <dd>
         <p>**Výchozí:** `localhost:5555`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_NO_TLS`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>tracing.serviceName</dt>
     <dd>
@@ -1541,18 +1541,18 @@ pro scraping Prometheus metrik, OTEL trace exporter a záznamové funkce Java Fl
         <p>Seznam názvů [štítků dotazu](../query/header/label.md), jejichž hodnota je vystavena jako Prometheus dimenze
         na metrikách dotazů. Názvy jsou libovolné a volí je operátor – evitaDB žádné nerezervuje – a každý je vystaven
         pod Prometheus-sanitizovanou podobou. Na rozdíl od většiny ostatních seznamů v evitaDB znamená nenastavený nebo
-        prázdný seznam, že se *nic* neexportuje, nikoliv vše – viz [poznámky k bezpečnosti kardinality štítků](../query/header/label.md#label-cardinality-and-prometheus-export)
+        prázdný seznam, že se *nic* neexportuje, nikoliv vše – viz [poznámky k bezpečnosti kardinality štítků](../query/header/label.md#kardinalita-štítků-a-export-do-prometheus)
         pro vysvětlení, proč je toto výchozí nastavení opačné. Štítky s inherentně vysokou kardinalitou (`trace-id`, `client-id`, `ip-address`,
         `uri`) jsou rezervovány a při startu odmítnuty.</p>
     </dd>
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>
         <p>**Výchozí:** `[]`</p>
-        <p>Viz [výchozí konfigurace endpointu](#default-endpoint-configuration)</p>
+        <p>Viz [výchozí konfigurace endpointu](#výchozí-konfigurace-endpointu)</p>
     </dd>
 </dl>

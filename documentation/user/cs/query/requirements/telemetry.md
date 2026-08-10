@@ -24,7 +24,7 @@ queryTelemetry(
 		Jak podrobně má být profilování provedeno, `TIMINGS` je výchozí a implicitní argument — `queryTelemetry()`
 		a `queryTelemetry(TIMINGS)` jsou stejným omezením a oba se zobrazují jako první varianta.
 		`PLAN` navíc vrací plán vzorce, který engine dotazu sestavil — viz
-		<LS to="j,e,r">[plán vzorce](#the-formula-plan)</LS><LS to="c">plán vzorce</LS> níže. Jedná se o dvě úrovně, nikoliv příznaky: profil obsahuje pouze časy, nebo časy *a* plán.
+		<LS to="j,e,r">[plán vzorce](#plán-vzorce)</LS><LS to="c">plán vzorce</LS> níže. Jedná se o dvě úrovně, nikoliv příznaky: profil obsahuje pouze časy, nebo časy *a* plán.
 	</dd>
 </dl>
 
@@ -106,7 +106,7 @@ následujících údajů:
 	<dt>plan</dt>
 	<dd>
 		Struktura vzorce, který engine pro tuto fázi sestavil — viz
-		<LS to="j,e,r">[plán vzorce](#the-formula-plan)</LS><LS to="g">plán vzorce</LS> níže. Přítomno
+		<LS to="j,e,r">[plán vzorce](#plán-vzorce)</LS><LS to="g">plán vzorce</LS> níže. Přítomno
 		pouze pokud byl dotaz na plán vznesen, a pak pouze na fázích, které vlastní vzorec.
 	</dd>
 	<dt>metrics</dt>
