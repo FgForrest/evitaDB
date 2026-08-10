@@ -102,7 +102,7 @@ jobs:
           # fail loudly here rather than let the reviewer discover a missing ref mid-review
           git rev-parse --verify "refs/remotes/origin/${BASE_REF}"
 
-      - uses: anthropics/claude-code-action@be7b93b1907a4abad570368f3c74b6fe3807510b # v1.0.183
+      - uses: anthropics/claude-code-action@1623c36729ac1cd5895198cded705a287de7db79 # v1.0.187
         with:
           claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
