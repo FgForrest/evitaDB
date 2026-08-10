@@ -35,6 +35,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexSt
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+
 /**
  * Backward-compatible {@link Serializer} for the pre-freeze {@link FilterIndexStoragePart} format that did NOT persist
  * the `indexedDecimalPlaces` scale (the scale was re-derived from the schema at load). Reads such legacy blobs into a
@@ -82,7 +86,7 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 		final int pointCount = input.readInt();
 		final ValueToRecordBitmap[] points = new ValueToRecordBitmap[pointCount];
 		for (int i = 0; i < pointCount; i++) {
-			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
+			points[i] = anchorLegacyLocalDateTime(kryo.readObject(input, ValueToRecordBitmap.class));
 		}
 
 		final boolean hasRangeIndex = input.readBoolean();
@@ -92,6 +96,28 @@ public class FilterIndexStoragePartSerializer_2026_1 extends Serializer<FilterIn
 		} else {
 			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
 		}
+	}
+
+	/**
+	 * Re-anchors a legacy `LocalDateTime` bucket value at UTC so it lands in the `Instant` space the current
+	 * `FilterIndex.getNormalizer` keys `LocalDateTime` attributes with.
+	 *
+	 * `2026.1` had no `LocalDateTime` branch in its normalizer, so it persisted the raw wall-clock value; the current
+	 * tree picks {@code InstantValueColumn} for such an attribute and would fail with a `ClassCastException` while
+	 * rehydrating those buckets. Anchoring at UTC is exactly what the normalizer now does on the write path, and
+	 * because the offset is constant the mapping preserves the bucket ordering the reload path relies on.
+	 *
+	 * The conversion is self-healing: once the index is written again it is persisted through the current serializer
+	 * with `Instant` keys, and this legacy reader is no longer consulted for it.
+	 *
+	 * @param bucket bucket just read from a legacy blob
+	 * @return the bucket, with a `LocalDateTime` value replaced by its UTC instant
+	 */
+	@Nonnull
+	private static ValueToRecordBitmap anchorLegacyLocalDateTime(@Nonnull ValueToRecordBitmap bucket) {
+		return bucket.getValue() instanceof LocalDateTime localDateTime
+			? new ValueToRecordBitmap(localDateTime.toInstant(ZoneOffset.UTC), bucket.getRecordIds())
+			: bucket;
 	}
 
 }
