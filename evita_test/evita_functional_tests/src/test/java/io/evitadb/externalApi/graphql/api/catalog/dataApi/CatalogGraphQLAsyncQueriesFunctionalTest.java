@@ -98,7 +98,9 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 						}
 					}
 					extraResults {
-						queryTelemetry
+						queryTelemetry {
+							operation
+						}
 					}
 				}
 			""";
@@ -184,7 +186,9 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 									}
 								}
 								extraResults {
-									queryTelemetry
+									queryTelemetry {
+										operation
+									}
 								}
 							}
 						""";

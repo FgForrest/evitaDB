@@ -27,6 +27,11 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FormulaPlanNodeDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.QueryTelemetryNodeDescriptor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,6 +54,55 @@ public class QueryTelemetryConverter extends RequireConverter {
 			return;
 		}
 
-		extraResultsBuilder.addPrimitiveField(ExtraResultsDescriptor.QUERY_TELEMETRY);
+		// selecting `plan` is how this API opts into the formula plan - there is no field argument - so a
+		// constraint that asked for it must be translated into the selection set, or the generated query would
+		// silently come back without the plan the EvitaQL and REST tabs of the same sample do show
+		final boolean planRequested = queryTelemetry.isPlanRequested();
+
+		// the telemetry field is a typed object rather than an opaque scalar, so it needs an explicit selection
+		// set; the tree arrives flattened, which is why `level` and `stepsCount` are selected in place of `steps`
+		extraResultsBuilder.addObjectField(
+			ExtraResultsDescriptor.QUERY_TELEMETRY,
+			telemetryBuilder -> {
+				telemetryBuilder
+					.addPrimitiveField(QueryTelemetryNodeDescriptor.LEVEL)
+					.addPrimitiveField(QueryTelemetryDescriptor.OPERATION)
+					.addPrimitiveField(QueryTelemetryDescriptor.START)
+					.addPrimitiveField(QueryTelemetryDescriptor.ARGUMENTS)
+					.addPrimitiveField(QueryTelemetryDescriptor.SPENT_TIME)
+					.addPrimitiveField(QueryTelemetryDescriptor.FORMATTED_SPENT_TIME)
+					.addPrimitiveField(QueryTelemetryDescriptor.SELF_TIME)
+					.addPrimitiveField(QueryTelemetryDescriptor.FORMATTED_SELF_TIME)
+					.addPrimitiveField(QueryTelemetryNodeDescriptor.STEPS_COUNT)
+					.addPrimitiveField(QueryTelemetryDescriptor.STARTED_AT)
+					.addObjectField(
+						QueryTelemetryDescriptor.METRICS,
+						metricsBuilder -> metricsBuilder
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.ESTIMATED_CARDINALITY)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.ACTUAL_CARDINALITY)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.ESTIMATED_COST)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.ACTUAL_COST)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.RECORDS_RETURNED)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.IO_FETCH_COUNT)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.IO_FETCHED_SIZE_BYTES)
+							.addPrimitiveField(QueryTelemetryMetricsDescriptor.PREFETCHED)
+					);
+				if (planRequested) {
+					telemetryBuilder.addObjectField(
+						QueryTelemetryNodeDescriptor.PLAN,
+						planBuilder -> planBuilder
+							.addPrimitiveField(FormulaPlanNodeDescriptor.LEVEL)
+							.addPrimitiveField(FormulaPlanDescriptor.ID)
+							.addPrimitiveField(FormulaPlanDescriptor.REF_TO)
+							.addPrimitiveField(FormulaPlanDescriptor.HASH)
+							.addPrimitiveField(FormulaPlanDescriptor.DESCRIPTION)
+							.addPrimitiveField(FormulaPlanDescriptor.ESTIMATED_COST)
+							.addPrimitiveField(FormulaPlanDescriptor.ACTUAL_COST)
+							.addPrimitiveField(FormulaPlanDescriptor.RESULT_COUNT)
+							.addPrimitiveField(FormulaPlanNodeDescriptor.CHILDREN_COUNT)
+					);
+				}
+			}
+		);
 	}
 }

@@ -1659,6 +1659,26 @@ public class TransactionManager implements Closeable {
 	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
 	 * threshold sensible on deployments that tune the acceptance timeout very low.
 	 *
+	 * **The assumption, and where it does not hold.** This is a *wall-clock* deadline standing in for a
+	 * liveness signal: "pending longer than the worst-case pipeline latency ⇒ dangling". That inference
+	 * is sound whenever the pipeline gets to run, and false exactly when the host is oversubscribed —
+	 * a starved executor makes a perfectly healthy commit look identical to a dropped one, because the
+	 * only thing being measured is elapsed time. Symptom: commits failed by
+	 * {@link PendingCommitProgressRegistry#sweepRecordsOlderThan} on a loaded machine with nothing wrong
+	 * in the pipeline. Before hunting a transaction bug, check the load.
+	 *
+	 * The threshold is deliberately **not** tuned for that case: on a live deployment a commit pending
+	 * 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI box would
+	 * trade a real guard for a test-harness convenience. Callers that knowingly run oversubscribed
+	 * should instead raise
+	 * {@link io.evitadb.api.configuration.TransactionOptions.Builder#waitForTransactionAcceptanceInMillis(long)},
+	 * which scales this deadline with it — see `SharedRgeiSoakTest` in `evita_long_running_tests`.
+	 *
+	 * A progress-aware sweep (re-anchoring the clock whenever a record advances a pipeline stage, or
+	 * failing only records the live catalog version has already moved past) would separate "slow" from
+	 * "dropped" without a bigger number, and is the principled upgrade should this become a recurring
+	 * problem in production rather than in tests.
+	 *
 	 * @return the stall-detection deadline in milliseconds
 	 */
 	private long safetyDeadlineMs() {

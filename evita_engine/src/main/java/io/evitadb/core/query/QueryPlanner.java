@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.exception.InconsistentResultsException;
@@ -45,6 +46,7 @@ import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaPlanVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -87,17 +89,25 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * {@link QueryPlanner} translates {@link EvitaRequest} to a {@link QueryPlan}. It has to main functions:
+ * {@link QueryPlanner} translates {@link EvitaRequest} to a {@link QueryPlan}. It has two main functions:
  *
  * - to choose the best index(es) to be used in query execution
  * - to construct the {@link QueryPlan} body that consists of a tree of formulas
  *
- * Query executor doesn't really compute the result - only prepares the recipe for computing it. Result is computed
+ * The planner doesn't really compute the result - only prepares the recipe for computing it. Result is computed
  * after {@link QueryPlan#execute()} is called. Preparation of the {@link QueryPlan} should be really fast and can be
  * called anytime without big performance penalty.
  *
- * Query executor uses <a href="https://en.wikipedia.org/wiki/Visitor_pattern">Visitor</a> pattern to translate tree
+ * The planner uses <a href="https://en.wikipedia.org/wiki/Visitor_pattern">Visitor</a> pattern to translate tree
  * of {@link FilterConstraint} to a tree of {@link AbstractFormula}.
+ *
+ * Because "cheap" is the whole point, the planner routinely plans **several** alternatives - one per candidate
+ * index set - and keeps the one with the lowest {@link Formula#getEstimatedCost()}. The expensive follow-up work
+ * (sorting, extra results) is then done only for the winner, unless a {@link DebugMode} asks for all of them to be
+ * built and cross-checked against each other.
+ *
+ * The class is a static utility - it holds no state of its own, everything lives in the passed
+ * {@link QueryPlanningContext}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -106,8 +116,8 @@ import static java.util.Optional.ofNullable;
 public class QueryPlanner {
 
 	/**
-	 * Method evaluates the {@link QueryPlanningContext#getEvitaRequest()} and creates an "action plan" that allows to compute
-	 * the appropriate response for it. This method is the hearth of the query planner logic.
+	 * Method evaluates the {@link QueryPlanningContext#getEvitaRequest()} and creates an "action plan" that allows
+	 * to compute the appropriate response for it. This method is the heart of the query planner logic.
 	 *
 	 * Planning passes through these phases:
 	 *
@@ -119,6 +129,13 @@ public class QueryPlanner {
 	 * 4. creating extra result computers, that will create and provide extra results for the request
 	 *
 	 * The expensive work will be executed when {@link QueryPlan#execute()} is called outside this method.
+	 *
+	 * Phases 2 - 4 are normally performed for the preferred plan only; the debug branch performs them for every
+	 * alternative, because the consistency verification needs fully built plans to execute and compare - see
+	 * {@link #verifyConsistentResultsInAllPlans}.
+	 *
+	 * @param context planning context of the query, also the collector of the planning telemetry
+	 * @return plan ready to be executed, possibly an empty one when the filter cannot match anything
 	 */
 	@Nonnull
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
@@ -170,17 +187,27 @@ public class QueryPlanner {
 	}
 
 	/**
-	 * Method evaluates the {@link QueryPlanningContext#getEvitaRequest()} and creates an "action plan" that allows to compute
-	 * the limited result that involves only filtering phase.
+	 * Method evaluates the {@link QueryPlanningContext#getEvitaRequest()} and creates an "action plan" that allows
+	 * to compute the limited result of a nested query.
 	 *
 	 * Planning passes through these phases:
 	 *
 	 * 1. filtering formula construction for all possible indexes
 	 * a) replacing formulas with cached results
 	 * b) selecting the best formula / index combination that would produce result with minimal effort
-	 * 2. prefetching the entity bodies if the filtering requires it, or it would produce results faster
+	 * 2. creating sorter that will take care of ordering and slicing the result page
+	 * 3. prefetching the entity bodies if the filtering requires it, or it would produce results faster
+	 *
+	 * What it deliberately does **not** do - and what distinguishes it from {@link #planQuery(QueryPlanningContext)} -
+	 * is extra result fabrication and slicing: a nested query contributes primary keys (and sometimes a sorter) to
+	 * the enclosing query, and nobody ever asks it for a facet summary or a page.
 	 *
 	 * The expensive work will be executed when {@link QueryPlan#execute()} is called outside this method.
+	 *
+	 * @param context                planning context of the nested query
+	 * @param nestedQueryDescription description of the nested query for the telemetry step, resolved only when
+	 *                               telemetry is actually collected
+	 * @return plan ready to be executed, possibly an empty one when the filter cannot match anything
 	 */
 	@Nonnull
 	public static QueryPlan planNestedQuery(
@@ -234,6 +261,9 @@ public class QueryPlanner {
 	 * within AND relation and when relation or hierarchy query is encountered, it adds specific
 	 * {@link EntityIndexType#REFERENCED_ENTITY} that contains limited subset of the entities related to that
 	 * placement/relation.
+	 *
+	 * @param queryContext planning context of the query whose `filterBy` is analyzed
+	 * @return interchangeable index sets, each of which can answer the query on its own
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
 		return selectIndexes(queryContext, queryContext.getFilterBy());
@@ -243,6 +273,13 @@ public class QueryPlanner {
 	 * Variant of {@link #selectIndexes(QueryPlanningContext)} that runs index selection against a caller-supplied
 	 * `FilterBy` instead of the outer query's. Used by {@link #planNestedFilteringFormula} when planning a rewritten
 	 * filter for hierarchy statistics.
+	 *
+	 * A NULL `filterBy` is legal and yields whatever index the visitor offers by default (typically the global one),
+	 * because a query without a filter still has to read entities from somewhere.
+	 *
+	 * @param queryContext planning context of the query
+	 * @param filterBy     filter to analyze, NULL when the query has none
+	 * @return interchangeable index sets, each of which can answer the filter on its own
 	 */
 	@Nonnull
 	private static IndexSelectionResult<?> selectIndexes(
@@ -265,6 +302,10 @@ public class QueryPlanner {
 	 * specialized visitor that goes through input query. Creating formulas is relatively inexpensive - no computation
 	 * really happens, only the execution tree is constructed. For each {@link IndexSelectionResult#targetIndexes()}
 	 * one formula is created. From all of those formulas only single one is selected, the one with least estimated cost.
+	 *
+	 * @param queryContext  planning context of the query
+	 * @param targetIndexes candidate index sets to build a formula for
+	 * @return plan builders ordered cheapest first - a single element unless a debug mode asked for all of them
 	 */
 	@Nonnull
 	private static <T extends Index<?>> List<QueryPlanBuilder> createFilterFormula(
@@ -278,6 +319,22 @@ public class QueryPlanner {
 	 * Variant of {@link #createFilterFormula(QueryPlanningContext, List)} that plans a caller-supplied `FilterBy`
 	 * (typically the outer query's filter rewritten for an extra-result computation) instead of
 	 * {@link QueryPlanningContext#getFilterBy()}. Used by {@link #planNestedFilteringFormula}.
+	 *
+	 * Two details of the result are relied upon by the callers:
+	 *
+	 * - the list is kept **sorted by estimated cost** as it is built (the cheapest candidate is always pushed to
+	 *   the front), so `get(0)` is the preferred plan without a separate sorting pass
+	 * - unless {@link DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} is on, only that first element is returned; the
+	 *   remaining candidates are constructed but thrown away, since building them is cheap and comparing their
+	 *   costs is the only way to know which one wins
+	 *
+	 * Candidates that are not eligible for a separate query plan produce no builder at all - they are only
+	 * recorded in telemetry, so that a reader can see the index was considered and why it lost.
+	 *
+	 * @param queryContext  planning context of the query
+	 * @param targetIndexes candidate index sets to build a formula for
+	 * @param filterBy      filter to translate into a formula tree, NULL when the query has none
+	 * @return plan builders ordered cheapest first - a single element unless a debug mode asked for all of them
 	 */
 	@Nonnull
 	private static <T extends Index<?>> List<QueryPlanBuilder> createFilterFormula(
@@ -315,14 +372,28 @@ public class QueryPlanner {
 							result.addLast(queryPlanBuilder);
 						}
 					} finally {
-						if (adeptFormula == null) {
-							queryContext.popStep(targetIndex.toString());
-						} else {
-							queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost()));
+						// the supplier has to capture an effectively final reference; it is resolved only when
+						// telemetry is on, and `toStringWithCosts` allocates two to three strings per candidate index
+						final Formula builtFormula = adeptFormula;
+						// the candidate's structure is recorded on its own step, which is the only node that can
+						// carry it: every alternative but the winner is discarded immediately after this loop and
+						// would otherwise leave nothing behind but a cost embedded in English. Rendering computes
+						// nothing - at this point not even the eventual winner has run, so the whole plan reports
+						// "not computed", and that is the honest answer rather than a gap to be filled in
+						if (builtFormula != null && queryContext.isTelemetryPlanCollected()) {
+							final QueryTelemetry alternativeStep = queryContext.getCurrentStep();
+							if (alternativeStep != null) {
+								alternativeStep.recordPlan(FormulaPlanVisitor.toPlan(builtFormula));
+							}
 						}
+						queryContext.popStep(
+							builtFormula == null ?
+								targetIndex::toString :
+								() -> targetIndex.toStringWithCosts(builtFormula.getEstimatedCost())
+						);
 					}
 				} else {
-					queryContext.popStep(targetIndex.toString());
+					queryContext.popStep(targetIndex::toString);
 				}
 			}
 
@@ -330,9 +401,9 @@ public class QueryPlanner {
 				result : result.subList(0, 1);
 		} finally {
 			if (result.isEmpty()) {
-				queryContext.popStep("No index selected!");
+				queryContext.popStep(() -> "No index selected!");
 			} else {
-				queryContext.popStep("Selected index: " + result.get(0).getDescriptionWithCosts());
+				queryContext.popStep(() -> "Selected index: " + result.get(0).getDescriptionWithCosts());
 			}
 		}
 	}
@@ -362,7 +433,7 @@ public class QueryPlanner {
 	 * @param queryContext                planning context inherited from the outer query
 	 * @param filterBy                    rewritten `FilterBy` to plan
 	 * @param outerPrefetchFormulaVisitor the outer query's `PrefetchFormulaVisitor` to fold nested prefetch
-	 *                                    demand into; {@code null} skips the merge
+	 *                                    demand into; NULL skips the merge
 	 * @param stepDescriptionSupplier     description used in `PLANNING_FILTER_NESTED_QUERY` /
 	 *                                    `EXECUTION_FILTER_NESTED_QUERY` telemetry
 	 * @return the cheapest planned formula wrapped with execution telemetry
@@ -418,6 +489,17 @@ public class QueryPlanner {
 	 * Generates all possible variants of the original formula where cacheable parts are one by one transformed
 	 * to the {@link CachePayloadHeader} counterparts and adds them to `result` list. The method is used for debugging
 	 * purposes to verify that the {@link QueryPlan} for all of them produce exactly same results.
+	 *
+	 * Queries that do not request the entity type are skipped entirely: such a query is answered through prefetched
+	 * entity bodies, and at this point the prefetch has not happened yet, so the variants would not be comparable.
+	 *
+	 * Every generated variant is fully equipped (sorter, extra result producers, and the source plan's slicer) -
+	 * an incompletely built variant would produce a differently shaped response and report a false inconsistency.
+	 *
+	 * @param queryContext  planning context of the query
+	 * @param targetIndexes candidate index sets, needed to build the sorters of the variants
+	 * @param sourcePlan    plan whose filtering formula is varied
+	 * @return one plan builder per cacheable variant, empty list when the query is not eligible for the check
 	 */
 	@Nonnull
 	private static List<QueryPlanBuilder> generateCacheableVariantTrees(
@@ -458,7 +540,17 @@ public class QueryPlanner {
 	/**
 	 * Method creates instance of {@link Sorter} that sorts result of the filtering formula according to input query,
 	 * and slices appropriate part of the result to respect limit/offset requirements from the query. No sorting/slicing
-	 * is done in this method, only the instance of {@link Sorter} capable of doing it is created and returned.
+	 * is done in this method, only the instance of {@link Sorter} capable of doing it is created and set on
+	 * the passed builders.
+	 *
+	 * Sorters are built per plan, not once for the query: a sorter may exploit the very index the plan filters on
+	 * (a pre-sorted attribute index, for instance), so the same `orderBy` yields different sorters for different
+	 * candidate plans. A `PLANNING_SORT_ALTERNATIVE` telemetry step is opened per builder only when there is more
+	 * than one - with a single builder it would just duplicate its parent.
+	 *
+	 * @param queryContext  planning context of the query
+	 * @param targetIndexes candidate index sets the sorters may take advantage of
+	 * @param builders      plans to be equipped with sorters, mutated in place
 	 */
 	private static void createSorter(
 		@Nonnull QueryPlanningContext queryContext,
@@ -470,7 +562,7 @@ public class QueryPlanner {
 			final boolean multipleAlternatives = builders.size() > 1;
 			for (QueryPlanBuilder builder : builders) {
 				if (multipleAlternatives) {
-					queryContext.pushStep(QueryPhase.PLANNING_SORT_ALTERNATIVE, builder.getDescription());
+					queryContext.pushStep(QueryPhase.PLANNING_SORT_ALTERNATIVE, builder::getDescription);
 				}
 				try {
 					final OrderByVisitor orderByVisitor = new OrderByVisitor(
@@ -495,6 +587,14 @@ public class QueryPlanner {
 	 * Configures a slicer for each QueryPlanBuilder if the result form of the EvitaRequest is a paginated list
 	 * and any conditional gaps are specified. Slicer is used to accurately calculate the offset of the record on
 	 * particular page and its size based on the gap rules definition.
+	 *
+	 * When neither condition holds the builders are left without a slicer, which means plain pagination - the gap
+	 * rules are the only reason a slicer is needed at all.
+	 *
+	 * **Must be called before the plans are verified against each other.**
+	 * {@link #generateCacheableVariantTrees(QueryPlanningContext, List, QueryPlanBuilder)} copies the slicer from
+	 * the plan it varies, so a variant generated before the slicer was set would paginate differently and be
+	 * reported as an inconsistency.
 	 *
 	 * @param queryContext  The context of the current query, containing the EvitaRequest.
 	 * @param builders      A list of QueryPlanBuilder instances to configure the slicer.
@@ -555,6 +655,12 @@ public class QueryPlanner {
 	 * that are somehow connected with the processed query taking existing formula and their memoized results into
 	 * account (which is a great advantage comparing to computation in multiple requests as needed in other database
 	 * solutions).
+	 *
+	 * The whole phase - telemetry step included - is skipped when the query carries no `require` container, since
+	 * there is nothing to fabricate.
+	 *
+	 * @param queryContext planning context of the query
+	 * @param builders     plans to be equipped with extra result producers, mutated in place
 	 */
 	private static void createExtraResultProducers(
 		@Nonnull QueryPlanningContext queryContext,
@@ -566,7 +672,10 @@ public class QueryPlanner {
 				final boolean multipleAlternatives = builders.size() > 1;
 				for (QueryPlanBuilder builder : builders) {
 					if (multipleAlternatives) {
-						queryContext.pushStep(QueryPhase.PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE, builder.getDescription());
+						queryContext.pushStep(
+							QueryPhase.PLANNING_EXTRA_RESULT_FABRICATION_ALTERNATIVE,
+							builder::getDescription
+						);
 					}
 					try {
 						final ExtraResultPlanningVisitor extraResultPlanner = new ExtraResultPlanningVisitor(
@@ -594,6 +703,20 @@ public class QueryPlanner {
 	/**
 	 * Method verifies that all passed `queryPlanBuilders` produce the very same result as the `mainBuilder` in
 	 * the computed response.
+	 *
+	 * This is a debug-only safety net: every alternative index, and optionally every cacheable variant of its
+	 * formula tree, is fully executed and its response compared with the main one. It is therefore **expensive** -
+	 * a query that would run one plan runs a plan per candidate instead - and is only reached when one of
+	 * the verification {@link DebugMode}s is enabled.
+	 *
+	 * All executions share one frozen random seed, without which any query using randomized ordering would
+	 * legitimately differ between runs and fail the comparison.
+	 *
+	 * @param context           planning context of the query
+	 * @param targetIndexes     candidate index sets, needed when cacheable variants have to be built
+	 * @param queryPlanBuilders all plans to be verified, the main one included
+	 * @param mainBuilder       the preferred plan whose response is taken as the reference
+	 * @throws InconsistentResultsException when any alternative produces a different response
 	 */
 	static void verifyConsistentResultsInAllPlans(
 		@Nonnull QueryPlanningContext context,
@@ -652,9 +775,26 @@ public class QueryPlanner {
 	 * This special case of {@link AbstractFormula} is used for negative constraints. These query results need to be
 	 * compared against certain superset which is the output of the computation on the same level or in the case
 	 * of the root query the entire superset of the index.
+	 *
+	 * A negation cannot be resolved where it is encountered, because at that moment the set it subtracts from is
+	 * not known yet - it is whatever its siblings on the same container level end up producing. The translator
+	 * therefore emits this placeholder and {@link #postProcess(Formula[], EnclosingContainerRelation)} replaces it
+	 * with a real {@link NotFormula} once the whole level has been collected.
+	 *
+	 * **The placeholder must never survive into an executable plan.** Everything that would be needed to run it
+	 * either throws or answers with a neutral zero - see the individual methods.
 	 */
 	public static class FutureNotFormula extends AbstractFormula {
+		/**
+		 * Message of the exception thrown from every operation that would only make sense on a real formula -
+		 * reaching any of them means the placeholder was not post-processed away.
+		 */
 		private static final String ERROR_TEMPORARY = "FutureNotFormula is only temporary placeholder!";
+		/**
+		 * Stable discriminator of this formula class within the computed formula hash - it is what keeps two
+		 * structurally identical trees of different formula types from hashing alike. It must stay constant,
+		 * otherwise previously cached results become unreachable.
+		 */
 		private static final long CLASS_ID = 497139306778809341L;
 		/**
 		 * This formula represents the real formula to compute the negated set.
@@ -662,16 +802,17 @@ public class QueryPlanner {
 		@Getter private final Formula innerFormula;
 
 		/**
-		 * This method is used to compose the final formula that takes collection of formulas on the current level
-		 * of the query and wraps them to the final "not" formula.
+		 * Composes the final formula out of the formulas collected on the current container level, when there is
+		 * **no** superset to subtract the negations from.
 		 *
-		 * Method produces these results from these example formulas (in case aggregator function produces `and`):
+		 * Use this overload where the enclosing level is guaranteed to provide the superset later. If the level
+		 * turns out to consist of negations only, the result is another {@link FutureNotFormula} that the enclosing
+		 * container has to post-process in turn - see
+		 * {@link #postProcess(Formula[], EnclosingContainerRelation, Supplier)} for the full transformation table.
 		 *
-		 * - [ANY_FORMULA, ANY_FORMULA] -> [ANY_FORMULA, ANY_FORMULA]
-		 * - [ANY_FORMULA, FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, ANY_FORMULA)
-		 * - [ANY_FORMULA, ANY_FORMULA, FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA,FUTURE_NOT_FORMULA), and(ANY_FORMULA, ANY_FORMULA))
-		 * - [FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, superSetFormula) ... or exception when not on first level of query
-		 * - [FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA), superSetFormula) ... or exception when not on first level of query
+		 * @param collectedFormulas formulas gathered on the current level, negations included
+		 * @param relation          how the container joins its children (AND / OR)
+		 * @return the composed formula, possibly still a {@link FutureNotFormula}
 		 */
 		public static Formula postProcess(@Nonnull Formula[] collectedFormulas, @Nonnull EnclosingContainerRelation relation) {
 			return postProcess(collectedFormulas, relation, null);
@@ -679,15 +820,33 @@ public class QueryPlanner {
 
 		/**
 		 * This method is used to compose the final formula that takes collection of formulas on the current level
-		 * of the query and wraps them to the final "not" formula.
+		 * of the query and wraps them to the final "not" formula. This is where every {@link FutureNotFormula}
+		 * placeholder produced on the level is resolved into a real {@link NotFormula}.
 		 *
 		 * Method produces these results from these example formulas (in case aggregator function produces `and`):
 		 *
-		 * - [ANY_FORMULA, ANY_FORMULA] -> [ANY_FORMULA, ANY_FORMULA]
-		 * - [ANY_FORMULA, FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, ANY_FORMULA)
-		 * - [ANY_FORMULA, ANY_FORMULA, FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA,FUTURE_NOT_FORMULA), and(ANY_FORMULA, ANY_FORMULA))
-		 * - [FUTURE_NOT_FORMULA] -> not(FUTURE_NOT_FORMULA, superSetFormula) ... or exception when not on first level of query
-		 * - [FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA] -> not(and(FUTURE_NOT_FORMULA, FUTURE_NOT_FORMULA), superSetFormula) ... or exception when not on first level of query
+		 * - `[ANY, ANY]` -> `and(ANY, ANY)`
+		 * - `[ANY, FUTURE_NOT]` -> `not(FUTURE_NOT, ANY)`
+		 * - `[ANY, ANY, FUTURE_NOT, FUTURE_NOT]` ->
+		 *   `not(or(FUTURE_NOT, FUTURE_NOT), and(ANY, ANY))`
+		 * - `[FUTURE_NOT]` -> `not(FUTURE_NOT, superSetFormula)`, or a new placeholder when no superset
+		 *   was supplied
+		 * - `[FUTURE_NOT, FUTURE_NOT]` -> `not(or(FUTURE_NOT, FUTURE_NOT), superSetFormula)`, or a new
+		 *   placeholder when no superset was supplied
+		 *
+		 * Two aggregators are in play, and mixing them up is the easy mistake here: the positive formulas are
+		 * joined by the container's own relation, while the negative ones are joined by its **opposite**, because
+		 * `NOT A AND NOT B` is `NOT(A OR B)`. For a disjunctive container the result additionally has to stay
+		 * a placeholder: `P OR NOT N` cannot be expressed as a subtraction from `P`, so it is rewritten as
+		 * `NOT(N \ P)` and handed one level up for the superset to be applied.
+		 *
+		 * @param collectedFormulas       formulas gathered on the current level, negations included
+		 * @param relation                how the container joins its children (AND / OR)
+		 * @param superSetFormulaSupplier supplier of the set the negations subtract from - typically the whole
+		 *                                index. NULL means "not known at this level", which forces the result to
+		 *                                remain a {@link FutureNotFormula}. It is a supplier because obtaining
+		 *                                the superset is not free and most levels never need it
+		 * @return the composed formula; {@link EmptyFormula#INSTANCE} when there was nothing to compose
 		 */
 		public static Formula postProcess(
 			@Nonnull Formula[] collectedFormulas,
@@ -769,37 +928,70 @@ public class QueryPlanner {
 			}
 		}
 
+		/**
+		 * Wraps the formula computing the set that is to be **subtracted**, not the result itself.
+		 *
+		 * @param innerFormula formula computing the set to be negated
+		 */
 		public FutureNotFormula(@Nonnull Formula innerFormula) {
 			this.innerFormula = innerFormula;
 			this.initFields();
 		}
 
+		/**
+		 * Not supported - cloning implies the placeholder is being treated as part of an executable tree, which is
+		 * precisely the situation post-processing exists to prevent.
+		 *
+		 * @throws UnsupportedOperationException always
+		 */
 		@Nonnull
 		@Override
 		public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 			throw new UnsupportedOperationException(ERROR_TEMPORARY);
 		}
 
+		/**
+		 * Always zero - the placeholder never contributes to a cost estimate, because it is always replaced before
+		 * candidate plans are compared. Reporting the inner formula's cardinality would be worse than useless: it
+		 * describes the set being *removed*, not the one produced.
+		 */
 		@Override
 		public int getEstimatedCardinality() {
 			return 0;
 		}
 
+		/**
+		 * Always zero - the placeholder performs no computation of its own, the {@link NotFormula} that replaces
+		 * it carries the real cost.
+		 */
 		@Override
 		public long getOperationCost() {
 			return 0L;
 		}
 
+		/**
+		 * Contributes nothing beyond the class id and the inner formula's own hash - the placeholder holds no
+		 * state that could distinguish two instances.
+		 */
 		@Override
 		protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 			return 0L;
 		}
 
+		/**
+		 * @return the constant discriminating this formula type inside computed hashes
+		 */
 		@Override
 		protected long getClassId() {
 			return CLASS_ID;
 		}
 
+		/**
+		 * Not supported - a placeholder reaching computation means post-processing failed to replace it, and
+		 * a negation without its superset has no defined result. Failing loudly beats returning an arbitrary set.
+		 *
+		 * @throws UnsupportedOperationException always
+		 */
 		@Nonnull
 		@Override
 		protected Bitmap computeInternal() {
