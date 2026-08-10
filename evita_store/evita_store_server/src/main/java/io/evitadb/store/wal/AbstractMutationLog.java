@@ -1526,31 +1526,48 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Returns UUID of the first transaction that is present in the WAL file and which transitions the catalog to
-	 * the version that is greater by one than the current catalog version.
+	 * Returns the first transaction that follows the given reference - the point replay resumes from.
 	 *
-	 * @param walReference the current catalog version
-	 * @return UUID of the first transaction that is present in the WAL file and which transitions the catalog to
+	 * The search is **not** confined to the file the reference points into. A reference may name the last
+	 * transaction of a file rotation has since finalized, in which case the transactions still to be replayed
+	 * begin in a later file; the search walks forward until it finds one or runs out of files.
+	 *
+	 * @param walReference the position already processed, or `null` to start from the beginning of the newest file
+	 * @return the first transaction after `walReference`, or empty when nothing remains to be replayed
 	 */
 	@Nonnull
 	public Optional<TransactionMutationWithWalFileReference> getFirstNonProcessedTransaction(
 		@Nullable LogFileRecordReference walReference
 	) {
-		final Path walFilePath;
-		final int walFileIndex;
-		final long startPosition;
+		final int newestWalFileIndex = getWalFileIndex();
+		int walFileIndex;
+		long startPosition;
 		if (walReference == null) {
-			walFileIndex = getWalFileIndex();
-			walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex));
+			walFileIndex = newestWalFileIndex;
 			startPosition = CUMULATIVE_CRC32_SIZE;
 		} else {
-			walFilePath = walReference.toFilePath(this.storageFolder);
 			walFileIndex = walReference.fileIndex();
 			final FileLocation fileLocation = Objects.requireNonNull(walReference.fileLocation());
 			startPosition = fileLocation.endPosition();
 		}
-		final File walFile = walFilePath.toFile();
-		if (walFile.exists() && walFile.length() > startPosition + TRANSACTION_PREFIX_SIZE + CUMULATIVE_CRC32_SIZE) {
+
+		// The reference may end the file it points into: a checkpoint that lands exactly on a rotation boundary
+		// leaves the remainder in the NEXT file. Everything past the last transaction of a rotated file is its
+		// `WAL_TAIL_LENGTH` trailer, which carries no transaction - reading it as one interprets the version bytes
+		// as a record length and fails the whole recovery, even though the transactions are intact one file over.
+		// So walk forward: a finalized file that holds nothing but its tail hands the search to its successor.
+		while (walFileIndex <= newestWalFileIndex) {
+			final Path walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex));
+			final File walFile = walFilePath.toFile();
+			// a finalized file always ends with the trailer, so anything at or below it means "no transaction
+			// left here"; the active file carries no trailer and only needs room for a record and its checksum
+			final long minimumRemainder = walFileIndex < newestWalFileIndex ?
+				WAL_TAIL_LENGTH : TRANSACTION_PREFIX_SIZE + CUMULATIVE_CRC32_SIZE;
+			if (!walFile.exists() || walFile.length() <= startPosition + minimumRemainder) {
+				walFileIndex++;
+				startPosition = CUMULATIVE_CRC32_SIZE;
+				continue;
+			}
 			final Kryo kryo = this.kryoPool.obtain();
 			try (
 				final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");

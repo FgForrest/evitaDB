@@ -1103,12 +1103,60 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	 *
 	 * Note what is deliberately **not** claimed here: that appends continue a checksum chain. Each transaction's
 	 * trailing checksum covers only its own bytes - the running value returns to a fixed constant after every
-	 * record, so no test in this class can distinguish one append-chain seed from another. See the punch list's
-	 * entry on the cumulative checksum for why.
+	 * record, so no test in this class can distinguish one append-chain seed from another. The authoritative
+	 * account of what that checksum does and does not cover is on `AbstractMutationLog#checksum`.
 	 */
 	@Nested
 	@DisplayName("Restart from a position the log has moved past")
 	class RestartAfterRotation {
+
+		@Test
+		@DisplayName("should resume replay when the reference is the last transaction of a rotated file")
+		void shouldResumeReplayWhenReferenceIsLastTransactionOfRotatedFile() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			// small enough that a handful of 200-byte transactions rotate the file more than once
+			final long walFileSizeLimit = 1_000L;
+
+			LogFileRecordReference lastInFirstFile = null;
+			long lastVersionInFirstFile = -1L;
+			try (CatalogWriteAheadLog wal = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), walFileSizeLimit, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				for (int version = 1; version <= 8; version++) {
+					final TransactionWithData txData = createTestTransaction(version - 1, 200);
+					final LogFileRecordReference reference = wal.append(txData.mutation(), txData.data());
+					if (reference.fileIndex() == 0) {
+						lastInFirstFile = reference;
+						lastVersionInFirstFile = version;
+					}
+				}
+			}
+			final LogFileRecordReference processedReference = Objects.requireNonNull(lastInFirstFile);
+			assertTrue(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve(getWalFileName(TEST_CATALOG, 1)).toFile().exists(),
+				"Precondition: rotation must have produced a second WAL file."
+			);
+
+			// the checkpoint landed exactly on the rotation boundary: everything in file 0 is processed and the
+			// remainder lives in file 1. Replay must cross that boundary rather than read into the finalized tail
+			try (CatalogWriteAheadLog reopened = createTestWal(
+				lastVersionInFirstFile, processedReference, walFileSizeLimit, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertEquals(
+					lastVersionInFirstFile + 1,
+					reopened.getFirstNonProcessedTransaction(processedReference)
+						.orElseThrow(() -> new AssertionError("Replay found nothing after the reference!"))
+						.transactionMutation()
+						.getVersion(),
+					"replay must continue into the next WAL file when the reference ends the previous one"
+				);
+			}
+		}
 
 		@Test
 		@DisplayName("should resume replay and keep appending when the reference lags inside the active file")
