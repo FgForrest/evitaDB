@@ -43,6 +43,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
 import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
@@ -91,7 +92,11 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 	 * below the given catalog version. WAL retention is one of two independent drivers of that seam (the other being
 	 * the `timeTravelSizeLimitBytes` guard), which is why the log only reports the floor it needs and leaves clamping,
 	 * ordering and idempotency to the seam itself.
+	 *
+	 * `null` only for a WAL opened through the internal-use constructor, which is never wired into a live catalog
+	 * and is therefore never expected to rotate a file out - see {@link #updateFirstVersionKept(long)}.
 	 */
+	@Nullable
 	protected final LongConsumer historyHorizonAdvancer;
 
 	/**
@@ -169,8 +174,9 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	/**
 	 * Creates a new CatalogWriteAheadLog for internal use only.
-	 * This constructor creates a WAL without a history horizon advancer, so rotating its files reclaims nothing -
-	 * typically used for testing or specific internal scenarios.
+	 * This constructor creates a WAL without a history horizon advancer, for read-only scenarios (testing or
+	 * post-mortem analysis of an existing WAL) that never append to it and therefore never rotate a file out of it.
+	 * {@link #updateFirstVersionKept(long)} throws if that assumption is ever violated.
 	 *
 	 * @param catalogVersion         the last processed catalog version number
 	 * @param catalogName            the name of the catalog, or null for system catalog
@@ -287,6 +293,17 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	@Override
 	protected void updateFirstVersionKept(long firstVersionToBeKept) {
+		if (this.historyHorizonAdvancer == null) {
+			// this WAL was opened through the internal-use constructor precisely because it is never wired into a
+			// live catalog - a file rotating out of it means it is being appended to like a live one, which is a
+			// misuse of that constructor. A no-op here would silently reintroduce the retention leak this seam
+			// exists to close, so it fails loudly instead.
+			throw new GenericEvitaInternalError(
+				"WAL file rotated out on a `" + CatalogWriteAheadLog.class.getSimpleName() + "` opened without a " +
+					"history horizon advancer - this constructor variant must never be used for a WAL that appends " +
+					"and rotates."
+			);
+		}
 		// WAL retention is only one of the floors the history horizon obeys - the seam clamps the request by the
 		// active-reader floor, trims the bootstrap file and reclaims the unreachable data files in one serialized step
 		this.historyHorizonAdvancer.accept(firstVersionToBeKept);

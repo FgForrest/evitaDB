@@ -46,7 +46,9 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -145,7 +147,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * never retried - so what it defers has to be parked somewhere until a pass can take it. Drained by the next
 	 * deletion pass that gets the folder to itself, and by {@link #close()} so that nothing is left on disk.
 	 */
-	private final List<MaintainedFile> deferredEagerPurges = new CopyOnWriteArrayList<>();
+	private final Queue<MaintainedFile> deferredEagerPurges = new ConcurrentLinkedQueue<>();
 	/**
 	 * Set when a sweep of the files no retained bootstrap record can reach had to be given up because another pass held
 	 * the folder, so that the next pass which does get it performs the sweep on its behalf.
@@ -419,24 +421,24 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	/**
 	 * Runs and forgets every purge the warm-up eager path parked.
 	 *
-	 * The removal from the list is the claim token and its result is checked: `close()` and a concurrently parking
-	 * commit thread can both reach here for the same entry, and a removal lambda that runs twice closes a persistence
+	 * The `poll()` is the claim token - it atomically removes and returns the entry, so only the thread that
+	 * actually polled a given entry runs it. `close()` and a concurrently parking commit thread can both reach
+	 * here for the same entry, and a removal lambda that runs twice closes a persistence
 	 * service that is still registered, because
 	 * {@link DefaultCatalogPersistenceService#removeCatalogPersistenceServiceForVersion(long)} resolves the closest
 	 * service at or **below** the version it is given.
 	 */
 	private void drainDeferredEagerPurges() {
-		for (MaintainedFile deferredPurge : this.deferredEagerPurges) {
-			if (this.deferredEagerPurges.remove(deferredPurge)) {
-				try {
-					purgeFile(deferredPurge);
-				} catch (RuntimeException ex) {
-					// this is somebody else's work being carried by whichever pass got the folder - including the
-					// commit thread - so a failure is reported here rather than handed to a caller that has nothing
-					// to do with it. Deliberately **not** re-parked: the removal lambda has already run, and running
-					// it a second time closes a persistence service that is still registered
-					log.error("Failed to purge the deferred obsolete file `{}`", deferredPurge.path(), ex);
-				}
+		MaintainedFile deferredPurge;
+		while ((deferredPurge = this.deferredEagerPurges.poll()) != null) {
+			try {
+				purgeFile(deferredPurge);
+			} catch (RuntimeException ex) {
+				// this is somebody else's work being carried by whichever pass got the folder - including the
+				// commit thread - so a failure is reported here rather than handed to a caller that has nothing
+				// to do with it. Deliberately **not** re-parked: the removal lambda has already run, and running
+				// it a second time closes a persistence service that is still registered
+				log.error("Failed to purge the deferred obsolete file `{}`", deferredPurge.path(), ex);
 			}
 		}
 	}

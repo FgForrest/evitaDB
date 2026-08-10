@@ -595,7 +595,7 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   statements; the non-racy half is covered by
   `shouldRetryTheRemainderOfAPartiallyClampedHorizonRequest`. (b) The claim token in
   `drainDeferredEagerPurges` guards a concurrent close-versus-park double drain; single-threaded the
-  first drain empties the list, so the token is unobservable — the *exactly once* assertion in
+  first drain empties the queue, so the token is unobservable — the *exactly once* assertion in
   `shouldPurgeDeferredFilesWhenTheMaintainerCloses` is a regression guard for the simple path, not a
   calibration of the token. (c) `computeRetainedHistoryBytes` taking `historyHorizonLock` is a lock
   addition with no observable behaviour to assert. (d) `retentionStateChanged` swallowing and

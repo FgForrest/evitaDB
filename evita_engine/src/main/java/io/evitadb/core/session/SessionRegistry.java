@@ -320,7 +320,10 @@ public final class SessionRegistry {
 					this.sessionsFifoQueue.add(sessionTuple);
 					this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
 						.registerSessionConsumingCatalogInVersion(
-						catalogVersion, newSession.getSessionTraits(), this.catalogSupplier);
+							catalogVersion,
+							newSession.getSessionTraits(),
+							this.catalogSupplier
+						);
 					this.sharedDataStore.addSession(sessionTuple);
 				}
 			);
