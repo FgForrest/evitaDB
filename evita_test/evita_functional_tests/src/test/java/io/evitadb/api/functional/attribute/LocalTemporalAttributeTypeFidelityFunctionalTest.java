@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -46,6 +47,8 @@ import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +77,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Regression coverage for the *local* temporal attribute types — `LocalDateTime`, `LocalDate` and
@@ -110,6 +114,7 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 	private static final String ATTR_LOCAL_DATE_TIME = "initialPublishedDate";
 	private static final String ATTR_LOCAL_DATE = "initialPublishedDay";
 	private static final String ATTR_LOCAL_TIME = "initialPublishedTime";
+	private static final String ATTR_OFFSET_DATE_TIME = "initialPublishedInstant";
 
 	/**
 	 * Wall-clock instants deliberately expressed in a zone whose offset is neither zero nor equal
@@ -486,6 +491,42 @@ public class LocalTemporalAttributeTypeFidelityFunctionalTest implements EvitaTe
 					final Serializable storedValue = product.getAttribute(ATTR_LOCAL_DATE_TIME, Locale.ENGLISH);
 					assertInstanceOf(LocalDateTime.class, storedValue);
 					assertEquals(FIRST_DATE_TIME, storedValue);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should reject a LocalDateTime value written to an OffsetDateTime attribute")
+		void shouldRejectLocalDateTimeValueForOffsetDateTimeAttribute() {
+			runWithCatalog(
+				"localTemporalDeclaredOffsetMismatch",
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withAttribute(
+							ATTR_OFFSET_DATE_TIME, OffsetDateTime.class,
+							whichIs -> whichIs.filterable().sortable().nullable()
+						)
+						.updateVia(session);
+
+					// the declared type wins in BOTH directions: a bare `LocalDateTime` is no longer silently
+					// coerced onto an `OffsetDateTime`-typed attribute. This is not new - `2026.1` rejected it
+					// too (all four `UpsertAttributeMutation` constructors assigned the value verbatim); only the
+					// broken `2026.2` accepted it, by rewriting the value before the schema check ran
+					assertThrows(
+						InvalidMutationException.class,
+						() -> session.createNewEntity(ENTITY_PRODUCT, 1)
+							.setAttribute(ATTR_OFFSET_DATE_TIME, FIRST_DATE_TIME)
+							.upsertVia(session)
+					);
+
+					// the attribute itself is perfectly writable with a value of its declared type
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setAttribute(ATTR_OFFSET_DATE_TIME, FIRST_DATE_TIME.atOffset(ZoneOffset.UTC))
+						.upsertVia(session);
+					assertEquals(
+						FIRST_DATE_TIME.atOffset(ZoneOffset.UTC),
+						fetchProduct(session, 2).getAttribute(ATTR_OFFSET_DATE_TIME)
+					);
 				}
 			);
 		}

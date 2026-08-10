@@ -1052,6 +1052,32 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Resolves the component type for an array rebuilt from normalized elements. The type is taken from the first
+	 * **non-null** normalized element, falling back to the source array's component type when every element is `null`.
+	 *
+	 * Deriving it from element zero alone is not enough: a leading `null` says nothing about what the remaining
+	 * elements normalized to, so `{null, 1.5f}` would rebuild as a `Float[]` and then throw on `Array.set` when the
+	 * normalized `BigDecimal` is stored into it. The same applies to a query-path `{null, LocalDateTime}` array, whose
+	 * non-null element normalizes to `OffsetDateTime`.
+	 *
+	 * @param normalizedElements  the already-normalized elements
+	 * @param sourceComponentType component type of the source array, used when every element is `null`
+	 * @return component type the rebuilt array must be created with
+	 */
+	@Nonnull
+	private static Class<?> normalizedComponentType(
+		@Nonnull Serializable[] normalizedElements,
+		@Nonnull Class<?> sourceComponentType
+	) {
+		for (int i = 0; i < normalizedElements.length; i++) {
+			if (normalizedElements[i] != null) {
+				return normalizedElements[i].getClass();
+			}
+		}
+		return sourceComponentType;
+	}
+
+	/**
 	 * Shared implementation of {@link #toSupportedTypeOrItsArray(Serializable)} and
 	 * {@link #toSupportedStoredTypeOrItsArray(Serializable)}.
 	 *
@@ -1088,9 +1114,9 @@ public class EvitaDataTypes {
 			}
 			if (changed) {
 				// create a properly typed array with the normalized component type
-				final Class<?> componentType = result[0] != null
-					? result[0].getClass()
-					: unknownObject.getClass().getComponentType();
+				final Class<?> componentType = normalizedComponentType(
+					result, unknownObject.getClass().getComponentType()
+				);
 				final Object typedArray = Array.newInstance(componentType, length);
 				for (int i = 0; i < length; i++) {
 					Array.set(typedArray, i, result[i]);

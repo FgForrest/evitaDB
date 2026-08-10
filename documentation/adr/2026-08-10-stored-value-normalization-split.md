@@ -169,6 +169,13 @@ the one most likely to be re-proposed and is the one to read this record for.
   of a reference plus three objects (`LocalDateTime` holds a `LocalDate` and a `LocalTime`), and no boxing on lookup
   hot paths. That is a structural estimate from the field layouts, **not a measurement** — nobody has run a heap
   comparison. Only `filterable`/`sortable` attributes are affected, since only those are indexed.
+- The declared type now wins in **both** directions: a bare `LocalDateTime` written to an attribute declared
+  `OffsetDateTime` is rejected with `InvalidMutationException` rather than silently coerced to UTC. That is a
+  restoration, not a new rule — `v2026.1.19` rejected it too (all four `UpsertAttributeMutation` constructors
+  assigned the value verbatim); only the broken 2026.2 accepted it, by rewriting before the check. A client relying
+  on that coercion must convert explicitly, and should prefer `atZone(zone).toOffsetDateTime()` over
+  `atOffset(UTC)` unless it really means a UTC wall clock. Covered by
+  `LocalTemporalAttributeTypeFidelityFunctionalTest#shouldRejectLocalDateTimeValueForOffsetDateTimeAttribute`.
 - `attributeHistogram` still rejects any non-numeric attribute (`AttributeHistogramTranslator` asserts
   `Number.class.isAssignableFrom(...)`), so no temporal type — `OffsetDateTime` included — can produce one. Unchanged
   here, and the reason there is no histogram coverage for `LocalDateTime`.
