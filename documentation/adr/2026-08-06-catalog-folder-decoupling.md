@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-10 06:40
+updated: 2026-08-10 18:45
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -107,6 +107,7 @@ different operation from replacement, and it would supersede this record.
 | File names inside a folder are **discovered** from the single `*.boot`, never constructed from the catalog name | This is what lets the files stay put during a rename, and it cost no storage-format migration | `DefaultCatalogPersistenceService#discoverStoragePrefix` |
 | `verifyCatalogNameMatches` became `reconcileStoredCatalogIdentity` and adapts unconditionally | Once the name comes from the engine state rather than the folder, a header naming a different catalog is the ordinary trace of a rename whose header rewrite did not land — refusing would report a loadable catalog as corrupted | `DefaultCatalogPersistenceService` |
 | A rename **consumes no catalog version** — `replaceWith` keeps an ALIVE catalog's version instead of bumping it | `verifyIntegrity` asserts that the WAL's last written version equals the bootstrap's, i.e. that every version in the line was produced by a transaction. A rename moves no data and appends nothing to the WAL, so consuming a version for it is the only thing violating that invariant. Writing header, schema part and bootstrap record at an already-flushed version is what the load path has always done | `DefaultCatalogPersistenceService#replaceWith`, `TransactionManager#notifyCatalogPresentInLiveView` |
+| `replaceWith` discards any owed checkpoint before it closes the service it is handing over | The bootstrap file is read back **by position** — the last record wins, whatever version it names — so a checkpoint owed by an earlier round publishes a pointer to the pre-rename root *after* the rename's own, and the service reopened at the end of the method loads the catalog under its previous name. Discarding is right on the merits: the rename's `recordBootstrap` flushes the index and forces the pending syncs, which is all the checkpoint owed | `DefaultCatalogPersistenceService#replaceWith` |
 | A fresh `catalogId` is minted whenever a catalog is materialised from copied bytes | A duplicate is a new lineage; carrying the source's id leaves the two indistinguishable by the field clients use to decide whether a cached view still holds | same method, driven by `.restored` |
 | Backups emit the canonical suffix-free, prefix-free shape | A backup zip is how a catalog travels between instances, so it must not carry one instance's folder generation into another | `BackupTask`, `FullBackupTask` |
 
@@ -123,6 +124,7 @@ different operation from replacement, and it would supersede this record.
 | Relax `verifyIntegrity` to `bootstrap >= WAL` so a rename's extra version passes | That is exactly the shape the WAL-provider defect produced — empty WAL at 0, bootstrap at 3 — so it would re-mask the silent transaction loss that fix had just made visible. The assertion is the only thing that catches it | never; the assertion is load-bearing |
 | Append a WAL transaction for the rename, so the two counters agree by construction | Disproportionate to a one-restart window, and it puts a non-transactional engine operation into the catalog's transaction stream, where every consumer would then have to recognise and skip it | only if a rename ever has to be replayable as part of the catalog's transaction history |
 | Drop the `previousLivingCatalog == livingCatalog` identity escape as redundant once the version comparison is `<=` | Unverified and wrong: `<` → `<=` only ever *admits* more, but deleting the escape *rejects* a same-instance republication at a version below the previous one, which the previous form allowed. Keeping both disjuncts makes the change a pure widening | never — the two disjuncts cover different cases |
+| Settle the owed checkpoint inside `writeCatalogBootstrap`, the seam that already covers every bootstrap writer structurally | Two concrete blockers. Settling unconditionally there reports a checkpoint completion on every warm-up flush, which the cadence gauge deliberately excludes so a bulk load cannot fill it with samples no checkpoint produced; and clearing the prepared record *without* settling makes `checkpointIfOwed` fail its own premise that a record exists whenever a checkpoint is owed — trading a wrong pointer for a thrown error on the next close | the gauge stops depending on `noteCheckpointCompleted`, or the premise becomes "owed implies prepared *or* already superseded" |
 | Treat a **suffixed** folder carrying a `.catalogname` marker as adoptable, to close the window between an adoption's rename and its binding | It would equally make the orphan folder a replacement leaves behind adoptable, resurrecting a replaced catalog. The suffix rule exists precisely to stop that | never — close that window with a rebind mutation instead |
 
 ## Key technical details
@@ -211,6 +213,17 @@ different operation from replacement, and it would supersede this record.
   to open. Calibrated in both directions — see the two error strings in `0e1a13142`. They also turn out
   to be the only coverage of the fourth WAL-provider site fixed in `5c1dc4919`, which shipped without
   any: reaching it needs a commit *after* the rename plus a restart.
+- **`DefaultCatalogPersistenceServiceTest#shouldNotReportInvertedVersionBlockWhenTwoBootstrapRecordsShareAVersion`**
+  covers the version-block clamp, which two operations now make reachable — a rename and the identity
+  reconciliation at load both *materialise* a version rather than producing one, so two bootstrap records
+  can share one. Calibrated: reverting the `Math.min` in the descending branch fails it with
+  `Block 3..2 starts after it ends (FROM_NEWEST_TO_OLDEST)`.
+- The three rename/replace tests above are also what caught the **checkpoint-ordering defect** recorded in
+  *Decisions taken*, which arrived from `dev` rather than from this work and is latent there too: `dev`'s
+  `replaceWith` has the identical publish-then-close-then-reopen shape, and escapes only because its own
+  rename tests go live and rename with no ALIVE transaction in between, so no round ever defers a
+  checkpoint. Reaching the defect needs a commit *before* the rename — which these tests do, because they
+  are about the WAL.
 - **`CatalogFolderClassifierTest`, `CatalogFolderCleanerTest`, `CatalogFolderAllocatorTest`** cover
   the classification table, the drain and generation burn-and-skip as pure units, written before the
   code they test — this is the step where a bug deletes user data.
