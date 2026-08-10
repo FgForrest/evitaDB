@@ -182,6 +182,13 @@ public class Crc32CWrapper {
 	 * `new Crc32CWrapper(cumulative).withLong(value).getValue()` but without ever calling
 	 * {@link #forceValue(long)}.
 	 *
+	 * **Folding a checksum into the state that produced it yields a constant.** `combineLong(x, x)` returns the
+	 * same value for every `x` — it computes `CRC(M ‖ CRC(M))`, the CRC *residue*, which is what lets protocols
+	 * verify a frame by checking for one magic value. This is a property of CRCs, not of this implementation, and
+	 * it means such a fold **erases** the running value rather than extending it. Deliberate at the WAL's
+	 * per-transaction boundary; a defect anywhere it is mistaken for chaining. See the `checksum` field of
+	 * `io.evitadb.store.wal.AbstractMutationLog`.
+	 *
 	 * @param cumulative the running cumulative CRC32C value to fold {@code value} into
 	 * @param value      the long value to fold in, in the same little-endian layout as {@link #withLong(long)}
 	 * @return the updated cumulative CRC32C value

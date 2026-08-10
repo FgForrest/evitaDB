@@ -3059,9 +3059,27 @@ public class DefaultCatalogPersistenceService
 			this.closed = true;
 			// stop the ticker and settle the debt before anything is torn down: no service may go away still owing
 			// a device flush, or the bytes it wrote would depend on the operating system getting round to them.
-			// The bootstrap record is deliberately NOT written here - it is a checkpoint pointer, and leaving it at
-			// the last checkpoint simply means restart resumes from there and replays the rest from the WAL.
+			//
+			// A checkpoint owed by the last round is published first. That round already built the bootstrap record
+			// and left the index at its own version, so this publishes a state that is by construction complete -
+			// it does not wait for anything, and it does not drain: `TransactionManager#close` fails pending
+			// transactions rather than finishing them, so newer versions may still be missing and the write-ahead
+			// log remains the authority on them. What it buys is that a clean restart resumes from here instead of
+			// replaying from whichever checkpoint the ticker last happened to reach. Nothing is written when no
+			// checkpoint is owed, which is the case whenever the round that just finished checkpointed itself.
 			if (this.checkpointCoordinator != null) {
+				try {
+					// ordered before the WAL is closed: publishing also tells the log how far it has been processed
+					this.checkpointCoordinator.checkpointIfOwed();
+				} catch (RuntimeException ex) {
+					// shutdown must not be aborted by this - the state stays crash-consistent either way, the next
+					// start simply replays more of the write-ahead log than it would have needed to
+					log.error(
+						"Final checkpoint of catalog `{}` failed - the next start will resume from the previous " +
+							"checkpoint and replay the remainder from the write-ahead log!",
+						this.catalogName, ex
+					);
+				}
 				try {
 					this.checkpointCoordinator.forcePendingSyncs();
 				} catch (RuntimeException ex) {

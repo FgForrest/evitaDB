@@ -660,6 +660,11 @@ class EngineMutationLogTest implements EvitaTestSupport {
 
 	/**
 	 * Nested tests for cumulative CRC32 checksum functionality.
+	 *
+	 * The engine log shares `AbstractMutationLog` with the catalog log, so the guarantee is identical - see the
+	 * `checksum` field there for what these values actually detect (damage inside a transaction, and nothing
+	 * about ordering). The behaviour is characterised once, by
+	 * `CatalogWriteAheadLogTest#shouldNotDetectReorderedTransactions`, rather than duplicated here.
 	 */
 	@Nested
 	@DisplayName("Cumulative CRC32 Tests")

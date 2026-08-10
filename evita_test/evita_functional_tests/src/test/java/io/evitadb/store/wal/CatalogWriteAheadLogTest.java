@@ -64,6 +64,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
@@ -200,7 +201,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			),
 			Mockito.mock(Scheduler.class),
 			offsetDateTime -> {},
-			null
+			AbstractMutationLog.WalPurgeCallback.NO_OP
 		);
 	}
 
@@ -212,10 +213,41 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private CatalogWriteAheadLog createTestWalWithCustomSize(long walFileSizeBytes) {
-		return new CatalogWriteAheadLog(
+		return createTestWal(
 			0L,
-			TEST_CATALOG,
 			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+			walFileSizeBytes,
+			10,
+			AbstractMutationLog.WalPurgeCallback.NO_OP
+		);
+	}
+
+	/**
+	 * Creates a test instance of CatalogWriteAheadLog opened against an explicit log record reference. This is the
+	 * shape a restart takes: the reference is whatever the catalog header found through the last published bootstrap
+	 * record, and the WAL directory holds whatever rotation left behind since.
+	 *
+	 * @param catalogVersion         the catalog version the log resumes from
+	 * @param logFileRecordReference the reference the log is opened against
+	 * @param walFileSizeBytes       the maximum size of each WAL file in bytes
+	 * @param walFileCountKept       how many WAL files rotation leaves unqueued for removal
+	 * @param onWalPurgeCallback     invoked when a purge actually removes files; `removeWalFiles` dereferences it
+	 *                               unconditionally, so a test that never purges still passes
+	 *                               {@link AbstractMutationLog.WalPurgeCallback#NO_OP} rather than `null`
+	 * @return a configured CatalogWriteAheadLog instance
+	 */
+	@Nonnull
+	private CatalogWriteAheadLog createTestWal(
+		long catalogVersion,
+		@Nonnull LogFileRecordReference logFileRecordReference,
+		long walFileSizeBytes,
+		int walFileCountKept,
+		@Nonnull AbstractMutationLog.WalPurgeCallback onWalPurgeCallback
+	) {
+		return new CatalogWriteAheadLog(
+			catalogVersion,
+			TEST_CATALOG,
+			logFileRecordReference,
 			this.walDirectory,
 			this.catalogKryoPool,
 			new StorageSettings(
@@ -224,13 +256,62 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 					.build(),
 				TransactionOptions.builder()
 					.walFileSizeBytes(walFileSizeBytes)
-					.walFileCountKept(10)
+					.walFileCountKept(walFileCountKept)
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
 			offsetDateTime -> {},
-			null
+			onWalPurgeCallback
 		);
+	}
+
+	/**
+	 * Appends 200-byte transactions, one catalog version each starting at 1, until the given WAL file appears -
+	 * i.e. until rotation has happened as many times as that file's index. Deterministic: the file size limit and
+	 * the transaction size decide the count, nothing timing-dependent.
+	 *
+	 * @param wal            the log to append to
+	 * @param awaitedWalFile the WAL file whose appearance ends the loop
+	 * @param referenceAt    catalog version whose append reference is captured and returned
+	 * @return the reference returned by the append of `referenceAt`, plus the last version written
+	 */
+	@Nonnull
+	private RotatedWal appendUntilWalFileAppears(
+		@Nonnull CatalogWriteAheadLog wal,
+		@Nonnull Path awaitedWalFile,
+		long referenceAt
+	) {
+		LogFileRecordReference capturedReference = null;
+		long transactionVersion = 1;
+		while (!Files.exists(awaitedWalFile)) {
+			final TransactionWithData txData = createTestTransaction((int) (transactionVersion - 1), 200);
+			final LogFileRecordReference reference = wal.append(txData.mutation(), txData.data());
+			if (transactionVersion == referenceAt) {
+				capturedReference = reference;
+			}
+			transactionVersion++;
+			if (transactionVersion > 500) {
+				throw new AssertionError(
+					"WAL did not rotate up to `" + awaitedWalFile + "` within the expected number of transactions!"
+				);
+			}
+		}
+		return new RotatedWal(
+			Objects.requireNonNull(capturedReference, "No reference was captured for version " + referenceAt + "!"),
+			transactionVersion - 1
+		);
+	}
+
+	/**
+	 * Outcome of {@link #appendUntilWalFileAppears(CatalogWriteAheadLog, Path, long)}.
+	 *
+	 * @param capturedReference reference of the append that was singled out as "the last checkpointed one"
+	 * @param lastVersion       the last catalog version actually written
+	 */
+	private record RotatedWal(
+		@Nonnull LogFileRecordReference capturedReference,
+		long lastVersion
+	) {
 	}
 
 	/**
@@ -693,6 +774,10 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	/**
 	 * Nested tests for cumulative CRC32 checksum functionality.
 	 * These tests verify the checksum computation and storage in the WAL file.
+	 *
+	 * Before reading anything here as an integrity guarantee, see the `checksum` field of
+	 * {@link AbstractMutationLog} - it is the authoritative account of what these values detect, which is
+	 * narrower than "cumulative" suggests. In short: damage inside a transaction, and nothing about ordering.
 	 */
 	@Nested
 	@DisplayName("Cumulative CRC32 Tests")
@@ -773,6 +858,14 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			CatalogWriteAheadLogTest.this.tested = createTestWal();
 		}
 
+		/**
+		 * Proves the stored checksum equals an independently computed CRC32C over every byte preceding it, which
+		 * is exactly what the format specifies.
+		 *
+		 * It does **not** prove that the file is tamper-evident or that its transactions are pinned in place, and
+		 * it must not be cited for either - `shouldNotDetectReorderedTransactions` below shows why. The two tests
+		 * are deliberately adjacent: this one is the reason the misreading is tempting, that one is the correction.
+		 */
 		@Test
 		@DisplayName("should write correct cumulative CRC32C checksum to WAL file")
 		void shouldWriteCorrectCumulativeCrc32ChecksumToWalFile() throws IOException {
@@ -820,6 +913,82 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 				);
 			}
 
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+
+		/**
+		 * Pins what the cumulative checksum actually detects, which is less than the chain suggests.
+		 *
+		 * Each stored checksum genuinely is the CRC32C of every byte preceding it - `shouldWriteCorrectCumulativeCrc32
+		 * ChecksumToWalFile` verifies exactly that against an independently computed CRC. The catch is that this
+		 * coverage includes the previous stored checksums, and `CRC(M ‖ CRC(M))` is the CRC residue: a constant,
+		 * whatever `M` was. The running register therefore returns to that same constant at every stored checksum, so
+		 * each value ends up determined by the constant plus its own transaction's bytes and nothing earlier.
+		 *
+		 * What that catches: damage **inside** a transaction whose stored checksum was not also rewritten. What it
+		 * cannot catch is below - whole transactions exchanged, duplicated, or spliced in from another file, since
+		 * each carries a checksum that verifies from the same constant wherever it is placed.
+		 *
+		 * **That gap is closed elsewhere, not here.** Every transaction carries the catalog version it produces, and
+		 * trunk incorporation asserts each one is exactly the next expected version
+		 * ({@link io.evitadb.core.transaction.TransactionManager}, "Unexpected catalog version!"). Exchanged,
+		 * duplicated, dropped and cross-file-spliced transactions all break that sequence and are rejected loudly.
+		 * So this test pins where the *checksum's* reach ends, not a hole in the engine - and the reason it asserts
+		 * acceptance rather than rejection is that the WAL layer is not the layer that says no.
+		 */
+		@Test
+		@DisplayName("should not detect two whole transactions exchanged - the chain resets at every checksum")
+		void shouldNotDetectReorderedTransactions() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path walPath = CatalogWriteAheadLogTest.this.walDirectory.resolve(getWalFileName(TEST_CATALOG, 0));
+
+			// three transactions with identical payload sizes, so each occupies exactly the same number of bytes and
+			// two of them can be exchanged without disturbing a single length prefix
+			try (CatalogWriteAheadLog wal = createTestWal()) {
+				for (int i = 0; i < 3; i++) {
+					final TransactionWithData txData = createTestTransaction(i, 200);
+					wal.append(txData.mutation(), txData.data());
+				}
+			}
+
+			final byte[] original = Files.readAllBytes(walPath);
+			final int header = AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+			final int blockLength = (original.length - header) / 3;
+			assertEquals(
+				header + blockLength * 3, original.length,
+				"Precondition: the three transactions must be equally long for the exchange to be byte-neutral."
+			);
+
+			// exchange the first two transactions, each carried over whole - its length prefix, its records and its
+			// own trailing cumulative checksum
+			final byte[] tampered = original.clone();
+			System.arraycopy(original, header + blockLength, tampered, header, blockLength);
+			System.arraycopy(original, header, tampered, header + blockLength, blockLength);
+			Files.write(walPath, tampered);
+
+			// reopening runs `checkAndTruncate`, which verifies every transaction's cumulative checksum in turn
+			try (CatalogWriteAheadLog ignored = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 1_048_576L, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				// nothing to do - construction is what scans the file
+			}
+
+			assertFalse(
+				Files.exists(CatalogWriteAheadLogTest.this.walDirectory.resolve("_damaged_wal.bck")),
+				"The swap is currently accepted, so no damaged-file backup may be produced - a backup here means " +
+					"the chain started detecting reordering and this test is now the one that is out of date."
+			);
+			assertEquals(
+				original.length, walPath.toFile().length(),
+				"The swap is currently accepted, so nothing may be truncated off the file."
+			);
+
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
 			CatalogWriteAheadLogTest.this.tested = createTestWal();
 		}
 
@@ -913,6 +1082,305 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			}
 
 			// Clean directory and recreate WAL for tearDown
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+	}
+
+	/**
+	 * Restart behaviour when the log has moved past the position a restart resumes from - either by rotating into
+	 * later files, or by appending transactions the trunk never incorporated.
+	 *
+	 * A catalog resumes from the last **published bootstrap record**, not from the newest state it had in memory:
+	 * `DefaultCatalogPersistenceService#close` deliberately leaves that pointer at the last checkpoint, "which
+	 * simply means restart resumes from there and replays the rest from the WAL". Everything appended since is the
+	 * tail replay consumes, and it may span several files.
+	 *
+	 * These tests pin the parts of that contract independently: rotation must never drop the file the reference
+	 * needs (which would leave an unbridgeable gap), reopening against such a reference must work, and a
+	 * transaction appended after the restart must survive the next restart intact.
+	 *
+	 * Note what is deliberately **not** claimed here: that appends continue a checksum chain. Each transaction's
+	 * trailing checksum covers only its own bytes - the running value returns to a fixed constant after every
+	 * record, so no test in this class can distinguish one append-chain seed from another. The authoritative
+	 * account of what that checksum does and does not cover is on `AbstractMutationLog#checksum`.
+	 */
+	@Nested
+	@DisplayName("Restart from a position the log has moved past")
+	class RestartAfterRotation {
+
+		@Test
+		@DisplayName("should resume replay when the reference is the last transaction of a rotated file")
+		void shouldResumeReplayWhenReferenceIsLastTransactionOfRotatedFile() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			// small enough that a handful of 200-byte transactions rotate the file more than once
+			final long walFileSizeLimit = 1_000L;
+
+			LogFileRecordReference lastInFirstFile = null;
+			long lastVersionInFirstFile = -1L;
+			try (CatalogWriteAheadLog wal = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), walFileSizeLimit, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				for (int version = 1; version <= 8; version++) {
+					final TransactionWithData txData = createTestTransaction(version - 1, 200);
+					final LogFileRecordReference reference = wal.append(txData.mutation(), txData.data());
+					if (reference.fileIndex() == 0) {
+						lastInFirstFile = reference;
+						lastVersionInFirstFile = version;
+					}
+				}
+			}
+			final LogFileRecordReference processedReference = Objects.requireNonNull(lastInFirstFile);
+			assertTrue(
+				CatalogWriteAheadLogTest.this.walDirectory.resolve(getWalFileName(TEST_CATALOG, 1)).toFile().exists(),
+				"Precondition: rotation must have produced a second WAL file."
+			);
+
+			// the checkpoint landed exactly on the rotation boundary: everything in file 0 is processed and the
+			// remainder lives in file 1. Replay must cross that boundary rather than read into the finalized tail
+			try (CatalogWriteAheadLog reopened = createTestWal(
+				lastVersionInFirstFile, processedReference, walFileSizeLimit, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertEquals(
+					lastVersionInFirstFile + 1,
+					reopened.getFirstNonProcessedTransaction(processedReference)
+						.orElseThrow(() -> new AssertionError("Replay found nothing after the reference!"))
+						.transactionMutation()
+						.getVersion(),
+					"replay must continue into the next WAL file when the reference ends the previous one"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should resume replay and keep appending when the reference lags inside the active file")
+		void shouldResumeReplayAndAppendWhenReferenceLagsInsideActiveFile() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path walFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 0));
+			final long walFileSizeLimit = 1_048_576L;
+
+			// four transactions land in one file, but only the second was ever incorporated - which is what a
+			// crash leaves behind whenever appends outran the trunk rounds processing them
+			LogFileRecordReference afterSecond = null;
+			LogFileRecordReference afterFourth = null;
+			try (CatalogWriteAheadLog wal = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), walFileSizeLimit, 10,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				for (int version = 1; version <= 4; version++) {
+					final TransactionWithData txData = createTestTransaction(version - 1, 200);
+					final LogFileRecordReference reference = wal.append(txData.mutation(), txData.data());
+					if (version == 2) {
+						afterSecond = reference;
+					} else if (version == 4) {
+						afterFourth = reference;
+					}
+				}
+			}
+			final LogFileRecordReference processedReference = Objects.requireNonNull(afterSecond);
+			final LogFileRecordReference lastAppendedReference = Objects.requireNonNull(afterFourth);
+
+			// the restart resumes from transaction 2; transactions 3 and 4 are the tail replay consumes
+			final LogFileRecordReference postRestartReference;
+			try (CatalogWriteAheadLog reopened = createTestWal(
+				2L, processedReference, walFileSizeLimit, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertEquals(
+					3L,
+					reopened.getFirstNonProcessedTransaction(processedReference)
+						.orElseThrow(() -> new AssertionError("Replay found nothing after the reference!"))
+						.transactionMutation()
+						.getVersion(),
+					"replay must resume at the first transaction the trunk never incorporated"
+				);
+
+				final TransactionWithData txData = createTestTransaction(4, 200);
+				postRestartReference = reopened.append(txData.mutation(), txData.data());
+			}
+			final long walFileLengthAfterRestart = walFile.toFile().length();
+
+			// A third open is what would discover a transaction 5 the reopen wrote wrongly - a scan rejects the
+			// file outright, or quietly truncates the offending transaction back off it. Both assertions below
+			// are therefore needed: either outcome alone would let the other pass unnoticed. This covers the
+			// reopen path where `checkAndTruncate` mints a corrected reference and the constructor adopts it,
+			// which no other test in this class exercises.
+			try (CatalogWriteAheadLog reopenedAgain = createTestWal(
+				5L, postRestartReference, walFileSizeLimit, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertEquals(
+					5L,
+					reopenedAgain.getFirstNonProcessedTransaction(lastAppendedReference)
+						.orElseThrow(() -> new AssertionError("The transaction appended after the restart is gone!"))
+						.transactionMutation()
+						.getVersion(),
+					"the transaction appended after the restart must still be readable"
+				);
+			}
+			assertEquals(
+				walFileLengthAfterRestart, walFile.toFile().length(),
+				"reopening must not truncate the transaction appended after the restart - a shorter file means " +
+					"the scan rejected it and silently repaired the file"
+			);
+
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+
+		@Test
+		@DisplayName("should keep the WAL file holding the first non-processed transaction")
+		void shouldKeepWalFileHoldingFirstNonProcessedTransaction() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path firstWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path fourthWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 3));
+
+			// only two files are kept, so rotation queues files 0 and 1 for removal - but the queue is
+			// version-gated, and version 4 (still unprocessed) lives in file 0
+			final CatalogWriteAheadLog wal = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 4_096L, 2,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			);
+			try {
+				appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				assertTrue(
+					wal.getFirstVersionOf(1) > 4L,
+					"test setup: version 4 must still live in file 0 for this assertion to mean anything"
+				);
+
+				wal.walProcessedUntil(3L);
+			} finally {
+				// close() runs the purge (AbstractMutationLog#close), so the assertions come after it
+				wal.close();
+			}
+
+			assertTrue(
+				Files.exists(firstWalFile),
+				"file 0 holds version 4, the first non-processed transaction - purging it would leave a gap " +
+					"that replay after a restart could never bridge"
+			);
+
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+
+		@Test
+		@DisplayName("should purge rotated WAL files once every transaction in them is processed")
+		void shouldPurgeWalFilesOnceEveryTransactionInThemIsProcessed() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path firstWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path secondWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 1));
+			final Path fourthWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 3));
+
+			// the calibration of the test above: with the same rotation and the same kept-count, the two queued
+			// files DO disappear once nothing unprocessed is left in them. Without this, that test would pass
+			// just as happily if the purge never ran at all.
+			final CatalogWriteAheadLog wal = createTestWal(
+				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 4_096L, 2,
+				AbstractMutationLog.WalPurgeCallback.NO_OP
+			);
+			try {
+				appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				// every version below the first one in file 2 is contained in files 0 and 1
+				wal.walProcessedUntil(wal.getFirstVersionOf(2));
+			} finally {
+				wal.close();
+			}
+
+			assertFalse(Files.exists(firstWalFile), "file 0 is fully processed and must be purged");
+			assertFalse(Files.exists(secondWalFile), "file 1 is fully processed and must be purged");
+
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+			CatalogWriteAheadLogTest.this.tested = createTestWal();
+		}
+
+		@Test
+		@DisplayName("should reopen against a reference that sits several rotations back")
+		void shouldReopenAgainstReferenceSeveralRotationsBack() throws IOException {
+			CatalogWriteAheadLogTest.this.tested.close();
+			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
+			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
+
+			final Path firstWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 0));
+			final Path fourthWalFile = CatalogWriteAheadLogTest.this.walDirectory
+				.resolve(getWalFileName(TEST_CATALOG, 3));
+
+			final LogFileRecordReference checkpointedReference;
+			final long lastWrittenVersion;
+			final long firstWalFileLengthBeforeRestart;
+
+			// nothing is purged here - the point is the reference's distance from the newest file, not its absence
+			try (CatalogWriteAheadLog wal = createTestWalWithCustomSize(4_096L)) {
+				final RotatedWal rotated = appendUntilWalFileAppears(wal, fourthWalFile, 3L);
+				checkpointedReference = rotated.capturedReference();
+				lastWrittenVersion = rotated.lastVersion();
+			}
+			firstWalFileLengthBeforeRestart = firstWalFile.toFile().length();
+
+			// this is what a restart does: open against the reference the last checkpoint left behind
+			final LogFileRecordReference postRestartReference;
+			try (CatalogWriteAheadLog reopened = createTestWal(
+				3L, checkpointedReference, 4_096L, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertEquals(
+					4L,
+					reopened.getFirstNonProcessedTransaction(checkpointedReference)
+						.orElseThrow(() -> new AssertionError("Replay found nothing after the reference!"))
+						.transactionMutation()
+						.getVersion(),
+					"replay must resume at the transaction right after the checkpointed one"
+				);
+
+				final TransactionWithData txData = createTestTransaction((int) lastWrittenVersion, 200);
+				postRestartReference = reopened.append(txData.mutation(), txData.data());
+			}
+
+			assertEquals(
+				firstWalFileLengthBeforeRestart, firstWalFile.toFile().length(),
+				"a restart must not truncate or append to an already rotated-away WAL file - appends belong in " +
+					"the newest file, and file 0's tail record is not a partially written transaction"
+			);
+			assertEquals(
+				3, postRestartReference.fileIndex(),
+				"the post-restart append belongs in the newest WAL file, not in the one the reference points at"
+			);
+
+			// Opening a third time is what proves the APPEND chain was seeded correctly: the scan recomputes each
+			// transaction's cumulative checksum from the file's stored seed and rejects the file when one does not
+			// match. A restart that continued the reference's chain instead of the active file's would write a
+			// transaction whose checksum is wrong, and this is the open that finds it.
+			try (CatalogWriteAheadLog reopenedAgain = createTestWal(
+				lastWrittenVersion + 1, postRestartReference, 4_096L, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+			)) {
+				assertTrue(
+					reopenedAgain.getFirstNonProcessedTransaction(postRestartReference).isEmpty(),
+					"nothing follows the transaction appended after the restart"
+				);
+			}
+
 			cleanTestSubDirectory(CatalogWriteAheadLogTest.class.getSimpleName());
 			CatalogWriteAheadLogTest.this.walDirectory.toFile().mkdirs();
 			CatalogWriteAheadLogTest.this.tested = createTestWal();
