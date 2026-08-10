@@ -96,7 +96,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * rewritten and are expected to pass both before and after the fix. Their passing is what pins the
  * defect to the single `LocalDateTime` branch rather than to local temporal types as a family.
  *
- * Every end-to-end assertion reads the value back and compares it to the *exact* instance written.
+ * Every end-to-end assertion reads the value back and compares it to the *exact value* written — equality, not
+ * reference identity: the engine materializes a fresh instance on read.
  * That is deliberate: an assertion that merely expected "no exception" would also pass a fix that
  * kept a wall-clock-shifting conversion in the write path, which on a `sortable` attribute would
  * silently reorder listings rather than fail.
