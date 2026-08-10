@@ -464,6 +464,50 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should report the first replayable version only once rotation has actually purged a file")
+		void shouldReportTheFirstReplayableVersionOnlyAfterAPurge() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+
+			// nothing has been deleted yet, so no floor was ever reported and there is none to recover. Answering
+			// with the first version of file `0` instead would be a floor nobody derived - and a catalog whose
+			// newest published bootstrap record sits below it loses the persistence service that record needs
+			assertEquals(-1L, CatalogWriteAheadLogIntegrationTest.this.wal.getFirstReplayableVersion());
+
+			final File[] walFiles = CatalogWriteAheadLogIntegrationTest.this.walDirectory.toFile().listFiles(
+				(dir, name) -> name.endsWith(WAL_FILE_SUFFIX)
+			);
+			Arrays.sort(
+				walFiles,
+				Comparator.comparingInt(f -> getIndexFromWalFileName(f.getName()))
+			);
+			assertEquals(3, walFiles.length);
+
+			// what rotation leaves behind once the removal it queued is executed: the oldest file is gone, and the
+			// floor it implied - `lastVersion + 1` of that file - is the first version of the one that survived
+			final long expectedFirstReplayableVersion = getFirstAndLastVersionsFromWalFile(
+				walFiles[0], WriteAheadLogCorruptedException.WalKind.CATALOG
+			).lastVersion() + 1L;
+			assertTrue(walFiles[0].delete());
+
+			assertEquals(
+				expectedFirstReplayableVersion,
+				CatalogWriteAheadLogIntegrationTest.this.wal.getFirstReplayableVersion()
+			);
+			assertEquals(
+				getFirstAndLastVersionsFromWalFile(
+					walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG
+				).firstVersion(),
+				CatalogWriteAheadLogIntegrationTest.this.wal.getFirstReplayableVersion(),
+				"the surviving file's own first version is the floor, and it must be read from its head - the " +
+					"trailer this compares against exists only because that file was rotated away in its turn"
+			);
+		}
+
+		@Test
 		@DisplayName("should write and read WAL over multiple files in reversed order")
 		void shouldWriteAndReadWalOverMultipleFilesInReversedOrder() throws IOException {
 			CatalogWriteAheadLogIntegrationTest.this.wal.close();

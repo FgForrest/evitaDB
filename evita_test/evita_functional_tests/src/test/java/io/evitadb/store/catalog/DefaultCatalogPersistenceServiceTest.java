@@ -150,6 +150,7 @@ import java.util.regex.Pattern;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileNamePattern;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
@@ -714,6 +715,45 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		} finally {
 			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
 		}
+	}
+
+	@Test
+	void shouldReportNoFirstBootstrapForAnEmptyBootstrapFile() throws IOException {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		final StorageSettings storageSettings = new StorageSettings(
+			getStorageOptions(),
+			getTransactionOptions()
+		);
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+			assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isPresent());
+		}
+
+		// an existing file with nothing whole in it is what the method's contract calls empty. Answering it with
+		// a buffer underflow instead takes down `fetchOldestRetainedDataFilesInfo`, and with it every reclamation
+		// sweep and every attempt to open the catalog again - the file is read at position zero either way
+		final Path bootstrapFilePath = storageSettings.storageDirectory()
+			.resolve(catalogName)
+			.resolve(getCatalogBootstrapFileName(catalogName));
+		Files.write(bootstrapFilePath, new byte[0]);
+
+		assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isEmpty());
 	}
 
 	@Test
@@ -1714,6 +1754,98 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				)
 			).thenReturn(exportFileHandle);
 			return exportFileService;
+		}
+
+		@Test
+		@DisplayName("should reconcile nothing when opening a catalog whose log has never been purged")
+		void shouldReconcileNothingWhenTheWalWasNeverPurged() {
+			final long lastWarmUpVersion;
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					// unlimited budget, so nothing but the reconciliation under test could move the horizon
+					timeTravelStorageOptions(-1L),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				writeSeveralGenerations(ioService);
+				assertTrue(listCatalogDataFiles().size() > 3);
+				lastWarmUpVersion = ioService.getLastCatalogVersion();
+
+				// one transaction, so the catalog has a log at all - and the log begins above every generation written
+				// above it, which is exactly the shape that tempts a reconciliation into giving that history up
+				DefaultCatalogPersistenceServiceTest.this.walService.write(
+					lastWarmUpVersion + 1, DATA_MUTATION_EXAMPLE);
+				final OffHeapWithFileBackupReference walReference =
+					DefaultCatalogPersistenceServiceTest.this.walService.getWalReference();
+				ioService.appendWalAndDiscardDeferringSync(
+					lastWarmUpVersion + 1,
+					new TransactionMutation(
+						DefaultCatalogPersistenceServiceTest.this.transactionId,
+						lastWarmUpVersion + 1, 1, walReference.getContentLength(), OffsetDateTime.MIN
+					),
+					walReference
+				);
+				ioService.syncWal();
+			}
+
+			// nothing has ever been deleted from this log - file `0` is still there - so rotation never reported a floor
+			// for it and there is nothing to recover. The version its only file begins at is not a floor: it sits above
+			// the newest published bootstrap record, and giving it up would take the persistence service that record
+			// needs with it, which surfaces far away as `Catalog version N not found ...` out of an observability emit
+			final List<File> walFiles = listWalFiles();
+			assertEquals(1, walFiles.size());
+			assertEquals(0, AbstractMutationLog.getIndexFromWalFileName(walFiles.get(0).getName()));
+
+			final Scheduler openScheduler = Mockito.mock(Scheduler.class);
+			try (
+				final DefaultCatalogPersistenceService reopened = new DefaultCatalogPersistenceService(
+					Mockito.mock(CatalogContract.class),
+					TEST_CATALOG,
+					timeTravelStorageOptions(-1L),
+					eagerCheckpointTransactionOptions(),
+					openScheduler,
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				final long horizonOnOpen = reopened.getOldestRetainedCatalogVersion();
+
+				// opening the catalog is what schedules the reconciliation, so the task is taken off the scheduler
+				// production hands it to rather than called by name - a reconciliation nothing schedules recovers nothing
+				final ArgumentCaptor<Runnable> openTask = ArgumentCaptor.forClass(Runnable.class);
+				Mockito.verify(openScheduler).submit(openTask.capture());
+				openTask.getValue().run();
+
+				assertEquals(
+					horizonOnOpen, reopened.getOldestRetainedCatalogVersion(),
+					"a log that has purged nothing implies no floor, so opening must leave the retained history alone"
+				);
+				assertTrue(
+					reopened.getOldestRetainedCatalogVersion() <= lastWarmUpVersion,
+					"the generations written before the log existed must still be reachable"
+				);
+			}
+		}
+
+		/**
+		 * Lists the write-ahead log files present in the catalog folder.
+		 *
+		 * @return the log files, oldest index first
+		 */
+		@Nonnull
+		private List<File> listWalFiles() {
+			final Path catalogDirectory = getTestDirectory()
+				.resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST)
+				.resolve(TEST_CATALOG);
+			return Arrays.stream(
+					Objects.requireNonNull(
+						catalogDirectory.toFile().listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX))
+					)
+				)
+				.sorted(Comparator.comparingInt(file -> AbstractMutationLog.getIndexFromWalFileName(file.getName())))
+				.toList();
 		}
 
 		@Test

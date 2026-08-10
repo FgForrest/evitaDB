@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-10 07:08
+updated: 2026-08-10 20:45
 status: accepted
 kind: feature
 issues: [761]
@@ -192,12 +192,16 @@ to "I cannot configure my fleet uniformly".
   while (a) the clamp is mode-independent, and (b) **every** session takes a pin, read-only ones
   included. Both are recorded at their sites, because either one silently disappearing breaks the
   argument with no test failing.
-- **Holds are leases, not paired void calls.** `CatalogDirectoryReadHold` is an idempotent
-  `AutoCloseable` that captures the maintainer it was taken on. Acquisition and release are separated
-  by a whole backup, and the pairing has failed twice already — a task that acquired in its
+- **Holds and pins are leases, not paired void calls.** `CatalogDirectoryReadHold` and
+  `CatalogVersionPin` are both idempotent `AutoCloseable`s that capture the instance they were taken
+  on — the maintainer and the `Catalog` respectively. Acquisition and release are separated by a whole
+  backup or a whole session, and the pairing has failed twice — a task that acquired in its
   constructor and was never scheduled leaked for the catalog's lifetime, and a release routed through
-  a mutable catalog reference can reach a different instance than the acquisition did, drifting a
-  counter that nothing reconciles. Both are closed structurally.
+  a mutable catalog reference reached a different instance than the acquisition did, drifting a
+  counter that nothing reconciles. The second failure applied to the *pin* for most of this line of
+  work, while only the hold was a lease; a `replaceWith` between a backup's pin and its release
+  decremented the replacement's counter and left the granting catalog's pin up forever. Both are now
+  closed structurally, and the by-name lookup is gone from the release path entirely.
 - **A backup pins without registering as a session.** `CatalogConsumerControl.pinCatalogVersion`
   exists precisely so the backup gets retention and nothing else. Routing it through
   `registerConsumerOfCatalogInVersion` also counted it as a read-write consumer, and since a full
@@ -218,6 +222,14 @@ to "I cannot configure my fleet uniformly".
   cancels the task if `scheduler.submit` rejects it, which routes through the task's own tear-down.
   This was harmless while a full backup pinned the newest version; now that it pins the oldest, a
   leaked pin would freeze every reclamation for the rest of the catalog's life.
+- **`cancel()` answering `false` may not be read as "there was nothing to give back".**
+  `Scheduler.addTaskToQueue` calls `task.fail(ex)` *before* it throws the rejection, so by the time
+  `Catalog` cancels the task on that path the future is already done and `AbstractServerTask.cancel()`
+  returns `false`. Both backup tasks gated their tear-down on that answer, so the one path the gate
+  existed for — a queue too full to accept the task — was exactly the path that skipped it, and the
+  constructor-acquired pin and folder hold stayed up for the life of the catalog. The tear-down now
+  runs unconditionally, which is safe only because both halves of it are exactly-once: the lease
+  closes idempotently and the hold is an idempotent `AutoCloseable`.
 - **A full backup pins the oldest retained version, not the version it is taken at.** It copies every
   file in the catalog folder, historical ones included, so it needs the whole retained window rather
   than one generation. Pinning the newest version protects nothing: the floor is a *minimum*, so
@@ -363,10 +375,11 @@ at least once. The rules the code now follows:
 - **Only the intolerant end may be intolerant.** `pinCatalogVersion` throws when the catalog cannot be
   resolved, because a backup whose pin silently did not land runs unprotected for its whole life and
   its own post-pin re-verification degrades back to the race it was written to close. Session
-  registration keeps its tolerance — but a tolerated skip is now *recorded*
-  (`versionsWithSkippedPin`), because releasing a pin that was never taken is not a no-op: by the time
-  the session closes the catalog may be back, and the release would decrement whatever pin somebody
-  else holds at that version.
+  registration keeps its tolerance, and the lease is what makes that safe without bookkeeping: a skip
+  hands back `CatalogVersionPin.NONE`, which closes to nothing. Releasing a pin that was never taken
+  would not be a no-op — by the time the session closes the catalog may be back, and the release would
+  decrement whatever pin somebody else holds at that version — but there is no longer any way to
+  express that release, because the only thing a caller can close is the lease it was actually given.
 - **A constructor that acquires two things must unwind both, in tear-down order.** `BackupTask` takes
   the folder hold first and the version pin second, and everything after the pin can throw — the
   reachability re-verification reads the bootstrap file under the horizon lock. The unwind mirrors
@@ -398,6 +411,51 @@ turns it into a no-op, and the round is booked as complete with its work never p
 - `OffsetIndex`'s purge watermark is the deliberate exception: it records intent and the **next
   promotion** consumes it. That is what makes the clamp in matrix row 7 observable only after a
   further commit, and it is why the test for it writes one more generation.
+
+### The log's floor report is one-shot, so opening a catalog re-derives it
+
+Parking a refused horizon request in `pendingHistoryHorizonRequest` covers a pin that is released
+while the process lives. It cannot cover a shutdown or a crash in between: the park is in memory, and
+the evidence that would let anyone ask again — the log files themselves — was deleted to produce the
+report. On an idle catalog with an unlimited budget nothing revisits the question, so everything below
+that floor is retained for the life of the catalog although no reader can reach it through replay.
+
+Opening a catalog therefore submits `reconcileHistoryHorizonWithWal`, which asks the log on disk for
+the same number rotation would have reported. That it is the *same* number is what keeps this a
+recovery rather than a new retention policy: rotation records each pending removal at `lastVersion +
+1` of the file it deletes and reports the highest, and files are contiguous, so the quantity **is the
+first version of the oldest surviving file**. It still passes through `advanceHistoryHorizon`, so the
+retention floor clamps it like any other request.
+
+- **A log that still holds file `0` reports nothing, and that gate is what makes the equivalence
+  true** rather than merely plausible. Nothing has been deleted from such a log, so no floor was ever
+  reported for it, and the version its first file happens to begin at is not one. Reporting it anyway
+  is not a harmless over-approximation: with a deferred checkpoint the newest *published* bootstrap
+  record sits below that version, and the trim then removes the persistence service that record
+  needs — which surfaces as `Catalog version N not found in the catalog persistence service
+  versions!` out of `emitObservabilityEvents`, on a catalog that was doing nothing wrong. The gate is
+  also what the invariant below is stated against: it holds for floors rotation actually derived, not
+  for arbitrary versions.
+
+- **Read the head of that file, never its tail.** The `(firstVersion, lastVersion, checksum)` trailer
+  is written when a file is *rotated away*, so the one file this question is about may not have one:
+  once rotation has purged everything below it, the oldest surviving file **is** the active file, and
+  its trailing bytes are the tail of its last transaction record. Reading them yielded a version of
+  5·10¹⁸, and a horizon that large trims every bootstrap record there is. Use
+  `getFirstVersionOf`, which skips the cumulative checksum and the transaction prefix and
+  deserializes the first `TransactionMutation`. The two existing tail readers are correct and should
+  stay that way: `checkFinalizedWalFile` is handed a finalized file and recovers by recomputing the
+  tail, and the rotation loop only ever reads files below the ones it keeps.
+- **The floor can never outrun the newest published bootstrap record**, which is why no clamp is
+  needed here. `removeWalFiles` deletes only pending removals at or below `processedVersion`, and
+  `storeHeader` advances `processedVersion` through `walProcessedUntil` **only on the publish path** —
+  the deferred-checkpoint branch returns before it. A deferred checkpoint therefore holds log removal
+  back with it.
+- **It is submitted, not run inline.** What it drives is a bootstrap trim and a folder sweep;
+  reclaiming disk nobody is waiting for must not lengthen the open of a catalog somebody is. Nothing
+  downstream depends on it having run — every other driver re-derives its own horizon. It is wired to
+  the `load` constructor only: `createNew` has no history to reconcile, and the rename constructor
+  inherits a horizon the former service already derived.
 
 ### Nothing may throw out of a shutdown or a commit path
 
@@ -544,6 +602,41 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   constructor's unwind leaves `isCatalogDirectoryHeld()` true (`expected: <false> but was: <true>`).
   The second half matters more than it looks — this test resolves the version-0 go-live record, so it
   drove the leaked-hold path on every run and asserted nothing about it.
+- `shouldReleaseTheRetainedWindowWhenTheFullBackupIsRejected` — the scheduler refusing to queue the
+  task must still give back what its constructor took. Calibrated by restoring the `if (cancel)`
+  gate: `expected: <-1> but was: <0>`, the floor pinned at the oldest retained version for good.
+- `CatalogConsumerControlTest` — four tests over the version-pin lease. The one that matters is
+  `shouldReleaseThePinOnTheCatalogThatGrantedIt`: pin, replace the catalog, close the lease, and the
+  release must land on the *granting* instance. Calibrated by routing the release back through the
+  by-name supplier — the granting catalog never sees it and the replacement is decremented instead.
+- `shouldReportTheFirstReplayableVersionOnlyAfterAPurge` (`CatalogWriteAheadLogIntegrationTest`) — the
+  gate and the head read, at the level where real multi-file logs already exist. A three-file log that
+  has purged nothing must answer `-1`; with its oldest file removed it must answer that file's
+  `lastVersion + 1`, cross-checked against the survivor's own recorded first version. Calibrated by
+  removing the gate.
+- `shouldReconcileNothingWhenTheWalWasNeverPurged` — the catalog-level half: opening must schedule the
+  task, and running it must leave retained history alone when the log has purged nothing. This is the
+  test that fails against the defect the full suite exposed.
+- **The rotated end-to-end path — rotate, drop the report at shutdown, reopen, trim — is not covered
+  by a test.** Driving a genuine rotation from `DefaultCatalogPersistenceServiceTest` means
+  reproducing the commit protocol it has no helpers for: rotation only *queues* a deletion until a
+  published header advances `processedVersion`, publishing a header needs a
+  `TransactionMutationWithLocation` that only exists when read back out of the log, and its cumulative
+  checksum settles only once the transaction is drained. Four attempts at that fixture produced a log
+  that read back as a checksum mismatch. The two tests above cover the value and the wiring
+  separately, and `advanceHistoryHorizon` is covered by the tests around them; what is inferred rather
+  than demonstrated is their composition. **An earlier fixture that hand-wrote the on-disk state
+  instead was worse than this gap**: it built a log production cannot produce, went green, and
+  calibrated red — a wrong-state test still fails when you neuter the code, so it read as evidence
+  while proving nothing.
+- `shouldReportNoFirstBootstrapForAnEmptyBootstrapFile` — `getFirstCatalogBootstrap` documents "or
+  NULL if the bootstrap file is empty" but tested only `exists()`, so an existing file too short to
+  hold one whole record answered with a Kryo buffer underflow. That is not a cosmetic contract
+  breach: the method is what `fetchOldestRetainedDataFilesInfo` calls, so every reclamation sweep and
+  every reopen of that catalog would fail from then on. Currently unreachable in production — the
+  floor cannot outrun the newest published record, see above — and fixed anyway because the failure
+  mode is a catalog nobody can open. Calibrated by restoring the existence-only check:
+  `UnexpectedIOException: Failed to open catalog bootstrap file`.
 - `shouldToleratePinAndHoldReleaseAfterTheServiceClosed` — a backup tearing down against an
   already-closed catalog must not throw. Calibrated by removing the closed guards:
   `GenericEvitaInternalError: Cannot schedule task 'Time travel size guard' that has been closed.`
@@ -651,17 +744,15 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   atomically at session construction, which is a wider change than this line of work. Revisit if a
   deployment ever runs a budget that tight; the symptom would be
   `Catalog version N not found in the catalog persistence service versions!` at session open.
-- **Open — version pins route through the mutable by-name catalog lookup, the folder hold does not.**
-  `CatalogDirectoryReadHold` captures the maintainer it was taken on, precisely because a release
-  routed through a mutable reference can land on a different instance. `pinCatalogVersion` /
-  `unpinCatalogVersion` still resolve the catalog by name on both sides. Ordinary transactional
-  version swaps are safe (the new `Catalog` shares the same persistence service), but `replaceWith`
-  builds a fresh service with a fresh maintainer, so pins do not transfer and a late release can
-  decrement a *different* backup's pin at the same version number. **Declined for now** — it needs
-  two backups straddling a replacement with colliding version numbers, and the replacement swaps the
-  storage path out from under the captured service anyway, which is a wider pre-existing race. The
-  symmetric fix is to give pins the same lease treatment the hold got. Until then, an unpaired
-  release is at least logged rather than silent.
+- **Closed — version pins are leases now too.** They used to resolve the catalog by name on both
+  sides, so a `replaceWith` between acquisition and release decremented the *replacement's* counter
+  and left the granting catalog pinned forever. This was declined once as needing "two backups
+  straddling a replacement with colliding version numbers"; that reading was wrong — one backup and
+  one replacement suffice, because the release lands on whichever instance answers to the name at
+  release time. `pinCatalogVersion` now returns a `CatalogVersionPin` capturing
+  `theCatalog::catalogVersionReleased`, and `unpinCatalogVersion` no longer exists, so the by-name
+  release path cannot be reintroduced by accident. The pin lives in `evita_api` rather than beside
+  the hold because `CatalogContract` declares the backup entry points and cannot see engine types.
 - **Decided — a last reader leaving pays for the trim it unblocks.** `catalogConsumersLeft` ends in
   `retentionStateChanged`, which can drain an owed horizon request synchronously: a bootstrap rewrite
   plus file deletion, on the session-close thread, under `historyHorizonLock`. Handing it to the
@@ -705,3 +796,8 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
 
 - **2026-08-06** — four pre-existing retention defects fixed while auditing the unused time-travel
   path; design settled on the issue; feature implemented and committed
+- **2026-08-10** — review rounds on PR #1402. The dead session-consumer half of
+  `CatalogConsumerControl` removed; the pin leak on a refused submission fixed; version pins given
+  the same lease treatment the folder hold had, which closed the open follow-up above; the log's
+  one-shot floor report made recoverable at open; `getFirstCatalogBootstrap` made to honour its own
+  contract for an empty file

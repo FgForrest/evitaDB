@@ -638,7 +638,11 @@ public class DefaultCatalogPersistenceService
 		final Path catalogStoragePath = storageSettings.storageDirectory().resolve(catalogName);
 		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
 		final File bootstrapFile = bootstrapFilePath.toFile();
-		if (bootstrapFile.exists()) {
+		// the record count and not merely the file's existence: an existing file too short to hold one whole record
+		// is what this method's contract calls empty, and reading position zero out of it yields a Kryo buffer
+		// underflow rather than an answer - on a path (`fetchOldestRetainedDataFilesInfo`) that every reclamation
+		// sweep and every catalog open goes through, which turns an empty file into a catalog nobody can open again
+		if (bootstrapFile.exists() && CatalogBootstrap.getRecordCount(bootstrapFile.length()) > 0) {
 			return of(
 				deserializeCatalogBootstrapRecord(storageSettings, bootstrapFilePath, 0));
 		} else {
@@ -1604,6 +1608,10 @@ public class DefaultCatalogPersistenceService
 		// the limit may have been lowered while this catalog was down, and nothing else would notice until the next
 		// compaction - which on an idle catalog may never come
 		scheduleTimeTravelSizeGuard();
+		// submitted rather than run inline: what it drives is a bootstrap trim followed by a sweep of the catalog
+		// folder, and reclaiming disk nobody is waiting for has no business lengthening the open of a catalog
+		// somebody is. Nothing later depends on it having run - every other driver re-derives its own horizon
+		this.scheduler.submit(this::reconcileHistoryHorizonWithWal);
 	}
 
 	private DefaultCatalogPersistenceService(
@@ -3884,6 +3892,37 @@ public class DefaultCatalogPersistenceService
 		return retentionFloor >= 0L ?
 			Math.min(requestedFirstVersionToBeKept, retentionFloor) :
 			requestedFirstVersionToBeKept;
+	}
+
+	/**
+	 * Gives up, at open, history that no surviving write-ahead log file can ever replay.
+	 *
+	 * Rotation announces the horizon its deletions imply exactly once and then forgets it - it deletes the files
+	 * *before* deriving the floor from them, so nothing can regenerate the announcement afterwards. A request refused
+	 * by a backup's pin is parked in {@link #pendingHistoryHorizonRequest} to be retried on release, and that park is
+	 * in memory only: a shutdown or a crash in between drops it, and everything below it stays retained for the life
+	 * of the catalog although no reader could reach it through replay. On an idle catalog with an unlimited budget
+	 * nothing else ever revisits the question.
+	 *
+	 * Deriving the same floor from the files that are actually on disk makes the announcement recoverable rather than
+	 * one-shot, and covers the crash case that no amount of orderly shutdown draining can. The value is identical to
+	 * the one rotation would have reported - see {@link AbstractMutationLog#getFirstReplayableVersion()} - so this can
+	 * never give up more than the running system already would, and it still passes through
+	 * {@link #advanceHistoryHorizon(long)}, which clamps to the retention floor: a backup that pinned the oldest
+	 * retained version moments after open is not undercut by it.
+	 *
+	 * A catalog with no log at all - one that never went live - has nothing to reconcile against and keeps everything
+	 * it has.
+	 */
+	void reconcileHistoryHorizonWithWal() {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
+			return;
+		}
+		final long firstReplayableVersion = theCatalogWal.getFirstReplayableVersion();
+		if (firstReplayableVersion > -1L) {
+			advanceHistoryHorizon(firstReplayableVersion);
+		}
 	}
 
 	/**

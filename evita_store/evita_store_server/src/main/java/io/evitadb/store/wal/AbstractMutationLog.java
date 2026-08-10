@@ -90,7 +90,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -390,6 +389,44 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			}
 			return new int[]{indexes.get(0), indexes.get(indexes.size() - 1)};
 		}
+	}
+
+	/**
+	 * Returns the first catalog version this log can still replay - the first version of its **oldest surviving
+	 * file**.
+	 *
+	 * This is the same quantity {@link #removeWalFiles()} reports through {@link #updateFirstVersionKept(long)}, only
+	 * derived from the files that are actually on disk rather than from the ones just deleted: rotation records each
+	 * pending removal at `lastVersion + 1` of the file it is about to delete, and WAL files are contiguous, so the
+	 * highest such value among the deleted files is exactly the first version of the oldest one left. Computing it
+	 * here therefore cannot advance a horizon further than the running system already would - it recovers the report,
+	 * it does not invent a new policy.
+	 *
+	 * That recovery is needed because the live report is **one-shot**: `removeWalFiles` deletes its files *before*
+	 * announcing the floor they imply and then forgets them, so a request that is refused - by a backup's pin - and
+	 * then lost - to a shutdown or a crash - is never made again by anyone. Everything below it stays retained for the
+	 * life of the catalog although nothing can ever replay it.
+	 *
+	 * The version is read from the **head** of the oldest file and emphatically not from its
+	 * {@link #WAL_TAIL_LENGTH} trailer. That trailer is written when a file is rotated away, so the file this method
+	 * is interested in is precisely the one that may not have one: with everything below it purged, the oldest
+	 * surviving file is the active file, whose trailing bytes are the tail of its last transaction record and read
+	 * back as an arbitrary version.
+	 *
+	 * **A log that still has file `0` answers -1**, and that gate is what makes the equivalence above true rather
+	 * than merely plausible. Nothing was deleted from such a log, so no floor was ever reported for it, and the
+	 * version its first file happens to start at is not one: with a deferred checkpoint the newest *published*
+	 * bootstrap record can sit below it, and giving that version up would take the persistence service that record
+	 * needs down with it. Indices survive a catalog rename, so file `0` being present means what it says; a restore
+	 * that ever renumbered from a non-zero base would only make this keep more history than it has to.
+	 *
+	 * @return the first replayable catalog version, or -1 when the log has nothing to derive one from - no file at
+	 *         all, nothing ever purged, or a stub left behind by a crash between rotation and the first append
+	 */
+	public long getFirstReplayableVersion() {
+		// `{0, 0}` when the folder holds no WAL file at all, which the gate below rejects along with an unpurged log
+		final int oldestWalFileIndex = getFirstAndLastWalFileIndex(this.storageFolder)[0];
+		return oldestWalFileIndex > 0 ? getFirstVersionOf(oldestWalFileIndex) : -1L;
 	}
 
 	/**
@@ -1139,7 +1176,11 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	public long getFirstVersionOf(int walFileIndex) {
 		final File walFile = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex)).toFile();
-		if (!walFile.exists() || walFile.length() < TRANSACTION_PREFIX_SIZE) {
+		// the read below skips the cumulative checksum *and* the transaction prefix before it reaches a record, so
+		// anything not longer than the two of them together is a stub - rotation writes the checksum when it creates
+		// the file and a crash before the first append leaves it at exactly that. Demanding only the prefix let those
+		// stubs through to a read that seeks past their end
+		if (!walFile.exists() || walFile.length() <= CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE) {
 			return -1L;
 		} else {
 			final Kryo kryo = this.kryoPool.obtain();
