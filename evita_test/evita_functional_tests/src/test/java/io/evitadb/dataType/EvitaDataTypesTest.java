@@ -31,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -2504,6 +2505,65 @@ class EvitaDataTypesTest {
 					.toSupportedStoredType(
 						new HashMap<String, String>()
 					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt array from the"
+			+ " first non-null element"
+		)
+		void shouldTypeRebuiltArrayFromFirstNonNullElement() {
+			// a leading `null` says nothing about what the
+			// remaining elements normalize to - deriving the
+			// component type from element zero alone rebuilt
+			// a Float[] and then threw on Array.set
+			final Float[] input = {null, 1.5f};
+
+			final Serializable result =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					);
+
+			assertInstanceOf(
+				BigDecimal[].class, result
+			);
+			final BigDecimal[] normalized =
+				(BigDecimal[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				new BigDecimal("1.5"), normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt query-path array from"
+			+ " the first non-null element"
+		)
+		void shouldTypeRebuiltQueryArrayFromFirstNonNull() {
+			// same hazard on the query path, where a
+			// LocalDateTime element still normalizes away
+			final LocalDateTime[] input = {
+				null,
+				LocalDateTime.of(2026, 5, 20, 12, 19, 26)
+			};
+
+			final Serializable result =
+				EvitaDataTypes.toSupportedTypeOrItsArray(
+					input
+				);
+
+			assertInstanceOf(
+				OffsetDateTime[].class, result
+			);
+			final OffsetDateTime[] normalized =
+				(OffsetDateTime[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				input[1].atOffset(ZoneOffset.UTC),
+				normalized[1]
 			);
 		}
 

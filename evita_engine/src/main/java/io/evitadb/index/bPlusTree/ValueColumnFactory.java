@@ -118,13 +118,19 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	}
 
 	/**
-	 * Maps a plain attribute type to the type actually stored as the tree key, mirroring the only normalization in
-	 * {@code FilterIndex.getNormalizer} that changes the stored class: {@link OffsetDateTime} is stored as its
-	 * {@link Instant}, and so is {@link LocalDateTime} (anchored at UTC — a constant offset, hence a lossless,
-	 * order-preserving mapping). All other types (numbers, {@code LocalDate} / {@code LocalTime}, {@code String},
-	 * {@code Currency}, {@code Locale}, …) keep their own class; `LocalDate` and `LocalTime` each fit losslessly in a
-	 * single {@code long} and are better served by the cheaper {@link LongValueColumn}. The single source of truth for
-	 * this remap lives here — it must stay in lockstep with `FilterIndex.getNormalizer`.
+	 * Maps a plain attribute type to the type actually stored as the tree key, mirroring the **temporal** key-class
+	 * remaps performed by {@code FilterIndex.getNormalizer}: {@link OffsetDateTime} is stored as its {@link Instant},
+	 * and so is {@link LocalDateTime} (anchored at UTC — a constant offset, hence a lossless, order-preserving
+	 * mapping). Those two must stay in lockstep with `FilterIndex.getNormalizer`, and this is their single source of
+	 * truth.
+	 *
+	 * The normalizer changes the stored class for other types too — {@code BigDecimal} to a scaled {@code Integer},
+	 * {@code Currency} / {@code Locale} to their comparable wrappers — but those are **not** remapped here:
+	 * {@code BigDecimal} is matched on its declared type directly in {@link #forKey} (which then selects
+	 * {@link IntValueColumn}), and the wrapper types fall through to the boxed column either way. Everything else
+	 * (numbers, {@code LocalDate} / {@code LocalTime}, {@code String}, …) keeps its own class; `LocalDate` and
+	 * `LocalTime` each fit losslessly in a single {@code long} and are better served by the cheaper
+	 * {@link LongValueColumn}.
 	 *
 	 * @param plainType the plain (non-array) declared attribute type
 	 * @return the normalized key type used by the tree
