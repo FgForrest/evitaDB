@@ -5,7 +5,7 @@ updated: 2026-08-10 10:05
 status: accepted
 kind: fix
 issues: [1403]
-prs: []
+prs: [1404, 1405]
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/bPlusTree]
 supersedes: []
 superseded-by: []
