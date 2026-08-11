@@ -40,6 +40,7 @@ import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
@@ -661,6 +662,55 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 				"A suffixed folder must not be offered for adoption!"
 			);
 			assertTrue(Files.exists(unclaimed.resolve("products.boot")), "The folder must be left untouched!");
+		}
+
+		@Test
+		@DisplayName("should delete a tombstoned folder at boot and report it so its tombstone can be discharged")
+		void shouldDrainAPersistedTombstoneAtBoot() throws IOException {
+			// Classification, deletion, the Kryo round-trip and the in-run discharge each have a test of their
+			// own; nothing proved that a tombstone which *survived a restart* is acted on at all. No bootstrap
+			// file is needed - classification matches the tombstone before it ever looks for one.
+			final Path storageDirectory = DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory();
+			final Path retired = Files.createDirectory(storageDirectory.resolve("products_4"));
+			Files.createFile(retired.resolve("leftover.dat"));
+
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				2L,
+				UUID.randomUUID(),
+				createTestEngineMutation(),
+				txRef -> EngineState.<LogFileRecordReference>builder()
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.version(2L)
+					.introducedAt(OffsetDateTime.now())
+					.walFileReference((LogFileRecordReference) txRef.walReference())
+					.retiredFolders(
+						new RetiredFolder[]{
+							new RetiredFolder("products", new CatalogFolderId("products_4"))
+						}
+					)
+					.build()
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+
+			DefaultEnginePersistenceServiceTest.this.service = new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+
+			final CatalogInventoryDivergence divergence =
+				DefaultEnginePersistenceServiceTest.this.service.getPendingCatalogInventoryDivergence();
+
+			// The two assertions catch different reverts, which is why both are here. Dropping RETIRED from the
+			// cleaner's drained states leaves the folder sitting on disk; dropping the removed-folder disjunct
+			// deletes it but reports nothing, so the engine goes on owing a deletion it has already performed
+			// and no later classification ever refills the entry.
+			assertTrue(Files.notExists(retired), "A tombstoned folder must be removed at boot!");
+			assertTrue(
+				divergence.drainedFolders().contains(new CatalogFolderId("products_4")),
+				() -> "The removal must be reported so the tombstone can be discharged, but got: " +
+					divergence.drainedFolders()
+			);
 		}
 
 	}

@@ -5072,6 +5072,32 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("Free the folder and the name when a catalog is dropped")
+	void shouldFreeFolderAndNameWhenCatalogIsDropped() {
+		// Dropping a catalog tombstones its folder and deletes it *outside* the commit, so the disk effect is
+		// not implied by the engine-state change and no call site asserts it. Both halves are load-bearing: the
+		// folder has to leave the disk, and the name has to be usable again afterwards.
+		final Path droppedFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(Files.isDirectory(droppedFolder));
+
+		this.evita.deleteCatalogIfExists(TEST_CATALOG);
+		assertTrue(Files.notExists(droppedFolder), "A dropped catalog's folder must leave the disk.");
+
+		// The catalog defined afterwards must land in a *different* folder. Handing the same generation back
+		// would collide with the folder a refused delete leaves behind - the one case the generation exists for.
+		// This holds within a single engine run because the in-memory sequence never walks back; it deliberately
+		// does not survive a restart, because nothing persists the generation peaks yet, so do not add a reboot
+		// here expecting it to.
+		this.evita.defineCatalog(TEST_CATALOG);
+		final Path recreatedFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(Files.isDirectory(recreatedFolder));
+		assertNotEquals(
+			droppedFolder, recreatedFolder,
+			"A recreated catalog must get a fresh generation rather than the folder the dropped one occupied."
+		);
+	}
+
+	@Test
 	@DisplayName("Label a created catalog's folder with the catalog's name")
 	void shouldLabelCreatedCatalogFolderWithItsCatalogName() throws IOException {
 		setupCatalogWithProductAndCategory();

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
@@ -60,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
@@ -251,6 +253,16 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 						.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG)
 				)
 			);
+
+			// Boot adoption is the one path that puts a reservation into the map without handing the caller a
+			// closeable handle - it is released indirectly, by the registering mutation's `completeFolder`. If
+			// that release is ever dropped, an adopted catalog keeps a stale claim for the life of the process
+			// and every later restore or duplicate over its name is refused with an error blaming concurrency
+			// for a single-threaded cause.
+			try (final CatalogFolderReservation laterAttempt =
+				     evita.getCatalogFolderContext().allocateFolderFor("c")) {
+				assertNotNull(laterAttempt.folderId());
+			}
 		}
 	}
 

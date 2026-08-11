@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 14:05
+updated: 2026-08-11 14:25
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -439,10 +439,11 @@ ergonomics the absolute path used to provide.
   wrong surviving pair under a forward walk, whereas a set that merely overran the array would still pass if
   someone "fixed" the forward walk by clamping the index.
 
-  What remains uncovered is the **boot half** — nothing proves end-to-end that a *persisted* tombstone is acted
-  on at boot. Every link exists in isolation (classification, deletion, Kryo round-trip, in-run discharge) and
-  nothing joins them; the replay test says so out loud, deferring the wipe to the drain. The join needs no new
-  seam: seed a state carrying a `RetiredFolder`, put that folder on disk, reopen the service, and assert both
+  The **boot half** used to be the one unjoined link — every step existed in isolation (classification,
+  deletion, Kryo round-trip, in-run discharge) and nothing proved end-to-end that a *persisted* tombstone is
+  acted on at boot. It is now joined by
+  `DefaultEnginePersistenceServiceTest#shouldDrainAPersistedTombstoneAtBoot`, which needed no new seam: it
+  seeds a state carrying a `RetiredFolder`, puts that folder on disk, reopens the service, and asserts both
   that the folder is gone *and* that the divergence reports it drained. Both halves are load-bearing and catch
   different reverts — dropping `RETIRED` from the cleaner's drained states leaves the folder on disk, while
   dropping the `removedFolderNames` disjunct deletes the folder but reports nothing drained, which is the
