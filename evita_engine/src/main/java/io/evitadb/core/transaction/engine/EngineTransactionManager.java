@@ -51,6 +51,7 @@ import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalRefer
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -794,11 +795,93 @@ public class EngineTransactionManager implements Closeable {
 			this.evita.setNextEngineState(nextEngineState);
 			// only now is the pruning durable, so the confirmations that produced it can be forgotten
 			this.folderContext.forgetDrainedFolders(drainedFolders);
+			// and only now can a generation counter be retired, for the same reason: the evidence that the name
+			// holds nothing any more is exactly the pruned state that was just made durable
+			retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
 			// finally, notify the change observer about the new version
 			this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
 		} finally {
 			this.engineStateLock.unlock();
 		}
+	}
+
+	/**
+	 * Discards the folder generation counters of catalog names the commit just stopped referring to.
+	 *
+	 * The counters live in an engine-scoped {@link io.evitadb.core.sequence.SequenceService} whose maps are
+	 * append-only, so without this a server that churns catalogs retains one entry per catalog name ever
+	 * materialised, for the life of the process. Nothing behaved wrongly — it is pure retention — and the
+	 * discard is likewise pure bookkeeping, which is why it rides along with a commit rather than being one.
+	 *
+	 * **The tombstone drain is the only place this can be decided**, and that is not an implementation
+	 * convenience. Dropping a catalog does not free its name: the folder removal is *owed* rather than done, and
+	 * a tombstone is a standing order to delete one specific directory. Retiring the counter while such an order
+	 * is outstanding would let a recreated catalog of the same name draw the number the order names, and — if
+	 * the directory happened to be gone already — bind itself to a token something is still under instructions
+	 * to destroy. Only once the last of a name's tombstones has been pruned is that unreachable.
+	 *
+	 * A name is retired when the durable state that has just been published carries no binding for it and no
+	 * tombstone naming it, and nothing is materialising it. That rule is loose in three deliberate ways:
+	 *
+	 * - **Litter is not consulted.** Folders a failed attempt left behind are invisible to the engine state, so
+	 *   a restarted counter can walk back onto one. That costs a number rather than data:
+	 *   `CatalogFolderAllocator` treats a directory it cannot create as a number to burn and draws the next,
+	 *   bounded by its attempt limit. The residual trade is that a name with as many surviving litter folders as
+	 *   that limit now fails allocation where a monotonic counter would have stepped over them.
+	 * - **A tombstone is matched by the catalog name it records, not by the shape of its token.** Renaming is a
+	 *   pointer swap that leaves the folder where it is, so a tombstone can carry `orders` while its token reads
+	 *   `products_3`. Such a token is never *nominated* here either — the drain nominates `orders` — so the old
+	 *   name simply keeps its counter. That is retention this does not reclaim, not a counter retired unsafely.
+	 * - **A folder both bound and tombstoned is safe by classification**, not by timing: boot classification
+	 *   ranks `REFERENCED` above `RETIRED`, so a directory a live catalog occupies is never drained whatever
+	 *   else claims it.
+	 *
+	 * @param stateBeforePruning state carrying the tombstones about to be discharged, so their names are readable
+	 * @param stateAfterPruning  durable state the commit published
+	 * @param drainedFolders     folders whose tombstones this commit discharged
+	 */
+	private void retireGenerationSequences(
+		@Nonnull ExpandedEngineState stateBeforePruning,
+		@Nonnull ExpandedEngineState stateAfterPruning,
+		@Nonnull Set<CatalogFolderId> drainedFolders
+	) {
+		if (drainedFolders.isEmpty()) {
+			return;
+		}
+		final RetiredFolder[] remainingTombstones = stateAfterPruning.engineState().retiredFolders();
+		for (final RetiredFolder discharged : stateBeforePruning.engineState().retiredFolders()) {
+			if (!drainedFolders.contains(discharged.folderId())) {
+				continue;
+			}
+			// A name with several folders draining at once is nominated once per folder; the repeat calls below
+			// are no-ops, which is cheaper than de-duplicating a set that almost always holds one entry.
+			final String catalogName = discharged.catalogName();
+			if (stateAfterPruning.boundFolderIdFor(catalogName) != null
+				|| this.folderContext.isMaterialising(catalogName)
+				|| namedByAnyOf(remainingTombstones, catalogName)) {
+				continue;
+			}
+			// Safe against this service and only this one: it is the engine-scoped instance holding nothing but
+			// `CATALOG_GENERATION` counters. `removeSequences` drops *every* sequence recorded for the name, so
+			// against a catalog-scoped service it would take that catalog's entity primary-key sequences with it.
+			this.evita.getCatalogGenerationSequences().removeSequences(catalogName);
+		}
+	}
+
+	/**
+	 * Tells whether any of the passed tombstones was recorded for the given catalog name.
+	 *
+	 * @param tombstones  tombstones to search
+	 * @param catalogName name to look for
+	 * @return true when at least one tombstone names the catalog
+	 */
+	private static boolean namedByAnyOf(@Nonnull RetiredFolder[] tombstones, @Nonnull String catalogName) {
+		for (final RetiredFolder tombstone : tombstones) {
+			if (catalogName.equals(tombstone.catalogName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

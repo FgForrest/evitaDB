@@ -231,6 +231,26 @@ public class CatalogFolderContext {
 	}
 
 	/**
+	 * Tells whether some operation is currently materialising a folder for the passed catalog name.
+	 *
+	 * Asked by the engine-state commit before it retires a catalog's generation counter: a name being
+	 * materialised is in use even though nothing in the engine state references it yet, which is precisely the
+	 * gap {@link #allocateFolderFor(String)}'s reservation exists to cover.
+	 *
+	 * The answer is a snapshot and the caller cannot hold it still — a reservation is registered only *after*
+	 * the generation has been drawn, so an allocation that is between those two points reports `false` here.
+	 * That race is benign and deliberately not locked out: the worst it costs is a retired counter restarting
+	 * below a folder that already exists, and allocation treats a name it cannot create as a number to burn.
+	 * Locking it out would mean holding the engine-state lock across a directory creation.
+	 *
+	 * @param catalogName name of the catalog to ask about
+	 * @return true when a folder is currently reserved for the name
+	 */
+	public boolean isMaterialising(@Nonnull String catalogName) {
+		return this.reservedFolders.containsKey(catalogName);
+	}
+
+	/**
 	 * Takes ownership of a folder that arrived from outside, renaming it into the shape the engine allocates and
 	 * reserving it so the mutation that registers the catalog binds to it.
 	 *

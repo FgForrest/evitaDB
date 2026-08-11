@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 19:52
+updated: 2026-08-11 20:20
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -255,6 +255,25 @@ ergonomics the absolute path used to provide.
   two-sided result reads as noise rather than as the tooling problem it is. `-pl evita_engine` alone is not
   enough either: on this branch it resolves a pre-branch `evita_api` and fails to compile. Install the reactor
   once with `-DskipTests`, then iterate.
+
+  Reclaiming the generation counters brings the suite to **21 165 tests, 0 failures** attributable to the work —
+  `21 163 + 2`, the two being `CatalogGenerationSequenceReclamationTest`. Calibrated one mutation at a time,
+  which is the part worth recording: applying both at once proved nothing, because disabling the hook outright
+  also stops the binding guard inside it from ever running, so the second mutation was masked and only one test
+  failed. Run separately, each mutation killed exactly its own test — the disabled hook gives `products_1 →
+  products_2`, and dropping the `boundFolderIdFor` guard gives `products_3 → products_1` — with no collateral
+  either way. **A calibration whose mutations are nested is not a two-sided calibration**; check that each
+  counterfactual is reachable with the others in place before reading a single failure as confirmation of both.
+
+  That run carried three non-passes and **one of them names a catalog-duplication test**, which is close enough
+  to this change to be worth the isolation run rather than the plausible explanation.
+  `EvitaClientReadWriteTest#shouldDuplicateCatalogWithProgress` never reached its own body: it failed in
+  parameter resolution on a gRPC `TransportException` while the shared dataset was being rebuilt, with the other
+  63 methods of the class green. In isolation the class passes **64 / 64 in 51.2 s**, against **356.8 s** under
+  the suite — and the single method that failed there had consumed 128.7 s by itself.
+  `StaleLeafPageTwinWriterReproductionTest`, a wall-clock hung-thread assertion already recorded above as
+  pre-existing, likewise passes **4 / 4 in 10.55 s**; both together are **68 tests, 0 failures, 0 errors**. The
+  third is the usual Docker-only `ExportS3ServiceTest`.
 
   An earlier run in the same session came in at 21 144 with four additional non-passes, all of them wall-clock or
   connection-availability assertions — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then
@@ -703,20 +722,46 @@ ergonomics the absolute path used to provide.
     rather than inferred: a parked task really is `WAITING_FOR_PRECONDITION`, because `registerWaitingTask`
     never calls `transitionToIssued` and `simplifiedState()` keys off a null `issued`. Raised as **#1415** —
     it is a live bug of its own and did not belong in a quiet fix buried here.
-- **The generation sequences are never reclaimed.** `SequenceService`'s `intSequences` / `longSequences`
-  maps are append-only, so the engine-scoped `catalogGenerationSequences` retains one `SequenceKey` and one
-  `AtomicInteger` for **every distinct catalog name ever materialised**, for the life of the process. A
-  long-lived server with create/drop churn grows monotonically. Nothing behaves wrongly today — this is pure
-  retention.
+- **The generation sequences are reclaimed at the tombstone drain** — this was carried here as an open
+  follow-up and is now closed. `SequenceService`'s maps are append-only, so the engine-scoped
+  `catalogGenerationSequences` used to retain one `SequenceKey` and one `AtomicInteger` for **every distinct
+  catalog name ever materialised**, for the life of the process. Nothing behaved wrongly; it was pure
+  retention, and the reclamation is likewise pure bookkeeping.
 
-  `SequenceService#removeSequences(String)` exists and is the intended fix, but it has **zero production
-  callers** and cannot simply be wired into the drop path: its own JavaDoc states the precondition — no folder
-  carrying the name's prefix on disk, no tombstone referencing one — and under the deferred-delete design that
-  precondition is **not met at the moment a catalog is dropped**, because the folder removal is owed rather
-  than done. So the live option is hanging the cleanup off the tombstone drain, once the drain confirms the
-  last folder for a name is gone. That is a design decision, not a cleanup, which is why it was left here
-  rather than patched. Do **not** delete `removeSequences` as dead code: it is the intended fix for a real
-  leak, not a leftover.
+  **The drain is the only place the decision can be made, and that is the whole finding.** Dropping a catalog
+  does not free its name: the folder removal is *owed* rather than done, and a tombstone is a standing order to
+  delete one specific directory. Retiring a counter while such an order is outstanding lets a recreated catalog
+  draw the number the order names and — if the directory happened to be gone already — bind itself to a token
+  something is still under instructions to destroy. `EngineTransactionManager#retireGenerationSequences` runs
+  at the commit that discharges the last of a name's tombstones, and only when that same durable state carries
+  no binding for the name and nothing is materialising it.
+
+  **The documented precondition was weakened, deliberately.** `removeSequences`' JavaDoc demanded *no folder
+  carrying the name's prefix on disk* as well; engine state cannot see litter, so a check that honoured it
+  would need a storage scan per commit. It is not needed: `CatalogFolderAllocator.allocate` treats a directory
+  it cannot create as a number to burn and draws the next, so a counter restarting underneath litter costs
+  numbers rather than data. The **accepted trade** is that a name with as many surviving litter folders as
+  `MAX_ALLOCATION_ATTEMPTS` (16) now fails allocation where a monotonic counter would have stepped over them —
+  it needs a filesystem that refused sixteen deletes, and it is a bounded failure rather than a silent one.
+
+  **Options rejected.** *Keying the check on the token's textual shape rather than the tombstone's recorded
+  catalog name* — a rename is a pointer swap that leaves the folder where it is, so a tombstone can read
+  `orders` while its token reads `products_3`, and only a prefix check would connect the two. **Rejected
+  because** it would have to parse `<name>_<generation>` inside the engine, re-introducing exactly the layout
+  coupling this whole line of work removed, to close a case the trigger cannot reach anyway: the drain
+  nominates `orders`, never `products`, so the old name simply keeps its counter. That is retention this does
+  not reclaim, not a counter retired unsafely. Worth revisiting only if a `CatalogFolderOperations` method can
+  answer "did this token come from that name's series?" without the engine parsing anything. *Wiring the
+  cleanup into the drop path* — **rejected because** the precondition is not met there at all; the folder
+  deletion has not happened yet when the drop commits.
+
+  **Not reclaimed, knowingly:** a name whose materialisation failed before any binding existed (allocate →
+  create fails → claim released) never produces a tombstone, so nothing ever nominates it. Repeated *failed*
+  restores under generated names still leak an entry each. The second candidate trigger is
+  `releaseReservation`, and it was left alone rather than guessed at.
+
+  When `CatalogGenerationPeak`s start being written, their removal belongs at this same decision point —
+  retiring the counter while leaving its peak in persisted state would resurrect it on the next boot.
 
 - **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
   no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files

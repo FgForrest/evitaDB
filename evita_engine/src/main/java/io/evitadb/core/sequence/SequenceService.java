@@ -122,10 +122,15 @@ public class SequenceService {
 	 * leaks an entry per catalog name across create/drop churn, forever.
 	 *
 	 * Discarding a counter resets it: the next {@link #getOrCreateSequence(String, SequenceType, Integer)} for
-	 * that catalog starts from whatever initial value it is given. A catalog's generation counter may therefore
-	 * only be discarded once nothing that counter protects against still exists — no folder carrying the
-	 * catalog's name prefix left on disk, and no tombstone referencing one. Discarding it while litter survives
-	 * would let a recreated catalog of the same name restart at 1 and walk straight back onto it.
+	 * that catalog starts from whatever initial value it is given. A generation counter may therefore only be
+	 * discarded once **no tombstone names a folder it could hand out again** — a tombstone is a standing order
+	 * to delete one specific directory, so a redrawn number that lands on one binds a live catalog to a token
+	 * something is still under instructions to destroy. The engine-state commit that discharges the last of a
+	 * name's tombstones is the one place that can see this, and it is where the call is made from.
+	 *
+	 * Litter surviving on disk — folders a failed attempt left behind — is deliberately *not* part of that
+	 * precondition, because it does not have to be: allocation treats a directory it cannot create as a number
+	 * to burn and draws the next, so a counter restarting underneath litter costs numbers rather than data.
 	 *
 	 * @param catalog name of the catalog whose sequences are to be discarded
 	 * @return number of sequences actually discarded

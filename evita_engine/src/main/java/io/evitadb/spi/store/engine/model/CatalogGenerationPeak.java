@@ -54,9 +54,16 @@ import java.io.Serializable;
  * with an empty peak set.
  *
  * A peak outlives the catalog's {@link CatalogFolderBinding}: dropping a catalog does not retire its peak,
- * because a folder carrying that name prefix may still be awaiting deletion (see {@link RetiredFolder}). Only
- * once no such folder remains on disk and no tombstone references one may the entry go — otherwise a
- * recreated catalog of the same name would restart at 1 and walk back onto surviving litter.
+ * because a folder carrying that name prefix may still be awaiting deletion (see {@link RetiredFolder}). The
+ * entry may go only once no tombstone names a folder the counter could hand out again — a tombstone being a
+ * standing order to delete one specific directory, which a redrawn number must never bind a live catalog to.
+ * Surviving litter is not part of that condition: a counter restarting underneath it costs burned numbers
+ * rather than data, because allocation draws the next number for any directory it cannot create.
+ *
+ * **When peaks start being written, their removal belongs at the same decision point** the in-memory counter
+ * already uses — the engine-state commit that discharges a name's last tombstone, in
+ * `EngineTransactionManager#retireGenerationSequences`. Retiring the counter while leaving its peak behind
+ * would resurrect the counter from persisted state on the next boot and undo the reclamation.
  *
  * @param catalogName name of the catalog the generation counter belongs to
  * @param peak        highest generation handed out so far; always positive
