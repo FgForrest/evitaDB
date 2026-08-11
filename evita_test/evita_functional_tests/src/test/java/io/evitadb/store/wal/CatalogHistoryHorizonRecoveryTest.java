@@ -58,6 +58,7 @@ import java.util.stream.Stream;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getIndexFromWalFileName;
+import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -149,58 +150,6 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 			.resolve(CatalogPersistenceService.getCatalogBootstrapFileName(TEST_CATALOG))
 			.toFile();
 		return CatalogBootstrap.getRecordCount(bootstrapFile.length());
-	}
-
-	/**
-	 * Resolves the folder a catalog's data actually lives in.
-	 *
-	 * The folder is **not** derivable from the catalog name. The engine allocates
-	 * `<catalogName>_<generation>` folders and treats the name they carry as cosmetic, so the two strings agree
-	 * only by coincidence - a catalog created once already sits in `<catalogName>_1`, and one that outlived a
-	 * rename keeps a folder named after whatever it used to be called. The engine state is the authority, but a
-	 * test cannot reach it, so the folder is found by looking: the bare name when an older layout left one,
-	 * otherwise the highest generation, which is the one allocated last.
-	 *
-	 * @param storageDirectory the storage root holding one folder per catalog
-	 * @param catalogName      name of the catalog whose folder is wanted
-	 * @return the folder holding that catalog's data
-	 */
-	@Nonnull
-	private static Path catalogDirectory(@Nonnull Path storageDirectory, @Nonnull String catalogName) {
-		final Path bareNamed = storageDirectory.resolve(catalogName);
-		if (bareNamed.toFile().isDirectory()) {
-			return bareNamed;
-		}
-		final String prefix = catalogName + '_';
-		final File[] generations = storageDirectory.toFile().listFiles(
-			(dir, name) -> name.startsWith(prefix)
-				&& name.length() > prefix.length()
-				&& name.substring(prefix.length()).chars().allMatch(Character::isDigit)
-				&& new File(dir, name).isDirectory()
-		);
-		if (generations == null || generations.length == 0) {
-			throw new IllegalStateException(
-				"No folder holding catalog `" + catalogName + "` was found in `" + storageDirectory + "`!"
-			);
-		}
-		File newest = generations[0];
-		for (final File candidate : generations) {
-			if (generationOf(candidate, prefix) > generationOf(newest, prefix)) {
-				newest = candidate;
-			}
-		}
-		return newest.toPath();
-	}
-
-	/**
-	 * Reads the generation number off a folder allocated under the `<catalogName>_<generation>` scheme.
-	 *
-	 * @param folder the folder to read the generation from
-	 * @param prefix the `<catalogName>_` prefix the generation follows
-	 * @return the generation the folder carries
-	 */
-	private static int generationOf(@Nonnull File folder, @Nonnull String prefix) {
-		return Integer.parseInt(folder.getName().substring(prefix.length()));
 	}
 
 	/**

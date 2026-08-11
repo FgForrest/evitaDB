@@ -355,6 +355,57 @@ public interface EvitaTestSupport extends TestConstants {
 	}
 
 	/**
+	 * Resolves the folder a catalog's data actually lives in, for a test that wants to look at the files an engine
+	 * wrote.
+	 *
+	 * The folder is **not** derivable from the catalog name and has not been since catalogs were bound to opaque
+	 * folder tokens (#649). The engine allocates `<catalogName>_<generation>` folders and treats the name they
+	 * carry as cosmetic, so `storageDirectory.resolve(catalogName)` names a directory that does not exist — a
+	 * catalog created once already sits in `<catalogName>_1`, and one that outlived a rename keeps a folder named
+	 * after whatever it used to be called.
+	 *
+	 * Getting this wrong fails late and says the wrong thing: listing a directory that is not there yields no
+	 * files rather than an error, so a wait polling for a file gives up on its timeout and whatever is asserted
+	 * afterwards reports on a folder the test never looked at.
+	 *
+	 * This does not apply to a test that constructs a persistence service itself with
+	 * `new CatalogFolderId(catalogName)` — such a folder really is bare-named, and resolving it by name is right.
+	 *
+	 * @param storageDirectory the storage root holding one folder per catalog
+	 * @param catalogName      name of the catalog whose folder is wanted
+	 * @return the folder holding that catalog's data
+	 */
+	@Nonnull
+	static Path catalogDirectory(@Nonnull Path storageDirectory, @Nonnull String catalogName) {
+		final Path bareNamed = storageDirectory.resolve(catalogName);
+		if (bareNamed.toFile().isDirectory()) {
+			return bareNamed;
+		}
+		final String prefix = catalogName + '_';
+		final File[] generations = storageDirectory.toFile().listFiles(
+			(dir, name) -> name.startsWith(prefix)
+				&& name.length() > prefix.length()
+				&& name.substring(prefix.length()).chars().allMatch(Character::isDigit)
+				&& new File(dir, name).isDirectory()
+		);
+		if (generations == null || generations.length == 0) {
+			throw new GenericEvitaInternalError(
+				"No folder holding catalog `" + catalogName + "` was found in `" + storageDirectory + "`!"
+			);
+		}
+		File newest = generations[0];
+		int newestGeneration = Integer.parseInt(newest.getName().substring(prefix.length()));
+		for (final File candidate : generations) {
+			final int generation = Integer.parseInt(candidate.getName().substring(prefix.length()));
+			if (generation > newestGeneration) {
+				newest = candidate;
+				newestGeneration = generation;
+			}
+		}
+		return newest.toPath();
+	}
+
+	/**
 	 * Returns path to the file with specified name in the test directory.
 	 */
 	default Path getPathInTargetDirectory(@Nonnull String fileName) {
