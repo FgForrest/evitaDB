@@ -764,7 +764,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertThrows(
 				TemporalDataNotAvailableException.class,
 				() -> getCatalogBootstrapForSpecificMoment(
-					catalogName, storageSettings, startTime.minusMinutes(1))
+					catalogName, catalogFolder, storageSettings, startTime.minusMinutes(1))
 			);
 		} finally {
 			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
@@ -781,6 +781,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -1532,6 +1533,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1570,6 +1572,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1604,6 +1607,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1655,6 +1659,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1689,6 +1694,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// a negative limit means unlimited history - it switches off the budget, not the reclamation of
 					// files no bootstrap record can reach. Those were never history, and an operator asking for
 					// unlimited history is precisely the one who would otherwise never get them back.
@@ -1737,6 +1743,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService measuringService = new DefaultCatalogPersistenceService(
 					measuredCatalog,
+					new CatalogFolderId(measuredCatalog),
 					timeTravelStorageOptions(Long.MAX_VALUE),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1756,6 +1763,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(budget),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1793,6 +1801,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1842,6 +1851,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					deferredCheckpointTransactionOptions(),
 					scheduler,
@@ -1952,6 +1962,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the reconciliation under test could move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -1993,6 +2004,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				final DefaultCatalogPersistenceService reopened = new DefaultCatalogPersistenceService(
 					Mockito.mock(CatalogContract.class),
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
 					openScheduler,
@@ -2043,6 +2055,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the request under test can move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -2091,6 +2104,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the request under test can move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -2141,6 +2155,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2185,6 +2200,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2232,6 +2248,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2280,6 +2297,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2334,6 +2352,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2371,6 +2390,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		void shouldToleratePinAndHoldReleaseAfterTheServiceClosed() {
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				timeTravelStorageOptions(0L),
 				eagerCheckpointTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -2407,6 +2427,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(Long.MAX_VALUE),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2448,6 +2469,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// time travel OFF - the default configuration, and the one where nothing used to clamp the seam
 					eagerCompactionStorageOptions(false, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
 					eagerCheckpointTransactionOptions(),
@@ -2495,6 +2517,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// deliberately NOT compacting: every version then lands in one shared offset index, which is
 					// exactly the arrangement a backup of the *current* data reads through
 					nonCompactingStorageOptions(),
@@ -2542,6 +2565,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		void shouldNotAdvanceTheHorizonOnAClosedService() {
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				eagerCompactionStorageOptions(true, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
 				eagerCheckpointTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -2668,7 +2692,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				writeSeveralGenerations(ioService);
 
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// deliberately not executed - this is the window the files have to survive, and it is unbounded:
@@ -2687,7 +2711,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
 				writeSeveralGenerations(ioService);
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// run on the calling thread, so the copy is over by the time the assertions below are reached
@@ -2711,7 +2735,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
 				writeSeveralGenerations(ioService);
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// the copy body never runs, so its own release never happens - the future's completion is the only
@@ -2734,6 +2758,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		private DefaultCatalogPersistenceService duplicableService() {
 			return new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),

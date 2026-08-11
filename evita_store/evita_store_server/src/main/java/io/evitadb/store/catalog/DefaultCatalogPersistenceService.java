@@ -2678,9 +2678,11 @@ public class DefaultCatalogPersistenceService
 		// at the end of this method would load the catalog under the name it had before the rename. Discarding it
 		// is right on the merits rather than merely expedient: the record written above already did everything the
 		// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
-		// at the fence inside `writeCatalogBootstrap`. The field is only ever set together with the coordinator's
-		// own debt, so it is the exact condition, and settling it keeps the cadence gauge honest - reporting a
-		// completion when nothing was owed would fill it with samples no checkpoint produced.
+		// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is scheduled
+		// (#761), so the history this record reveals is still accounted for and the discard drops a duplicate
+		// publication rather than the bookkeeping that rides along with it. The field is only ever set together
+		// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
+		// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
 		if (this.deferredCheckpointBootstrap != null) {
 			this.deferredCheckpointBootstrap = null;
 			Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
@@ -3551,7 +3553,7 @@ public class DefaultCatalogPersistenceService
 	public long getOldestRetainedCatalogVersion() {
 		this.historyHorizonLock.lock();
 		try {
-			return getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+			return getFirstCatalogBootstrap(this.catalogName, this.catalogStoragePath, this.bootstrapStorageSettings)
 				.map(CatalogBootstrap::catalogVersion)
 				.orElseGet(this::getLastCatalogVersion);
 		} finally {
