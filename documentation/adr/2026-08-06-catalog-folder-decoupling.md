@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 20:20
+updated: 2026-08-11 21:08
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -611,6 +611,23 @@ ergonomics the absolute path used to provide.
   **Still open, and deliberately:** cancelling a restore does not stop the unpacking. A cancelled multi-gigabyte
   restore runs to completion while the client is told "cancelled". That is the same family as the `Scheduler`
   cancellation defects in #1415 and wants the same fix — an interruptible step — not a patch here.
+
+  **Three links are broken, not one, and the third is the expensive one.** Investigated 2026-08-11 and filed as
+  **#1416**. Beyond `CompletableFuture` ignoring `mayInterruptIfRunning` and `Scheduler` discarding the
+  executor's `Future`, the *polling* half is dead too: `@Interruptible` — the Byte Buddy mechanism that is
+  supposed to inject an interrupt check, and which `RestoreTask#readBlock` already carries — **injects
+  nothing**. Verified in the bytecode rather than inferred: a clean build logs `Transformed 1454 type(s)` and no
+  class in `evita_engine` or `evita_store_server` contains the advice's `"Thread interrupted"` string. It
+  predates this branch (the 2026-07-27 snapshot jar is the same), so it is not ours to own, but it is
+  load-bearing for anything here: **restoring an interrupt path does not stop a restore while link three is
+  dead.**
+
+  That reshapes the two options this record would otherwise have left open. *Retaining the executor `Future` so
+  `cancel()` can interrupt* is necessary but **not sufficient** on its own. *Adding a cooperative cancellation
+  flag for steps to poll* — superficially the safer option — would stand up a second polling mechanism
+  competing with the `@Interruptible` annotations already sitting at exactly the right call sites; **rejected
+  because** two mechanisms for one job is a worse outcome than the broken one, and the annotations become
+  correct the moment #1416 lands. Read #1416 before touching either.
 
 - **A reservation outranks the binding in `folderIdForBinding`, and folder existence decides nothing.**
 
