@@ -189,6 +189,7 @@ class StorageOptionsTest {
 						200_000_000L
 					)
 					.timeTravelEnabled(true)
+					.timeTravelSizeLimitBytes(2_000_000_000L)
 					.minCompactionIntervalMilliseconds(600L)
 					.maxWasteActiveShare(0.1)
 					.build();
@@ -219,8 +220,63 @@ class StorageOptionsTest {
 				copy.fileSizeCompactionThresholdBytes()
 			);
 			assertTrue(copy.timeTravelEnabled());
+			assertEquals(2_000_000_000L, copy.timeTravelSizeLimitBytes());
 			assertEquals(600L, copy.minCompactionIntervalMilliseconds());
 			assertEquals(0.1, copy.maxWasteActiveShare());
+		}
+	}
+
+	@Nested
+	@DisplayName("Time travel size limit")
+	class TimeTravelSizeLimitTest {
+
+		@Test
+		@DisplayName("should default timeTravelSizeLimitBytes to 1GB")
+		void shouldDefaultTimeTravelSizeLimitToOneGigabyte() {
+			final StorageOptions options = StorageOptions.builder().build();
+
+			assertEquals(1_073_741_824L, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES);
+			assertEquals(1_073_741_824L, options.timeTravelSizeLimitBytes());
+		}
+
+		@Test
+		@DisplayName("should apply the default through every previous-arity constructor")
+		void shouldApplyDefaultThroughPreviousArityConstructors() {
+			// callers compiled against the pre-timeTravelSizeLimitBytes signatures must get the bounded default rather
+			// than an accidental zero, which would silently switch time travel off for them
+			assertEquals(
+				StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES,
+				new StorageOptions().timeTravelSizeLimitBytes()
+			);
+			assertEquals(
+				StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES,
+				StorageOptions.temporary().timeTravelSizeLimitBytes()
+			);
+			assertEquals(
+				StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES,
+				new StorageOptions(
+					null, null, 5, 5, 2_097_152, 10, true, false, true,
+					0.5, 100L, true
+				).timeTravelSizeLimitBytes()
+			);
+			assertEquals(
+				StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES,
+				new StorageOptions(
+					null, null, 5, 5, 2_097_152, 10, true, false, true,
+					0.5, 100L, true, 600L, 0.1
+				).timeTravelSizeLimitBytes()
+			);
+		}
+
+		@Test
+		@DisplayName("should carry a negative limit through unchanged as the opt-out from bounding")
+		void shouldCarryNegativeLimitThroughUnchanged() {
+			final StorageOptions options = StorageOptions.builder()
+				.timeTravelSizeLimitBytes(-1L)
+				.build();
+
+			assertEquals(-1L, options.timeTravelSizeLimitBytes());
+			assertEquals(-1L, StorageOptions.builder(options).build().timeTravelSizeLimitBytes());
 		}
 	}
 

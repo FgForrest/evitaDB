@@ -25,6 +25,7 @@ package io.evitadb.core.catalog;
 
 import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
@@ -168,6 +169,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -1379,26 +1381,45 @@ public final class Catalog
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createBackupTask(
-			pastMoment, catalogVersion, includingWAL, onStart, onComplete
+			pastMoment, catalogVersion, includingWAL, onStart
 		);
-		this.scheduler.submit(backupTask);
-		return backupTask;
+		return submitBackupTask(backupTask);
 	}
 
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
 		final ServerTask<?, FileForFetch> backupTask = this.persistenceService.createFullBackupTask(
-			onStart, onComplete
+			onStart
 		);
-		this.scheduler.submit(backupTask);
+		return submitBackupTask(backupTask);
+	}
+
+	/**
+	 * Submits an already constructed backup task, cancelling it again if the submission itself fails.
+	 *
+	 * A backup task pins the catalog version it is going to read in its **constructor**, and only running it or
+	 * cancelling it gives that pin back. A task that is constructed and then dropped - which is what a rejected
+	 * submission leaves behind - would hold its version for the rest of the catalog's life, and since a full backup
+	 * pins the oldest retained version, that permanently freezes every reclamation the catalog would otherwise do.
+	 *
+	 * @param backupTask the task to submit
+	 * @return the very same task, now queued
+	 */
+	@Nonnull
+	private ServerTask<?, FileForFetch> submitBackupTask(@Nonnull ServerTask<?, FileForFetch> backupTask) {
+		try {
+			this.scheduler.submit(backupTask);
+		} catch (RuntimeException ex) {
+			// releases the pin taken in the constructor by way of the task's own tear-down
+			backupTask.cancel();
+			throw ex;
+		}
 		return backupTask;
 	}
 
@@ -2035,6 +2056,20 @@ public final class Catalog
 				lastKnownMinimalActiveVersionRead,
 				lastKnownMinimalActiveVersionWritten
 			);
+		}
+	}
+
+	@Override
+	public void catalogVersionPinned(long catalogVersion) {
+		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
+			cvbthl.catalogVersionPinned(catalogVersion);
+		}
+	}
+
+	@Override
+	public void catalogVersionReleased(long catalogVersion) {
+		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
+			cvbthl.catalogVersionReleased(catalogVersion);
 		}
 	}
 

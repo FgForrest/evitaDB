@@ -272,6 +272,19 @@ Because data is stored in an append-only manner, it is possible to access data t
 
 This process is not heavily optimized for speed—rather, it simply takes advantage of the append-only nature of the data for historical record lookup (this feature alone does not make evitaDB a fully temporal database specialized in time-based queries). However, it does allow you to retroactively track the history of a record (or set of records), and also enables you to perform point-in-time backups of the database.
 
+#### How far back you can travel
+
+A bootstrap record can only be read when *all three* of these hold: the record is still present in the bootstrap file, the catalog data file it points at is still on disk, and every entity collection alive at that version still has its collection data file on disk. Call that tuple a **generation**—it, and not the individual bootstrap record, is what retention actually keeps or gives up, because consecutive records routinely share one generation.
+
+Every file index a record pins only ever increases, so history has exactly one *horizon*: deleting the lowest-index file of any component kills a prefix of the records, and what remains reachable is always a suffix. Per-collection compaction happening at different moments therefore never leaves a ragged frontier—it only means that moving the horizon frees a different amount per component, sometimes nothing at all.
+
+Two independent bounds move that horizon, and the higher one wins:
+
+- **Write-ahead log retention** (`transaction.walFileSizeBytes` × `transaction.walFileCountKept`) bounds how far the mutation history reaches.
+- **[`storage.timeTravelSizeLimitBytes`](../operate/configure.md#storage-configuration)** bounds how much disk the retained generations may occupy on top of the active data set. Without it, retention was bounded only by the write-ahead log—which bounds WAL bytes, not disk bytes, and let historical data files grow without limit.
+
+Neither can pull data out from under a session that is still reading it: both are clamped by the oldest catalog version an open session or writer still references.
+
 ### Backup and Restore
 
 Handling files also permits a naive backup method—simply copying the files in this order:

@@ -789,8 +789,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				TransactionOptions.builder().build()
 			),
 			Mockito.mock(Scheduler.class),
-			Functions.noOpLongConsumer(),
-			null
+			Functions.noOpLongConsumer()
 		);
 
 		// create WAL file with a few contents first

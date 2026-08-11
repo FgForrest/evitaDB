@@ -65,6 +65,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
@@ -97,6 +98,14 @@ import static io.evitadb.test.TestTags.WAL;
 @Tag(STORAGE)
 @Tag(WAL)
 class CatalogWriteAheadLogTest implements EvitaTestSupport {
+	/**
+	 * History horizon advancer that records nothing. `updateFirstVersionKept` dereferences the advancer
+	 * unconditionally and throws when it is missing, so a test WAL that may rotate has to supply one even when the
+	 * advance itself is of no interest to it.
+	 */
+	private static final LongConsumer NO_HISTORY_HORIZON_ADVANCE = catalogVersion -> {
+	};
+
 	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
@@ -200,8 +209,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 				TransactionOptions.builder().build()
 			),
 			Mockito.mock(Scheduler.class),
-			offsetDateTime -> {},
-			AbstractMutationLog.WalPurgeCallback.NO_OP
+			NO_HISTORY_HORIZON_ADVANCE
 		);
 	}
 
@@ -218,7 +226,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
 			walFileSizeBytes,
 			10,
-			AbstractMutationLog.WalPurgeCallback.NO_OP
+			NO_HISTORY_HORIZON_ADVANCE
 		);
 	}
 
@@ -231,9 +239,10 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	 * @param logFileRecordReference the reference the log is opened against
 	 * @param walFileSizeBytes       the maximum size of each WAL file in bytes
 	 * @param walFileCountKept       how many WAL files rotation leaves unqueued for removal
-	 * @param onWalPurgeCallback     invoked when a purge actually removes files; `removeWalFiles` dereferences it
-	 *                               unconditionally, so a test that never purges still passes
-	 *                               {@link AbstractMutationLog.WalPurgeCallback#NO_OP} rather than `null`
+	 * @param historyHorizonAdvancer invoked with the first version rotation leaves reachable; `updateFirstVersionKept`
+	 *                               dereferences it unconditionally and throws when it is missing, so a test that
+	 *                               never inspects the advance still passes {@link #NO_HISTORY_HORIZON_ADVANCE}
+	 *                               rather than `null`
 	 * @return a configured CatalogWriteAheadLog instance
 	 */
 	@Nonnull
@@ -242,7 +251,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 		@Nonnull LogFileRecordReference logFileRecordReference,
 		long walFileSizeBytes,
 		int walFileCountKept,
-		@Nonnull AbstractMutationLog.WalPurgeCallback onWalPurgeCallback
+		@Nonnull LongConsumer historyHorizonAdvancer
 	) {
 		return new CatalogWriteAheadLog(
 			catalogVersion,
@@ -260,8 +269,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 					.build()
 			),
 			Mockito.mock(Scheduler.class),
-			offsetDateTime -> {},
-			onWalPurgeCallback
+			historyHorizonAdvancer
 		);
 	}
 
@@ -972,7 +980,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// reopening runs `checkAndTruncate`, which verifies every transaction's cumulative checksum in turn
 			try (CatalogWriteAheadLog ignored = createTestWal(
 				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 1_048_576L, 10,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				// nothing to do - construction is what scans the file
 			}
@@ -1124,7 +1132,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			long lastVersionInFirstFile = -1L;
 			try (CatalogWriteAheadLog wal = createTestWal(
 				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), walFileSizeLimit, 10,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				for (int version = 1; version <= 8; version++) {
 					final TransactionWithData txData = createTestTransaction(version - 1, 200);
@@ -1145,7 +1153,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// remainder lives in file 1. Replay must cross that boundary rather than read into the finalized tail
 			try (CatalogWriteAheadLog reopened = createTestWal(
 				lastVersionInFirstFile, processedReference, walFileSizeLimit, 10,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				assertEquals(
 					lastVersionInFirstFile + 1,
@@ -1175,7 +1183,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			LogFileRecordReference afterFourth = null;
 			try (CatalogWriteAheadLog wal = createTestWal(
 				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), walFileSizeLimit, 10,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				for (int version = 1; version <= 4; version++) {
 					final TransactionWithData txData = createTestTransaction(version - 1, 200);
@@ -1193,7 +1201,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// the restart resumes from transaction 2; transactions 3 and 4 are the tail replay consumes
 			final LogFileRecordReference postRestartReference;
 			try (CatalogWriteAheadLog reopened = createTestWal(
-				2L, processedReference, walFileSizeLimit, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+				2L, processedReference, walFileSizeLimit, 10, NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				assertEquals(
 					3L,
@@ -1215,7 +1223,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// reopen path where `checkAndTruncate` mints a corrected reference and the constructor adopts it,
 			// which no other test in this class exercises.
 			try (CatalogWriteAheadLog reopenedAgain = createTestWal(
-				5L, postRestartReference, walFileSizeLimit, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+				5L, postRestartReference, walFileSizeLimit, 10, NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				assertEquals(
 					5L,
@@ -1253,7 +1261,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// version-gated, and version 4 (still unprocessed) lives in file 0
 			final CatalogWriteAheadLog wal = createTestWal(
 				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 4_096L, 2,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			);
 			try {
 				appendUntilWalFileAppears(wal, fourthWalFile, 3L);
@@ -1298,7 +1306,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// just as happily if the purge never ran at all.
 			final CatalogWriteAheadLog wal = createTestWal(
 				0L, new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)), 4_096L, 2,
-				AbstractMutationLog.WalPurgeCallback.NO_OP
+				NO_HISTORY_HORIZON_ADVANCE
 			);
 			try {
 				appendUntilWalFileAppears(wal, fourthWalFile, 3L);
@@ -1343,7 +1351,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// this is what a restart does: open against the reference the last checkpoint left behind
 			final LogFileRecordReference postRestartReference;
 			try (CatalogWriteAheadLog reopened = createTestWal(
-				3L, checkpointedReference, 4_096L, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+				3L, checkpointedReference, 4_096L, 10, NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				assertEquals(
 					4L,
@@ -1373,7 +1381,7 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			// match. A restart that continued the reference's chain instead of the active file's would write a
 			// transaction whose checksum is wrong, and this is the open that finds it.
 			try (CatalogWriteAheadLog reopenedAgain = createTestWal(
-				lastWrittenVersion + 1, postRestartReference, 4_096L, 10, AbstractMutationLog.WalPurgeCallback.NO_OP
+				lastWrittenVersion + 1, postRestartReference, 4_096L, 10, NO_HISTORY_HORIZON_ADVANCE
 			)) {
 				assertTrue(
 					reopenedAgain.getFirstNonProcessedTransaction(postRestartReference).isEmpty(),

@@ -44,6 +44,7 @@ storage:
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
   timeTravelEnabled: ${storage.timeTravelEnabled:false}
+  timeTravelSizeLimitBytes: ${storage.timeTravelSizeLimitBytes:1G}
   minCompactionIntervalMilliseconds: ${storage.minCompactionIntervalMilliseconds:1m}
   maxWasteActiveShare: ${storage.maxWasteActiveShare:0.1}
 
