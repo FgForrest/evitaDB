@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 17:25
+updated: 2026-08-11 19:52
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -235,6 +235,20 @@ ergonomics the absolute path used to provide.
   `RestoreFolderClaimTest#shouldReleaseAClaimPublishedAfterTheHandover` failing with the
   `ConcurrentCatalogMaterializationException` the defect predicts; post-fix it is 5 / 0, with no other test in
   the class moving either way.
+
+  A third review round — folder lifecycle rather than the claim handover — brings the suite to **21 163 tests,
+  0 failures, 2 errors**. The arithmetic is `21 160 + 3`, not `+ 2`: the mis-specified
+  `shouldPreferTheLiveBindingOverAReservation` was *replaced* rather than deleted, and the recovery case it
+  falsely claimed to cover gained a test of its own alongside the two `FileUtilsTest` additions. Calibrated with
+  both counterfactuals applied at once — the old bound-before-reserved order and the old `Files.exists` guard —
+  giving exactly 2 failures out of 31, one per mutation, zero collateral.
+
+  **The second error is the load-sensitive GraphQL subscription flake, and isolation is what says so.**
+  `SystemGraphQLSubscriptionsFunctionalTest#shouldReceiveSystemCaptureWithoutBody` blew a two-minute Awaitility
+  condition in the full run; the whole class then passed in isolation, **15 tests, 0 failures, in 9.9 seconds** —
+  less wall-clock for the entire class than that one assertion was given. The `FileUtils` change made this worth
+  checking rather than assuming, since two thirds of `deleteDirectory`'s callers are suite teardown: the run was
+  swept for unexpected delete failures and had none, every occurrence belonging to a test that intends one.
 
   **Reinstall `evita_engine` between the two halves of a calibration like that one.** No signature changed, so a
   stale `~/.m2` jar raises no compile error — it silently runs both halves against the same bytecode and the
@@ -578,6 +592,46 @@ ergonomics the absolute path used to provide.
   **Still open, and deliberately:** cancelling a restore does not stop the unpacking. A cancelled multi-gigabyte
   restore runs to completion while the client is told "cancelled". That is the same family as the `Scheduler`
   cancellation defects in #1415 and wants the same fix — an interruptible step — not a patch here.
+
+- **A reservation outranks the binding in `folderIdForBinding`, and folder existence decides nothing.**
+
+  The original order asked "is the bound folder still on disk?" and preferred the binding when it was, on the
+  reasoning that a present folder means *recovery* while an absent one means *restore*. That is a proxy for the
+  real question, and it breaks in the case the whole mechanism exists for: a missing catalog keeps its binding
+  deliberately, so a reappearance can be matched against it, and a folder that reappears while an explicit
+  restore is mid-flight made the lookup hand back the stale contents, release the reservation, and leave the
+  freshly unpacked backup to be reclaimed at the next boot — success reported to the client, backup silently
+  discarded, on the disaster-recovery path.
+
+  A reservation answers the question directly: something is materialising this name *right now*, so bind to what
+  it made. `RestoreCatalogSchemaMutationOperator` documents the only three paths through the lookup — recovery
+  reads a binding and **allocates nothing**, restore reads the reservation `EvitaManagement` made, adoption
+  reads the one boot-time renaming left behind. A reservation therefore exists in exactly the cases where it is
+  the right answer, and recovery never competes with one. The existence test was not merely misplaced, it was
+  answering a question nobody needed asked; `catalogFolderExists` survives only as the operator's own check,
+  where the absence is reported in the terms an operator needs.
+
+  **The find that matters here is the test, not the bug.** `CatalogFolderContextTest` carried a green
+  `shouldPreferTheLiveBindingOverAReservation` asserting precisely the broken order, with a comment explaining
+  that a present folder "is a recovery rather than a restore". It could only build that scenario by calling
+  `allocateFolderFor` by hand — recovery never allocates — so it was asserting a state production cannot reach,
+  and it is what let the wrong rule survive review. It is replaced by
+  `shouldPreferTheReservationWhenTheBoundFolderReappears`, and the recovery case it *claimed* to cover now has a
+  real test of its own in `shouldUseTheBindingWhenTheFolderIsPresentAndNothingIsReserved`. When a test has to
+  construct its premise through an API no production path calls, that is the signal — not the coverage it looks
+  like.
+
+- **`FileUtils.deleteDirectory` must not treat an unreadable directory as an absent one.** It guarded the walk
+  with `Files.exists`, which answers FALSE both for "not there" and for "cannot tell" — it swallows the
+  `IOException`. A directory whose attributes cannot be read (a Windows ACL, a POSIX parent without execute)
+  was therefore reported as already gone, and callers read a normal return as proof the data is drained: the
+  boot cleaner counts the folder reclaimed and a retired-folder tombstone is discharged, leaving the contents on
+  disk with nothing left referring to them, and nothing that will ever classify the folder again. The walk is
+  now attempted and only `NoSuchFileException` is suppressed — `walkFileTree` hands a start-path failure to
+  `SimpleFileVisitor#visitFileFailed`, which rethrows, so an unreadable directory arrives as
+  `AccessDeniedException` and is reported. Suppressing exactly one exception type matters more than it looks:
+  two thirds of this method's callers are test-teardown paths that delete directories which routinely do not
+  exist, so a wider catch would be a diffuse suite regression and a narrower one a flood of teardown failures.
 
   Duplicate did not start out that way, and the correction is worth recording because the wrong shape looks
   right. It originally wrapped the *result mapper* in try-with-resources, but that mapper is a `thenApply`

@@ -78,18 +78,44 @@ class CatalogFolderContextTest {
 	}
 
 	@Test
-	@DisplayName("Prefers a live binding over any reservation")
-	void shouldPreferTheLiveBindingOverAReservation() throws IOException {
+	@DisplayName("Prefers the folder a restore allocated even when the bound one has reappeared")
+	void shouldPreferTheReservationWhenTheBoundFolderReappears() throws IOException {
 		final Path storageDirectory = Files.createTempDirectory("catalogFolderContextTest");
 		try {
-			// the mirror image: the catalog's folder is present, so it is a recovery rather than a restore, and
-			// the catalog must land back where it already lives rather than in a freshly allocated folder
+			// The same disaster-recovery path as above, one step further along: the restore has already unpacked
+			// the backup into the folder it allocated, and only then does the vanished folder come back — an
+			// operator restoring the directory, a mount returning. Answering with the binding because its folder
+			// is present again would register the catalog against the *stale* contents, release the reservation
+			// and leave the freshly restored folder to be reclaimed at the next boot: success reported to the
+			// client, backup silently discarded.
+			//
+			// Folder existence is not what distinguishes recovery from restore — a reservation is. Recovery
+			// reads a binding and allocates nothing, so it never reaches this branch at all.
 			Files.createDirectory(storageDirectory.resolve("products_1"));
 			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
 				storageDirectory, boundTo("products", "products_1")
 			);
 
-			context.allocateFolderFor("products");
+			final CatalogFolderReservation reservation = context.allocateFolderFor("products");
+
+			assertEquals(reservation.folderId(), context.folderIdForBinding("products"));
+		} finally {
+			FileUtils.deleteDirectory(storageDirectory);
+		}
+	}
+
+	@Test
+	@DisplayName("Uses the binding when the folder is present and nothing is being materialised")
+	void shouldUseTheBindingWhenTheFolderIsPresentAndNothingIsReserved() throws IOException {
+		final Path storageDirectory = Files.createTempDirectory("catalogFolderContextTest");
+		try {
+			// Recovery proper, and the case the reservation branch must not swallow: the catalog's folder is
+			// there and no operation is materialising the name, so the catalog lands back where it already
+			// lives rather than anywhere new.
+			Files.createDirectory(storageDirectory.resolve("products_1"));
+			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
+				storageDirectory, boundTo("products", "products_1")
+			);
 
 			assertEquals(new CatalogFolderId("products_1"), context.folderIdForBinding("products"));
 		} finally {

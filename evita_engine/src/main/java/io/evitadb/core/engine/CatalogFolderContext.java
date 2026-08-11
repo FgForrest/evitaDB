@@ -121,42 +121,44 @@ public class CatalogFolderContext {
 	}
 
 	/**
-	 * Returns the folder token to bind the passed catalog to — its current binding when it has one, the folder
-	 * an in-flight operation already allocated for it when there is one, and otherwise the identity token.
+	 * Returns the folder token to bind the passed catalog to — the folder an in-flight operation already
+	 * materialised for it when there is one, its current binding when there is not, and otherwise the identity
+	 * token.
 	 *
 	 * This is the counterpart of {@link #folderIdFor(String)} and covers exactly the moments at which a name
-	 * legitimately has no binding yet. The four branches are not interchangeable:
+	 * legitimately has no binding yet. The three branches are not interchangeable:
 	 *
-	 * 1. **Bound, and the folder is still there** — recovery from the missing bucket lands back in the folder the
-	 *    catalog left, not somewhere new. Also how the create path reads back the folder its own transition
-	 *    phase just allocated.
-	 * 2. **Reserved** — an operation that had to materialise the folder *before* the engine state could record
-	 *    it. A restore writes a whole catalog into its folder before the registering mutation is ever
-	 *    dispatched, so without this branch the mutation would allocate a *second* folder and bind the catalog
-	 *    to it — leaving the restored data in the first one, unreferenced, with nothing reporting a failure.
-	 * 3. **Bound, folder absent, nothing reserved** — the binding is still the best answer there is, and the
-	 *    caller's own existence check reports it in the terms the operator needs.
-	 * 4. **Identity** — a folder discovered on disk under exactly the catalog's own name.
+	 * 1. **Reserved** — an operation had to materialise the folder *before* the engine state could record it,
+	 *    and a reservation is the only evidence of that. A restore writes a whole catalog into its folder
+	 *    before the registering mutation is ever dispatched; boot-time adoption reserves the folder it renamed;
+	 *    create reads back the folder its own transition phase allocated. In every one of them the reservation
+	 *    names the folder the data was actually written into.
+	 * 2. **Bound** — no operation is materialising this name, so the engine state's own answer is the right one,
+	 *    whether or not the folder is currently on disk. Recovery from the missing bucket lands back in the
+	 *    folder the catalog left; when that folder is absent the binding is still the best answer there is, and
+	 *    the caller's own existence check reports the absence in the terms the operator needs.
+	 * 3. **Identity** — a folder discovered on disk under exactly the catalog's own name.
 	 *
-	 * **The existence test in the first branch is what makes restoring over a catalog the engine has marked
-	 * missing work at all.** A missing catalog keeps its binding — deliberately, because that is what a later
-	 * reappearance has to be matched against — so a plain bound-before-reserved order would hand back the
-	 * folder that vanished and ignore the one the backup was just written into. That is the disaster-recovery
-	 * path, and it would have failed exactly when it is needed.
+	 * **A reservation outranks the binding even when the bound folder is present, and that ordering is the
+	 * whole point.** The tempting rule — prefer the binding while its folder still exists, on the grounds that
+	 * a present folder means recovery rather than restore — reads folder existence as a proxy for "which
+	 * operation is this?". The proxy breaks in the one case that matters: a missing catalog keeps its binding
+	 * deliberately, so that a later reappearance can be matched against it, and a folder that reappears while
+	 * an explicit restore is mid-flight makes that rule hand back the stale contents and orphan the backup
+	 * just unpacked — success reported, data silently lost, on the disaster-recovery path. A reservation
+	 * answers the real question directly: something is materialising this name *right now*, so bind to what it
+	 * made. Recovery never allocates, so it never competes here.
 	 *
 	 * @param catalogName name of the catalog
 	 * @return token identifying the folder the catalog is to be bound to
 	 */
 	@Nonnull
 	public CatalogFolderId folderIdForBinding(@Nonnull String catalogName) {
-		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
-		if (folderId != null && this.folderOperations.catalogFolderExists(folderId)) {
-			return folderId;
-		}
 		final CatalogFolderId reserved = this.reservedFolders.get(catalogName);
 		if (reserved != null) {
 			return reserved;
 		}
+		final CatalogFolderId folderId = this.folderResolver.boundFolderIdFor(catalogName);
 		return folderId == null ? new CatalogFolderId(catalogName) : folderId;
 	}
 
