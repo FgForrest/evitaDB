@@ -37,7 +37,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -99,11 +99,12 @@ public class FileUtils {
 	 * method was never pointed at, and none of it is recoverable.
 	 */
 	public static void deleteDirectory(@Nonnull Path directory) {
-		// NOFOLLOW_LINKS so a dangling link is still seen, and so a link to a directory is never mistaken
-		// for the directory itself
-		if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
-			return;
-		}
+		// The walk is attempted rather than guarded by an existence check, because `Files.exists` answers FALSE
+		// both for "not there" and for "cannot tell" - it swallows the IOException. A directory whose attributes
+		// are unreadable (a Windows ACL, a POSIX parent without execute) would therefore have been reported as
+		// already gone, and callers treat a normal return as proof the data is drained: the boot cleaner counts
+		// it as reclaimed and a retired-folder tombstone is discharged, leaving the contents on disk with
+		// nothing left referring to them. Letting the walk raise the real error keeps that distinction.
 		try {
 			Files.walkFileTree(directory, new SimpleFileVisitor<>() {
 
@@ -129,6 +130,11 @@ public class FileUtils {
 					return FileVisitResult.CONTINUE;
 				}
 			});
+		} catch (NoSuchFileException ex) {
+			// Deleting what is not there is the one success this method may report without having done
+			// anything - and it is the *only* IOException that means that. `walkFileTree` hands a failure on the
+			// start path to `SimpleFileVisitor#visitFileFailed`, which rethrows, so an unreadable directory
+			// arrives here as `AccessDeniedException` and is reported below rather than mistaken for a delete.
 		} catch (IOException ex) {
 			throw new UnexpectedIOException(
 				"Failed to delete directory: " + directory,

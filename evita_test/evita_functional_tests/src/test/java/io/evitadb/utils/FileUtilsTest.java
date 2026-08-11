@@ -37,12 +37,15 @@ import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -68,6 +71,56 @@ class FileUtilsTest {
 	@AfterEach
 	void tearDown() throws IOException {
 		FileUtils.deleteDirectory(this.directoryTest);
+	}
+
+	@Nested
+	@DisplayName("Deleting a directory")
+	class DeletingADirectory {
+
+		@Test
+		@DisplayName("Reports success for a directory that was never there")
+		void shouldSucceedWhenTheDirectoryDoesNotExist() {
+			// The one case where returning without deleting anything is honest, and the reason the walk
+			// suppresses `NoSuchFileException` specifically rather than guarding on an existence check.
+			assertDoesNotThrow(
+				() -> FileUtils.deleteDirectory(FileUtilsTest.this.directoryTest.resolve("neverExisted"))
+			);
+		}
+
+		@Test
+		@DisplayName("Refuses to report a directory it could not even look at as deleted")
+		void shouldFailWhenTheDirectoryCannotBeRead() throws IOException {
+			// `Files.exists` answers FALSE both for "not there" and for "cannot tell" - it swallows the
+			// IOException - so guarding the walk with it made an unreadable directory indistinguishable from an
+			// absent one. Callers read a normal return as proof the data is drained: the boot cleaner counts the
+			// folder as reclaimed and a retired-folder tombstone is discharged, leaving the contents on disk
+			// with nothing left referring to them. The delete must fail loudly instead.
+			final Path unreadable = FileUtilsTest.this.directoryTest.resolve("unreadable");
+			Files.createDirectories(unreadable.resolve("payload"));
+			assumeTrue(
+				Files.getFileStore(unreadable).supportsFileAttributeView(PosixFileAttributeView.class),
+				"POSIX permissions are required to make a directory unreadable"
+			);
+
+			// the *parent* loses traversal, so resolving `unreadable` itself fails - which is what makes
+			// `Files.exists` answer FALSE for a directory that is plainly still there
+			Files.setPosixFilePermissions(
+				FileUtilsTest.this.directoryTest, PosixFilePermissions.fromString("rw-------")
+			);
+			try {
+				assumeFalse(
+					Files.exists(unreadable), "running as root - permissions do not restrict traversal"
+				);
+
+				assertThrows(UnexpectedIOException.class, () -> FileUtils.deleteDirectory(unreadable));
+			} finally {
+				// restore traversal so the fixture can be cleaned up
+				Files.setPosixFilePermissions(
+					FileUtilsTest.this.directoryTest, PosixFilePermissions.fromString("rwx------")
+				);
+			}
+		}
+
 	}
 
 	@Nested
