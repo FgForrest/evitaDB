@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 14:25
+updated: 2026-08-11 14:55
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -218,6 +218,14 @@ ergonomics the absolute path used to provide.
   `SortIndexTreeProviderEquivalenceTest` — so `21 148 + 2 slow + 1 new = 21 151`, with nothing lost. Do not
   "reconcile" the series by assuming a test went missing; compare like with like, or the number will be
   re-derived wrongly.
+
+  **The review-fix round is the worked example of that warning.** It added ten test methods and the suite came
+  back at **21 159 tests, 0 failures, 1 error** — the same Docker-only `ExportS3ServiceTest` — which looks like
+  eight new tests, not ten. It is neither: that run used `-P unitAndFunctional`, so it excludes the two slow
+  tests the `21 151` run included. `21 151 − 2 slow + 10 new = 21 159`, exactly. The per-class counts confirm
+  it independently (`EvitaTest` 100 → 101, `CatalogFolderCleanerTest` 12 → 13, plus 4 + 3 in the two new
+  classes and 1 in `DefaultEnginePersistenceServiceTest`), which is the check worth doing: an aggregate that
+  disagrees is answered by counting the classes you touched, not by arguing about the total.
 
   An earlier run in the same session came in at 21 144 with four additional non-passes, all of them wall-clock or
   connection-availability assertions — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then

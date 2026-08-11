@@ -254,6 +254,10 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 				)
 			);
 
+			// Asserted here rather than in a test of its own because adoption only happens during a boot that
+			// finds an adoptable folder, and this test has already paid for exactly that boot - a dedicated
+			// test would duplicate the whole fixture to assert one more thing about the same event.
+			//
 			// Boot adoption is the one path that puts a reservation into the map without handing the caller a
 			// closeable handle - it is released indirectly, by the registering mutation's `completeFolder`. If
 			// that release is ever dropped, an adopted catalog keeps a stale claim for the life of the process

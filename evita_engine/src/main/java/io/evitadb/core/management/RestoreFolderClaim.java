@@ -95,6 +95,16 @@ final class RestoreFolderClaim {
 			return alreadyAllocated;
 		}
 		final CatalogFolderReservation reservation = folderContext.allocateFolderFor(catalogName);
+		// The claim is published before the token on purpose: a cancellation landing between these two lines
+		// must find something to release. The reverse order would leak the claim outright.
+		//
+		// A cancel *can* land there and free the name while this restore goes on unpacking. That is safe, but
+		// for a non-obvious reason worth writing down: cancelling transitions every step's status away from
+		// QUEUED, and `SequentialTask#execute` runs a step only while it is QUEUED, so the registering step is
+		// skipped entirely and nothing binds a catalog to this folder. The folder keeps its provisional marker
+		// and is reclaimed at the next boot. What is lost is the unpacking work, because cancellation cannot
+		// interrupt a step that is already running - a pre-existing limitation of task cancellation, not of
+		// this handover.
 		this.claim.set(reservation);
 		this.folderId = reservation.folderId();
 		return reservation.folderId();
