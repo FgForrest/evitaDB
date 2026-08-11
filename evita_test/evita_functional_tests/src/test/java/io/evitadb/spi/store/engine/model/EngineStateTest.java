@@ -31,7 +31,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -442,6 +444,149 @@ class EngineStateTest {
 			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("nested/folder"));
 			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("nested\\folder"));
 			assertThrows(GenericEvitaInternalError.class, () -> new CatalogFolderId("   "));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Folder tombstones")
+	class FolderTombstones {
+
+		@Test
+		@DisplayName("Inserts a tombstone in token order and ignores one already recorded")
+		void shouldInsertTombstoneInOrderAndDeduplicate() {
+			final RetiredFolder[] empty = new RetiredFolder[0];
+
+			final RetiredFolder[] first = EngineState.withRetiredFolder(
+				empty, new RetiredFolder("products", new CatalogFolderId("products_2"))
+			);
+			assertArrayEquals(new String[]{"products_2"}, tokensOf(first));
+
+			// one catalog may have several folders awaiting deletion, so the array orders by token rather
+			// than by name - inserting a lower token has to land in front of the one already there
+			final RetiredFolder[] second = EngineState.withRetiredFolder(
+				first, new RetiredFolder("products", new CatalogFolderId("products_1"))
+			);
+			assertArrayEquals(new String[]{"products_1", "products_2"}, tokensOf(second));
+
+			final RetiredFolder[] third = EngineState.withRetiredFolder(
+				second, new RetiredFolder("orders", new CatalogFolderId("orders_5"))
+			);
+			assertArrayEquals(new String[]{"orders_5", "products_1", "products_2"}, tokensOf(third));
+
+			// re-tombstoning a folder is a no-op rather than a duplicate entry - the same folder can be
+			// retired twice when a drain is interrupted and the operation retried
+			assertSame(
+				third,
+				EngineState.withRetiredFolder(
+					third, new RetiredFolder("products", new CatalogFolderId("products_1"))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("Drops every confirmed tombstone when several are discharged at once")
+		void shouldDropAllConfirmedTombstonesInOneDrain() {
+			// The multi-entry drain is what the backwards walk in `withoutRetiredFolders` exists for, and it
+			// is the only case that can tell the two directions apart. Removing the two *lowest* entries is
+			// what calibrates this test: a forward walk reads its predicate from the original array while
+			// removing from the shrinking one, so after dropping index 0 it would drop whatever slid into
+			// index 1 - yielding `[products_1, products_3]` here instead of `[products_2, products_3]`.
+			final RetiredFolder[] tombstones = {
+				new RetiredFolder("products", new CatalogFolderId("products_0")),
+				new RetiredFolder("products", new CatalogFolderId("products_1")),
+				new RetiredFolder("products", new CatalogFolderId("products_2")),
+				new RetiredFolder("products", new CatalogFolderId("products_3"))
+			};
+
+			final RetiredFolder[] drained = EngineState.withoutRetiredFolders(
+				tombstones,
+				Set.of(new CatalogFolderId("products_0"), new CatalogFolderId("products_1"))
+			);
+
+			assertArrayEquals(new String[]{"products_2", "products_3"}, tokensOf(drained));
+			// engine states are shared immutable snapshots - the input must survive the call untouched
+			assertArrayEquals(
+				new String[]{"products_0", "products_1", "products_2", "products_3"},
+				tokensOf(tombstones)
+			);
+		}
+
+		@Test
+		@DisplayName("Drops non-adjacent tombstones without disturbing the ones between them")
+		void shouldDropNonAdjacentTombstones() {
+			final RetiredFolder[] tombstones = {
+				new RetiredFolder("alpha", new CatalogFolderId("alpha_1")),
+				new RetiredFolder("beta", new CatalogFolderId("beta_1")),
+				new RetiredFolder("gamma", new CatalogFolderId("gamma_1")),
+				new RetiredFolder("delta", new CatalogFolderId("delta_1"))
+			};
+			// note the array is in token order: alpha_1, beta_1, delta_1, gamma_1 would be wrong - build it
+			// through the inserter so the ordering the record requires is established by the code under test
+			RetiredFolder[] ordered = new RetiredFolder[0];
+			for (final RetiredFolder tombstone : tombstones) {
+				ordered = EngineState.withRetiredFolder(ordered, tombstone);
+			}
+			assertArrayEquals(new String[]{"alpha_1", "beta_1", "delta_1", "gamma_1"}, tokensOf(ordered));
+
+			final RetiredFolder[] drained = EngineState.withoutRetiredFolders(
+				ordered,
+				Set.of(new CatalogFolderId("alpha_1"), new CatalogFolderId("delta_1"))
+			);
+			assertArrayEquals(new String[]{"beta_1", "gamma_1"}, tokensOf(drained));
+		}
+
+		@Test
+		@DisplayName("Returns the tombstone array untouched when a drain confirms nothing it holds")
+		void shouldReturnSameArrayWhenNothingDrained() {
+			final RetiredFolder[] tombstones = {
+				new RetiredFolder("products", new CatalogFolderId("products_1"))
+			};
+
+			// an empty drain, and a drain naming only folders that were never tombstoned, both have to be
+			// no-ops - the drained set is filled from confirmed deletions, which include folders removed
+			// by paths that never recorded a tombstone in the first place
+			assertSame(tombstones, EngineState.withoutRetiredFolders(tombstones, Set.of()));
+			assertSame(
+				tombstones,
+				EngineState.withoutRetiredFolders(tombstones, Set.of(new CatalogFolderId("orders_9")))
+			);
+			final RetiredFolder[] noTombstones = new RetiredFolder[0];
+			assertSame(
+				noTombstones,
+				EngineState.withoutRetiredFolders(noTombstones, Set.of(new CatalogFolderId("products_1")))
+			);
+		}
+
+		@Test
+		@DisplayName("Empties the array when the drain confirms every tombstone it holds")
+		void shouldEmptyArrayWhenEveryTombstoneDrained() {
+			final RetiredFolder[] tombstones = {
+				new RetiredFolder("alpha", new CatalogFolderId("alpha_1")),
+				new RetiredFolder("beta", new CatalogFolderId("beta_1"))
+			};
+
+			final RetiredFolder[] drained = EngineState.withoutRetiredFolders(
+				tombstones,
+				Set.of(new CatalogFolderId("alpha_1"), new CatalogFolderId("beta_1"))
+			);
+			assertEquals(0, drained.length);
+		}
+
+		/**
+		 * Projects the folder tokens out of a tombstone array, so an assertion failure names the folders
+		 * rather than printing record `toString`s that have to be read character by character.
+		 *
+		 * @param tombstones tombstones to project
+		 * @return folder tokens in array order
+		 */
+		@Nonnull
+		private String[] tokensOf(@Nonnull RetiredFolder[] tombstones) {
+			final String[] tokens = new String[tombstones.length];
+			for (int i = 0; i < tombstones.length; i++) {
+				tokens[i] = tombstones[i].folderId().id();
+			}
+			return tokens;
 		}
 
 	}
