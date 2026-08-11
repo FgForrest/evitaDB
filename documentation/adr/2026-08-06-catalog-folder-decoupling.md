@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 10:05
+updated: 2026-08-11 10:30
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -206,10 +206,17 @@ ergonomics the absolute path used to provide.
 
 - Full functional suite across the work — **20 968 tests**, **20 983** after the version fix, **21 073**
   after the rebase onto `dev` `1f67194ca`, **21 138** after the rebase onto `dev` `c1229ead4` (which
-  brought in #761) — green apart from the environmental non-passes below, each of which reproduces on
-  unrelated commits and none of which is caused by this work. The last run is the one to quote:
-  **21 138 tests, 0 failures, 1 error**, that error being `ExportS3ServiceTest`, which needs a Docker
-  environment this machine does not have.
+  brought in #761), **21 144** after the follow-up fixes below — green apart from the environmental
+  non-passes, each of which reproduces on unrelated commits and none of which is caused by this work.
+  The last run is the one to quote: **21 144 tests, 1 failure, 4 errors**, of which only
+  `ExportS3ServiceTest` (which needs a Docker environment this machine does not have) is not a load
+  artifact. The other four — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then a
+  shared dataset that could not be set up after it), `EvitaSessionServiceFunctionalTest` on a gRPC
+  `UNAVAILABLE`, and `StaleLeafPageTwinWriterReproductionTest` on a hung-thread assertion — are all
+  wall-clock or connection-availability assertions, and **all three classes pass together in isolation:
+  123 tests, 0 failures, 0 errors**. Isolation is the discriminator that matters here, not the plausibility
+  of the explanation: earlier in this work a failure was argued to be load on exactly that reasoning and the
+  isolated run disproved it.
 - The second rebase is the run worth reading, because a clean rebase was not a working one. It produced
   three conflicts and then **failed to compile twice** — both times on code that never conflicted,
   because it was new on `dev`'s side and so had nothing to be merged against: 25 constructor sites and
