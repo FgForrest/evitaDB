@@ -3731,6 +3731,21 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Returns the write-ahead log this catalog appends to, or `null` when the catalog has never gone live and so
+	 * has no log at all.
+	 *
+	 * Exposed for tests that need the log's own draining seam rather than a wait: reclaiming a rotated log file is
+	 * scheduled work, so a test that merely commits transactions and then looks at the directory is polling for
+	 * something it could instead ask for. Production code reaches the log through the fields that already hold it.
+	 *
+	 * @return the catalog's write-ahead log, or `null` when none exists yet
+	 */
+	@Nullable
+	public CatalogWriteAheadLog getCatalogWal() {
+		return this.catalogWal;
+	}
+
+	/**
 	 * Publishes the checkpoint a previous round deferred: writes the bootstrap record that round already built and
 	 * lets the write-ahead log know it may stop retaining everything up to it.
 	 *

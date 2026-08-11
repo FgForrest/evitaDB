@@ -231,7 +231,13 @@ public final class Catalog
 	private final TransactionalMap<String, EntitySchemaContract> entitySchemaIndex;
 	/**
 	 * Service containing I/O related methods.
+	 *
+	 * Exposed so that a test driving a real engine can reach the storage layer's own seams - forcing an owed
+	 * checkpoint, draining the write-ahead log - instead of polling the filesystem until the background work
+	 * happens to have run. Nothing in production reads it through the getter; every engine path that needs the
+	 * persistence service already holds it directly.
 	 */
+	@Getter
 	private final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> persistenceService;
 	/**
 	 * This instance is used to cover changes in transactional memory and persistent storage reference.

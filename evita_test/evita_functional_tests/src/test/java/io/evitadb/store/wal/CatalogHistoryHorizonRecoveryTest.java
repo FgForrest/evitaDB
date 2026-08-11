@@ -30,7 +30,9 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -62,6 +64,7 @@ import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -119,16 +122,6 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	 * Number of log files kept behind the active one.
 	 */
 	private static final int WAL_FILE_COUNT_KEPT = 2;
-	/**
-	 * Upper bound for both waits below. Rotation, purge and the reconciliation are all driven by background tasks that
-	 * expose no completion seam to latch onto - what they produce is a change on the file system - so the test polls
-	 * for their outcome under a bound generous enough that a loaded machine cannot expire it.
-	 */
-	private static final long WAIT_TIMEOUT_MILLIS = 60_000L;
-	/**
-	 * Interval between two polls of the state the waits above are waiting for.
-	 */
-	private static final long POLL_INTERVAL_MILLIS = 250L;
 	/**
 	 * Page size used when the whole retained window is read at once - comfortably above the handful of records
 	 * {@link #TRANSACTION_COUNT} transactions can produce.
@@ -212,8 +205,12 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 
 	/**
 	 * Writes {@link #TRANSACTION_COUNT} transactions, each carrying a payload large enough to fill a quarter of a log
-	 * file. Every commit waits until its changes are visible, so the versions the rotation queues for removal are
-	 * actually processed - a queued removal is only carried out once the version it belongs to has been published.
+	 * file, so the log rotates several times over and queues its oldest files for removal.
+	 *
+	 * Committing is what *queues* those removals, not what makes them eligible: a queued removal is only carried out
+	 * once the version it belongs to has been processed, and processing advances on a checkpoint rather than on a
+	 * commit - `WAIT_FOR_CHANGES_VISIBLE` defers the header write whenever a checkpoint is not due. Forcing that is
+	 * {@link #forceWalPurge(Evita, Path)}'s job.
 	 *
 	 * @param evita the running engine to write into
 	 */
@@ -235,42 +232,40 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Waits until the log has actually purged its oldest files - the state the whole test depends on, and one that
-	 * rotation only reaches once the versions inside those files have been processed.
+	 * Drives the log to actually purge its oldest files - the state the whole test depends on - and asserts it got
+	 * there, rather than waiting for a background task to happen to have run.
 	 *
-	 * @param catalogDirectory the catalog folder to watch
+	 * Both calls are needed and neither subsumes the other. A rotated file is only *eligible* for removal once the
+	 * versions inside it have been processed, and processing advances on a **checkpoint** rather than on a commit -
+	 * `WAIT_FOR_CHANGES_VISIBLE` defers the header write whenever a checkpoint is not due, so the transactions above
+	 * leave the removals queued but ineligible. `checkpoint()` publishes the owed record and makes them eligible;
+	 * `removeWalFiles()` then performs the removal on this thread instead of on the remover's next scheduled run.
+	 *
+	 * @param evita            the running engine holding the catalog
+	 * @param catalogDirectory the catalog folder the log lives in
 	 */
-	private static void awaitWalPurge(@Nonnull Path catalogDirectory) throws InterruptedException {
-		final long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MILLIS;
-		while (System.currentTimeMillis() < deadline) {
-			final File[] walFiles = listWalFiles(catalogDirectory);
-			if (walFiles.length > 1 && getIndexFromWalFileName(walFiles[0].getName()) > 0) {
-				return;
-			}
-			//noinspection BusyWait
-			Thread.sleep(POLL_INTERVAL_MILLIS);
-		}
-	}
+	private static void forceWalPurge(@Nonnull Evita evita, @Nonnull Path catalogDirectory) {
+		// through the wildcard: `Catalog` holds the service under the interface's `LogRecordReference`
+		// parameterisation while the implementation declares `LogFileRecordReference`, so the direct cast is
+		// rejected as provably impossible even though the instance is exactly this class
+		final CatalogPersistenceService<?, ?, ?> catalogPersistenceService =
+			((Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG)).getPersistenceService();
+		final DefaultCatalogPersistenceService persistenceService =
+			(DefaultCatalogPersistenceService) catalogPersistenceService;
+		persistenceService.checkpoint();
+		final CatalogWriteAheadLog catalogWal = persistenceService.getCatalogWal();
+		assertNotNull(catalogWal, "The catalog must have gone live and written a log before its files can be purged!");
+		catalogWal.removeWalFiles();
 
-	/**
-	 * Waits until the reconciliation submitted when the catalog opened has given the unreachable history up.
-	 *
-	 * @param evita                the freshly opened engine
-	 * @param oldestRetainedBefore the oldest retained version the restart inherited
-	 * @return the oldest retained version once it moved, or the unchanged one when the wait timed out
-	 */
-	private static long awaitHistoryGivenUp(
-		@Nonnull Evita evita,
-		long oldestRetainedBefore
-	) throws InterruptedException {
-		final long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MILLIS;
-		long oldestRetained = oldestRetainedVersion(evita);
-		while (oldestRetained <= oldestRetainedBefore && System.currentTimeMillis() < deadline) {
-			//noinspection BusyWait
-			Thread.sleep(POLL_INTERVAL_MILLIS);
-			oldestRetained = oldestRetainedVersion(evita);
-		}
-		return oldestRetained;
+		// stated here, over the folder actually inspected, so that a fixture that never reached the state under test
+		// fails naming itself and the directory it looked at - the previous wait gave up in silence and let an
+		// assertion about log rotation report on a folder it had never seen
+		final File[] walFiles = listWalFiles(catalogDirectory);
+		assertTrue(
+			walFiles.length > 1 && getIndexFromWalFileName(walFiles[0].getName()) > 0,
+			"The purge must have left the file being appended to plus at least one to replay from, with the oldest "
+				+ "file no longer index `0` - `" + catalogDirectory + "` holds " + Arrays.toString(walFiles) + "!"
+		);
 	}
 
 	/**
@@ -334,7 +329,7 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 			assertTrue(pinnedVersion > 0L, "The catalog must be alive before the reader pins a version!");
 
 			writeTransactions(evita);
-			awaitWalPurge(liveCatalogDirectory);
+			forceWalPurge(evita, liveCatalogDirectory);
 
 			retainedRecordsBeforeRestart = retainedRecordVersions(evita);
 			oldestRetainedBeforeRestart = oldestRetainedVersion(evita);
@@ -392,7 +387,12 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 		try (final Evita recovered = bootEvita(this.recoveredPaths)) {
 			recovered.waitUntilFullyInitialized();
 
-			final long oldestRetainedAfterRestart = awaitHistoryGivenUp(recovered, oldestRetainedBeforeRestart);
+			// read directly, with no wait: the reconciliation this assertion is about is submitted from the catalog's
+			// own load constructor, and under test the engine's service executor is the immediate one
+			// (`Evita` passes `DevelopmentConstants.isTestRun()` as `directExecutor`, and
+			// `ImmediateScheduledThreadPoolExecutor#submit` runs the task on the calling thread), so it has already
+			// completed by the time `waitUntilFullyInitialized` returns. A poll loop here could never iterate
+			final long oldestRetainedAfterRestart = oldestRetainedVersion(recovered);
 			assertTrue(
 				oldestRetainedAfterRestart > oldestRetainedBeforeRestart,
 				"Opening the catalog must have given up the history no surviving log file can replay (still at `"
