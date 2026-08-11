@@ -34,7 +34,7 @@ import java.io.Serializable;
  * The engine records `catalogName -> CatalogFolderId` in {@link EngineState} and passes the token across the
  * storage SPI; only `evita_store_server` knows that a token denotes a directory, or how to join it onto the
  * storage root. This is what allows a catalog to be renamed or replaced by committing a new binding rather
- * than by physically renaming directories — see issue #649.
+ * than by physically renaming directories.
  *
  * **The boundary rule this type establishes is not "no `java.nio.file.Path` in the engine".** It is: *the
  * engine must never hold a path derived from a catalog's identity*. Paths that are configuration or exchange
@@ -59,7 +59,7 @@ public record CatalogFolderId(@Nonnull String id) implements Serializable {
 	 *
 	 * The test is on *segments*, not on substrings. A catalog may legitimately be called `foo..bar` — the
 	 * classifier format allows `.` anywhere — and its folder token inherits that name, either as the identity
-	 * binding a pre-#649 engine state translates to or as the `foo..bar_1` an allocation produces. Rejecting
+	 * binding a legacy engine state translates to or as the `foo..bar_1` an allocation produces. Rejecting
 	 * every occurrence of `..` would refuse to boot such an installation, while buying nothing: with no
 	 * separator present the token is one segment, and a segment only traverses when it *is* `.` or `..`.
 	 *

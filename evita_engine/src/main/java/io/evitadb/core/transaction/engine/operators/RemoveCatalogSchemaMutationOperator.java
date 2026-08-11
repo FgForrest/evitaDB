@@ -49,8 +49,8 @@ import java.util.function.Consumer;
  * Removes a catalog and all its associated data based on the provided mutation.
  * This operation also closes any active sessions associated with the catalog and cleans up its resources.
  *
- * The removal commits a **tombstone** for the catalog's folder rather than making the wipe part of the operation
- * (#649). The wipe is then attempted, and is allowed to fail: the operation the user asked for has already
+ * The removal commits a **tombstone** for the catalog's folder rather than making the wipe part of the operation.
+ * The wipe is then attempted, and is allowed to fail: the operation the user asked for has already
  * succeeded, and a folder the operating system refuses to remove is drained on the next boot instead. That is what
  * makes drop-then-recreate on a locked folder stop being a failure.
  *

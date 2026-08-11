@@ -116,7 +116,7 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 		// the catalog lives inside the benchmark-owned storage root, one level deeper than it used to
 		final File storageRoot = benchmarkStorageDirectory(catalogName).toFile();
 		// A catalog no longer occupies a folder named after it: allocation produces `<name>_<generation>`, and
-		// which generation a given run drew is not knowable from here (#649). Testing only the bare name made
+		// which generation a given run drew is not knowable from here. Testing only the bare name made
 		// every reusable dataset report itself absent, so each benchmark regenerated what it was meant to reuse.
 		// The bare name still has to be accepted - a folder adopted from an older layout keeps it.
 		final File[] candidates = storageRoot.listFiles(

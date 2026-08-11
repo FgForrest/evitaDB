@@ -111,7 +111,7 @@ public class RestoreCatalogSchemaMutationOperator
 							// other two it clears the missing-bucket entry *and* the binding that entry was
 							// keeping alive. That second half is load-bearing here: without it the binding to
 							// the folder that vanished survives, `withCatalog` declines to overwrite it, and
-							// the restored data below is left unreferenced (#649).
+							// the restored data below is left unreferenced.
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)

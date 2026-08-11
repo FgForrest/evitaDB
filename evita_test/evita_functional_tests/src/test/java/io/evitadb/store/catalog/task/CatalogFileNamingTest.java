@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * Verifies the file-name rewrite shared by the backup and restore tasks.
  *
  * This is the single point at which an archive's entry names are decided, so a mistake here is silent: the archive
- * is written successfully and only fails to restore later, somewhere else. See issue #649.
+ * is written successfully and only fails to restore later, somewhere else.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

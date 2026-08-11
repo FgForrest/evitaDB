@@ -35,7 +35,7 @@ import java.io.Serializable;
  * The tombstone is what makes deletion **non-blocking**: an operation that stops using a folder commits the
  * engine state with the folder retired and then merely *attempts* the delete. A filesystem that refuses — the
  * Windows case, where a directory entry survives until the last handle inside it closes — postpones the delete
- * to the next boot instead of failing the operation. See issue #649.
+ * to the next boot instead of failing the operation.
  *
  * A tombstone is positive evidence of ownership. It is the only thing (alongside a `.provisional` marker) that
  * authorises the engine to destroy a directory it finds unreferenced; an unexplained folder is warned about and

@@ -97,7 +97,7 @@ public class CreateCatalogMutationOperator
 						// applicability lets a create through onto it - and the binding that bucket entry kept
 						// alive would then refuse to move, leaving the new catalog's folder unreferenced and the
 						// name staged MISSING again on the next boot. Nothing is lost by clearing it: a missing
-						// catalog is one whose folder is gone (#649).
+						// catalog is one whose folder is gone.
 						.withCatalogNoLongerMissing(catalogName)
 						.withCatalog(
 							CreateCatalogMutationOperator.this.folderContext.createUnusableCatalog(

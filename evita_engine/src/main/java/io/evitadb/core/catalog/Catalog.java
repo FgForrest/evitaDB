@@ -1432,7 +1432,7 @@ public final class Catalog
 	 * Copies this catalog's contents into the folder the engine allocated for the duplicate.
 	 *
 	 * Deliberately not on {@link io.evitadb.api.CatalogContract}: the folder a duplicate lands in is engine
-	 * state, and the token naming it is a storage-layer type the public contract does not expose (#649).
+	 * state, and the token naming it is a storage-layer type the public contract does not expose.
 	 * Duplicating is only ever driven by `DuplicateCatalogMutationOperator`, which is engine-internal and holds
 	 * the allocation, so the narrower signature costs nothing and removes the only remaining way to ask for a
 	 * copy into a folder named after the catalog.

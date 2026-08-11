@@ -301,7 +301,7 @@ public class DefaultCatalogPersistenceService
 	 * Historically this was always the catalog name, which is why renaming a catalog required physically renaming
 	 * every file in its folder. It is now discovered from the folder's own bootstrap file instead
 	 * (see {@link #discoverStoragePrefix}), so the two are free to diverge — that is what lets a rename become a
-	 * pointer swap rather than a filesystem walk. See issue #649.
+	 * pointer swap rather than a filesystem walk.
 	 */
 	@Nonnull
 	private final String storagePrefix;
@@ -1304,7 +1304,7 @@ public class DefaultCatalogPersistenceService
 	 * The bootstrap file is the authority: exactly one `*.boot` exists per catalog folder and its name is
 	 * `<prefix>` + {@link CatalogPersistenceService#BOOT_FILE_SUFFIX}. Discovering the prefix here — inside the
 	 * storage layer — is deliberate: the engine binds catalogs to opaque folder tokens and must not learn how files
-	 * inside a folder are named (see `CatalogFolderId` and issue #649), so the prefix cannot be passed in from
+	 * inside a folder are named (see `CatalogFolderId`), so the prefix cannot be passed in from
 	 * outside without re-breaching that boundary.
 	 *
 	 * A folder with no bootstrap file is only legitimate when nothing has been written yet, which is why an absent
@@ -1636,7 +1636,7 @@ public class DefaultCatalogPersistenceService
 		verifyDirectory(this.catalogStoragePath, false);
 		// The bootstrap file is named after the folder's storage prefix, NOT after the directory. The two are the
 		// same string only for as long as a folder is named after its catalog, which stopped being guaranteed
-		// once catalogs became bound to opaque folder tokens (#649) - a folder that outlives a rename keeps its
+		// once catalogs became bound to opaque folder tokens - a folder that outlives a rename keeps its
 		// old name. Deriving the prefix from the directory sends the lookup after a `<folder>.boot` that does not
 		// exist, which surfaces far downstream as "no schema found, the data are probably corrupted".
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
@@ -1705,8 +1705,8 @@ public class DefaultCatalogPersistenceService
 		);
 
 		// The reference is ALWAYS rebased onto the provider built from the discovered storage prefix. A header's
-		// own provider is fabricated by `CatalogHeaderSerializer` from the catalog name it stored, and since
-		// #649 that name and the folder's file prefix diverge permanently: `replaceWith` writes the new name
+		// own provider is fabricated by `CatalogHeaderSerializer` from the catalog name it stored, and
+		// that name and the folder's file prefix now diverge permanently: `replaceWith` writes the new name
 		// into the header and deliberately leaves the files where they are. Trusting the header's provider
 		// therefore addresses `<newName>_N.wal`, a file that does not exist - the WAL of every renamed catalog
 		// that had committed a transaction would be silently abandoned and a fresh empty one created beside it.
@@ -1717,7 +1717,7 @@ public class DefaultCatalogPersistenceService
 		final File restoreFlagFile = this.catalogStoragePath.resolve(CatalogPersistenceService.RESTORE_FLAG)
 			.toFile();
 		// The name is reconciled unconditionally, in the direction the engine state dictates. That authority
-		// flip is what #649 changes here: the name being loaded under no longer comes from the folder, so a
+		// flip is the change here: the name being loaded under no longer comes from the folder, so a
 		// header naming a different catalog stopped being evidence of a mistake and became the ordinary trace of
 		// a rename or replace whose post-commit header rewrite did not land. Refusing the load would turn a
 		// recoverable lag into a catalog reported CORRUPTED; adapting makes the folder agree with the one
@@ -1783,7 +1783,7 @@ public class DefaultCatalogPersistenceService
 		// this constructor serves `replaceWith`, which relabels a catalog without touching a single file name -
 		// so the prefix is whatever the folder's files already carry, inherited rather than derived from the new
 		// catalog name. Deriving it would send every read after files that do not exist, and it is precisely the
-		// assumption that a folder's contents are named after its catalog that #649 removes.
+		// assumption that a folder's contents are named after its catalog that the folder decoupling removes.
 		this.storagePrefix = formerService.storagePrefix;
 		final String inheritedPrefix = this.storagePrefix;
 		this.walFileNameProvider = index -> CatalogPersistenceService.getWalFileName(inheritedPrefix, index);
@@ -2683,8 +2683,8 @@ public class DefaultCatalogPersistenceService
 		// at the end of this method would load the catalog under the name it had before the rename. Discarding it
 		// is right on the merits rather than merely expedient: the record written above already did everything the
 		// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
-		// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is scheduled
-		// (#761), so the history this record reveals is still accounted for and the discard drops a duplicate
+		// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is scheduled,
+		// so the history this record reveals is still accounted for and the discard drops a duplicate
 		// publication rather than the bookkeeping that rides along with it. The field is only ever set together
 		// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
 		// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
@@ -3071,8 +3071,8 @@ public class DefaultCatalogPersistenceService
 						// evitaDB's own markers are labels about the folder, not obsolete content - and this
 						// filter's tail deletes everything it does not recognise, so a marker missing from here
 						// is silently destroyed. `.catalogname` is the only record of which catalog a generated
-						// folder holds, and losing it costs the operator the one way to read a storage root back
-						// (#649). Kept in step with `holdsNoCatalogData`, which excludes the same three.
+						// folder holds, and losing it costs the operator the one way to read a storage root back.
+						// Kept in step with `holdsNoCatalogData`, which excludes the same three.
 						if (CatalogPersistenceService.CATALOG_NAME_FLAG.equals(name)
 							|| CatalogPersistenceService.PROVISIONAL_FLAG.equals(name)
 							|| CatalogPersistenceService.RESTORE_FLAG.equals(name)) {
@@ -4586,7 +4586,7 @@ public class DefaultCatalogPersistenceService
 	 * Two independent reconciliations, deliberately in one place because both rewrite the same header:
 	 *
 	 * **The name.** The engine state is the sole authority on which catalog a folder holds, so this reconciles
-	 * in one direction only: whatever the header says is overwritten. Before #649 the incoming name was itself
+	 * in one direction only: whatever the header says is overwritten. Historically the incoming name was itself
 	 * derived from the folder's name, which made a disagreement evidence of a mistake worth refusing the load
 	 * over; now that a folder is bound to a catalog by an opaque token, a header naming a different catalog is
 	 * the ordinary trace of a rename or replace whose post-commit header rewrite did not land, and refusing

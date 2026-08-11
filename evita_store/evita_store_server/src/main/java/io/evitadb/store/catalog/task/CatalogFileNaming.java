@@ -37,7 +37,7 @@ import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService
  *
  * A backup archive is the main way a catalog folder travels between instances, so its entries must carry the
  * catalog's *logical* name rather than whatever prefix the files happen to use on disk — the two stopped being
- * the same thing in issue #649, once a catalog's folder and file names were freed from its name. Restore performs
+ * the same thing, once a catalog's folder and file names were freed from its name. Restore performs
  * the mirror image of the same rewrite onto the target catalog's name.
  *
  * The rewrite never needs to know the *source* prefix. Both index parsers

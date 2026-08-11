@@ -169,7 +169,7 @@ public interface CatalogPersistenceServiceFactory {
 	 * The folder is deliberately *not* resolved when the restore task is created. A chunked upload creates its
 	 * task on the first chunk and submits it only once the last one has arrived, so resolving at creation time
 	 * would leave an upload that is abandoned mid-way holding a directory on disk, a consumed generation number
-	 * and an exclusive claim on the catalog name - all for a restore that never ran. See issue #649.
+	 * and an exclusive claim on the catalog name - all for a restore that never ran.
 	 *
 	 * Implementations create a directory and take an exclusive claim on the catalog name, so this is a mutating
 	 * call rather than a lookup: invoke it exactly once, from the restoring task itself. A repeated call answers

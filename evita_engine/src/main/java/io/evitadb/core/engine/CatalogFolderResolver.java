@@ -37,7 +37,7 @@ import javax.annotation.Nullable;
  * `storageDirectory.resolve(catalogName)` inline, which made a rename or a replace impossible to perform
  * without physically renaming directories — a multi-step, non-atomic filesystem sequence that cannot be used
  * as a commit protocol and that fails routinely on Windows whenever any handle inside the directory is still
- * open. See issue #649.
+ * open.
  *
  * Callers must treat the returned token as a *snapshot*: a catalog's folder may be reassigned by a rename or
  * a replace, so it must be looked up at the point of use and never cached across an engine-state change.
@@ -70,7 +70,7 @@ public interface CatalogFolderResolver {
 	/**
 	 * Creates the identity resolver, binding every catalog to a folder token equal to its own name.
 	 *
-	 * This reproduces the historical, pre-#649 mapping. Production wiring reads the engine state's own
+	 * This reproduces the historical mapping. Production wiring reads the engine state's own
 	 * name-to-folder map instead; what keeps this factory alive is testing engine components in isolation,
 	 * where standing up an engine state merely to answer folder lookups would obscure what is under test. Do
 	 * not wire production code to it — a component bound this way keeps working only for as long as folder

@@ -275,7 +275,7 @@ class EngineStateTest {
 
 	/**
 	 * Covers the engine state in its role as the sole authority for the catalog-to-folder mapping — see
-	 * {@link CatalogFolderBinding} and issue #649.
+	 * {@link CatalogFolderBinding}.
 	 */
 	@Nested
 	@DisplayName("Catalog folder bindings")
@@ -431,7 +431,7 @@ class EngineStateTest {
 		@DisplayName("Accepts a token containing dots, and refuses one that is a traversal segment")
 		void shouldRejectOnlyTraversalSegments() {
 			// A catalog name may contain `.` anywhere - the classifier format allows it - so `foo..bar` is a
-			// legitimate name whose folder token is either the identity binding a pre-#649 state translates to
+			// legitimate name whose folder token is either the identity binding a legacy state translates to
 			// or the `foo..bar_1` an allocation produces. Refusing every occurrence of `..` would refuse to boot
 			// such an installation, and buys nothing: without a separator the token is a single segment.
 			assertEquals("foo..bar", new CatalogFolderId("foo..bar").id());

@@ -135,7 +135,7 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 								// restart, so applicability lets a duplicate through onto it - and the binding
 								// that bucket entry kept alive would then refuse to move, leaving the copy
 								// unreferenced and un-adoptable under its own name. Nothing is lost by clearing
-								// it: a missing catalog is one whose folder is gone (#649).
+								// it: a missing catalog is one whose folder is gone.
 								.withCatalogNoLongerMissing(targetCatalogName)
 								.withCatalog(
 									DuplicateCatalogMutationOperator.this.folderContext.createUnusableCatalog(

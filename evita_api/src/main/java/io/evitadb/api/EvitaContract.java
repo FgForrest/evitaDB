@@ -529,7 +529,7 @@ public interface EvitaContract extends AutoCloseable {
 	 * Removing the files is deliberately *not* part of that guarantee. The removal commits a tombstone for the
 	 * catalog's storage folder and then attempts the wipe; a wipe the operating system refuses — a reader still
 	 * holding the directory open — leaves the folder for the next start-up to reclaim rather than failing an
-	 * operation that has already succeeded (#649). The catalog is gone either way, and its name is immediately
+	 * operation that has already succeeded. The catalog is gone either way, and its name is immediately
 	 * free to reuse.
 	 *
 	 * @param catalogName name of the removed catalog

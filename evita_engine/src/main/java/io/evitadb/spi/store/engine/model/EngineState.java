@@ -62,7 +62,7 @@ import static io.evitadb.utils.ArrayUtils.binarySearch;
  * The last three make this record the **sole authority** for the mapping between a catalog and its storage
  * folder. Nothing on disk outside the engine bootstrap may be consulted to answer "which folder is catalog
  * `X`?" — which is what lets a rename or a replace be committed by publishing a new binding rather than by
- * physically renaming directories. See {@link CatalogFolderId} and issue #649.
+ * physically renaming directories. See {@link CatalogFolderId}.
  *
  * This record is immutable, but provides a builder for creating modified instances.
  *
@@ -160,7 +160,7 @@ public record EngineState<T extends LogRecordReference>(
 	}
 
 	/**
-	 * Builds the folder bindings the pre-#649 layout implied, in which a catalog's folder simply *was* its name.
+	 * Builds the folder bindings the legacy layout implied, in which a catalog's folder simply *was* its name.
 	 *
 	 * This is the faithful translation of a state that predates the name-to-folder map — not a fallback. It is
 	 * applied wherever such a state enters the engine (the legacy convenience constructors below, and every
@@ -320,7 +320,7 @@ public record EngineState<T extends LogRecordReference>(
 	}
 
 	/**
-	 * Convenience constructor preserving the pre-#649 record shape, in which a catalog's storage folder was its
+	 * Convenience constructor preserving the legacy record shape, in which a catalog's storage folder was its
 	 * name. Instances created through this constructor carry an identity binding per catalog and no retired
 	 * folders or generation peaks — nothing has been allocated or retired under the old layout.
 	 *

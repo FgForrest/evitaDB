@@ -227,8 +227,7 @@ class ExpandedEngineStateTest {
 
 	/**
 	 * Verifies that the staging API keeps the engine state's catalog-to-folder mapping in step with the catalog
-	 * buckets it moves names between — see {@link io.evitadb.spi.store.engine.model.CatalogFolderBinding} and
-	 * issue #649.
+	 * buckets it moves names between — see {@link io.evitadb.spi.store.engine.model.CatalogFolderBinding}.
 	 */
 	@Nested
 	@DisplayName("Catalog folder binding staging")
@@ -264,7 +263,7 @@ class ExpandedEngineStateTest {
 		@DisplayName("Binds a catalog the state has never seen to the folder it is handed")
 		void shouldBindPreviouslyUnknownCatalogToSuppliedFolder() {
 			// The folder a new catalog occupies is decided by whoever materialised it, and has to survive the
-			// trip into engine state. Deriving it from the name here is the #649 defect this guards: the
+			// trip into engine state. Deriving it from the name here is the defect this guards: the
 			// restore wrote a whole catalog into `beta_4` and the state bound `beta`, so activation opened an
 			// empty directory and reported the data corrupted.
 			final EngineState<LogRecordReference> base = engineState(
@@ -356,7 +355,7 @@ class ExpandedEngineStateTest {
 			// `withMissingCatalog` keeps the binding on purpose - it names the folder that vanished. But a name
 			// that is still bound is one `withCatalog` will not rebind, so leaving it in place would point the
 			// recovered catalog at the folder that went away while its data sits in the one just filled. The
-			// catalog would then be staged MISSING again on the very next boot (#649).
+			// catalog would then be staged MISSING again on the very next boot.
 			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
 				.version(1L)
 				.missingCatalogs(new String[]{"orders"})

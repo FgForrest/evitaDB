@@ -83,7 +83,7 @@ import java.util.stream.Stream;
  * Being the placeholder for a catalog that has no persistence service, it cannot perform folder-level work
  * itself and is handed a {@link CatalogFolderOperations} handle for the one piece of folder-level work it still
  * has to do — measuring the folder for {@link #getStatistics()}. Removal is not among them: it tombstones the
- * folder and wipes it through the folder context, never through the catalog instance (#649).
+ * folder and wipes it through the folder context, never through the catalog instance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

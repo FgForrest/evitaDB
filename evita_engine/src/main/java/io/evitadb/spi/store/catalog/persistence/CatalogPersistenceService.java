@@ -93,7 +93,7 @@ import java.util.stream.Stream;
  * Lifecycle: an instance is created by {@link CatalogPersistenceServiceFactory} (loaded via `ServiceLoader`) and
  * lives as long as the catalog is open. It must be closed with {@link #close()} when the catalog shuts down.
  * Removing the files themselves is not this service's job: the folder a catalog occupies is owned by the engine
- * and is wiped through the folder context once the engine state no longer references it (#649).
+ * and is wiped through the folder context once the engine state no longer references it.
  *
  * The interface is parameterized to allow the storage-module implementation to use its own concrete types for
  * WAL file references, collection file references, and entity collection headers without exposing those types
@@ -164,7 +164,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * size format. This file can be traversed by jumping on expected offsets.
 	 *
 	 * The argument is the *storage prefix* the folder's files are named with, which historically equalled the catalog
-	 * name but no longer has to — see `DefaultCatalogPersistenceService#discoverStoragePrefix` and issue #649.
+	 * name but no longer has to — see `DefaultCatalogPersistenceService#discoverStoragePrefix`.
 	 *
 	 * @param storagePrefix prefix shared by all files in the catalog folder
 	 * @return name of the bootstrap file
@@ -500,7 +500,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 *
 	 * The name is rewritten into the catalog's header and schema and a fresh bootstrap record is written — that
 	 * is the whole of it. **Nothing is moved, copied or deleted**: the catalog keeps the folder it already
-	 * occupies and every file inside keeps the name it already has (#649). File names inside a folder are
+	 * occupies and every file inside keeps the name it already has. File names inside a folder are
 	 * discovered from the folder's own bootstrap file rather than derived from the catalog name, which is what
 	 * lets them stay put; the folder that the replaced catalog used to occupy is the caller's concern, retired
 	 * through the engine state rather than deleted here.
@@ -702,8 +702,8 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Duplicates an existing catalog to create a new catalog with a different name.
 	 *
 	 * The folder the copy lands in is passed in rather than derived from the target name: which directory a
-	 * catalog occupies is engine state, and the duplicate is one of the three paths that materialise a folder
-	 * (#649). The caller allocates it, marks it provisional, and clears that marker once this future completes.
+	 * catalog occupies is engine state, and the duplicate is one of the three paths that materialise a folder.
+	 * The caller allocates it, marks it provisional, and clears that marker once this future completes.
 	 *
 	 * @param targetCatalogName name of the target catalog to be created
 	 * @param targetFolderId    folder the copy is written into, already allocated by the caller

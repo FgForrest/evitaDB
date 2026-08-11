@@ -211,7 +211,7 @@ public final class Evita implements EvitaContract {
 	@Getter private final EvitaConfiguration configuration;
 	/**
 	 * Resolves the on-disk directory holding a catalog's data. This is the single sanctioned way to answer
-	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} and issue #649 for why the catalog
+	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} for why the catalog
 	 * name must stop doubling as its on-disk identity.
 	 */
 	@Getter private final CatalogFolderContext catalogFolderContext;

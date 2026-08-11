@@ -67,7 +67,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	private final StorageOptions storageOptions;
 	/**
 	 * Allocates the folder the catalog is restored into. Bound by the engine rather than derived from the catalog
-	 * name — see `CatalogFolderId` and issue #649. Consulted from {@link #doRestore()} rather than from the
+	 * name — see `CatalogFolderId`. Consulted from {@link #doRestore()} rather than from the
 	 * constructor, because allocating creates a directory and claims the catalog name, and this task is created
 	 * long before it runs when the archive arrives over a chunked upload.
 	 */
@@ -79,7 +79,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	 * The source prefix is deliberately not a parameter. An archive taken from a renamed catalog carries a prefix
 	 * that no longer matches its own top-level directory, so deriving the file name by stripping that directory's
 	 * length — as this did — mis-slices the name. The rewrite instead decomposes the incoming name by its suffix
-	 * and trailing index alone, which is independent of whatever it starts with. See issue #649.
+	 * and trailing index alone, which is independent of whatever it starts with.
 	 *
 	 * @param entryName   relative path in the ZIP file, including its top-level directory
 	 * @param catalogName the name of the catalog being restored into

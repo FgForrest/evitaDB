@@ -329,7 +329,7 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 		// A removal used to be unreplayable because its completion phase wiped the folder, and recovery had no
 		// way to tell how far that wipe had got. Committing a tombstone instead makes the completion state pure
 		// bookkeeping - a name removal and a tombstone, both idempotent - so a crash between the WAL append and
-		// the bootstrap rewrite stops bricking startup (#649).
+		// the bootstrap rewrite stops bricking startup.
 		appendCommittedStateWithBoundCatalog("catalogA", "catalogA_1");
 		this.persistenceService.appendWal(
 			3L, UUID.randomUUID(), new RemoveCatalogSchemaMutation("catalogA")

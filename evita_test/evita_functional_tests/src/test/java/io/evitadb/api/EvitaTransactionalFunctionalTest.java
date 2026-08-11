@@ -625,7 +625,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
 	 *
 	 * A catalog's folder is not named after it — folders are allocated and carry a generation, and one that
-	 * outlives a rename keeps its old name (see issue #649). Joining the storage root with the catalog name
+	 * outlives a rename keeps its old name. Joining the storage root with the catalog name
 	 * therefore addresses a directory that need not exist. Must be called while the engine is still open.
 	 *
 	 * @param evita       running engine holding the binding

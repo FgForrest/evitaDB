@@ -241,7 +241,7 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService,
 		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
-		// Single choke point for the catalog-name-to-folder mapping (#649). Every operator acts on catalog
+		// Single choke point for the catalog-name-to-folder mapping. Every operator acts on catalog
 		// folders through this context rather than joining the catalog name onto the storage directory, which
 		// is what let the folder be decoupled from the name in one implementation instead of at every site.
 		// Checked here rather than left to fail at first use: every operator captures the context at

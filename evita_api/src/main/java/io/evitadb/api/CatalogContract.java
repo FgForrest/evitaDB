@@ -202,7 +202,7 @@ public interface CatalogContract {
 	 *
 	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
 	 * occupies; the operation rewrites the name held in that folder's header and schema and hands back a catalog
-	 * instance addressing the same data under the new name (#649). Retiring the folder the replaced catalog used
+	 * instance addressing the same data under the new name. Retiring the folder the replaced catalog used
 	 * to occupy is the caller's concern — it is tombstoned through the engine state, not deleted here.
 	 *
 	 * @param updatedSchema        schema carrying the name this catalog is to be known under

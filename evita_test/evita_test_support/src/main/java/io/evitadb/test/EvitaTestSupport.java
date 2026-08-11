@@ -359,7 +359,7 @@ public interface EvitaTestSupport extends TestConstants {
 	 * wrote.
 	 *
 	 * The folder is **not** derivable from the catalog name and has not been since catalogs were bound to opaque
-	 * folder tokens (#649). The engine allocates `<catalogName>_<generation>` folders and treats the name they
+	 * folder tokens. The engine allocates `<catalogName>_<generation>` folders and treats the name they
 	 * carry as cosmetic, so `storageDirectory.resolve(catalogName)` names a directory that does not exist — a
 	 * catalog created once already sits in `<catalogName>_1`, and one that outlived a rename keeps a folder named
 	 * after whatever it used to be called.

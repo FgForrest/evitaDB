@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that readers survive a catalog rename and a catalog replacement.
  *
- * This is the criterion the pointer-only design of #649 was accepted against: renaming and replacing a catalog
+ * This is the criterion the pointer-only design was accepted against: renaming and replacing a catalog
  * must not interrupt clients reading it. The design makes that achievable by removing the folder copy and the
  * multi-step directory dance — the window in which anything is suspended shrinks from "as long as it takes to
  * move N bytes" to a single engine-state commit — but the guarantee has limits worth pinning down rather than

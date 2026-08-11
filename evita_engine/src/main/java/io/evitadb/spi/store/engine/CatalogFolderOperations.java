@@ -34,7 +34,7 @@ import java.util.function.IntSupplier;
  * or what — that folder is.
  *
  * The engine binds a catalog to an opaque {@link CatalogFolderId} and can no longer join that token onto the
- * storage root itself (see issue #649). It nevertheless legitimately needs to act on a folder as a whole —
+ * storage root itself. It nevertheless legitimately needs to act on a folder as a whole —
  * asking whether it exists and how large it is, creating and adopting one, marking it complete, labelling it,
  * removing it, and reporting the generations already on disk. Each of those is named here and answered by the
  * storage layer, which is the only side that knows a token denotes a directory.

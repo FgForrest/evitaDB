@@ -5012,7 +5012,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// The binding has to name the folder the data was actually written into. When it does not, nothing
 		// fails: the folder is written, the catalog is bound to a different directory, and the mismatch only
-		// surfaces later as "no schema found, the data are probably corrupted" (see issue #649). The check that
+		// surfaces later as "no schema found, the data are probably corrupted". The check that
 		// catches it is *counting* the folders, not reading the bound one - a create whose allocated token
 		// never reached the engine state leaves its empty allocation behind as a second directory.
 		final Path boundFolder = catalogFolder(TEST_CATALOG);
@@ -5043,7 +5043,7 @@ class EvitaTest implements EvitaTestSupport {
 		// one has arrived, so a client that disappears mid-upload leaves that task behind, unsubmitted. When the
 		// folder was allocated at task creation, that cost a directory nobody would ever write into, a burned
 		// generation number, and an exclusive claim that left the name un-restorable for the life of the
-		// process. Nothing may be reserved until the restore actually starts (#649).
+		// process. Nothing may be reserved until the restore actually starts.
 		final String restoredCatalogName = TEST_CATALOG + "_restored";
 		final SequentialTask<Void> neverSubmitted = this.evita.management().createRestorationTask(
 			restoredCatalogName,
@@ -5125,7 +5125,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// The whole of a rename: the new name points at the folder the old one was pointing at. Nothing is
 		// created, moved or copied, which is what makes the operation atomic instead of a five-step dance that a
-		// crash - or a Windows file lock - can leave half-finished (#649).
+		// crash - or a Windows file lock - can leave half-finished.
 		assertEquals(
 			folderBeforeRename, catalogFolder(renamedCatalogName),
 			"A rename must repoint the name, never move the data!"
@@ -5167,7 +5167,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
 
 		// A rename rewrites the name inside the header and leaves the files on the prefix they were created
-		// with, so the WAL has to be looked up under that prefix (#649). Looked up under the *new* name instead
+		// with, so the WAL has to be looked up under that prefix. Looked up under the *new* name instead
 		// - which is what the header's own file-name provider yields, since it is built from the name the
 		// header stores - the lookup addresses a file that does not exist, reports it empty and creates it.
 		// That happens while the service is being reopened, so a second `.wal` appearing here is the whole
@@ -5379,7 +5379,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// The duplicate was the last path still writing into a directory named after its catalog, which breaks
 		// the one rule the whole scheme rests on: every folder evitaDB creates carries a generation, and only a
-		// suffix-free folder is treated as one an operator hand-placed and may be adopted (#649).
+		// suffix-free folder is treated as one an operator hand-placed and may be adopted.
 		final Path duplicateFolder = catalogFolder(duplicateName);
 		assertTrue(
 			duplicateFolder.toFile().getName().startsWith(duplicateName + "_"),
@@ -5437,7 +5437,7 @@ class EvitaTest implements EvitaTestSupport {
 	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
 	 *
 	 * A catalog's folder is no longer named after it — folders are allocated and carry a generation, and one
-	 * that outlives a rename keeps its old name (see issue #649). A test that joins the storage root with the
+	 * that outlives a rename keeps its old name. A test that joins the storage root with the
 	 * catalog name therefore addresses a directory that may not exist, or worse, may belong to *another*
 	 * catalog: with allocation in place, the folder of a catalog called `testCatalog` is literally
 	 * `testCatalog_1`, which is also the name of a catalog these tests create.

@@ -34,7 +34,7 @@ import java.io.Serializable;
  * {@link EngineState} carries these bindings as its **sole** authority for the question "which folder is catalog
  * `X`?" — nothing on disk outside the engine bootstrap may be consulted to answer it. That is what allows a
  * rename or a replace to be committed by publishing a new binding rather than by physically renaming
- * directories; see {@link CatalogFolderId} and issue #649.
+ * directories; see {@link CatalogFolderId}.
  *
  * A name appears at most once, so the binding array is kept strictly ascending by {@link #catalogName()}.
  * A folder that a catalog stops pointing at is not deleted here — it moves to {@link RetiredFolder}.

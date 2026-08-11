@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * Verifies the two properties {@link SequenceService} has to hold for catalog folder generations: a counter is
- * only ever fast-forwarded, and a counter can be discarded once nothing depends on it any more. See issue #649.
+ * only ever fast-forwarded, and a counter can be discarded once nothing depends on it any more.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

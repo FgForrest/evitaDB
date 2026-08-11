@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * step is mid-flight. Left to a plain "release on completion" hook, a cancellation landing in that window frees
  * the name while the registration is still resolving it, and a second restore of the same name can take the claim
  * and have the first restore bind its catalog to the second one's half-written folder — the exact corruption the
- * folder decoupling exists to prevent (#649).
+ * folder decoupling exists to prevent.
  *
  * Ownership transfer removes the window instead of narrowing it. Both the registering step and the completion
  * hook call {@link #takeClaim()}, which is a single atomic `getAndSet`, so exactly one of them can win. Three

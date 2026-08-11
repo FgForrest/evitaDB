@@ -315,7 +315,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
 		// Nothing is materialised here, only promised. A chunked upload creates its task on the first chunk and
 		// submits it once the last one arrives, so allocating now would leave every abandoned upload holding a
-		// directory, a consumed generation and an exclusive claim on the name (#649). The claim lands when the
+		// directory, a consumed generation and an exclusive claim on the name. The claim lands when the
 		// restore actually starts, and `claim` is what carries it from there to whichever of the registering
 		// step and the release hook gets to it first.
 		final RestoreFolderClaim claim = new RestoreFolderClaim();
@@ -344,7 +344,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		//
 		// This hook can fire *while* the registering step runs: `SequentialTask#cancel()` completes the future
 		// without stopping a step already executing. `takeClaim` is therefore a handover, not a read - whichever
-		// of the two gets there first owns the release, and the other finds nothing (#649).
+		// of the two gets there first owns the release, and the other finds nothing.
 		//
 		// It can also fire before there is anything to take, when the cancel lands inside the allocation itself.
 		// This hook runs once and cannot come back for a claim published after it, so `allocate` compare-and-sets

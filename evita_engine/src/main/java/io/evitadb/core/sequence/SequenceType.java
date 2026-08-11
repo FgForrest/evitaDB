@@ -57,7 +57,7 @@ public enum SequenceType {
 	 * catalog occupies over its lifetime and therefore lives in an engine-scoped
 	 * {@link io.evitadb.core.sequence.SequenceService}, not the per-catalog one. Its defining property is that a
 	 * number is burned per allocation *attempt*: a failed attempt may leave its folder on disk, so the retry must
-	 * never be handed the same number back. See issue #649.
+	 * never be handed the same number back.
 	 */
 	CATALOG_GENERATION
 }

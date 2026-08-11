@@ -56,7 +56,7 @@ import static io.evitadb.utils.Assert.isTrue;
 /**
  * Replaces or renames existing catalog in evitaDB.
  *
- * Both are the same operation and both are a **pointer swap** (#649): the target name is bound to the folder the
+ * Both are the same operation and both are a **pointer swap**: the target name is bound to the folder the
  * source catalog already occupies, the source name stops naming anything, and — on a replace — the folder the
  * target used to occupy is tombstoned for deletion. No folder is created, none is moved, nothing is copied. The
  * only disk work is rewriting the catalog name stored *inside* the folder, which `replaceWith` does before the
@@ -217,7 +217,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 									// missing. Nothing asserts the buckets are disjoint, so that survives the
 									// commit and wedges the next boot: the same name is staged both as loadable
 									// and as reappeared, and the reappearance mutation then fails against its own
-									// live stub. Clearing it first is what keeps the buckets exclusive (#649).
+									// live stub. Clearing it first is what keeps the buckets exclusive.
 									.withCatalogNoLongerMissing(catalogNameToBeReplaced)
 									.withCatalogBoundTo(replacedCatalog, prevailingFolderId);
 								if (!catalogNameToBeReplaced.equals(catalogNameToBeReplacedWith)) {

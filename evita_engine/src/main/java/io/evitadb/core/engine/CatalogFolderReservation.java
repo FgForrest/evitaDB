@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * into — so "the folder reserved for `products`" has to have exactly one answer. Before this type existed the
  * reservation map was a plain `put`, a second operation on the same name silently overwrote the first, and the
  * first then bound its catalog to the second's still-incomplete folder while its own data was left unreferenced
- * and reclaimed as an abandoned allocation (#649).
+ * and reclaimed as an abandoned allocation.
  *
  * **The release is mandatory, and that is the whole reason this is a handle rather than a boolean.** Refusing a
  * second allocation while one is outstanding is only safe if an outstanding claim always ends: recovery from a

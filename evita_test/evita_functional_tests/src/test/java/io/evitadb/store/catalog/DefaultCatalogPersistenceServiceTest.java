@@ -387,7 +387,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAdaptCatalogContentsStoringADifferentNameEvenWithoutRestoreFlag() throws IOException {
-		// The authority flip of #649: the name a catalog is loaded under comes from the engine state, not from
+		// The authority flip: the name a catalog is loaded under comes from the engine state, not from
 		// the folder, so a header naming something else is no longer evidence of a mistake - it is the ordinary
 		// trace of a rename or replace whose header rewrite did not land. Before this it threw
 		// UnexpectedCatalogContentsException unless a restore flag was present to license the adaptation.
@@ -1357,7 +1357,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	/**
 	 * Covers the separation of a catalog's storage prefix — the name its files carry inside its folder — from the
-	 * catalog's own name, which is what allows a rename to stop touching the filesystem. See issue #649.
+	 * catalog's own name, which is what allows a rename to stop touching the filesystem.
 	 */
 	@Nested
 	@DisplayName("Storage prefix discovery")
