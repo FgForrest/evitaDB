@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 14:55
+updated: 2026-08-11 15:10
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -615,6 +615,21 @@ ergonomics the absolute path used to provide.
     rather than inferred: a parked task really is `WAITING_FOR_PRECONDITION`, because `registerWaitingTask`
     never calls `transitionToIssued` and `simplifiedState()` keys off a null `issued`. Raised as **#1415** —
     it is a live bug of its own and did not belong in a quiet fix buried here.
+- **The generation sequences are never reclaimed.** `SequenceService`'s `intSequences` / `longSequences`
+  maps are append-only, so the engine-scoped `catalogGenerationSequences` retains one `SequenceKey` and one
+  `AtomicInteger` for **every distinct catalog name ever materialised**, for the life of the process. A
+  long-lived server with create/drop churn grows monotonically. Nothing behaves wrongly today — this is pure
+  retention.
+
+  `SequenceService#removeSequences(String)` exists and is the intended fix, but it has **zero production
+  callers** and cannot simply be wired into the drop path: its own JavaDoc states the precondition — no folder
+  carrying the name's prefix on disk, no tombstone referencing one — and under the deferred-delete design that
+  precondition is **not met at the moment a catalog is dropped**, because the folder removal is owed rather
+  than done. So the live option is hanging the cleanup off the tombstone drain, once the drain confirms the
+  last folder for a name is gone. That is a design decision, not a cleanup, which is why it was left here
+  rather than patched. Do **not** delete `removeSequences` as dead code: it is the intended fix for a real
+  leak, not a leftover.
+
 - **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
   no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files
   has nothing to ask and resolves `storage/<catalogName>` instead — which has not existed since allocation
