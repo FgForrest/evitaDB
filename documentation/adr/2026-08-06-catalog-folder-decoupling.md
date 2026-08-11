@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 13:45
+updated: 2026-08-11 14:05
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -370,7 +370,12 @@ ergonomics the absolute path used to provide.
   emergent behaviour rather than a contract.
 - **No fault-injection seam for a failed folder delete.** The §3.7 scenario "prove the tombstone path
   never surfaces to readers under an induced delete failure" is not covered; the failure path itself is
-  covered where it lives, in `CatalogFolderCleanerTest`.
+  covered where it lives, in `CatalogFolderCleanerTest#shouldReportNothingWhenTheDeleteFails` — which makes a
+  real `Files.delete` fail via POSIX permissions and pins the invariant that carries the risk: a folder that
+  survived the delete must **not** appear in the removed-report. That report is what discharges the tombstone,
+  so reporting a folder still on disk would strike the record while the data stays, and nothing reclassifies a
+  folder afterwards to refill it. That sentence was an unbacked claim when this record was first written; the
+  test was added afterwards to make it true.
 - **A crash between an adoption's rename and its binding** leaves a renamed, unreferenced folder, which
   classifies as unclaimed: reported, never touched, recoverable by renaming it back to a suffix-free
   name. This is the same window `completeFolder` opens for create and restore. Closing it needs a

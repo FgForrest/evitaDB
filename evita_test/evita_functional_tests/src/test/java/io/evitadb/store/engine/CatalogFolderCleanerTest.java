@@ -38,12 +38,15 @@ import java.io.UncheckedIOException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
@@ -127,6 +130,42 @@ class CatalogFolderCleanerTest {
 		@DisplayName("Reports nothing when there is nothing to remove")
 		void shouldReportNothingRemovedForAnEmptyClassification(@TempDir Path storageDirectory) {
 			assertTrue(CatalogFolderCleaner.drain(storageDirectory, List.of()).isEmpty());
+		}
+
+		@Test
+		@DisplayName("Reports nothing and keeps the data when the folder cannot be deleted")
+		void shouldReportNothingWhenTheDeleteFails(@TempDir Path storageDirectory) throws IOException {
+			// The report is what discharges the tombstone: a folder named here is one the engine may stop
+			// recording that it owes a deletion for. Reporting a folder that is still on disk would strike the
+			// tombstone while the data stays - and a folder is never classified again once nothing references
+			// it, so nothing would ever refill the entry. That is a permanent leak with no record that the data
+			// was meant to go, and the one-line change that causes it is moving `removed.add` above the `try`.
+			final Path retired = folder(storageDirectory, "products_2", "products.boot");
+			assumeTrue(
+				Files.getFileStore(retired).supportsFileAttributeView(PosixFileAttributeView.class),
+				"POSIX permissions are required to make a delete fail"
+			);
+
+			// readable and traversable, but not writable - so the walk still finds the file and the unlink of
+			// it is what fails, which is the shape a real refusal takes
+			Files.setPosixFilePermissions(retired, PosixFilePermissions.fromString("r-x------"));
+			try {
+				assumeFalse(Files.isWritable(retired), "running as root - permissions do not restrict deletes");
+
+				final List<String> removed = CatalogFolderCleaner.drain(
+					storageDirectory,
+					List.of(new CatalogFolderClassification("products_2", CatalogFolderState.RETIRED, "products"))
+				);
+
+				assertTrue(removed.isEmpty(), "A folder that survived the delete must not be reported as removed.");
+				assertTrue(
+					Files.exists(retired.resolve("products.boot")),
+					"The catalog data must still be on disk after a refused delete."
+				);
+			} finally {
+				// restore access so the temporary directory can be cleaned up
+				Files.setPosixFilePermissions(retired, PosixFilePermissions.fromString("rwx------"));
+			}
 		}
 	}
 
