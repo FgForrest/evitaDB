@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 09:20
+updated: 2026-08-11 10:05
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -149,7 +149,7 @@ ergonomics the absolute path used to provide.
 | Append a WAL transaction for the rename, so the two counters agree by construction | Disproportionate to a one-restart window, and it puts a non-transactional engine operation into the catalog's transaction stream, where every consumer would then have to recognise and skip it | only if a rename ever has to be replayable as part of the catalog's transaction history |
 | Drop the `previousLivingCatalog == livingCatalog` identity escape as redundant once the version comparison is `<=` | Unverified and wrong: `<` → `<=` only ever *admits* more, but deleting the escape *rejects* a same-instance republication at a version below the previous one, which the previous form allowed. Keeping both disjuncts makes the change a pure widening | never — the two disjuncts cover different cases |
 | Settle the owed checkpoint inside `writeCatalogBootstrap`, the seam that already covers every bootstrap writer structurally | Two concrete blockers. Settling unconditionally there reports a checkpoint completion on every warm-up flush, which the cadence gauge deliberately excludes so a bulk load cannot fill it with samples no checkpoint produced; and clearing the prepared record *without* settling makes `checkpointIfOwed` fail its own premise that a record exists whenever a checkpoint is owed — trading a wrong pointer for a thrown error on the next close | the gauge stops depending on `noteCheckpointCompleted`, or the premise becomes "owed implies prepared *or* already superseded" |
-| Treat a **suffixed** folder carrying a `.catalogname` marker as adoptable, to close the window between an adoption's rename and its binding | It would equally make the orphan folder a replacement leaves behind adoptable, resurrecting a replaced catalog. The suffix rule exists precisely to stop that | never — close that window with a rebind mutation instead |
+| Treat a **suffixed** folder carrying a `.catalogname` marker as adoptable, to close the window between an adoption's rename and its binding | **The reason first recorded here — that it would equally make a replacement's orphan adoptable and resurrect a replaced catalog — does not hold on the normal boot path, and is corrected rather than left to be obeyed unexamined.** `classifyOne` matches `RETIRED` *before* the suffix split, and the orphan is tombstoned in the same commit that unbinds it, so it never reaches the adoption row while the engine state exists. The honest blocker is different: an operator's wholesale copy of a suffixed folder from another instance would be adopted as a live catalog. The original reason survives only on the bootstrap-less path, where no tombstone exists — and there the one-claimant rule gates it instead | if the wholesale-copy hazard is addressed; the option remains rejected, but for that reason and not the one first given. Closing the rename/binding window itself still wants a rebind mutation |
 
 ## Key technical details
 
@@ -279,17 +279,72 @@ ergonomics the absolute path used to provide.
   on-disk rename) is gone, and the disk work is now idempotent. What blocks it is narrower: the
   completion phase stages a *live catalog instance*, and at replay time every catalog is still a
   placeholder, so `stageCatalog` would file the name in the wrong bucket. It needs a builder path that
-  rebinds and re-buckets without a live instance. `ModifyCatalogSchemaNameMutationOperator` wedges the
-  engine meanwhile, as before.
+  rebinds and re-buckets without a live instance.
+
+  **It does not need a new engine mutation** — the WAL already carries `ModifyCatalogSchemaNameMutation`, and a
+  durable crashed record of that type is the premise of the whole scenario. It needs one new
+  `ExpandedEngineState.Builder` method and a `replayCompletionState` override on the existing operator. Recorded
+  because the "new mutation type" estimate is what justified deferring this, and it is roughly an order of
+  magnitude too large.
+
+  **There is a second blocker, and it is the one that bites first.** Every existing `replayCompletionState`
+  mints its placeholder through the 3-arg `createUnusableCatalog`, which resolves the folder via
+  `folderIdFor(catalogName)` — and that *throws* on an unbound name while reading state still at the pre-mutation
+  version. For a rename the destination name is unbound there, so replay would throw out of the
+  `EngineTransactionManager` constructor and **the engine would not boot at all**. The 4-arg overload taking an
+  explicit folder id already exists and is the fix; the failure mode if it is missed is a dead engine.
+
+  **What "wedges the engine" actually costs today is worse than it sounds**, and is the argument for doing this:
+  boot continues and reads serve, but every engine mutation throws — and the crashed WAL record is then
+  *truncated away* against the un-advanced state. On restart the operation has silently un-happened, the stored
+  header disagreeing with the binding is reconciled back in one direction, and the catalog schema version is
+  bumped for good measure. A rename the WAL had committed vanishes without a trace. That is a durability
+  violation of the WAL-first contract, which is the same argument that earned `RemoveCatalogSchemaMutationOperator`
+  its replay.
+
+  **A trap for whoever picks this up:** the tombstone must be gated on the destination's presence in the catalogs
+  map, never on `boundFolderIdFor(dest) != null`. A MISSING destination keeps a binding by design, naming a folder
+  that no longer exists — tombstoning it authorises deleting a folder a later allocation could legitimately hold.
 - **The boot-time cosmetic rename does not exist.** §3.4 option A was accepted as *marker plus deferred
   rename*; only the `.catalogname` marker shipped. A folder therefore keeps the name it was allocated
   under forever, and `cat storage/*/.catalogname` is what answers "which folder is which". The same
   missing pass is what would retry a failed adoption rename.
+
+  **A consequence not drawn when this was written: the marker's write is best-effort and its failure is
+  swallowed, and nothing ever repairs it.** A folder whose marker write failed at creation has no label and never
+  gets one. That is harmless while the marker is decoration — and stops being harmless the moment any of the
+  follow-ups above starts *reading* it to recover a name. So a **marker-repair pass** — at boot, rewrite
+  `.catalogname` for every referenced folder whose marker is missing or disagrees with the bound name — must ship
+  with or before anything that trusts the marker, not after. It is much smaller than the rename pass: no move, no
+  new mutation, no API surface. It is *not* a substitute for the rename pass, which is separately the only retry
+  path for a failed adoption rename and the only automatic healer for the crash-between-rename-and-binding
+  remnant. Note the rename pass, when it lands, shifts what the boot-time disk scan seeds — a catalog `sales`
+  living in `orders_7` currently floors `orders` and would afterwards floor `sales`. That is a correction, but it
+  changes allocation numbering on existing installations.
 - **Adoption cannot detect a folder/header name mismatch.** A folder named `products` whose header says
   `orders` is adopted under the folder's name rather than reported as a conflict. Reading the name from
   the header needs an open offset index, which boot classification has no way to obtain.
   `AdoptableCatalogFolder` carries name and token separately precisely so that lifting this needs no
   shape change.
+
+  **The "no cheaper name source exists" premise this implies is false, and the consequence is worse than
+  "adopted under the folder's name".** The header reason stands — the bootstrap record's `fileLocation` is the
+  offset-index root descriptor, so reading `CatalogHeader#catalogName` needs a whole persistence service per
+  unreferenced folder, before the engine exists. But `CatalogFolderClassifier.readContents` already opens a
+  directory stream over every candidate folder and inspects each entry name; it just reduces what it sees to two
+  booleans. The `.catalogname` marker is one `equals` and one small `readString` away, and the `*.boot` prefix is
+  already matched there and thrown away as a boolean. Their weaknesses are complementary: the prefix goes stale
+  after a #649 rename, but such a folder *has* a marker; a legacy folder has no marker, but pre-#649 a rename
+  moved the files too, so prefix equals catalog name there by construction.
+
+  What actually happens today is not adoption under a wrong label — the catalog is silently and **permanently
+  renamed**. Adoption's first act rewrites `.catalogname` with the folder-derived name, destroying the one
+  durable record that could have detected the mismatch, and the load path then rewrites the header and the
+  catalog schema to match. That is precisely the outcome `createNewEngineState`'s own comment declares
+  unacceptable — the comment defends only against the suffix case, never against a hand-renamed directory. Any
+  fix must therefore also stop adoption overwriting the marker before the adoption is authorised. Note the
+  blast radius: this removes import-by-directory-rename, which currently works but is undocumented, so it is
+  emergent behaviour rather than a contract.
 - **No fault-injection seam for a failed folder delete.** The §3.7 scenario "prove the tombstone path
   never surfaces to readers under an induced delete failure" is not covered; the failure path itself is
   covered where it lives, in `CatalogFolderCleanerTest`.
@@ -301,21 +356,111 @@ ergonomics the absolute path used to provide.
   through the builder and serialized, but no production path constructs a `CatalogGenerationPeak`. So the
   two-term boot seed runs on one term: the disk scan. That covers the ordinary case, and leaves uncovered the
   one the peaks exist for — a generation burned against a name the filesystem then reports as absent (an
-  `AccessDeniedException` reads as absence), which is drawn again after a restart. Recording the peak belongs in
-  the engine-state commit of whichever operation drew the number.
+  `AccessDeniedException` reads as absence), which is drawn again after a restart.
+
+  **Kryo backward compatibility is not engaged**, which was the open question here: the serializer already writes
+  and reads the peaks array, and `EngineState`'s `serialVersionUID` is not among the ids registered as
+  backward-compatible, so the current format already carries the field. Writing peaks changes the *values* in a
+  field the format has always had — no protocol bump, no new reader. What is missing is only a writer: there is
+  no `withGenerationPeak` sibling to `withRetiredFolder`, and `ExpandedEngineState.Builder` has no peaks field at
+  all (though its `build()` copies them through the base state, so persistence works the moment one is written).
+
+  **The prescription first recorded here — "record the peak in the engine-state commit of whichever operation
+  drew the number" — has a hole at exactly the case peaks exist for**, and is corrected rather than left to be
+  implemented as written. It records only on the success path, and a failed attempt commits nothing: a restore
+  that burns a number and then dies at `verifyApplicability` loses it. Meanwhile the success case it *does* cover
+  is already covered by the disk scan, because a successful allocation leaves a visible `<name>_<gen>`. Strictly
+  weaker at the same cost. Hooking the *generation supplier* instead records every draw including the failed
+  ones, and covers allocation and adoption with one change; the pending peaks then fold into the next engine
+  commit beside the tombstone drain that already works this way. Residue to state plainly: if a number is burned
+  and no engine mutation ever follows, the pending peak dies with the process. Merge by `max`, never append —
+  the peaks array is *strictly* ascending by name and a duplicate throws from the canonical constructor.
 - **A bootstrap-less start registers only adoptable folders**, so a storage root full of allocated
   `<name>_<gen>` folders comes up with no catalogs until an operator renames them suffix-free. Reading the real
   name out of each folder's `.catalogname` marker would recover them automatically and is the obvious next step;
   it was not taken because two folders can legitimately claim one name — the survivor of a replace and the
   orphan it superseded — and nothing in that path can currently tell them apart.
-- **Tombstone coverage stops short at both ends.** Nothing proves end-to-end that a persisted tombstone is acted
-  on at boot: the replay test defers to the drain, and the accumulation test covers only the in-run discharge.
-  `EngineState.withRetiredFolder` / `withoutRetiredFolders` have no direct unit tests either, so the backwards
-  walk that makes a multi-entry drain correct is held in place by a comment alone.
-- **Restore reservations are keyed by catalog name only.** Two restores of the same catalog name overlapping in
-  time would have the second allocation overwrite the first's reservation, and the first could then register —
-  and clear the provisional marker of — the second's still-incomplete folder. Making a reservation task-scoped,
-  or refusing a concurrent restore before allocating, is the fix; neither is in place.
+
+  **That reason is accurate — I re-verified the two-claimant case holds — but it forecloses less than was
+  concluded from it.** It argues against auto-*picking*, not against *reading*. Names claimed by exactly one
+  folder are unambiguous and are lost today for no reason; recovering those and reporting the ambiguous ones
+  introduces no guess and is strictly better than the status quo. Discriminators for the ambiguous case remain
+  rejected: highest `catalogVersion` is *actively wrong*, since a replace makes the survivor inherit the source's
+  lineage, which can be numerically lower than the orphan's; newest bootstrap timestamp is readable without an
+  offset index but is a heuristic in the one table whose rows must stay disjoint.
+
+  **The blocker that actually stops an implementer is a different one**, and is not the reason recorded above:
+  `createNewEngineState` builds its state through the seven-argument `EngineState` convenience constructor, which
+  hard-wires identity bindings and therefore *cannot express* `orders → orders_3` at all, whatever it reads off
+  disk. Any fix starts by moving to the builder with explicit `catalogFolders(...)`.
+
+  **The stated severity is also off.** "Comes up with no catalogs" is unreachable whenever engine WAL files
+  survive: the bootstrap-less path sets version 1, and the drift assertion then compares a real WAL version
+  against it and *refuses to boot*. The operator's actual experience is a refused boot, then deleting the WAL on
+  advice, and only then a start with zero catalogs. Do not relax that assertion to make this path boot — it is
+  the only detector of engine-state/WAL drift, and this record already carries one silent-data-loss defect it
+  was the sole guard against.
+
+  **Governance:** recovering names this way would narrow the *Decisions taken* row "only suffix-free folders are
+  adoptable" for the bootstrap-less path. That is a recorded decision rather than an open follow-up, so it needs
+  an amending record — unlike the other adoption follow-ups here, which closing merely completes.
+- **Tombstone coverage stops short at the boot end.** `EngineState.withRetiredFolder` / `withoutRetiredFolders`
+  now have direct unit tests (`EngineStateTest.FolderTombstones`), so the backwards walk that makes a multi-entry
+  drain correct is no longer held in place by a comment alone. Calibrating that test on the *silently* wrong
+  arrangement rather than the throwing one was deliberate: draining the two lowest of four entries yields the
+  wrong surviving pair under a forward walk, whereas a set that merely overran the array would still pass if
+  someone "fixed" the forward walk by clamping the index.
+
+  What remains uncovered is the **boot half** — nothing proves end-to-end that a *persisted* tombstone is acted
+  on at boot. Every link exists in isolation (classification, deletion, Kryo round-trip, in-run discharge) and
+  nothing joins them; the replay test says so out loud, deferring the wipe to the drain. The join needs no new
+  seam: seed a state carrying a `RetiredFolder`, put that folder on disk, reopen the service, and assert both
+  that the folder is gone *and* that the divergence reports it drained. Both halves are load-bearing and catch
+  different reverts — dropping `RETIRED` from the cleaner's drained states leaves the folder on disk, while
+  dropping the `removedFolderNames` disjunct deletes the folder but reports nothing drained, which is the
+  permanent-leak shape: a folder that is gone is never classified again, so the tombstone survives in persisted
+  state forever. A bootstrap file is not needed — the classifier matches `RETIRED` before the no-bootstrap row.
+  Asserting on `retiredFolders()` after reopen would be wrong: the boot path deliberately never commits a state
+  to drop the entry, so the array is still length 1 after a clean boot.
+- **Reservations are keyed by catalog name only, and the consequence is silent data loss.** `allocateFolderFor`
+  writes `reservedFolders[name] = token` (`CatalogFolderContext`), and `folderIdForBinding` reads that map by name.
+  Two operations materialising the same name concurrently therefore hand the *second's* token to the *first's*
+  registering mutation. Verified interleaving: A allocates `products_1`; B allocates `products_2` and silently
+  overwrites A's entry; A writes its archive into `products_1`; A's operator reads `products_2` out of the map,
+  calls `completeFolder` with it — clearing **B's** provisional marker while B is still writing — and commits
+  `products → products_2`. A reports success while serving B's data; A's archive sits in `products_1`, unreferenced
+  and still provisional, so boot classification deletes it. Both `restoreCatalog` overloads pass
+  `deleteAfterRestore = true`, so the source zip is gone too.
+
+  **The two-arg `remove(key, value)` in `completeFolder` does not guard this**, which is easy to conclude by
+  reading it in isolation — it was concluded, and it is wrong. The marker clear one line above is unconditional and
+  acts on whatever token the caller passed, and the remove itself *succeeds*, because A is holding B's token: the
+  values match precisely because they came from the same clobbered slot. That guard is for a different hazard (a
+  late-arriving failed operation evicting a live reservation).
+
+  **The strongest variant is restore ∥ duplicate, and it decides where a fix goes.**
+  `DuplicateCatalogMutationOperator` writes the same map from a path `EvitaManagement` never sees, and
+  `DuplicateCatalogMutation` is client-dispatchable over gRPC — so guarding inside `EvitaManagement.restoreCatalog`
+  leaves the corruption reachable. Create is immune for a reason worth copying: its transition phase binds
+  synchronously, so branch 1 of `folderIdForBinding` wins and the map is never consulted. **Restore's problem is
+  that it has no transition phase.**
+
+  **The premise recorded in `CatalogFolderContext`'s own JavaDoc — "a stale reservation can never be read by
+  anything except an allocation that is about to replace it" — is false.** A restore rejected at
+  `verifyApplicability` never reaches `completeFolder` and leaves its entry indefinitely, and
+  `folderIdForBinding` reads the map without allocating. Correct that comment when the defect is fixed.
+
+  **Why the obvious fix is not in place.** A bare `putIfAbsent`-and-refuse inside `allocateFolderFor` would make a
+  name permanently un-materialisable after any failed create or restore, because retry-after-failure currently
+  works *only* by overwrite — there is no `finally` in either operator to release on. The fix is therefore a
+  reservation *lifecycle*: refuse while a reservation is live, and release it explicitly on every exit. Rejected
+  alternatives, each with its blocker: guarding at `EvitaManagement` misses duplicate; task-scoping needs an id
+  the mutation API cannot carry (the transaction id is minted inside `applyMutation`); keying the map by token is
+  self-defeating, since both callers hold only a name; carrying the token on `RestoreCatalogSchemaMutation` is
+  architecturally right but crosses the `evita_api`/`evita_engine` boundary and changes a Kryo-serialized WAL
+  record; binding up front reintroduces the `referenced ∧ provisional` overlap the classifier requires to be
+  unreachable. A residual to design for: an abandoned chunked upload would hold a reservation for the life of the
+  process unless the scheduler reaps waiting tasks.
 - **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
   no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files
   has nothing to ask and resolves `storage/<catalogName>` instead — which has not existed since allocation
@@ -327,9 +472,30 @@ ergonomics the absolute path used to provide.
   generation, through `EvitaTestSupport#catalogDirectory` — a shared resolver, because that test was not the
   only one guessing: `LongRunningEvitaTransactionalFunctionalTest` opened a write-ahead log against the same
   non-existent path, and nothing caught it because the long-running module is skipped by default, so no run
-  ever compiled that call, let alone executed it. Exposing the token on `CatalogContract` is still the real
-  fix. Note that direct-construction tests are *not* affected and remain correct with a bare name, which is
-  precisely what makes the trap hard to see — the pattern looks safe everywhere until it meets a live engine.
+  ever compiled that call, let alone executed it. Note that direct-construction tests are *not* affected and
+  remain correct with a bare name, which is precisely what makes the trap hard to see — the pattern looks safe
+  everywhere until it meets a live engine.
+
+  **"Expose the token on `CatalogContract`" — which this record previously called the real fix — does not
+  compile.** `CatalogContract` is in `evita_api`, `CatalogFolderId` is in `evita_engine`, and `evita_engine`
+  depends on `evita_api`, not the reverse; the accessor is a module cycle as written. Moving the token down into
+  `evita_api` is technically clean (it imports only `Assert`, and the serializer writes it as a bare string, so
+  no stored state depends on its package) but **rejected**: it publishes a storage-layout concept into the
+  client-facing API jar to serve zero production callers — every engine path that needs the token already takes
+  it from `CatalogFolderContext` — and puts it one `resolve()` from every external-API handler holding a
+  `CatalogContract`, which is the surface the `getCatalogStoragePath()` removal cleared. A bare `String`
+  accessor is **rejected** for deleting the single chokepoint that enforces single-segment-ness and blocks
+  traversal. The accessor therefore stays engine-side, where it already exists: `Evita#getCatalogFolderContext()`
+  → `folderIdFor(name)`, strict and throwing on an unbound name. Note also that the `getCatalogStoragePath()`
+  removal does **not** argue against exposing a token — its reason was that the engine cannot honestly populate
+  a *path*, and the engine can populate a token honestly for every bound catalog.
+
+  What remains is the **offline** case, which no accessor covers: a snapshot copy under a different storage
+  root, after the engine is closed. `EvitaTestSupport#catalogDirectory` serves it by scanning for the highest
+  `<name>_<digits>`, which is latently wrong twice — a catalog that outlived a rename keeps a folder named after
+  its *old* name, so the scan throws; and two folders can legitimately claim one name, so the tiebreak can pick
+  the dead one. Reading `.catalogname` and refusing on ambiguity is the honest replacement, with the caveat that
+  the marker's write is best-effort and swallowed, so a folder can be unlabelled.
   The way this defect *presented* is recorded as a separate follow-up in
   `2026-08-06-time-travel-disk-budget`: the wait that hid it gives up silently, so the failure named the
   wrong subsystem entirely.
@@ -337,6 +503,21 @@ ergonomics the absolute path used to provide.
   folder into `CatalogBootstrap(0, 0, now, null)` and surfaces much later as "no schema found, the data
   are probably corrupted". It is what turned a one-line defect in this work into a lost session, and is
   worth tightening now that folders are allocated separately from being written.
+
+  **A `holdsNoCatalogData` guard was added on this branch, and it does not close this.** It reads as though it
+  does — the branch now returns the default only for a marker-only folder and otherwise throws
+  `BootstrapFileNotFound` — which is why this needs stating rather than leaving to a reader of the diff. Two
+  things defeat it. The legitimate case *never reaches this method*: `createNew` builds its own
+  `CatalogBootstrap(0, 0, now, null)` inline, so the "brand-new catalog" caller the guard's comment describes
+  does not exist. And the throw is *unreachable*: both loading constructors run `discoverStoragePrefix` first,
+  which already throws on a folder holding files but no `.boot`. So the branch has exactly one live outcome and
+  it is the silent one — the guard narrowed away the correct exit, not the defect. Of the six callers, **none**
+  can legitimately meet an empty folder; `verifyDirectory`'s `mkdirs()` even manufactures one when a bound
+  catalog's contents have been deleted. The fix is to collapse the else-branch to a single throw, keeping
+  `holdsNoCatalogData` only to choose the *message* (allocated-but-never-written vs the data is gone).
+  Downstream, a null `fileLocation` makes `CatalogOffsetIndexStoragePartPersistenceService` fabricate a
+  `CatalogHeader` with a freshly minted random `catalogId` — an identity invented for data that does not exist,
+  which is what makes the eventual failure blame the user's data for an engine bookkeeping error.
 - **A catalog in the MISSING bucket keeps a binding nothing can overwrite.** `bindingsIncluding` returns the
   binding array unchanged when the name is already bound, and the bucket entry is cleared only by
   `withRestoredFromMissing` — create and replace call neither. So restoring a backup over a MISSING catalog
