@@ -152,6 +152,58 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Resolves the folder a catalog's data actually lives in.
+	 *
+	 * The folder is **not** derivable from the catalog name. The engine allocates
+	 * `<catalogName>_<generation>` folders and treats the name they carry as cosmetic, so the two strings agree
+	 * only by coincidence - a catalog created once already sits in `<catalogName>_1`, and one that outlived a
+	 * rename keeps a folder named after whatever it used to be called. The engine state is the authority, but a
+	 * test cannot reach it, so the folder is found by looking: the bare name when an older layout left one,
+	 * otherwise the highest generation, which is the one allocated last.
+	 *
+	 * @param storageDirectory the storage root holding one folder per catalog
+	 * @param catalogName      name of the catalog whose folder is wanted
+	 * @return the folder holding that catalog's data
+	 */
+	@Nonnull
+	private static Path catalogDirectory(@Nonnull Path storageDirectory, @Nonnull String catalogName) {
+		final Path bareNamed = storageDirectory.resolve(catalogName);
+		if (bareNamed.toFile().isDirectory()) {
+			return bareNamed;
+		}
+		final String prefix = catalogName + '_';
+		final File[] generations = storageDirectory.toFile().listFiles(
+			(dir, name) -> name.startsWith(prefix)
+				&& name.length() > prefix.length()
+				&& name.substring(prefix.length()).chars().allMatch(Character::isDigit)
+				&& new File(dir, name).isDirectory()
+		);
+		if (generations == null || generations.length == 0) {
+			throw new IllegalStateException(
+				"No folder holding catalog `" + catalogName + "` was found in `" + storageDirectory + "`!"
+			);
+		}
+		File newest = generations[0];
+		for (final File candidate : generations) {
+			if (generationOf(candidate, prefix) > generationOf(newest, prefix)) {
+				newest = candidate;
+			}
+		}
+		return newest.toPath();
+	}
+
+	/**
+	 * Reads the generation number off a folder allocated under the `<catalogName>_<generation>` scheme.
+	 *
+	 * @param folder the folder to read the generation from
+	 * @param prefix the `<catalogName>_` prefix the generation follows
+	 * @return the generation the folder carries
+	 */
+	private static int generationOf(@Nonnull File folder, @Nonnull String prefix) {
+		return Integer.parseInt(folder.getName().substring(prefix.length()));
+	}
+
+	/**
 	 * Lists the write-ahead log files present in the catalog folder, oldest index first.
 	 *
 	 * @param catalogDirectory the catalog folder to list
@@ -315,14 +367,15 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should give up on open the history no surviving log file can replay")
 	void shouldRecoverTheFloorReportRotationLostWhenTheCatalogOpens() throws Exception {
-		final Path liveCatalogDirectory = this.livePaths.storage().resolve(TEST_CATALOG);
-		final Path recoveredCatalogDirectory = this.recoveredPaths.storage().resolve(TEST_CATALOG);
 		final long oldestRetainedBeforeRestart;
 		final List<Long> retainedRecordsBeforeRestart;
 
 		try (final Evita evita = bootEvita(this.livePaths)) {
 			evita.waitUntilFullyInitialized();
 			defineCatalogAndGoLive(evita);
+
+			// resolved only once the catalog exists, and by looking rather than by deriving - see `catalogDirectory`
+			final Path liveCatalogDirectory = catalogDirectory(this.livePaths.storage(), TEST_CATALOG);
 
 			// deliberately never closed: a session pins the catalog version it reads and gives the pin back when it
 			// closes, and that release drains whatever the pin refused. The pin has to still be held when the crash
@@ -344,6 +397,10 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 
 			snapshotStorageFolder(this.livePaths.storage(), this.recoveredPaths.storage());
 		}
+
+		// resolved from the snapshot rather than alongside the live one: the copy only exists now, and it carries
+		// whatever folder name the live catalog had
+		final Path recoveredCatalogDirectory = catalogDirectory(this.recoveredPaths.storage(), TEST_CATALOG);
 
 		// the snapshot has to hold the state the recovery is about - purged log, untrimmed history - and saying so
 		// out loud is the difference between a test that guards the behaviour and one that is trivially true
