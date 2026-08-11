@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-11 05:22
+updated: 2026-08-11 06:00
 status: accepted
 kind: feature
 issues: [761]
@@ -462,8 +462,11 @@ retention floor clamps it like any other request.
 - **It is submitted, not run inline.** What it drives is a bootstrap trim and a folder sweep;
   reclaiming disk nobody is waiting for must not lengthen the open of a catalog somebody is. Nothing
   downstream depends on it having run — every other driver re-derives its own horizon. It is wired to
-  the `load` constructor only: `createNew` has no history to reconcile, and the rename constructor
-  inherits a horizon the former service already derived.
+  the `load` constructor only. `createNew` has no history to reconcile; the rename constructor was
+  left out on the grounds that it inherits a horizon the former service already derived, which is
+  **wrong** — see *Declined — the rename constructor has no log of its own to reconcile against*
+  below for what is actually on disk after a rename, and why submitting it there would change
+  nothing anyway.
 
 ### Nothing may throw out of a shutdown or a commit path
 
@@ -783,6 +786,45 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   The measurement the decline asked for, before changing it: the 1,526-test `storage`-tagged sweep of
   `evita_functional_tests` passes unchanged, every test asserting that a file *was* reclaimed
   included — which is the half of the one-sidedness above that a test run can actually observe.
+- **Declined — the rename constructor has no log of its own to reconcile against.** A review asked
+  why `replaceWith`'s private constructor schedules only the size guard while the `load` constructor
+  also submits `reconcileHistoryHorizonWithWal`, and the premise recorded for that omission — the
+  rename inherits a horizon the former service derived — does not survive being checked.
+  `historyHorizon` is a field initializer the constructor never assigns, and the former service's
+  parked request dies with it: `replaceWith` closes that service, and `close()` flips `closed` under
+  the horizon lock *before* the log's own close reports the floor its deletions imply, so the report
+  is dropped exactly where this recovery exists to catch it.
+  **Declined because** the submit could not reclaim anything. A rename does not rename the log
+  files: `replaceWith` renames the bootstrap file and the current data file and leaves the rest to
+  the directory rename, so the renamed folder holds `<formerName>_N.wal`, while `getFirstVersionOf`
+  resolves `<newName>_N.wal` through the new service's name provider and finds nothing. Measured on
+  a real rename of a catalog whose log had rotated and purged: the folder came out holding
+  `testCatalog_8.wal`, `testCatalog_9.wal` and an 8-byte `renamedProbeCatalog_9.wal` stub. In that
+  folder the reconciliation does not even reach the read — `getFirstReplayableVersion` asks
+  `getFirstAndLastWalFileIndex` first, and indices `[8, 9, 9]` trip its contiguity premise — so the
+  submit would trade a horizon nobody can derive for a throw on a scheduler thread. Worth revisiting
+  only once a rename carries its log files across, which it has to anyway for the reason below.
+- **Out of scope, found while measuring the above — a rename orphans the write-ahead log**
+  (issue #1414, which carries the reproduction and the full traces; this entry exists only because
+  the decline above rests on it). Pre-existing and untouched by this line of work: every frame of
+  both failures is code this change does not modify, and the rename loop in `replaceWith` predates
+  it. Two shapes, both from a real engine.
+  A catalog whose log has **rotated** renames successfully and then cannot be opened again: the
+  orphaned `<formerName>_8/9.wal` next to the new `<newName>_9.wal` stub breaks the contiguity
+  premise of `AbstractMutationLog.getFirstAndLastWalFileIndex`, which throws `Missing WAL file with
+  index 10!` out of the log's constructor at the next start. Measured with time travel on and a
+  narrow log, because that is what rotates a log quickly; nothing in the failing path reads either
+  setting.
+  A live catalog that has committed **a single transaction** after go-live fails the rename itself,
+  at `verifyCatalogNameMatches` inside the rename constructor — **after** the former service is
+  closed and the directory is already renamed. The `catch (RuntimeException)` there restores only a
+  replaced target, so a plain rename undoes nothing: what is left is a folder under the new name, an
+  engine still listing the old one, and the catalog readable under neither. Measured on default
+  storage options, where `timeTravelEnabled` is `false` — this shape has nothing to do with the
+  budget at all. Whether the catalog comes back after a restart is **not established**: that engine
+  could not release its folder lock afterwards, so the restart never ran.
+  The existing rename coverage misses both because it goes live and renames without committing a
+  transaction, so no log file of consequence exists when it runs.
 - **Open — write-ahead log removal is gated by nothing at all** (matrix row 6). `removeWalFiles`
   deletes its files consulting neither the retention floor nor the directory hold, in either mode, so
   a rotation during a full backup can remove a log file mid-walk. Not fixed here because the current
@@ -863,4 +905,7 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
 - **2026-08-11** — the two findings of the Codex review round closed: the maintained-file purge now
   spends the pins (reversing the decline recorded above, whose premise did not survive re-reading the
   two floors together), and catalog duplication holds the folder across the window between listing it
-  and copying it
+  and copying it. A third finding — that the rename constructor omits the horizon reconciliation —
+  was declined on measurement: the rename leaves the log files under the former catalog's name, so
+  there is nothing for the reconciliation to read. The measurement turned up a pre-existing rename
+  defect recorded above, which belongs to its own line of work
