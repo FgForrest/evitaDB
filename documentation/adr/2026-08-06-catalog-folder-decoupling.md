@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-10 19:15
+updated: 2026-08-11 09:20
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -205,12 +205,19 @@ ergonomics the absolute path used to provide.
 ## Verification
 
 - Full functional suite across the work — **20 968 tests**, **20 983** after the version fix, **21 073**
-  after the rebase onto `dev` `1f67194ca` — green apart from the environmental non-passes below, each of
-  which reproduces on unrelated commits and none of which is caused by this work. The last run is the one
-  to quote: **21 073 tests, 0 failures, 3 errors**, being `ExportS3ServiceTest` (needs a Docker
-  environment) and two `EvitaClientReadWriteTest` methods whose dataset fixture fails to set up under fork
-  contention — all 64 of that class pass in isolation in 50 s against 321 s under the suite, and the
-  failing method changes between runs, which is the tell.
+  after the rebase onto `dev` `1f67194ca`, **21 138** after the rebase onto `dev` `c1229ead4` (which
+  brought in #761) — green apart from the environmental non-passes below, each of which reproduces on
+  unrelated commits and none of which is caused by this work. The last run is the one to quote:
+  **21 138 tests, 0 failures, 1 error**, that error being `ExportS3ServiceTest`, which needs a Docker
+  environment this machine does not have.
+- The second rebase is the run worth reading, because a clean rebase was not a working one. It produced
+  three conflicts and then **failed to compile twice** — both times on code that never conflicted,
+  because it was new on `dev`'s side and so had nothing to be merged against: 25 constructor sites and
+  three `duplicateCatalog` calls in #761's new tests, and `getOldestRetainedCatalogVersion` in the
+  persistence service itself. It then failed **one** test for a reason no compiler could see, the
+  bare-name folder resolution recorded below. Earlier runs of the suite lost `EvitaClientReadWriteTest`
+  methods and a GraphQL subscription test to fork contention; neither recurred in the final run, and
+  both pass in isolation.
 
   Earlier runs also lost wall-clock waits in `SharedRgeiSoakTest` and a two-minute Awaitility condition in
   the GraphQL subscription tests, and one exhausted the shared JVM's heap, taking two dataset fixtures
@@ -309,6 +316,23 @@ ergonomics the absolute path used to provide.
   time would have the second allocation overwrite the first's reservation, and the first could then register —
   and clear the provisional marker of — the second's still-incomplete folder. Making a reservation task-scoped,
   or refusing a concurrent restore before allocating, is the fix; neither is in place.
+- **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
+  no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files
+  has nothing to ask and resolves `storage/<catalogName>` instead — which has not existed since allocation
+  started suffixing generations. This is not hypothetical: `CatalogHistoryHorizonRecoveryTest`, written on `dev`
+  against the old model and met on rebase, did exactly that. It fails *silently and late* — listing an absent
+  directory yields no files rather than an error, so a polling wait burns its whole budget and the assertion
+  that finally fires describes the wrong thing entirely (sixty-two seconds to report that log rotation had
+  misbehaved, about a folder it had never looked at). The test now finds the folder by scanning for the highest
+  generation, through `EvitaTestSupport#catalogDirectory` — a shared resolver, because that test was not the
+  only one guessing: `LongRunningEvitaTransactionalFunctionalTest` opened a write-ahead log against the same
+  non-existent path, and nothing caught it because the long-running module is skipped by default, so no run
+  ever compiled that call, let alone executed it. Exposing the token on `CatalogContract` is still the real
+  fix. Note that direct-construction tests are *not* affected and remain correct with a bare name, which is
+  precisely what makes the trap hard to see — the pattern looks safe everywhere until it meets a live engine.
+  The way this defect *presented* is recorded as a separate follow-up in
+  `2026-08-06-time-travel-disk-budget`: the wait that hid it gives up silently, so the failure named the
+  wrong subsystem entirely.
 - **The silent default-bootstrap path** at `getLastCatalogBootstrapWithAutomaticUpgrade` turns an empty
   folder into `CatalogBootstrap(0, 0, now, null)` and surfaces much later as "no schema found, the data
   are probably corrupted". It is what turned a one-line defect in this work into a lost session, and is
