@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 15:10
+updated: 2026-08-11 17:25
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -226,6 +226,21 @@ ergonomics the absolute path used to provide.
   it independently (`EvitaTest` 100 → 101, `CatalogFolderCleanerTest` 12 → 13, plus 4 + 3 in the two new
   classes and 1 in `DefaultEnginePersistenceServiceTest`), which is the check worth doing: an aggregate that
   disagrees is answered by counting the classes you touched, not by arguing about the total.
+
+  A second `/codex:review` on the finished branch found the third handover ordering recorded below, and the fix
+  for it brings the suite to **21 160 tests, 0 failures, 1 error** — the same Docker-only `ExportS3ServiceTest`,
+  under the same `-P unitAndFunctional`, so `21 159 + 1 new = 21 160` compares like with like. Calibrated both
+  ways against the one-line counterfactual (`claim.set(reservation)` in place of the compare-and-set): pre-fix
+  the run is 5 tests / 1 error, and the error is
+  `RestoreFolderClaimTest#shouldReleaseAClaimPublishedAfterTheHandover` failing with the
+  `ConcurrentCatalogMaterializationException` the defect predicts; post-fix it is 5 / 0, with no other test in
+  the class moving either way.
+
+  **Reinstall `evita_engine` between the two halves of a calibration like that one.** No signature changed, so a
+  stale `~/.m2` jar raises no compile error — it silently runs both halves against the same bytecode and the
+  two-sided result reads as noise rather than as the tooling problem it is. `-pl evita_engine` alone is not
+  enough either: on this branch it resolves a pre-branch `evita_api` and fails to compile. Install the reactor
+  once with `-DskipTests`, then iterate.
 
   An earlier run in the same session came in at 21 144 with four additional non-passes, all of them wall-clock or
   connection-availability assertions — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then
@@ -518,11 +533,30 @@ ergonomics the absolute path used to provide.
   is reachable by any client through `CancelTask` over gRPC as well as by `Scheduler#shutdown()`.
 
   **Fixed by ownership transfer**, in `RestoreFolderClaim`: both the registering step and the completion hook
-  call `takeClaim()`, a single `getAndSet(null)`, so exactly one can win. Step wins → it holds the name across
+  call `takeClaim()`, a single `getAndSet`, so exactly one can win. Step wins → it holds the name across
   the whole registration and releases in a `finally`. Hook wins → the name is freed at once and the step refuses
   to register, which also fixes a second, *deterministic* defect that needed no race at all — a cancelled restore
   used to register its catalog anyway whenever the cancel landed after the registering step started. Exactly-once
   by construction, no lock, cancellation stays non-blocking, and no WAL-format change.
+
+  **A third ordering was missed on the first pass, and it leaked the claim outright.** The hook can get there
+  while the holder is still *empty* — the cancel lands inside `allocateFolderFor`, which draws a generation and
+  creates a directory, and is by far the widest window in the handover. A `getAndSet(null)` leaves nothing behind
+  to record that it happened, so the allocation published its claim afterwards, to a hook that had already fired
+  and fires only once. Nothing ever releases that claim, and `allocateFolderFor` refuses a name that is still
+  held: create, restore **and** duplicate on that name fail until the process restarts — exactly the permanence
+  `CatalogFolderReservation` was made a closeable handle to avoid. `takeClaim()` now parks a `HANDED_OVER`
+  sentinel instead of `null`, and `allocate` publishes with `compareAndSet(null, …)` and closes on the spot when
+  it loses. Behaviour on that path is otherwise unchanged from the already-accepted "cancel lands after
+  publication" case: the name is freed, the step goes on unpacking, and the folder keeps its provisional marker
+  and is reclaimed at the next boot.
+
+  **The generalisation is worth more than the fix:** "release on completion" is sound only where the completion
+  hook can see everything it might have to release. A hook armed *before* the resource exists needs the
+  publication to be a compare-and-set against a terminal marker, not a store. Restore is the only path here with
+  that shape — create and duplicate both hold their reservation in a captured local, so their hook is armed
+  strictly after the thing it releases exists, and adoption is boot-time with no hook at all. Anyone adding a
+  fourth materialising path should check which of the two shapes it has before copying either one.
 
   The folder token is deliberately held in a **separate field** from the takeable claim. `allocate` is call-once
   by contract but answers idempotently, and nulling a single shared field would turn that second read into a

@@ -345,6 +345,10 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// This hook can fire *while* the registering step runs: `SequentialTask#cancel()` completes the future
 		// without stopping a step already executing. `takeClaim` is therefore a handover, not a read - whichever
 		// of the two gets there first owns the release, and the other finds nothing (#649).
+		//
+		// It can also fire before there is anything to take, when the cancel lands inside the allocation itself.
+		// This hook runs once and cannot come back for a claim published after it, so `allocate` compare-and-sets
+		// its publication and releases on the spot when it loses - see `RestoreFolderClaim`.
 		restorationTask.getFutureResult().whenComplete(
 			(result, ex) -> {
 				final CatalogFolderReservation reservation = claim.takeClaim();

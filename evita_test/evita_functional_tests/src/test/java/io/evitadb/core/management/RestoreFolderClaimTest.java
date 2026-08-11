@@ -145,6 +145,28 @@ class RestoreFolderClaimTest {
 		}
 
 		@Test
+		@DisplayName("Releases a claim published after the handover already found nothing")
+		void shouldReleaseAClaimPublishedAfterTheHandover(@TempDir Path storageDirectory) {
+			// The linearization of a cancellation landing *inside* `allocateFolderFor`: the completion hook gets
+			// there while the holder is still empty, and the allocation publishes afterwards. The hook fires once
+			// and never returns, so nothing would ever come back for that claim - and a claim nobody releases is
+			// permanent, because `allocateFolderFor` refuses a name that is still held.
+			final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
+			final RestoreFolderClaim claim = new RestoreFolderClaim();
+
+			assertNull(claim.takeClaim(), "There is nothing to hand over before the folder is allocated.");
+			assertNotNull(claim.allocate(folderContext, CATALOG_NAME));
+
+			// The restore is over either way; what must not survive it is the exclusive hold on the name.
+			try (final CatalogFolderReservation reclaimed = folderContext.allocateFolderFor(CATALOG_NAME)) {
+				assertNotNull(
+					reclaimed.folderId(),
+					"A cancelled restore must not leave the catalog name un-materialisable."
+				);
+			}
+		}
+
+		@Test
 		@DisplayName("Yields the claim to exactly one of many simultaneous takers")
 		void shouldYieldTheClaimToExactlyOneOfManyTakers(@TempDir Path storageDirectory) throws Exception {
 			// The real race has two takers - the registering step and the completion hook - but the guarantee is
