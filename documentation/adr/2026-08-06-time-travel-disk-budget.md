@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-10 21:50
+updated: 2026-08-11 05:22
 status: accepted
 kind: feature
 issues: [761]
@@ -285,8 +285,9 @@ catalog persistence services that fall below the new floor. Runs in **both** tim
 **2. `purgeFile` — door 1 of 3: `ObsoleteFileMaintainer.purgeObsoleteFiles`** — deletes a retired
 data file when time travel is off; in both modes it runs the removal lambda that closes the file's
 persistence service.
-- *Version floor:* `lastKnownMinimalActiveVersion` only — the departure-reported floor, **not** the
-  pins. See the open follow-up below; this is a documented gap, not a settled decision.
+- *Version floor:* the retention floor — the departure-reported `lastKnownMinimalActiveVersion` and
+  every live pin, whichever is lower. The pins were once left out here on purpose; see *Closed — the
+  maintained-file purge consults the pins now* below for why that reading did not hold.
 - *Directory hold:* consulted, through `runWithDirectoryExclusivity`.
 
 **3. `purgeFile` — door 2 of 3: `removeFileWhenNotUsed` at `catalogVersion <= 0L`** — the warm-up
@@ -530,6 +531,17 @@ on the commit thread underneath `cpsvLock`, which a deletion pass may itself nee
 would invert the lock order. **Acquisition blocks**, because it runs while a backup task is being
 constructed, holding nothing else, and a deletion pass is bounded by the number of files it unlinks.
 
+**Every consumer that reads the folder by listing it takes the hold, and a version pin cannot stand
+in for it.** The walk finds generations no retained bootstrap record points at, which are precisely
+what the unreachable-file sweep deletes — no value of the retention floor describes them. Two
+consumers read that way: `FullBackupTask` and `DefaultCatalogPersistenceService.duplicateCatalog`.
+The second is the harder one to see, because its walk and its copy are separated by an asynchronous
+hand-off — the listing decides what to copy when the method is called, the copy runs whenever
+somebody executes the future it returned, and every listed file has to survive both moments. It gives
+the hold back from the copy body *and* from the future's completion, because a future cancelled
+before it starts never runs the body at all; the lease is idempotent, so both firing is harmless and
+neither firing is the failure that matters.
+
 ### The unreachable-file sweep, and why it is not an eager delete
 
 `ObsoleteFileMaintainer.reclaimUnreachableFiles` deletes every data file that the oldest *retained*
@@ -573,6 +585,20 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   the data-loss case: with the reader floor already at version 100 and a consumer pinning version 20,
   the floor must report 20 rather than 100 — the difference between a point-in-time backup reading
   version 20 and a purge deleting up to 50 underneath it.
+- `ObsoleteFileMaintainerTest.EagerPurgeUnderVersionPin` — the two halves of matrix row 2's floor,
+  with time travel off. A backup pins version 5, both the generation below it and the pinned one are
+  retired, and every session moves past both: the pass must collect the generation nobody holds and
+  leave the pinned one, and releasing the pin must bring the pass back for it. Calibrated one half at
+  a time — without the clamp the pinned generation goes with the same pass (`expected: <1> but was:
+  <0>` on the latch counting its removal), without the reschedule in `catalogVersionReleased` the
+  second test expires at 30 s having never seen it collected. The collection is observed through the
+  removal lambda rather than the file, because `purgeFile` runs the lambda and *then* unlinks: a test
+  woken by the lambda races the very next statement of the thread that woke it.
+- `DefaultCatalogPersistenceServiceTest.CatalogDuplicationTest` — the folder must stay held from the
+  listing until the copy has run, and be given back whether the copy ran, threw, or was cancelled
+  before it ever started. Calibrated by releasing the hold at the end of the listing instead of at the
+  end of the copy: only the pending-duplication test fails, which is the exact shape of the defect —
+  a hold that exists but does not span the window it was taken for.
 - `HistoryHorizonClampTest.shouldClampTheHorizonToTheRetentionFloorWithTimeTravelDisabled` — the
   default-configuration case. A pinned version, then log rotation reporting a floor far above it,
   then the pinned version must still resolve its persistence service. Calibrated against the code
@@ -733,15 +759,30 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   `close()`. Left as-is; it predates this work and has no observed symptom.
 - The knob is deliberately absent from `EngineSettings` and therefore from the gRPC management API,
   which by convention exposes capabilities rather than tuning knobs.
-- **Open — the maintained-file purge does not consult the pins** (matrix row 2). It is driven by the
-  departure-reported `lastKnownMinimalActiveVersion` alone, so a consumer holding a version in the
-  past is invisible to it. Widening it to the full retention floor was considered and **declined for
-  now**: that floor includes every open session's pin, and this path is the deleter that runs on
-  every session close with time travel *off*, so honouring live pins there would retain files for as
-  long as anything is connected — the same failure the directory hold was introduced to undo, moved
-  to a different deleter. The exposure that remains is a point-in-time backup with time travel off,
-  which is already of marginal value because retired files are unlinked eagerly in that mode. Revisit
-  by measuring what the tightened floor actually retains before changing it.
+- **Closed — the maintained-file purge consults the pins now** (matrix row 2). It used to be driven
+  by the departure-reported `lastKnownMinimalActiveVersion` alone, so a consumer holding a version in
+  the past was invisible to it: a point-in-time backup with time travel off held its version against
+  a deleter that never asked, and read files this path was free to unlink underneath it.
+  Widening it to the retention floor was **declined once**, on the grounds that the floor includes
+  every open session's pin and this deleter runs on every session close, so honouring live pins would
+  retain files for as long as anything is connected. That reasoning does not survive putting the two
+  floors side by side. `catalogConsumersLeft` reports the minimum over the sessions that *remain*, so
+  the departure floor is derived from the very same live census the session pins are — a session open
+  at version 5 already held this deleter at 5, through the census, before any pin was consulted.
+  Honouring the pins therefore retains nothing that was not already retained; what it adds is exactly
+  the consumer that is **not** a session. The clamp is one-sided by construction as well: the
+  threshold is `min(reported, floor)` and the floor is bounded by the same accumulated reports, so it
+  can only ever retain more than before, never purge more.
+  Two things had to come with it. The release has to reschedule the purge
+  (`ObsoleteFileMaintainer.catalogVersionReleased`), because the departure that drove the clamped
+  pass is long past by the time a backup finishes and nothing else would come back for what the clamp
+  left behind — with time travel on the equivalent notification is `retentionStateChanged`, which
+  re-drives the trim and the sweep instead. And the absent floor is `-1`, which must never become the
+  threshold: `0` is a pinnable version, so an unguarded `min` would stop this deleter for the life of
+  every catalog that has no pins at all.
+  The measurement the decline asked for, before changing it: the 1,526-test `storage`-tagged sweep of
+  `evita_functional_tests` passes unchanged, every test asserting that a file *was* reclaimed
+  included — which is the half of the one-sidedness above that a test run can actually observe.
 - **Open — write-ahead log removal is gated by nothing at all** (matrix row 6). `removeWalFiles`
   deletes its files consulting neither the retention floor nor the directory hold, in either mode, so
   a rotation during a full backup can remove a log file mid-walk. Not fixed here because the current
@@ -819,3 +860,7 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   one-shot floor report made recoverable at open; `getFirstCatalogBootstrap` made to honour its own
   contract for an empty file; the rotated end-to-end path closed by an engine-level test that
   reproduces the crash rather than a shutdown, which is the only way the state it recovers arises
+- **2026-08-11** — the two findings of the Codex review round closed: the maintained-file purge now
+  spends the pins (reversing the decline recorded above, whose premise did not survive re-reading the
+  two floors together), and catalog duplication holds the folder across the window between listing it
+  and copying it
