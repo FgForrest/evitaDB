@@ -1459,7 +1459,7 @@ public final class Evita implements EvitaContract {
 	 *
 	 * Neither subsumes the other, so the counter is fast-forwarded past both.
 	 *
-	 * ⚠ **Nothing writes the peaks yet.** No production path records a `CatalogGenerationPeak`, so the peak set
+	 * **Nothing writes the peaks yet.** No production path records a `CatalogGenerationPeak`, so the peak set
 	 * is empty on every installation and only the disk scan is live today. The scan covers the ordinary case; the
 	 * gap it leaves is exactly the case described above — a generation burned against a name the filesystem then
 	 * refuses to report — which is redrawn after a restart. Recording the peak belongs in the engine-state commit

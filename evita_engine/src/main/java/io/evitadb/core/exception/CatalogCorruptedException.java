@@ -40,6 +40,17 @@ import java.nio.file.Path;
 public class CatalogCorruptedException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -29086463503529567L;
 
+	/**
+	 * Reports an attempt to work with a catalog that could not be initialized.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 * @param cause       failure that left the catalog uninitialized
+	 */
 	public CatalogCorruptedException(
 		@Nonnull String catalogName,
 		@Nonnull CatalogFolderId folderId,

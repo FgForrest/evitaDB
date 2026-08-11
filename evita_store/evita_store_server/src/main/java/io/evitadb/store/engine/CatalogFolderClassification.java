@@ -35,9 +35,13 @@ import javax.annotation.Nullable;
  * @param catalogName catalog the engine state associates with the folder, or `null` when it associates none.
  *                    Populated only for {@link CatalogFolderState#REFERENCED} and
  *                    {@link CatalogFolderState#RETIRED}, where the name comes from the engine state itself.
- *                    It stays `null` for {@link CatalogFolderState#FOREIGN} on purpose: a foreign folder's
- *                    catalog name must be read from its bootstrap header at adoption time, and taking the
- *                    directory name for it is precisely the hole that lets an import shadow a live catalog
+ *                    It stays `null` for {@link CatalogFolderState#FOREIGN}, because classification is not
+ *                    the authority for that name: no engine state names such a folder, and the classifier
+ *                    cannot read the name from the catalog's own header either — that would need an open
+ *                    offset index it has no persistence service to obtain. Adoption therefore takes the
+ *                    directory name today; see
+ *                    {@link io.evitadb.spi.store.engine.model.AdoptableCatalogFolder} for why that is a
+ *                    limitation to be lifted rather than an invariant to build on
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record CatalogFolderClassification(

@@ -326,6 +326,16 @@ public record EngineState<T extends LogRecordReference>(
 	 *
 	 * This is the entry point every backward-compatible serializer uses, so the translation of "no map" into
 	 * "folder == name" is written down exactly once.
+	 *
+	 * @param storageProtocolVersion storage protocol version the engine state adheres to
+	 * @param version                current version of the engine state
+	 * @param introducedAt           moment this engine state version was introduced
+	 * @param walReference           reference to the engine Write-Ahead Log file, or `null` when there is none
+	 * @param activeCatalogs         names of the active catalogs, alphabetically ordered
+	 * @param inactiveCatalogs       names of the inactive catalogs, alphabetically ordered
+	 * @param readOnlyCatalogs       names of the read-only catalogs, alphabetically ordered
+	 * @param missingCatalogs        names of the catalogs whose folder is no longer present, alphabetically
+	 *                               ordered
 	 */
 	public EngineState(
 		int storageProtocolVersion,

@@ -371,9 +371,18 @@ public interface EvitaTestSupport extends TestConstants {
 	 * This does not apply to a test that constructs a persistence service itself with
 	 * `new CatalogFolderId(catalogName)` — such a folder really is bare-named, and resolving it by name is right.
 	 *
+	 * Two known limitations, both of which surface late and say the wrong thing when they bite:
+	 *
+	 * 1. A catalog that outlived a rename keeps its folder under the **old** name, so a scan for the current
+	 *    name finds nothing and this method throws rather than returning the folder that is right there.
+	 * 2. More than one folder can legitimately carry the same name prefix — a retired folder awaiting deletion,
+	 *    or one an operation abandoned before it finished writing — and the highest-generation tiebreak below
+	 *    picks by number alone, so it can hand back the dead folder rather than the live one.
+	 *
 	 * @param storageDirectory the storage root holding one folder per catalog
 	 * @param catalogName      name of the catalog whose folder is wanted
 	 * @return the folder holding that catalog's data
+	 * @throws GenericEvitaInternalError when no folder for the catalog is found under the storage root
 	 */
 	@Nonnull
 	static Path catalogDirectory(@Nonnull Path storageDirectory, @Nonnull String catalogName) {

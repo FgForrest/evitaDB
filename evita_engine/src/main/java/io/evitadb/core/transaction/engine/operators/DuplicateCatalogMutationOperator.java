@@ -51,17 +51,13 @@ import java.util.function.Consumer;
  * Duplicates an existing catalog to create a new catalog with a specified name.
  * Tracks the progress of the duplication process and handles completion or failure.
  *
- * Forward-replay is intentionally **not** implemented here. Duplicating a catalog involves deep folder-copy work in
- * the work phase. Re-applying the completion is still conceptually safe (the duplicate folder already exists), but
- * there is no guarantee the WAL-visible mutation carries enough information to rebuild the `UnusableCatalog` stub
- * with the same identity the original run would have produced. We prefer to wedge loudly rather than risk silent
- * drift — the default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to log a loud
- * error and stop.
- *
- * Forward-replay is **not** implemented, and the blocker is sharper than "the folder may exist": the target
- * folder is allocated during the work phase and its token lives only in an in-memory reservation, which a
- * restart discards. `DuplicateCatalogMutation` does not carry it, so replay cannot know which folder the copy
- * was written into — and binding the wrong one would leave the copy unreferenced.
+ * Forward-replay is intentionally **not** implemented, and the blocker is sharper than "the folder may already
+ * exist": the target folder is allocated during the work phase and its token lives only in an in-memory
+ * reservation, which a restart discards. `DuplicateCatalogMutation` does not carry that token, so a replay
+ * cannot know which folder the copy was written into — and binding the wrong one would leave the copy
+ * unreferenced under a name that looks correctly bound. The default `Optional.empty()` in
+ * `EngineMutationOperator` therefore stands: the transaction manager logs a loud error and stops, which is
+ * preferable to silent drift.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -135,11 +131,6 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
-								// A name in the missing bucket is invisible to `getCatalogNames()` after a
-								// restart, so applicability lets a duplicate through onto it - and the binding
-								// that bucket entry kept alive would then refuse to move, leaving the copy
-								// unreferenced and un-adoptable under its own name. Nothing is lost by clearing
-								// it: a missing catalog is one whose folder is gone (#649).
 								// A name in the missing bucket is invisible to `getCatalogNames()` after a
 								// restart, so applicability lets a duplicate through onto it - and the binding
 								// that bucket entry kept alive would then refuse to move, leaving the copy

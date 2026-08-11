@@ -49,8 +49,10 @@ import java.io.Serial;
  * - A `restoreCatalog` and a `duplicateCatalog` target the same catalog name concurrently
  * - A previous attempt on this name has not yet released its claim
  *
- * Retrying once the in-flight operation has finished is the correct response. Note that an upload that is started
- * and then abandoned holds its claim until the server restarts, because nothing signals that the client is gone.
+ * Retrying once the in-flight operation has finished is the correct response. The claim is taken when the restore
+ * actually starts, and given back when it ends — on failure and cancellation as well as on success. An upload
+ * that is started and then abandoned therefore never runs its restore and holds nothing; only an operation
+ * genuinely in flight holds a name.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -58,6 +60,12 @@ public class ConcurrentCatalogMaterializationException extends EvitaInvalidUsage
 	@Serial private static final long serialVersionUID = -6521437219905174298L;
 	@Getter private final String catalogName;
 
+	/**
+	 * Reports a refusal to materialise a catalog under a name another operation is already writing into.
+	 *
+	 * @param catalogName name both operations want to materialise
+	 * @param heldFolder  token naming the folder the operation already in flight is writing into
+	 */
 	public ConcurrentCatalogMaterializationException(@Nonnull String catalogName, @Nonnull String heldFolder) {
 		super(
 			"Catalog `" + catalogName + "` is already being written into folder `" + heldFolder + "` by another " +

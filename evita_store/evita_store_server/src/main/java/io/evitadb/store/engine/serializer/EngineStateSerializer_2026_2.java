@@ -37,9 +37,9 @@ import java.time.OffsetDateTime;
 
 /**
  * Backward-compatible {@link Serializer} implementation that reads {@link EngineState} persisted before catalogs
- * were decoupled from their storage folders — the shape shipped by releases 2026.2.0 through 2026.2.3. That
- * format has the four catalog-name arrays but none of the folder sections: no name-to-folder bindings, no
- * retired-folder tombstones and no per-catalog generation peaks.
+ * were decoupled from their storage folders — the shape shipped by every release preceding the one that
+ * introduced catalog-to-folder bindings. That format has the four catalog-name arrays but none of the folder
+ * sections: no name-to-folder bindings, no retired-folder tombstones and no per-catalog generation peaks.
  *
  * The substitution for the absent bindings is **not** an empty map. Under that format a catalog's folder simply
  * *was* its name, so the faithful translation is one identity binding per catalog — which is what the
@@ -49,7 +49,8 @@ import java.time.OffsetDateTime;
  *
  * This serializer only reads — writes always go through the current {@link EngineStateSerializer}.
  *
- * @deprecated kept for backward compatibility; can be removed once no engine state prior to 2026.2.4 is used.
+ * @deprecated kept for backward compatibility; can be removed once no engine state written before
+ *             catalog-to-folder bindings were introduced is still in use.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Deprecated(since = "2026.2", forRemoval = true)

@@ -46,10 +46,12 @@ import java.util.function.ToIntFunction;
  * Everything the engine is allowed to know about catalog storage folders, in one place.
  *
  * The engine may not derive a catalog's directory (see {@link CatalogFolderId} for the boundary rule), yet it
- * still has three legitimate needs around folders: look up which folder a catalog is bound to, ask the storage
- * layer to act on a folder as a whole, and name a location in an error message. Bundling them means an engine
- * component takes one collaborator rather than three, and — more usefully — that there is a single type to
- * inspect when asking "what does the engine still know about layout?".
+ * owns the folder *lifecycle* around that rule: resolving the folder a catalog is bound to, allocating a
+ * fresh one under an exclusive claim the caller must release, adopting one found on disk, marking a folder
+ * complete before the commit that binds it, labelling it with the name of the catalog it holds, deleting the
+ * folders whose tombstones say nothing points at them any more, and tracking which of those deletions the
+ * next engine-state commit may discharge. Keeping the whole lifecycle in one place means there is a single
+ * type to inspect when asking "what does the engine still know about layout?".
  *
  * The storage root is carried because it is *configuration*, not layout: reporting it beside a folder token
  * lets an operator locate a folder from an error message without the engine ever performing the join.
@@ -123,7 +125,7 @@ public class CatalogFolderContext {
 	 * an in-flight operation already allocated for it when there is one, and otherwise the identity token.
 	 *
 	 * This is the counterpart of {@link #folderIdFor(String)} and covers exactly the moments at which a name
-	 * legitimately has no binding yet. The three branches are not interchangeable:
+	 * legitimately has no binding yet. The four branches are not interchangeable:
 	 *
 	 * 1. **Bound, and the folder is still there** — recovery from the missing bucket lands back in the folder the
 	 *    catalog left, not somewhere new. Also how the create path reads back the folder its own transition

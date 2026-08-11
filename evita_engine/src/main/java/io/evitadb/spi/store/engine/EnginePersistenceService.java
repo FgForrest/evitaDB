@@ -43,7 +43,8 @@ import java.util.stream.Stream;
 /**
  * This interface represents a link between {@link EngineState} and its persistent storage.
  * The interface contains all methods necessary for fetching or persisting engine state to/from durable
- * storage.
+ * storage. It is also the surface through which the engine acts on catalog storage folders as a whole - see
+ * {@link CatalogFolderOperations}, which it extends.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

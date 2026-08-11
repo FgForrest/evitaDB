@@ -39,6 +39,16 @@ import java.nio.file.Path;
 public class CatalogInactiveException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 3045990643597839065L;
 
+	/**
+	 * Reports an attempt to work with a catalog that is not loaded into memory.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 */
 	public CatalogInactiveException(
 		@Nonnull String catalogName,
 		@Nonnull CatalogFolderId folderId,

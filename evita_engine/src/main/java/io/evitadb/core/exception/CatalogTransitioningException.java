@@ -41,6 +41,17 @@ import java.nio.file.Path;
 public class CatalogTransitioningException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -1879981512928524957L;
 
+	/**
+	 * Reports an attempt to work with a catalog that is in the middle of a state transition.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 * @param state       transitional state the catalog is currently in
+	 */
 	public CatalogTransitioningException(
 		@Nonnull String catalogName,
 		@Nonnull CatalogFolderId folderId,

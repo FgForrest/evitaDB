@@ -676,7 +676,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -692,7 +691,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 */
 	@Nonnull

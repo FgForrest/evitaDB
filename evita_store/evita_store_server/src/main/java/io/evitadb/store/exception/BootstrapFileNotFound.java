@@ -32,8 +32,10 @@ import java.io.Serial;
 import java.nio.file.Path;
 
 /**
- * Exception is thrown when the catalog directory doesn't contain the file `header.dat` which contains the key
- * information for work with file offset index files representing the catalog data.
+ * Exception is thrown when the catalog directory doesn't contain its bootstrap file - the `<storagePrefix>.boot`
+ * file which contains the key information for work with file offset index files representing the catalog data.
+ * The directory may hold catalog data whose bootstrap record is gone, or nothing beyond evitaDB's own markers
+ * because the operation that allocated it never finished writing into it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -42,6 +44,16 @@ public class BootstrapFileNotFound extends EvitaInvalidUsageException {
 	@Getter private final Path catalogDirectory;
 	@Getter private final File bootstrapFile;
 
+	/**
+	 * Reports a catalog directory that has no bootstrap file, without saying why it has none.
+	 *
+	 * The message it produces claims the directory is not empty whether or not that holds, so prefer the
+	 * three-argument variant wherever the caller can tell an unfinished allocation apart from a lost bootstrap
+	 * record.
+	 *
+	 * @param catalogDirectory directory the catalog was expected in
+	 * @param bootstrapFile    bootstrap file that was looked for and not found
+	 */
 	public BootstrapFileNotFound(@Nonnull Path catalogDirectory, @Nonnull File bootstrapFile) {
 		super(
 			"Failed to locate bootstrap file for catalog `" + catalogDirectory + "` and the directory is not empty!",

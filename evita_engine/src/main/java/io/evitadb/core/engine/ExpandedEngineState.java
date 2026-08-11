@@ -586,7 +586,11 @@ public record ExpandedEngineState(
 		 * Stages the transition of the specified catalog to the MISSING bucket. The catalog is removed from the
 		 * active / inactive / read-only arrays and its in-memory `CatalogWrapper` is dropped — MISSING catalogs
 		 * cannot serve any requests. The catalog name is added to the `missingCatalogs` array so it remains visible
-		 * to the engine and can be recovered by auto-discovery in a future release.
+		 * to the engine and so a later boot can recover it: reconciliation sorts a name whose folder is back into
+		 * the `reappeared` bucket of `CatalogInventoryDivergence`, and `Evita` drains that bucket by dispatching
+		 * a `RestoreCatalogSchemaMutation` per name. Its operator calls
+		 * {@link #withCatalogNoLongerMissing(String)}, which clears the bucket entry and the binding it kept
+		 * alive, landing the catalog back in the inactive array.
 		 *
 		 * The folder binding is deliberately kept. It names the folder that went missing, which is precisely what
 		 * a later reappearance has to be matched against; dropping it would leave the recovered folder
