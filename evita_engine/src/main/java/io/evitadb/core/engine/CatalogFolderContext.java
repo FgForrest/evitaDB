@@ -26,6 +26,7 @@ package io.evitadb.core.engine;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.catalog.UnusableCatalog.UnusableCatalogExceptionFactory;
+import io.evitadb.api.exception.ConcurrentCatalogMaterializationException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.CatalogFolderOperations;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
@@ -171,24 +172,58 @@ public class CatalogFolderContext {
 	 * The caller must call {@link #completeFolder(String, CatalogFolderId)} once the folder is fully written
 	 * and **before** the engine-state commit that binds it.
 	 *
-	 * **A failed operation needs no cleanup here.** Its reservation is simply overwritten by the next
-	 * allocation for the same name — every path that materialises a catalog allocates unconditionally, so a
-	 * stale reservation can never be read by anything except an allocation that is about to replace it. The
-	 * folder it named is left alone deliberately: it still wears its provisional marker, so boot classification
-	 * recognises it as abandoned and removes it. Deleting it here would mean succeeding on a filesystem that
-	 * has just demonstrated it is misbehaving, and failing at that would replace the operation's real error
-	 * with a cleanup error.
+	 * **The claim is exclusive, and the caller must release it.** A second allocation for a name already being
+	 * materialised is refused rather than allowed to displace the first — see
+	 * {@link ConcurrentCatalogMaterializationException} for what displacing it used to cost. Exclusivity is
+	 * also what makes {@link #folderIdForBinding(String)} answerable at all: that lookup is by name, so "the
+	 * folder reserved for `products`" has to have exactly one answer.
+	 *
+	 * Refusing is only safe because the claim is a handle that must be closed. Recovery from a failed create or
+	 * restore used to work *by overwrite*, so a refusal with no matching release would make a name permanently
+	 * un-materialisable after its first failure; closing in a `finally` is what replaces that.
+	 *
+	 * The check happens **before** a generation is drawn and a directory created, so a refusal neither burns a
+	 * number nor litters an empty folder.
+	 *
+	 * **A failed operation needs no cleanup beyond closing its claim.** The folder it named is left alone
+	 * deliberately: it still wears its provisional marker, so boot classification recognises it as abandoned and
+	 * removes it. Deleting it here would mean succeeding on a filesystem that has just demonstrated it is
+	 * misbehaving, and failing at that would replace the operation's real error with a cleanup error.
 	 *
 	 * @param catalogName name of the catalog the folder is being allocated for
-	 * @return token naming the freshly created, still-provisional folder
+	 * @return closeable claim naming the freshly created, still-provisional folder
+	 * @throws ConcurrentCatalogMaterializationException when the name is already being materialised
 	 */
 	@Nonnull
-	public CatalogFolderId allocateFolderFor(@Nonnull String catalogName) {
+	public CatalogFolderReservation allocateFolderFor(@Nonnull String catalogName) {
+		final CatalogFolderId alreadyHeld = this.reservedFolders.get(catalogName);
+		if (alreadyHeld != null) {
+			throw new ConcurrentCatalogMaterializationException(catalogName, alreadyHeld.id());
+		}
 		final CatalogFolderId allocated = this.folderOperations.allocateCatalogFolder(
 			catalogName, () -> this.generationSupplier.applyAsInt(catalogName)
 		);
-		this.reservedFolders.put(catalogName, allocated);
-		return allocated;
+		// `putIfAbsent` rather than `put`, because the check above is not the decision point - two callers can
+		// both pass it and only one may end up holding the name. The loser leaves the folder it just created
+		// provisional, exactly as any other failed attempt does
+		final CatalogFolderId lostRace = this.reservedFolders.putIfAbsent(catalogName, allocated);
+		if (lostRace != null) {
+			throw new ConcurrentCatalogMaterializationException(catalogName, lostRace.id());
+		}
+		return new CatalogFolderReservation(catalogName, allocated, this::releaseReservation);
+	}
+
+	/**
+	 * Gives a folder claim back, so the name can be materialised again.
+	 *
+	 * Value-sensitive on purpose: it drops the entry only while it is still the one this claim established.
+	 * A release that evicted whatever entry happened to be present could take away a claim a later operation
+	 * legitimately holds, which is the defect this whole mechanism exists to close.
+	 *
+	 * @param reservation the claim being given back
+	 */
+	private void releaseReservation(@Nonnull CatalogFolderReservation reservation) {
+		this.reservedFolders.remove(reservation.catalogName(), reservation.folderId());
 	}
 
 	/**

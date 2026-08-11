@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 10:30
+updated: 2026-08-11 11:08
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -206,17 +206,17 @@ ergonomics the absolute path used to provide.
 
 - Full functional suite across the work — **20 968 tests**, **20 983** after the version fix, **21 073**
   after the rebase onto `dev` `1f67194ca`, **21 138** after the rebase onto `dev` `c1229ead4` (which
-  brought in #761), **21 144** after the follow-up fixes below — green apart from the environmental
+  brought in #761), **21 148** after the follow-up fixes below — green apart from the environmental
   non-passes, each of which reproduces on unrelated commits and none of which is caused by this work.
-  The last run is the one to quote: **21 144 tests, 1 failure, 4 errors**, of which only
-  `ExportS3ServiceTest` (which needs a Docker environment this machine does not have) is not a load
-  artifact. The other four — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then a
-  shared dataset that could not be set up after it), `EvitaSessionServiceFunctionalTest` on a gRPC
-  `UNAVAILABLE`, and `StaleLeafPageTwinWriterReproductionTest` on a hung-thread assertion — are all
-  wall-clock or connection-availability assertions, and **all three classes pass together in isolation:
-  123 tests, 0 failures, 0 errors**. Isolation is the discriminator that matters here, not the plausibility
-  of the explanation: earlier in this work a failure was argued to be load on exactly that reasoning and the
-  isolated run disproved it.
+  The last run is the one to quote: **21 148 tests, 0 failures, 1 error** — that error being
+  `ExportS3ServiceTest`, which needs a Docker environment this machine does not have. An earlier run in the
+  same session came in at 21 144 with four additional non-passes, all of them wall-clock or
+  connection-availability assertions — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then
+  a shared dataset that could not be set up after it), `EvitaSessionServiceFunctionalTest` on a gRPC
+  `UNAVAILABLE`, and `StaleLeafPageTwinWriterReproductionTest` on a hung-thread assertion. **All three
+  classes passed together in isolation: 123 tests, 0 failures, 0 errors**, and none recurred in the final
+  run. Isolation is the discriminator that matters here, not the plausibility of the explanation: earlier in
+  this work a failure was argued to be load on exactly that reasoning and the isolated run disproved it.
 - The second rebase is the run worth reading, because a clean rebase was not a working one. It produced
   three conflicts and then **failed to compile twice** — both times on code that never conflicted,
   because it was new on `dev`'s side and so had nothing to be merged against: 25 constructor sites and
@@ -457,17 +457,46 @@ ergonomics the absolute path used to provide.
   `verifyApplicability` never reaches `completeFolder` and leaves its entry indefinitely, and
   `folderIdForBinding` reads the map without allocating. Correct that comment when the defect is fixed.
 
-  **Why the obvious fix is not in place.** A bare `putIfAbsent`-and-refuse inside `allocateFolderFor` would make a
-  name permanently un-materialisable after any failed create or restore, because retry-after-failure currently
-  works *only* by overwrite — there is no `finally` in either operator to release on. The fix is therefore a
-  reservation *lifecycle*: refuse while a reservation is live, and release it explicitly on every exit. Rejected
-  alternatives, each with its blocker: guarding at `EvitaManagement` misses duplicate; task-scoping needs an id
-  the mutation API cannot carry (the transaction id is minted inside `applyMutation`); keying the map by token is
-  self-defeating, since both callers hold only a name; carrying the token on `RestoreCatalogSchemaMutation` is
-  architecturally right but crosses the `evita_api`/`evita_engine` boundary and changes a Kryo-serialized WAL
-  record; binding up front reintroduces the `referenced ∧ provisional` overlap the classifier requires to be
-  unreachable. A residual to design for: an abandoned chunked upload would hold a reservation for the life of the
-  process unless the scheduler reaps waiting tasks.
+  **Fixed by making the claim a closeable handle.** `allocateFolderFor` returns a `CatalogFolderReservation`
+  instead of a bare token, refuses while one is outstanding, and every materialising path releases it on every
+  exit. The two halves are separable and both are needed: the *handle* supplies the release, and *exclusivity*
+  is what makes the name-keyed lookup in `folderIdForBinding` correct — with one live claim per name, "the folder
+  reserved for `products`" has exactly one answer.
+
+  Exclusivity alone would have been a trap. Retry-after-failure previously worked *only* by overwrite, so a bare
+  `putIfAbsent` would make a name permanently un-materialisable after its first failed create or restore; there is
+  no `finally` in either operator to release on. `close()` is that missing release, which is why this is a handle
+  rather than a boolean. Modelled on `CatalogVersionPin` — release bound at acquisition, idempotent close, and an
+  `AtomicBoolean` guard, because a late double-release would evict a claim a later operation legitimately holds.
+
+  Release points differ by path, and the difference is the interesting part. Create and duplicate close in
+  try-with-resources around their work phase (create also on a failed synchronous transition, which never reaches
+  that phase). Restore is the one whose claim must outlive the method that took it — its registering mutation runs
+  in a later task step — so the release rides on the task's own future, which completes on failure as well as
+  success.
+
+  Rejected alternatives, each with its blocker: guarding at `EvitaManagement` misses duplicate; task-scoping needs
+  an id the mutation API cannot carry (the transaction id is minted inside `applyMutation`); keying the map by
+  token is self-defeating, since both callers hold only a name; carrying the token on
+  `RestoreCatalogSchemaMutation` is architecturally the purest form — the terminal operation would then need no
+  shared state at all — but it crosses the `evita_api`/`evita_engine` boundary and changes a Kryo-serialized WAL
+  record, and exclusivity buys the same correctness without touching the format; binding up front reintroduces the
+  `referenced ∧ provisional` overlap the classifier requires to be unreachable.
+
+  **Residual, not closed — and narrower than it first looks.** It affects the **unary** gRPC upload only. The
+  *streaming* variant takes no claim at all until `onCompleted`, so a client that disappears mid-upload lands in
+  `onError`, deletes its temp file, and has allocated nothing. The unary variant must claim on the *first* chunk,
+  because it needs a folder to append into, and it is **not a stream**: every chunk is an independent
+  request/response ended by its own `onCompleted`, with continuity carried by the returned `fileId` rather than by
+  a live connection. So there is no disconnect to react to — an abandoned upload is indistinguishable from a slow
+  client between chunks, and the name stays claimed until the process restarts.
+
+  Closing it needs a **policy, not a hook**: nothing reaps the waiting-task registry, so a task parked by
+  `registerWaitingTask` leaves only via `submitWaitingTask`. The mechanism is already compatible —
+  `SequentialTask#cancel` completes the future, and the release hangs on `whenComplete`, which fires on
+  cancellation — so a TTL sweep over waiting tasks would release the claim with no further plumbing. The same
+  sweep would reclaim the orphaned temp `.zip` files that accumulate today for exactly the same reason, which is a
+  pre-existing leak rather than one this fix introduced.
 - **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
   no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files
   has nothing to ask and resolves `storage/<catalogName>` instead — which has not existed since allocation

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.engine.CatalogFolderContext;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -81,10 +82,11 @@ public class CreateCatalogMutationOperator
 		// touches the filesystem, and the transition updater runs under the engine-state lock. The work phase
 		// below reads the binding back rather than deciding again, so the folder is settled once, before
 		// anything is written into it.
-		final CatalogFolderId catalogFolder = this.folderContext.allocateFolderFor(catalogName);
+		final CatalogFolderReservation reservation = this.folderContext.allocateFolderFor(catalogName);
+		final CatalogFolderId catalogFolder = reservation.folderId();
 
 		// transition the engine state to new with catalog in state BEING_CREATED
-		transitionEngineStateUpdater.accept(
+		final AbstractEngineStateUpdater transition =
 			new AbstractEngineStateUpdater(transactionId, mutation) {
 				@Override
 				public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
@@ -110,41 +112,60 @@ public class CreateCatalogMutationOperator
 							catalogFolder
 						).build();
 				}
-			}
-		);
+			};
+
+		// The work phase below gives the claim back through try-with-resources, but it only runs when this
+		// synchronous half succeeded - so a failure here has to release too, or a failed create leaves the name
+		// un-materialisable until the process restarts. Releasing twice is a no-op, so both sites stay
+		// unconditional
+		try {
+			transitionEngineStateUpdater.accept(transition);
+		} catch (RuntimeException ex) {
+			reservation.close();
+			throw ex;
+		}
 
 		// transition the engine state to new with catalog in state WARMING_UP
 		return new ProgressingFuture<>(
 			0,
 			__ -> {
-				final CatalogContract theCatalog = evita.createCatalog(
-					Objects.requireNonNull(mutation.mutate(null))
-					       .updatedCatalogSchema()
-				);
+				// The claim is given back however this phase ends. Releasing it is what lets a retry after a
+				// failed create materialise the name again - the refusal in `allocateFolderFor` would otherwise
+				// make the first failure permanent for the life of the process
+				try (reservation) {
+					final CatalogContract theCatalog = evita.createCatalog(
+						Objects.requireNonNull(mutation.mutate(null))
+						       .updatedCatalogSchema()
+					);
 
-				// The folder is fully written, so declare it complete BEFORE the binding is committed below.
-				// A crash in the window this opens leaves an unreferenced, marker-free folder that boot
-				// classification reports and leaves alone; the reverse order would leave a *referenced* folder
-				// still declaring its own contents untrustworthy, which classification would load anyway.
-				CreateCatalogMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
+					// The folder is fully written, so declare it complete BEFORE the binding is committed below.
+					// A crash in the window this opens leaves an unreferenced, marker-free folder that boot
+					// classification reports and leaves alone; the reverse order would leave a *referenced*
+					// folder still declaring its own contents untrustworthy, which classification would load
+					// anyway.
+					CreateCatalogMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
 
-				completionEngineStateUpdater.accept(
-					new AbstractEngineStateUpdater(transactionId, mutation) {
-						@Override
-						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-							return ExpandedEngineState
-								.builder(expandedEngineState)
-								.withVersion(version)
-								.withCatalog(theCatalog)
-								.build();
+					completionEngineStateUpdater.accept(
+						new AbstractEngineStateUpdater(transactionId, mutation) {
+							@Override
+							public ExpandedEngineState apply(
+								long version,
+								@Nonnull ExpandedEngineState expandedEngineState
+							) {
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withVersion(version)
+									.withCatalog(theCatalog)
+									.build();
+							}
 						}
-					}
-				);
-				// Emit the host event AFTER the engine state has been updated so the catalog's
-				// settled state (typically WARMING_UP for a freshly-created catalog) is observable
-				// by HOST-area subscribers strictly after the underlying mutation.
-				evita.notifyCatalogStateSettled(catalogName, theCatalog.getCatalogState());
-				return new CommitVersions(theCatalog.getVersion(), theCatalog.getSchema().version());
+					);
+					// Emit the host event AFTER the engine state has been updated so the catalog's
+					// settled state (typically WARMING_UP for a freshly-created catalog) is observable
+					// by HOST-area subscribers strictly after the underlying mutation.
+					evita.notifyCatalogStateSettled(catalogName, theCatalog.getCatalogState());
+					return new CommitVersions(theCatalog.getVersion(), theCatalog.getSchema().version());
+				}
 			}
 		);
 	}

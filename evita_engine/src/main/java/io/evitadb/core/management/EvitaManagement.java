@@ -41,6 +41,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.exception.ExportServiceImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Scheduler;
@@ -311,27 +312,46 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// created and the whole archive written into it. Checking here makes a malformed name a client error
 		// rather than an internal one, and keeps it from ever reaching a path join.
 		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
-		return new SequentialTask<>(
-			catalogName,
-			"Restore catalog " + catalogName + " from backup.",
-			Catalog.createRestoreCatalogTask(
+		// The restore writes a whole catalog into its folder before the registering mutation ever runs, so the
+		// folder has to exist now. The claim taken here is what that mutation resolves the folder through - and
+		// because it resolves by *name*, the claim has to be exclusive: a second restore of this name would
+		// otherwise displace it, and this restore would bind its catalog to the other one's folder (#649).
+		final CatalogFolderReservation reservation = this.evita.getCatalogFolderContext()
+			.allocateFolderFor(catalogName);
+		final SequentialTask<Void> restorationTask;
+		try {
+			restorationTask = new SequentialTask<>(
 				catalogName,
-				// The restore writes a whole catalog into its folder before the registering mutation ever runs,
-				// so the folder has to exist now. Allocating reserves it under the catalog's name; the mutation
-				// dispatched by `registerRestoredCatalog` below then binds to *this* folder instead of
-				// allocating a second one and leaving the restored data unreferenced in the first.
-				this.evita.getCatalogFolderContext().allocateFolderFor(catalogName),
-				this.evita.getConfiguration().storage(),
-				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
-			),
-			new ClientRunnableTask<>(
-				catalogName,
-				"registerInactiveCatalog",
-				"Registering restored catalog " + catalogName + ".",
-				Void.class,
-				session -> this.evita.registerRestoredCatalog(catalogName)
-			)
-		);
+				"Restore catalog " + catalogName + " from backup.",
+				Catalog.createRestoreCatalogTask(
+					catalogName,
+					reservation.folderId(),
+					this.evita.getConfiguration().storage(),
+					fileId, pathToFile, totalBytesExpected, deleteAfterRestore
+				),
+				new ClientRunnableTask<>(
+					catalogName,
+					"registerInactiveCatalog",
+					"Registering restored catalog " + catalogName + ".",
+					Void.class,
+					session -> this.evita.registerRestoredCatalog(catalogName)
+				)
+			);
+		} catch (RuntimeException ex) {
+			reservation.close();
+			throw ex;
+		}
+		// This is the one materialising path whose claim has to outlive the method that took it: the registering
+		// mutation runs in a later step, so releasing any earlier would let a second restore in while this one is
+		// still writing. The task's own future is the release point, and it completes on failure as well as on
+		// success - including a first step that failed, which never reaches the registering step at all.
+		//
+		// Not covered, and stated rather than hidden: a chunked upload whose client disappears leaves a task that
+		// is never submitted, so this future never completes and the name stays claimed until the process
+		// restarts. That is a worse availability story than before and a better correctness one - it used to be
+		// silent wrong data - but it wants task reaping to close properly.
+		restorationTask.getFutureResult().whenComplete((result, ex) -> reservation.close());
+		return restorationTask;
 	}
 
 	/**

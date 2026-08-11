@@ -23,9 +23,11 @@
 
 package io.evitadb.core.engine;
 
+import io.evitadb.api.exception.ConcurrentCatalogMaterializationException;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.FileUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,6 +40,9 @@ import java.nio.file.Path;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Covers which folder a catalog is bound to when the answer is not simply "the one it is already bound to".
@@ -67,9 +72,9 @@ class CatalogFolderContextTest {
 			storageDirectory, boundTo("products", "products_1")
 		);
 
-		final CatalogFolderId allocated = context.allocateFolderFor("products");
+		final CatalogFolderReservation reservation = context.allocateFolderFor("products");
 
-		assertEquals(allocated, context.folderIdForBinding("products"));
+		assertEquals(reservation.folderId(), context.folderIdForBinding("products"));
 	}
 
 	@Test
@@ -113,6 +118,93 @@ class CatalogFolderContextTest {
 		);
 
 		assertEquals(new CatalogFolderId("products"), context.folderIdForBinding("products"));
+	}
+
+	@Nested
+	@DisplayName("Exclusive folder claims")
+	class ExclusiveClaims {
+
+		@Test
+		@DisplayName("Refuses a second allocation while the first is still outstanding")
+		void shouldRefuseASecondAllocationWhileTheFirstIsOutstanding(@TempDir Path storageDirectory) {
+			// Two operations materialising one name is what used to corrupt silently: the second `put` displaced
+			// the first's claim, and the first then read the second's token back out of the map and bound its
+			// catalog to a folder somebody else was still writing into, leaving its own data unreferenced.
+			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
+				storageDirectory, catalogName -> null
+			);
+
+			final CatalogFolderReservation first = context.allocateFolderFor("products");
+
+			assertThrows(
+				ConcurrentCatalogMaterializationException.class,
+				() -> context.allocateFolderFor("products")
+			);
+			// and the first claim is untouched - the refusal must not have disturbed what it holds. Asserted
+			// against the returned token rather than a literal `products_1`, because the generation counter in
+			// the fixture is shared across the class and therefore depends on method execution order
+			assertEquals(first.folderId(), context.folderIdForBinding("products"));
+		}
+
+		@Test
+		@DisplayName("Allows the name to be materialised again once the claim is released")
+		void shouldAllowAllocationAgainAfterTheClaimIsReleased(@TempDir Path storageDirectory) {
+			// The calibration that matters most. Refusing a second allocation is only safe because every claim
+			// is released - recovery from a failed create or restore used to work purely by overwrite, so a
+			// refusal with no matching release would make this name un-materialisable for the life of the
+			// process. This test is what proves the fix did not trade silent corruption for a permanent wedge.
+			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
+				storageDirectory, catalogName -> null
+			);
+
+			final CatalogFolderReservation failed = context.allocateFolderFor("products");
+			failed.close();
+
+			final CatalogFolderReservation retry = context.allocateFolderFor("products");
+			assertNotEquals(
+				failed.folderId(), retry.folderId(),
+				"A retry must draw a fresh folder rather than reusing the one the failed attempt left behind!"
+			);
+			assertEquals(retry.folderId(), context.folderIdForBinding("products"));
+		}
+
+		@Test
+		@DisplayName("Releasing twice does not give away a claim a later operation holds")
+		void shouldNotReleaseALaterClaimWhenClosedTwice(@TempDir Path storageDirectory) {
+			// A second `close()` must be inert. Were it not, an operation that released late would evict the
+			// claim of whichever operation had since taken the name - reopening the very defect this closes.
+			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
+				storageDirectory, catalogName -> null
+			);
+
+			final CatalogFolderReservation first = context.allocateFolderFor("products");
+			first.close();
+			final CatalogFolderReservation second = context.allocateFolderFor("products");
+
+			first.close();
+
+			assertTrue(first.isReleased());
+			assertEquals(
+				second.folderId(), context.folderIdForBinding("products"),
+				"The second claim must survive a late double-release of the first!"
+			);
+		}
+
+		@Test
+		@DisplayName("Claims are per name, so unrelated catalogs never block one another")
+		void shouldNotRefuseAllocationForADifferentCatalog(@TempDir Path storageDirectory) {
+			final CatalogFolderContext context = TestCatalogFolderContexts.onDirectory(
+				storageDirectory, catalogName -> null
+			);
+
+			final CatalogFolderReservation products = context.allocateFolderFor("products");
+			final CatalogFolderReservation orders = context.allocateFolderFor("orders");
+
+			assertNotEquals(products.folderId(), orders.folderId());
+			assertEquals(products.folderId(), context.folderIdForBinding("products"));
+			assertEquals(orders.folderId(), context.folderIdForBinding("orders"));
+		}
+
 	}
 
 	/**

@@ -32,6 +32,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.engine.CatalogFolderContext;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -100,11 +101,15 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 		);
 		// Allocated here rather than derived from the target name: the duplicate is one of the three paths that
 		// materialise a folder, and it was the last one still writing into a directory named after its catalog.
-		final CatalogFolderId targetFolder = this.folderContext.allocateFolderFor(targetCatalogName);
+		final CatalogFolderReservation reservation = this.folderContext.allocateFolderFor(targetCatalogName);
+		final CatalogFolderId targetFolder = reservation.folderId();
 		return new ProgressingFuture<>(
 			0,
 			Collections.singletonList(((Catalog) sourceCatalog).duplicateTo(targetCatalogName, targetFolder)),
 			(progressingFuture, __) -> {
+			// the claim is given back however this phase ends, so a failed duplicate leaves the target name
+			// materialisable again rather than refusing every later attempt for the life of the process
+			try (reservation) {
 				// Declares the folder complete - and therefore loadable - **before** the commit below binds a
 				// catalog to it. The reverse order leaves a referenced folder still wearing its "incomplete"
 				// marker, which boot classification matches as referenced and loads anyway. Labelling the folder
@@ -140,6 +145,7 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 				evita.notifyCatalogStateSettled(targetCatalogName, CatalogState.INACTIVE);
 
 				return null;
+			}
 			}
 		);
 	}
