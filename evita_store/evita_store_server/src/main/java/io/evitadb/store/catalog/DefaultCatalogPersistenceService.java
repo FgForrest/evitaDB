@@ -558,10 +558,10 @@ public class DefaultCatalogPersistenceService
 	 * drop the protection that stops a restore from being written over a populated catalog. Excluding our own
 	 * marker keeps that protection and nothing else.
 	 *
-	 * @return name of the directory (e.g. catalog name)
+	 * @param storageDirectory directory that must exist, be a directory, and optionally hold no catalog data
+	 * @param requireEmpty     whether the directory must hold no catalog data besides evitaDB's own markers
 	 */
-	@Nonnull
-	public static String verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
+	public static void verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
 		final File storageDirectoryFile = storageDirectory.toFile();
 		if (!storageDirectoryFile.exists()) {
 			Assert.isPremiseValid(
@@ -587,8 +587,6 @@ public class DefaultCatalogPersistenceService
 				() -> new DirectoryNotEmptyException(storageDirectory.toString())
 			);
 		}
-
-		return storageDirectoryFile.getName();
 	}
 
 	/**
@@ -1642,7 +1640,8 @@ public class DefaultCatalogPersistenceService
 		// old name. Deriving the prefix from the directory sends the lookup after a `<folder>.boot` that does not
 		// exist, which surfaces far downstream as "no schema found, the data are probably corrupted".
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
-		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
+		// TOBEDONE #538 - original contents:
+		// getLastCatalogBootstrap(<directory name>, this.bootstrapStorageSettings);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
@@ -1813,7 +1812,8 @@ public class DefaultCatalogPersistenceService
 		// see the sibling constructor above: the bootstrap is found through the folder's storage prefix, never
 		// through the directory name, which is no longer guaranteed to be the catalog's name
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
-		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
+		// TOBEDONE #538 - original contents:
+		// getLastCatalogBootstrap(<directory name>, this.bootstrapStorageSettings);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
