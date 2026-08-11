@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-10 21:15
+updated: 2026-08-10 21:50
 status: accepted
 kind: feature
 issues: [761]
@@ -624,18 +624,28 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
 - `shouldReconcileNothingWhenTheWalWasNeverPurged` — the catalog-level half: opening must schedule the
   task, and running it must leave retained history alone when the log has purged nothing. This is the
   test that fails against the defect the full suite exposed.
-- **The rotated end-to-end path — rotate, drop the report at shutdown, reopen, trim — is not covered
-  by a test.** Driving a genuine rotation from `DefaultCatalogPersistenceServiceTest` means
-  reproducing the commit protocol it has no helpers for: rotation only *queues* a deletion until a
-  published header advances `processedVersion`, publishing a header needs a
-  `TransactionMutationWithLocation` that only exists when read back out of the log, and its cumulative
-  checksum settles only once the transaction is drained. Four attempts at that fixture produced a log
-  that read back as a checksum mismatch. The two tests above cover the value and the wiring
-  separately, and `advanceHistoryHorizon` is covered by the tests around them; what is inferred rather
-  than demonstrated is their composition. **An earlier fixture that hand-wrote the on-disk state
-  instead was worse than this gap**: it built a log production cannot produce, went green, and
-  calibrated red — a wrong-state test still fails when you neuter the code, so it read as evidence
-  while proving nothing.
+- `shouldRecoverTheFloorReportRotationLostWhenTheCatalogOpens` (`CatalogHistoryHorizonRecoveryTest`) —
+  the rotated end-to-end path: rotate, lose the report, restart, trim. It drives a real engine end to
+  end — 30 transactions over a 16 KB log rotate it until file `0` is purged — because the fixture that
+  hand-wrote the on-disk state instead was **worse than no test at all**: it built a log production
+  cannot produce, went green, and calibrated red, so it read as evidence while proving nothing.
+  Calibrated by removing the `scheduler.submit` from the load constructor: the wait expires and the
+  oldest retained version never moves off `1`.
+  Two things had to be true of the fixture, and both were found by measurement rather than assumed:
+  - **A shutdown cannot reach the state; only a crash can.** `Evita#close` closes every session
+    *before* it terminates the catalogs, so the pin a closing session hands back drains the refused
+    request and trims while the service is still open. The test therefore keeps the pinning session
+    open and copies the storage folder out from under the live engine — the bytes a crash at that
+    instant leaves behind — then boots the second engine over the copy.
+  - **The trim keeps records `>= floor` and drops the newest one below it** — see
+    `copyAllNecessaryBootstrapRecords`. The retained window therefore *starts above* the floor rather
+    than at it: with the log's oldest surviving file covering versions 26–28, the trim to 26 left the
+    record at 31 as the oldest, and the engine reported that block as starting at 29. A handful of
+    versions the surviving files could still have replayed are given up with it. That is the trim's
+    own coarseness and not something the recovery introduces — the live rotation report goes through
+    the same `trimBootstrapFile` and gives up exactly as much. The test asserts the surviving
+    inherited records are exactly those at or above the floor, which pins both directions: nothing at
+    or above it was given up, and nothing below it was kept.
 - `shouldReportNoFirstBootstrapForAnEmptyBootstrapFile` — `getFirstCatalogBootstrap` documents "or
   NULL if the bootstrap file is empty" but tested only `exists()`, so an existing file too short to
   hold one whole record answered with a Kryo buffer underflow. That is not a cosmetic contract
@@ -807,4 +817,5 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   `CatalogConsumerControl` removed; the pin leak on a refused submission fixed; version pins given
   the same lease treatment the folder hold had, which closed the open follow-up above; the log's
   one-shot floor report made recoverable at open; `getFirstCatalogBootstrap` made to honour its own
-  contract for an empty file
+  contract for an empty file; the rotated end-to-end path closed by an engine-level test that
+  reproduces the crash rather than a shutdown, which is the only way the state it recovers arises
