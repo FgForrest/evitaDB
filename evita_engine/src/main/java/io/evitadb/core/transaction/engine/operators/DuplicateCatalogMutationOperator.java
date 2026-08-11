@@ -103,13 +103,21 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 		// materialise a folder, and it was the last one still writing into a directory named after its catalog.
 		final CatalogFolderReservation reservation = this.folderContext.allocateFolderFor(targetCatalogName);
 		final CatalogFolderId targetFolder = reservation.folderId();
-		return new ProgressingFuture<>(
+		// The copy is started here rather than inside the future below, and that is why it needs its own catch:
+		// `duplicateCatalog` verifies the target directory, takes a read hold and walks the whole source before
+		// it returns a future at all, so anything it throws escapes before there is a future to hang a release
+		// on. Create needs the same guard for the same reason, and has it.
+		final ProgressingFuture<Void> copy;
+		try {
+			copy = ((Catalog) sourceCatalog).duplicateTo(targetCatalogName, targetFolder);
+		} catch (RuntimeException ex) {
+			reservation.close();
+			throw ex;
+		}
+		final ProgressingFuture<Void> duplication = new ProgressingFuture<>(
 			0,
-			Collections.singletonList(((Catalog) sourceCatalog).duplicateTo(targetCatalogName, targetFolder)),
+			Collections.singletonList(copy),
 			(progressingFuture, __) -> {
-			// the claim is given back however this phase ends, so a failed duplicate leaves the target name
-			// materialisable again rather than refusing every later attempt for the life of the process
-			try (reservation) {
 				// Declares the folder complete - and therefore loadable - **before** the commit below binds a
 				// catalog to it. The reverse order leaves a referenced folder still wearing its "incomplete"
 				// marker, which boot classification matches as referenced and loads anyway. Labelling the folder
@@ -146,8 +154,17 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 
 				return null;
 			}
-			}
 		);
+		// The release rides on `whenComplete` rather than on the mapper above, because that mapper is a
+		// `thenApply` continuation of the copy: it is skipped precisely when the copy fails, which is the case
+		// the release exists for. `whenComplete` fires on failure and cancellation as well as on success, and
+		// `close()` is idempotent, so the completeFolder path removing the entry first is harmless.
+		//
+		// Releasing this early is safe only because duplicate never resolves its folder by name - it carries
+		// `targetFolder` from the allocation into the commit. Restore cannot do this: its claim has to outlive
+		// the call that took it, because its registering mutation looks the folder up by catalog name.
+		duplication.whenComplete((result, ex) -> reservation.close());
+		return duplication;
 	}
 
 }

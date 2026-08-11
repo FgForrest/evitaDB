@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 11:40
+updated: 2026-08-11 13:05
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -485,11 +485,32 @@ ergonomics the absolute path used to provide.
   rather than a boolean. Modelled on `CatalogVersionPin` — release bound at acquisition, idempotent close, and an
   `AtomicBoolean` guard, because a late double-release would evict a claim a later operation legitimately holds.
 
-  Release points differ by path, and the difference is the interesting part. Create and duplicate close in
-  try-with-resources around their work phase (create also on a failed synchronous transition, which never reaches
-  that phase). Restore is the one whose claim must outlive the method that took it — its registering mutation runs
-  in a later task step — so the release rides on the task's own future, which completes on failure as well as
-  success.
+  Release points differ by path, and the difference is the interesting part — as is how easy it is to get one
+  wrong. **Create** closes in try-with-resources around its work-phase *lambda*, which runs inside
+  `CompletableFuture.runAsync` under an explicit try/catch, plus a separate catch on its synchronous half.
+  **Duplicate** releases on `whenComplete` of the future it returns, plus a catch around the synchronous
+  `duplicateTo` call. **Restore** is the one whose claim must outlive the method that took it — its registering
+  mutation runs in a later task step — so the release rides on the task's own future, which completes on failure
+  as well as success.
+
+  Duplicate did not start out that way, and the correction is worth recording because the wrong shape looks
+  right. It originally wrapped the *result mapper* in try-with-resources, but that mapper is a `thenApply`
+  continuation of the copy, and `thenApply` is skipped precisely when the upstream fails — so the release sat
+  only on the success path. A second leak sat next to it: `duplicateTo` is evaluated in argument position on the
+  calling thread, and `duplicateCatalog` verifies the target directory, takes a directory read hold and walks the
+  whole source *before* it returns a future, so a synchronous throw escaped while there was still no future to
+  hang a release on. `whenComplete` was chosen over the `ProgressingFuture` `onFailure` consumer because
+  `onFailure` is reached only through the `completeExceptionally` override, so a direct `cancel()` bypasses it.
+
+  **Rejected: `try/finally` around the whole `applyMutation` body.** This is the shape a reader reaches for
+  first, and it is actively wrong rather than merely inelegant — the body *returns* a future, so a `finally`
+  releases the claim before the copy has even started, reopening the corruption the claim exists to prevent.
+
+  The asymmetry that produced the bug is the lesson: create put its risky synchronous work behind a catch and
+  its real work inside a guarded lambda, and duplicate did the reverse on both counts. A leaked claim is not a
+  cosmetic defect — the wedge refuses **restore** of that name too, which is the disaster-recovery path where
+  picking another name is not an option, so it converts a transient I/O error into one that needs a process
+  restart.
 
   Rejected alternatives, each with its blocker: guarding at `EvitaManagement` misses duplicate; task-scoping needs
   an id the mutation API cannot carry (the transaction id is minted inside `applyMutation`); keying the map by
