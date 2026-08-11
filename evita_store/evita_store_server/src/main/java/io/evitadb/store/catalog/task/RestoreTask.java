@@ -30,6 +30,7 @@ import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
@@ -65,10 +66,12 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * Token identifying the folder the catalog is restored into. Bound by the engine rather than derived from
-	 * the catalog name — see `CatalogFolderId` and issue #649.
+	 * Allocates the folder the catalog is restored into. Bound by the engine rather than derived from the catalog
+	 * name — see `CatalogFolderId` and issue #649. Consulted from {@link #doRestore()} rather than from the
+	 * constructor, because allocating creates a directory and claims the catalog name, and this task is created
+	 * long before it runs when the archive arrives over a chunked upload.
 	 */
-	private final CatalogFolderId catalogFolderId;
+	private final CatalogFolderAllocator catalogFolderAllocator;
 
 	/**
 	 * Returns the name the archived file must be written under, carrying the restored catalog's name.
@@ -95,7 +98,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 
 	public RestoreTask(
 		@Nonnull String catalogName,
-		@Nonnull CatalogFolderId catalogFolderId,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
@@ -116,7 +119,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
-		this.catalogFolderId = catalogFolderId;
+		this.catalogFolderAllocator = catalogFolderAllocator;
 	}
 
 	/**
@@ -140,7 +143,10 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
 		) {
-			final Path storagePath = this.storageOptions.storageDirectory().resolve(this.catalogFolderId.id());
+			// the folder is claimed here rather than when this task was built - inside the try, so that a refusal
+			// still closes the stream and takes the abandoned upload's archive down with it
+			final CatalogFolderId catalogFolderId = this.catalogFolderAllocator.allocate();
+			final Path storagePath = this.storageOptions.storageDirectory().resolve(catalogFolderId.id());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
 			ZipEntry entry = Objects.requireNonNull(zipInputStream.getNextEntry());

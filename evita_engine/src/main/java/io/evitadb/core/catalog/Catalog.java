@@ -136,6 +136,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
@@ -352,7 +353,7 @@ public final class Catalog
 	 * Verifies whether the catalog name could be used for a new catalog.
 	 *
 	 * @param catalogName        the name of the catalog
-	 * @param catalogFolderId   token identifying the folder the catalog is to be restored into
+	 * @param catalogFolderAllocator allocates the folder the catalog is restored into, once the restore begins
 	 * @param storageOptions     storage configuration supplying the root the token resolves against
 	 * @param fileId             The ID of the file to be restored.
 	 * @param pathToFile         the path to the ZIP file with the catalog content
@@ -363,7 +364,7 @@ public final class Catalog
 	@Nonnull
 	public static ServerTask<? extends FileIdCarrier, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
-		@Nonnull CatalogFolderId catalogFolderId,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
@@ -374,7 +375,7 @@ public final class Catalog
 			.findFirst()
 			.map(
 				it -> it.restoreCatalogTo(
-					catalogName, catalogFolderId, storageOptions, fileId, pathToFile,
+					catalogName, catalogFolderAllocator, storageOptions, fileId, pathToFile,
 					totalBytesExpected, deleteAfterRestore
 				)
 			)

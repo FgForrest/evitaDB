@@ -64,11 +64,13 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -5032,6 +5034,41 @@ class EvitaTest implements EvitaTestSupport {
 				Arrays.toString(Arrays.stream(siblings).map(File::getName).toArray(String[]::new))
 		);
 		assertEquals(boundFolder.toFile().getName(), siblings[0].getName());
+	}
+
+	@Test
+	@DisplayName("Reserve nothing for a restore whose upload never completes")
+	void shouldReserveNothingUntilTheRestoreActuallyRuns() {
+		// A chunked upload creates its restoration task on the *first* chunk and submits it only once the last
+		// one has arrived, so a client that disappears mid-upload leaves that task behind, unsubmitted. When the
+		// folder was allocated at task creation, that cost a directory nobody would ever write into, a burned
+		// generation number, and an exclusive claim that left the name un-restorable for the life of the
+		// process. Nothing may be reserved until the restore actually starts (#649).
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		final SequentialTask<Void> neverSubmitted = this.evita.management().createRestorationTask(
+			restoredCatalogName,
+			UUIDUtil.randomUUID(),
+			getEvitaTestDirectory().resolve("upload-never-finished.zip"),
+			1024L,
+			true
+		);
+		assertNotNull(neverSubmitted);
+
+		final File[] folders = getEvitaTestDirectory().toFile().listFiles(
+			(dir, name) -> name.equals(restoredCatalogName) || name.startsWith(restoredCatalogName + "_")
+		);
+		assertNotNull(folders);
+		assertEquals(
+			0, folders.length,
+			() -> "A restore that never started must own no folder, found: " +
+				Arrays.toString(Arrays.stream(folders).map(File::getName).toArray(String[]::new))
+		);
+
+		// and the name is still free to materialise - a claim nobody holds must not refuse a later restore
+		try (final CatalogFolderReservation laterAttempt =
+			     this.evita.getCatalogFolderContext().allocateFolderFor(restoredCatalogName)) {
+			assertNotNull(laterAttempt.folderId());
+		}
 	}
 
 	@Test

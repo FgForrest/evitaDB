@@ -143,7 +143,7 @@ public interface CatalogPersistenceServiceFactory {
 	 * Restores a catalog from a backup file to the storage directory.
 	 *
 	 * @param catalogName name of the catalog to restore
-	 * @param catalogFolderId token identifying the folder the catalog is to be restored into
+	 * @param catalogFolderAllocator allocates the folder the catalog is restored into, once the restore begins
 	 * @param storageOptions storage configuration supplying the root the token resolves against
 	 * @param fileId the ID of the file to be restored
 	 * @param totalBytesExpected total bytes expected to be read from the backup file
@@ -155,13 +155,40 @@ public interface CatalogPersistenceServiceFactory {
 	@Nonnull
 	ServerTask<? extends FileIdCarrier, Void> restoreCatalogTo(
 		@Nonnull String catalogName,
-		@Nonnull CatalogFolderId catalogFolderId,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalBytesExpected,
 		boolean deleteAfterRestore
 	) throws EvitaIOException;
+
+	/**
+	 * Hands the restoring task the folder to write into, and does so at the moment the restore actually starts.
+	 *
+	 * The folder is deliberately *not* resolved when the restore task is created. A chunked upload creates its
+	 * task on the first chunk and submits it only once the last one has arrived, so resolving at creation time
+	 * would leave an upload that is abandoned mid-way holding a directory on disk, a consumed generation number
+	 * and an exclusive claim on the catalog name - all for a restore that never ran. See issue #649.
+	 *
+	 * Implementations create a directory and take an exclusive claim on the catalog name, so this is a mutating
+	 * call rather than a lookup: invoke it exactly once, from the restoring task itself. A repeated call answers
+	 * with the folder already allocated rather than allocating a second one.
+	 */
+	@FunctionalInterface
+	interface CatalogFolderAllocator {
+
+		/**
+		 * Allocates - or answers with the already allocated - folder the catalog is restored into.
+		 *
+		 * @return token identifying the folder the catalog is to be restored into
+		 * @throws io.evitadb.api.exception.ConcurrentCatalogMaterializationException when another operation is
+		 *         already materialising this catalog name
+		 */
+		@Nonnull
+		CatalogFolderId allocate();
+
+	}
 
 	/**
 	 * This interface is implemented by a task settings that take care of catalog restoration.

@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 11:08
+updated: 2026-08-11 11:40
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -208,9 +208,18 @@ ergonomics the absolute path used to provide.
   after the rebase onto `dev` `1f67194ca`, **21 138** after the rebase onto `dev` `c1229ead4` (which
   brought in #761), **21 148** after the follow-up fixes below — green apart from the environmental
   non-passes, each of which reproduces on unrelated commits and none of which is caused by this work.
-  The last run is the one to quote: **21 148 tests, 0 failures, 1 error** — that error being
-  `ExportS3ServiceTest`, which needs a Docker environment this machine does not have. An earlier run in the
-  same session came in at 21 144 with four additional non-passes, all of them wall-clock or
+  The last run is the one to quote: **21 151 tests, 0 failures, 1 error** — that error being
+  `ExportS3ServiceTest`, which needs a Docker environment this machine does not have.
+
+  **That figure is not `21 148 + 1` and the difference is the instrument, not the work.** Every count above
+  it came from `-P unitAndFunctional`, whose `excludedGroups` drops `slow,flaky`; the final run used a bare
+  `mvn -o test`, which applies no exclusions. The module holds exactly two `@Tag(SLOW)` tests —
+  `SortIndexRankScalingTest`, and `shouldMatchAcrossMultipleLeavesAndContainers` in
+  `SortIndexTreeProviderEquivalenceTest` — so `21 148 + 2 slow + 1 new = 21 151`, with nothing lost. Do not
+  "reconcile" the series by assuming a test went missing; compare like with like, or the number will be
+  re-derived wrongly.
+
+  An earlier run in the same session came in at 21 144 with four additional non-passes, all of them wall-clock or
   connection-availability assertions — two `EvitaClientReadWriteTest` methods (a 100 s commit watchdog, then
   a shared dataset that could not be set up after it), `EvitaSessionServiceFunctionalTest` on a gRPC
   `UNAVAILABLE`, and `StaleLeafPageTwinWriterReproductionTest` on a hung-thread assertion. **All three
@@ -271,6 +280,13 @@ ergonomics the absolute path used to provide.
 - **`CatalogFolderClassifierTest`, `CatalogFolderCleanerTest`, `CatalogFolderAllocatorTest`** cover
   the classification table, the drain and generation burn-and-skip as pure units, written before the
   code they test — this is the step where a bug deletes user data.
+- **`EvitaTest#shouldReserveNothingUntilTheRestoreActuallyRuns`** is the acceptance criterion for lazy
+  folder allocation: build a restoration task, never submit it, and neither a folder nor a claim may exist
+  afterwards. Both halves were calibrated separately against eager allocation — the folder half reports
+  `[testCatalog_restored_1]`, and with that assertion suppressed the claim half reports
+  `ConcurrentCatalogMaterializationException`. What proves the *ordering* is not this test but the restore
+  paths that still pass: `shouldBackupAndRestoreCatalogViaDownloadingAndUploadingFileContentsUnary` above
+  all, since the claim now lands inside step 1 and the registering mutation resolves it by name in step 2.
 
 ## Consequences & open follow-ups
 
@@ -483,20 +499,49 @@ ergonomics the absolute path used to provide.
   record, and exclusivity buys the same correctness without touching the format; binding up front reintroduces the
   `referenced ∧ provisional` overlap the classifier requires to be unreachable.
 
-  **Residual, not closed — and narrower than it first looks.** It affects the **unary** gRPC upload only. The
-  *streaming* variant takes no claim at all until `onCompleted`, so a client that disappears mid-upload lands in
-  `onError`, deletes its temp file, and has allocated nothing. The unary variant must claim on the *first* chunk,
-  because it needs a folder to append into, and it is **not a stream**: every chunk is an independent
-  request/response ended by its own `onCompleted`, with continuity carried by the returned `fileId` rather than by
-  a live connection. So there is no disconnect to react to — an abandoned upload is indistinguishable from a slow
-  client between chunks, and the name stays claimed until the process restarts.
+  **The abandoned upload, and why the claim is now taken late.** The **unary** gRPC upload is the one caller that
+  creates its restoration task long before it runs: it must create it on the *first* chunk, because the response
+  returns a task status on every chunk and the waiting-task registry is the only thing carrying upload state from
+  one chunk to the next. It is **not a stream** — every chunk is an independent request/response ended by its own
+  `onCompleted`, with continuity carried by the returned `fileId` rather than by a live connection — so there is
+  no disconnect to react to, and an abandoned upload is indistinguishable from a slow client between chunks. The
+  *streaming* variant has no such gap; it creates and submits in `onCompleted`, all at once.
 
-  Closing it needs a **policy, not a hook**: nothing reaps the waiting-task registry, so a task parked by
-  `registerWaitingTask` leaves only via `submitWaitingTask`. The mechanism is already compatible —
-  `SequentialTask#cancel` completes the future, and the release hangs on `whenComplete`, which fires on
-  cancellation — so a TTL sweep over waiting tasks would release the claim with no further plumbing. The same
-  sweep would reclaim the orphaned temp `.zip` files that accumulate today for exactly the same reason, which is a
-  pre-existing leak rather than one this fix introduced.
+  Allocating the folder when the task was *created* therefore charged every abandoned upload a directory nobody
+  would ever write into, a consumed generation number, and — once the claim became exclusive — a name that stayed
+  un-restorable for the life of the process. The first two are older than this work; the claim is what made the
+  mismatch visible. `restoreCatalogTo` now takes a `CatalogFolderAllocator` rather than a `CatalogFolderId`, and
+  `RestoreTask` calls it from `doRestore` — so nothing is reserved until the archive is complete and the restore
+  actually starts. A task that never ran holds nothing, and its release hook finds an empty claim and does
+  nothing. `EvitaTest#shouldReserveNothingUntilTheRestoreActuallyRuns` builds a restoration task, never submits
+  it, and asserts both halves; reverted to eager allocation it reports `[testCatalog_restored_1]` for a folder
+  that should not exist, and then a `ConcurrentCatalogMaterializationException` refusing the name.
+
+  **This moves an error surface, which will look like a bug to someone who was not here.** Two concurrent
+  restores of one name used to be refused at the *API call*, as a client error on the second caller. Now both
+  uploads complete and the loser's *task* fails instead. Nothing asserted the early throw, and the correctness
+  guarantee is unchanged — one restore per name — but the timing and the reporting channel both changed. The
+  synchronous `restoreCatalog(name, size, stream)` caller also loses its uploaded bytes on a collision now: the
+  refusal happens inside `doRestore`, where the archive is already open `DELETE_ON_CLOSE`, so a re-upload is
+  required. That is the deliberate side of the same placement — allocating *before* opening the archive would
+  spare those bytes but strand one temp `.zip` per refusal, and there is no sweep to collect them.
+
+  **Two adjacent defects stay open, and neither belongs to #649.** Both live in `Scheduler`:
+
+  - `purgeFinishedAndLongWaitingTasks` drops a task waiting on a precondition with a bare `it.remove()` and never
+    fails it, so its future never completes. Nothing hangs off that future any more, but it is a silent skip of
+    the kind the project's defensive-design rule forbids, and it is what would otherwise have been the natural
+    hook for reclaiming the orphaned temp `.zip` of an abandoned upload. That leak is still open: every upload
+    path sets `deleteAfterRestore`, which opens the archive `DELETE_ON_CLOSE`, so it is removed only if the task
+    *runs* — and `FileManagementService` has no age-based sweep, since `createTempFile` files are not even the
+    managed kind that `close()` deletes.
+  - the two thresholds in that method are crossed: `waitingThreshold` is built from
+    `FINISHED_TASKS_KEEP_INTERVAL_MILLIS` (5 min) and applied to waiting tasks, while `threshold` uses
+    `WAITING_TASKS_KEEP_INTERVAL_MILLIS` (10 min) for the finished-task defense period. **Any upload slower than
+    five minutes loses its task mid-flight** and the next chunk fails with `Task not found for file`. Verified
+    rather than inferred: a parked task really is `WAITING_FOR_PRECONDITION`, because `registerWaitingTask`
+    never calls `transitionToIssued` and `simplifiedState()` keys off a null `issued`. Raised as **#1415** —
+    it is a live bug of its own and did not belong in a quiet fix buried here.
 - **No supported way to ask which folder a catalog is in, and tests keep guessing.** `CatalogContract` exposes
   no `getCatalogFolderId()`, so a test that drives a real engine and then wants to look at the catalog's files
   has nothing to ask and resolves `storage/<catalogName>` instead — which has not existed since allocation

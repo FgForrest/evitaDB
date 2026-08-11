@@ -100,7 +100,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	@Override
 	public ClientRunnableTask<? extends FileIdCarrier> restoreCatalogTo(
 		@Nonnull String catalogName,
-		@Nonnull CatalogFolderId catalogFolderId,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
@@ -109,7 +109,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	) throws DirectoryNotEmptyException, InvalidStoragePathException {
 		return new RestoreTask(
 			catalogName,
-			catalogFolderId,
+			catalogFolderAllocator,
 			fileId,
 			pathToFile,
 			totalBytesExpected,
