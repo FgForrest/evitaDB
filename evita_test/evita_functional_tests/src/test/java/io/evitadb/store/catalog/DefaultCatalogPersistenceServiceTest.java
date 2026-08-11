@@ -2454,6 +2454,106 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Verifies that duplicating a catalog holds its folder for the whole of the copy.
+	 *
+	 * The listing and the copy are two separate moments: `duplicateCatalog` walks the folder and builds the list of
+	 * files synchronously, while the copy itself runs whenever somebody executes the future it returns. A duplication
+	 * reads the folder the same way a full backup does - by listing it, not by following a bootstrap record - so no
+	 * version can express what it needs, and only the folder hold can keep every listed file alive until the copy
+	 * reaches it.
+	 */
+	@Nested
+	@DisplayName("Catalog duplication under a directory read hold")
+	class CatalogDuplicationTest {
+
+		/**
+		 * Name of the catalog the source is duplicated into.
+		 */
+		private static final String DUPLICATE_CATALOG = "duplicatedCatalog";
+
+		@Test
+		@DisplayName("should hold the folder from the listing until the copy has run")
+		void shouldHoldTheFolderWhileTheDuplicationIsPending() {
+			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
+				writeSeveralGenerations(ioService);
+
+				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
+					DUPLICATE_CATALOG, getStorageOptions()
+				);
+
+				// deliberately not executed - this is the window the files have to survive, and it is unbounded:
+				// the future is queued behind whatever else the engine is doing
+				assertTrue(
+					ioService.isCatalogDirectoryHeld(),
+					"the folder must stay held between the listing that decided what to copy and the copy itself"
+				);
+				assertFalse(duplication.isDone());
+			}
+		}
+
+		@Test
+		@DisplayName("should give the folder back once the copy is finished")
+		void shouldGiveTheFolderBackWhenTheDuplicationRuns() {
+			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
+				writeSeveralGenerations(ioService);
+				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
+					DUPLICATE_CATALOG, getStorageOptions()
+				);
+
+				// run on the calling thread, so the copy is over by the time the assertions below are reached
+				duplication.execute(Runnable::run);
+				duplication.join();
+
+				assertFalse(
+					ioService.isCatalogDirectoryHeld(),
+					"a hold that outlives the copy it protected is the end of reclamation for this catalog"
+				);
+				assertFalse(
+					listCatalogDataFiles(DUPLICATE_CATALOG).isEmpty(),
+					"the duplicate must have received the data files the listing found"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should give the folder back when the copy is never run at all")
+		void shouldGiveTheFolderBackWhenTheDuplicationIsCancelled() {
+			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
+				writeSeveralGenerations(ioService);
+				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
+					DUPLICATE_CATALOG, getStorageOptions()
+				);
+
+				// the copy body never runs, so its own release never happens - the future's completion is the only
+				// thing left to give the folder back, and nothing else would ever notice it had not been
+				duplication.cancel(true);
+
+				assertFalse(
+					ioService.isCatalogDirectoryHeld(),
+					"a duplication that was cancelled before it started must still give the folder back"
+				);
+			}
+		}
+
+		/**
+		 * Builds a persistence service over the test storage folder, ready to be duplicated from.
+		 *
+		 * @return the service under test, which the caller is responsible for closing
+		 */
+		@Nonnull
+		private DefaultCatalogPersistenceService duplicableService() {
+			return new DefaultCatalogPersistenceService(
+				TEST_CATALOG,
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			);
+		}
+
+	}
+
+	/**
 	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
 	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
 	 * CRC32C checksum of the record.

@@ -3051,6 +3051,13 @@ public class DefaultCatalogPersistenceService
 		// verify target folder does not exist or is empty, create it
 		verifyDirectory(targetFolder, true);
 
+		// held from before the listing until the last file has been copied. What this reads cannot be described by
+		// a version: it copies whatever `Files.walk` finds, generations no retained bootstrap record points at
+		// included, and those are precisely what the deleters remove - so it holds the folder for the same reason
+		// a full backup does. The two halves are also separated in time: the listing happens here, the copy runs
+		// asynchronously once somebody executes the future below, and every file has to survive both moments
+		final CatalogDirectoryReadHold directoryReadHold = acquireDirectoryReadHold();
+
 		// collect all file paths into a collection and sort them
 		final List<FileInfo> filesToCopy;
 		try (Stream<Path> files = Files.walk(this.catalogStoragePath)) {
@@ -3086,14 +3093,23 @@ public class DefaultCatalogPersistenceService
 						.thenComparing(FileInfo::creationTime))
 				.toList();
 		} catch (IOException e) {
+			// a listing that throws leaves no future behind, so this is the only place the hold can be given back.
+			// Leaking it here would not delay reclamation for this catalog, it would end it - silently, because the
+			// exception it rides out on looks perfectly handled to the caller
+			directoryReadHold.close();
 			throw new UnexpectedIOException(
 				"Failed to collect files in source catalog directory: " + e.getMessage(),
 				"Failed to collect files in source catalog directory!",
 				e
 			);
+		} catch (RuntimeException e) {
+			// the same, for the throw that does not come from the walk itself: reading a file's attributes fails
+			// inside the mapping lambda and leaves as an `UnexpectedIOException`
+			directoryReadHold.close();
+			throw e;
 		}
 
-		return new ProgressingFuture<>(
+		final ProgressingFuture<Void> duplicationFuture = new ProgressingFuture<>(
 			filesToCopy.size(),
 			progressingFuture -> {
 				try {
@@ -3128,9 +3144,17 @@ public class DefaultCatalogPersistenceService
 						"Failed to duplicate catalog!",
 						e
 					);
+				} finally {
+					// the copy is done with the folder whether it finished it or threw half-way through
+					directoryReadHold.close();
 				}
 			}
 		);
+		// and the same hold again for the future that is never executed at all - cancelled before it started, or
+		// completed by a caller that gave up on it. The lease is idempotent, so the body's own release and this one
+		// cannot both take effect; what must not happen is neither of them doing so
+		duplicationFuture.whenComplete((result, throwable) -> directoryReadHold.close());
+		return duplicationFuture;
 	}
 
 	@Override
