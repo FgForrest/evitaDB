@@ -51,7 +51,6 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
-import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
@@ -78,8 +77,8 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -317,14 +316,15 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// Nothing is materialised here, only promised. A chunked upload creates its task on the first chunk and
 		// submits it once the last one arrives, so allocating now would leave every abandoned upload holding a
 		// directory, a consumed generation and an exclusive claim on the name (#649). The claim lands when the
-		// restore actually starts, and `claim` is how the release hook below finds it afterwards.
-		final AtomicReference<CatalogFolderReservation> claim = new AtomicReference<>();
+		// restore actually starts, and `claim` is what carries it from there to whichever of the registering
+		// step and the release hook gets to it first.
+		final RestoreFolderClaim claim = new RestoreFolderClaim();
 		final SequentialTask<Void> restorationTask = new SequentialTask<>(
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
 				catalogName,
-				() -> allocateFolderForRestore(catalogName, claim),
+				() -> claim.allocate(this.evita.getCatalogFolderContext(), catalogName),
 				this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
@@ -333,17 +333,21 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				"registerInactiveCatalog",
 				"Registering restored catalog " + catalogName + ".",
 				Void.class,
-				session -> this.evita.registerRestoredCatalog(catalogName)
+				session -> registerRestoredCatalogHoldingItsFolder(catalogName, claim)
 			)
 		);
 		// This is the one materialising path whose claim has to outlive the call that took it: the registering
-		// mutation runs in a later step, so releasing any earlier would let a second restore in while this one is
-		// still writing. The task's own future is the release point, and it completes on failure as well as on
-		// success - including a first step that failed, which never reaches the registering step at all. A task
-		// that never ran holds nothing, so an abandoned upload finds `claim` empty and there is nothing to release.
+		// step runs later, so releasing any earlier would let a second restore in while this one is still writing.
+		// The task's own future is the release point, and it completes on failure as well as on success -
+		// including a first step that failed, which never reaches the registering step at all. A task that never
+		// ran holds nothing, so an abandoned upload finds nothing to release.
+		//
+		// This hook can fire *while* the registering step runs: `SequentialTask#cancel()` completes the future
+		// without stopping a step already executing. `takeClaim` is therefore a handover, not a read - whichever
+		// of the two gets there first owns the release, and the other finds nothing (#649).
 		restorationTask.getFutureResult().whenComplete(
 			(result, ex) -> {
-				final CatalogFolderReservation reservation = claim.get();
+				final CatalogFolderReservation reservation = claim.takeClaim();
 				if (reservation != null) {
 					reservation.close();
 				}
@@ -353,32 +357,34 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	}
 
 	/**
-	 * Allocates the folder a restore writes into, recording the claim so that the task's completion can release it.
+	 * Registers a restored catalog while holding its folder claim, so that nothing can take the name in between.
 	 *
-	 * The restore writes a whole catalog into its folder before the registering mutation ever runs, so the folder
-	 * has to exist by the time the archive is unpacked. The claim taken here is what that mutation resolves the
-	 * folder through - and because it resolves by *name*, the claim has to be exclusive: a second restore of this
-	 * name would otherwise displace it, and this restore would bind its catalog to the other one's folder (#649).
+	 * The registering mutation resolves the restored folder **by catalog name**, so the claim has to still be
+	 * held while it runs — a second restore that took the name in that window would make this one bind its
+	 * catalog to the other one's half-written folder. Taking the claim out of the holder is what guarantees that:
+	 * the completion hook can no longer release it underneath this call.
 	 *
-	 * @param catalogName name of the catalog being restored
-	 * @param claim       holder the taken claim is recorded in, so the release hook can find it
-	 * @return token identifying the folder the catalog is to be restored into
+	 * Finding no claim is not an error in the code, it means the task was cancelled or failed and the hook has
+	 * already given the name back. Registering anyway would publish a catalog the client was told it would not
+	 * get, so this refuses instead.
+	 *
+	 * @param catalogName name of the catalog being registered
+	 * @param claim       holder carrying the claim taken when the restore started
 	 */
-	@Nonnull
-	private CatalogFolderId allocateFolderForRestore(
+	private void registerRestoredCatalogHoldingItsFolder(
 		@Nonnull String catalogName,
-		@Nonnull AtomicReference<CatalogFolderReservation> claim
+		@Nonnull RestoreFolderClaim claim
 	) {
-		// asked twice, this answers with the folder it already took - allocating again would both strand the first
-		// directory and refuse against this restore's own claim
-		final CatalogFolderReservation alreadyTaken = claim.get();
-		if (alreadyTaken != null) {
-			return alreadyTaken.folderId();
+		final CatalogFolderReservation heldClaim = claim.takeClaim();
+		if (heldClaim == null) {
+			throw new CancellationException(
+				"Restore of catalog `" + catalogName + "` ended before it could be registered - its folder claim " +
+					"was already given back."
+			);
 		}
-		final CatalogFolderReservation reservation = this.evita.getCatalogFolderContext()
-			.allocateFolderFor(catalogName);
-		claim.set(reservation);
-		return reservation.folderId();
+		try (heldClaim) {
+			this.evita.registerRestoredCatalog(catalogName);
+		}
 	}
 
 	/**

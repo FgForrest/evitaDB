@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 13:20
+updated: 2026-08-11 13:45
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -492,6 +492,44 @@ ergonomics the absolute path used to provide.
   `duplicateTo` call. **Restore** is the one whose claim must outlive the method that took it — its registering
   mutation runs in a later task step — so the release rides on the task's own future, which completes on failure
   as well as success.
+
+  **Restore needs more than a completion hook, because cancellation does not stop a running step.**
+  `SequentialTask#cancel()` is bookkeeping: it marks the steps cancelled and calls `futureResult.cancel(true)`,
+  but `CompletableFuture` ignores `mayInterruptIfRunning` and `Scheduler` discards the executor's `Future`, so
+  nothing can interrupt a step that is already executing. A cancel landing while the registering step runs
+  therefore fires the release hook on the cancelling thread and frees the name *mid-registration* — and because
+  that registration resolves its folder **by name**, a second restore that takes the name in the window can have
+  the first bind its catalog to the second one's half-written folder. The window is `[step 2 passes its QUEUED
+  check]` → `[the operator reads `folderIdForBinding`]`, bounded by the 300 s `engineStateLock` timeout, and it
+  is reachable by any client through `CancelTask` over gRPC as well as by `Scheduler#shutdown()`.
+
+  **Fixed by ownership transfer**, in `RestoreFolderClaim`: both the registering step and the completion hook
+  call `takeClaim()`, a single `getAndSet(null)`, so exactly one can win. Step wins → it holds the name across
+  the whole registration and releases in a `finally`. Hook wins → the name is freed at once and the step refuses
+  to register, which also fixes a second, *deterministic* defect that needed no race at all — a cancelled restore
+  used to register its catalog anyway whenever the cancel landed after the registering step started. Exactly-once
+  by construction, no lock, cancellation stays non-blocking, and no WAL-format change.
+
+  The folder token is deliberately held in a **separate field** from the takeable claim. `allocate` is call-once
+  by contract but answers idempotently, and nulling a single shared field would turn that second read into a
+  failure the moment the claim changed hands.
+
+  Rejected, each with its blocker: **guarding the hook on step-2 termination** — same correctness, worse
+  liveness, since cancellation would block for up to 300 s on the gRPC thread and on every task during shutdown.
+  **Making `cancel()` await termination** — the most honest semantics and contained to one construction site, but
+  it needs an "execution finished" signal that does not exist (step futures are *cancelled*, not completed) and
+  it makes shutdown block on every running task. **Carrying the token on `RestoreCatalogSchemaMutation`** — the
+  format blockers above still hold, and it is now also *insufficient*: it would stop the mis-binding but not a
+  cancelled task registering a catalog at all.
+
+  **Only duplicate was refuted as a second racer.** Duplicate and create allocate *inside* `applyMutation`,
+  after their `CatalogConflictKey(name)` is registered, so `verifyEngineMutationIsNotInConflictWithOthers`
+  refuses either ordering. Restore is the only path that allocates outside an engine mutation. Worth knowing
+  before anyone loosens conflict-key granularity — that change would silently widen this exposure to duplicate.
+
+  **Still open, and deliberately:** cancelling a restore does not stop the unpacking. A cancelled multi-gigabyte
+  restore runs to completion while the client is told "cancelled". That is the same family as the `Scheduler`
+  cancellation defects in #1415 and wants the same fix — an interruptible step — not a patch here.
 
   Duplicate did not start out that way, and the correction is worth recording because the wrong shape looks
   right. It originally wrapped the *result mapper* in try-with-resources, but that mapper is a `thenApply`
