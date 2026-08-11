@@ -50,4 +50,35 @@ public class BootstrapFileNotFound extends EvitaInvalidUsageException {
 		this.catalogDirectory = catalogDirectory;
 		this.bootstrapFile = bootstrapFile;
 	}
+
+	/**
+	 * Variant that distinguishes a folder holding *nothing but* evitaDB's own markers from one holding data it
+	 * cannot find a bootstrap record for.
+	 *
+	 * The two are the same failure - a catalog that must exist does not - but they point at different causes, and
+	 * saying which is what stops the reader looking for the wrong thing. A folder wearing only its markers was
+	 * allocated by a create, restore or duplicate that never finished writing; a folder with data in it and no
+	 * bootstrap record has lost the record rather than the data.
+	 *
+	 * @param catalogDirectory  directory the catalog was expected in
+	 * @param bootstrapFile     bootstrap file that was looked for and not found
+	 * @param holdsNoCatalogData whether the directory holds nothing beyond evitaDB's own marker files
+	 */
+	public BootstrapFileNotFound(
+		@Nonnull Path catalogDirectory,
+		@Nonnull File bootstrapFile,
+		boolean holdsNoCatalogData
+	) {
+		super(
+			holdsNoCatalogData ?
+				"Catalog directory `" + catalogDirectory + "` holds no catalog data at all - it was allocated " +
+					"by an operation that never finished writing into it!" :
+				"Failed to locate bootstrap file for catalog `" + catalogDirectory +
+					"` and the directory is not empty!",
+			"Failed to locate bootstrap file for catalog `" +
+				catalogDirectory.getName(catalogDirectory.getNameCount() - 1) + "`."
+		);
+		this.catalogDirectory = catalogDirectory;
+		this.bootstrapFile = bootstrapFile;
+	}
 }

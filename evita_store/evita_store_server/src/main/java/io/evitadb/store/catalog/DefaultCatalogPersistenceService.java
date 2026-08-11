@@ -1254,18 +1254,23 @@ public class DefaultCatalogPersistenceService
 				return oldBootstrap;
 			}
 		} else {
-			// an allocation marker is not catalog data - see `holdsNoCatalogData`; a folder that has only just
-			// been allocated is exactly the "brand-new catalog" case this branch exists for
-			if (holdsNoCatalogData(catalogStoragePath.toFile())) {
-				return new CatalogBootstrap(
-					0,
-					0,
-					Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-					null
-				);
-			} else {
-				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
-			}
+			// Every path that reaches here is *loading* a catalog that is supposed to exist, and none of them can
+			// legitimately meet a folder with no bootstrap file: a registered catalog has committed at least its
+			// schema, a restore has unpacked its archive, and `replaceWith` wrote a record into this very folder
+			// moments earlier. Creating a catalog does not come through here at all - `createNew` builds its own
+			// starting record inline - so there is no "brand-new catalog" case to serve.
+			//
+			// Inventing `CatalogBootstrap(0, 0, now, null)` here used to be that service, and it is why this
+			// failed the way it did: a null `fileLocation` makes the storage part service fabricate a header with
+			// a freshly minted random catalog id, so the load proceeds on an identity invented for data that does
+			// not exist and dies much later, at the schema read, reporting that the user's data are corrupted.
+			//
+			// `holdsNoCatalogData` therefore chooses the *message*, never whether to throw - an interrupted
+			// create/restore/duplicate leaves a folder wearing only its markers, which is worth saying out loud
+			// rather than reporting as missing data.
+			throw new BootstrapFileNotFound(
+				catalogStoragePath, bootstrapFile, holdsNoCatalogData(catalogStoragePath.toFile())
+			);
 		}
 	}
 

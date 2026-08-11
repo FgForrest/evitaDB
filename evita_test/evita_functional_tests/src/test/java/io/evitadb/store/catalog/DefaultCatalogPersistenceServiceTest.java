@@ -1418,6 +1418,39 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("Refuses to open a catalog whose folder holds nothing but evitaDB's own markers")
+		void shouldRefuseToOpenACatalogWhoseFolderHoldsNoData() throws IOException {
+			// A folder wearing only its provisional marker is what a create, restore or duplicate leaves behind
+			// when it dies mid-write. Loading it used to succeed against an invented `CatalogBootstrap(0, 0, now,
+			// null)`, whose null file location makes the storage part service fabricate a header carrying a
+			// freshly minted random catalog id - an identity conjured for data that does not exist. The load then
+			// died at the schema read, blaming the user's data for an engine bookkeeping failure.
+			final Path catalogFolder = getStorageOptions().storageDirectory().resolve("markerOnlyFolder");
+			Files.createDirectories(catalogFolder);
+			Files.createFile(catalogFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG));
+
+			final BootstrapFileNotFound exception = assertThrows(
+				BootstrapFileNotFound.class,
+				() -> new DefaultCatalogPersistenceService(
+					Mockito.mock(CatalogContract.class),
+					"markerOnlyFolder",
+					new CatalogFolderId("markerOnlyFolder"),
+					getStorageOptions(),
+					getTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			);
+			// the message has to separate "allocated and never written" from "data present, record lost" - they
+			// are the same failure but point the reader at different causes
+			assertTrue(
+				exception.getMessage().contains("holds no catalog data at all"),
+				"A marker-only folder must be reported as never written, not as a missing bootstrap file - got `"
+					+ exception.getMessage() + "`!"
+			);
+		}
+
+		@Test
 		@DisplayName("Does not match a foreign prefix when the prefix contains a regex wildcard")
 		void shouldNotMatchForeignFilesWhenPrefixContainsRegexWildcard() {
 			// `.` is legal in a catalog name and is a regex wildcard - unquoted it matches any character at all
