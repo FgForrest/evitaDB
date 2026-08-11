@@ -135,6 +135,17 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
+								// A name in the missing bucket is invisible to `getCatalogNames()` after a
+								// restart, so applicability lets a duplicate through onto it - and the binding
+								// that bucket entry kept alive would then refuse to move, leaving the copy
+								// unreferenced and un-adoptable under its own name. Nothing is lost by clearing
+								// it: a missing catalog is one whose folder is gone (#649).
+								// A name in the missing bucket is invisible to `getCatalogNames()` after a
+								// restart, so applicability lets a duplicate through onto it - and the binding
+								// that bucket entry kept alive would then refuse to move, leaving the copy
+								// unreferenced and un-adoptable under its own name. Nothing is lost by clearing
+								// it: a missing catalog is one whose folder is gone (#649).
+								.withCatalogNoLongerMissing(targetCatalogName)
 								.withCatalog(
 									DuplicateCatalogMutationOperator.this.folderContext.createUnusableCatalog(
 										targetCatalogName, targetFolder, CatalogState.INACTIVE,

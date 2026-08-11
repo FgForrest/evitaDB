@@ -1,7 +1,7 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 13:05
+updated: 2026-08-11 13:20
 status: partially-implemented
 kind: refactor
 issues: [649]
@@ -634,6 +634,31 @@ ergonomics the absolute path used to provide.
   follows establishes the new one; create and replace clear the bucket too. The three-way builder split — the
   reason the fix was originally deferred — is left intact, because making the binding *absent* tells the truth
   about a catalog whose folder is gone and needs no new way to overwrite a live binding.
+
+  **That fix missed one path, and this record read as an all-clear for a while as a result.** `f04f33109`
+  covered create, rename and restore; **duplicate** was the fourth operator over the same bucket and was not
+  touched, so duplicating onto a persisted-MISSING name kept the stale binding and stranded the copied data. It
+  is fixed now, by the same one-line `withCatalogNoLongerMissing` the three siblings use.
+
+  Reaching it needs **two boots**, which is why no test caught it: `MarkCatalogMissingMutation` is emitted from
+  boot reconciliation, and in that same boot the name is still served by an `UnusableCatalog(MISSING)` stub, so
+  applicability correctly refuses. From the next boot the runtime map is rebuilt from the active and inactive
+  buckets only, so the name reads as free.
+
+  Nothing is destroyed by it — the orphaned copy classifies UNCLAIMED, which is warn-only, not drained. The
+  escalation is worse than deletion would be: recovery is *blocked*, because `isAdoptableCatalogName` refuses
+  any bare name in `registeredCatalogNames` and that set includes `missingCatalogs`, so the one name an operator
+  would reach for is precisely the one that fails. Activate the duplicate instead and `verifyDirectory`'s
+  `mkdirs()` recreates the vanished folder empty, which makes it "reappear" at the next boot and drives a
+  restore mutation against a live stub — **the engine then refuses to start.**
+
+  **The real lesson is the shape, not the line.** This was the *fourth* instance of one defect class, found
+  four times separately. The durable fix is a cross-bucket disjointness premise in `EngineState`'s canonical
+  constructor, which would have caught all four at the source. It is deliberately **not** done here: it is a
+  guard rather than a fix, and it needs a sweep for legitimate transient overlap first — a builder chain may
+  well pass through a state where a name sits in two buckets before the next call removes it. Rejected outright:
+  refusing the duplicate in `verifyApplicability`, because restore *must* be permitted onto a missing name, so
+  that would add a fourth divergent rule over the same bucket rather than removing the divergence.
 - **Renaming an ALIVE catalog that had committed a transaction broke the next boot — now fixed**, in
   `0e1a13142`, after this record was first written. The defect predated the work (`replaceWith`'s
   `version() + 1` and `verifyIntegrity`'s WAL assertion were byte-identical at the branch point) and was
