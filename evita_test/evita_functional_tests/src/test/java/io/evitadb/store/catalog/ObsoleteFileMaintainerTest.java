@@ -50,7 +50,9 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -359,6 +361,139 @@ class ObsoleteFileMaintainerTest {
 				assertEquals(100L, maintainer.getRetentionFloor());
 			}
 		}
+	}
+
+	/**
+	 * Verifies that the deleter which runs with time travel **off** - the default configuration - spends the pins the
+	 * consumers take, rather than only the departure reports.
+	 *
+	 * This is the pass that actually unlinks a retired data file outside time travel, and it is driven by the version
+	 * the last session left behind: a quantity that only ever rises, and one that a consumer starting on a version in
+	 * the past never appears in. A point-in-time backup is that consumer - it reads through the bootstrap record it
+	 * captured and holds it with a pin rather than with a folder hold, because it follows a record instead of listing
+	 * the folder. A purge that does not consult pins therefore deletes the generation the backup is copying, while it
+	 * copies it, and the archive is left referencing files that are already gone.
+	 */
+	@Nested
+	@DisplayName("Eager purge of retired files under a version pin")
+	class EagerPurgeUnderVersionPin {
+
+		/**
+		 * Catalog version a point-in-time backup is reading, and the version at which the file serving it was retired.
+		 */
+		private static final long PINNED_VERSION = 5L;
+
+		/**
+		 * Version of an older generation, retired before the pinned one and reachable by nobody.
+		 */
+		private static final long SUPERSEDED_VERSION = 1L;
+
+		/**
+		 * Version every session has moved past by the time the purge is driven.
+		 */
+		private static final long ADVANCED_VERSION = 10L;
+
+		@Test
+		@DisplayName("The pinned generation survives a pass that collects everything below it")
+		void shouldKeepTheGenerationAPointInTimeBackupIsReading() throws IOException, InterruptedException {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(false)) {
+				final RetiredGenerations retired = retireBothGenerationsUnderAPin(maintainer);
+
+				// the older generation being collected is what proves the pass ran - waiting on a clock instead would
+				// assert nothing on a machine that is merely slow, and the pass has no other observable end
+				assertTrue(
+					retired.supersededPurged().await(30, TimeUnit.SECONDS),
+					"the purge must collect the generation no consumer holds"
+				);
+
+				assertEquals(
+					1, retired.pinnedPurged().getCount(),
+					"the purge must not collect the generation a backup is still reading"
+				);
+				assertTrue(
+					retired.pinnedFile().toFile().exists(),
+					"the data file of a pinned version must survive the pass that took the one below it"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Releasing the pin brings back the pass it turned away")
+		void shouldCollectThePinnedGenerationOnceTheBackupIsDone() throws IOException, InterruptedException {
+			try (ObsoleteFileMaintainer maintainer = newMaintainer(false)) {
+				final RetiredGenerations retired = retireBothGenerationsUnderAPin(maintainer);
+				assertTrue(retired.supersededPurged().await(30, TimeUnit.SECONDS));
+
+				maintainer.catalogVersionReleased(PINNED_VERSION);
+
+				// nothing else would ever come back for it: the departure that drove the pass above is long past, and
+				// the task it schedules is the only driver these files have.
+				// The removal lambda is the observation rather than the file, because the purge runs the lambda and
+				// then unlinks - a test woken by the lambda and reaching for the file races the very next statement
+				// of the thread that woke it, and would fail on a coin toss. What the lambda reports is the decision
+				// this test is about; the unlink follows it unconditionally in the same method
+				assertTrue(
+					retired.pinnedPurged().await(30, TimeUnit.SECONDS),
+					"the release of the last pin must bring back the purge the pin turned away"
+				);
+			}
+		}
+
+		/**
+		 * Recreates what a point-in-time backup running against a compacting catalog leaves behind: two retired
+		 * generations, the newer one held by the backup's pin, and every session already past both of them.
+		 *
+		 * @param maintainer the maintainer under test
+		 * @return the retired generations and the latches their removal lambdas count down
+		 */
+		@Nonnull
+		private RetiredGenerations retireBothGenerationsUnderAPin(@Nonnull ObsoleteFileMaintainer maintainer)
+			throws IOException {
+			final Path supersededFile = createCatalogFile(0);
+			final Path pinnedFile = createCatalogFile(1);
+			final CountDownLatch supersededPurged = new CountDownLatch(1);
+			final CountDownLatch pinnedPurged = new CountDownLatch(1);
+
+			// the backup pins the version of the bootstrap record it is about to copy, before anything retires
+			maintainer.catalogVersionPinned(PINNED_VERSION);
+			// compactions retire both generations - the maintained list is kept in ascending version order
+			maintainer.removeFileWhenNotUsed(SUPERSEDED_VERSION, supersededFile, supersededPurged::countDown);
+			maintainer.removeFileWhenNotUsed(PINNED_VERSION, pinnedFile, pinnedPurged::countDown);
+			// and every session moves past both and leaves, which is what drives the purge
+			maintainer.catalogConsumersLeft(ADVANCED_VERSION, ADVANCED_VERSION);
+
+			return new RetiredGenerations(pinnedFile, supersededPurged, pinnedPurged);
+		}
+
+		/**
+		 * Creates an empty catalog data file with the given index inside the temporary catalog storage path.
+		 *
+		 * @param fileIndex index of the catalog data file
+		 * @return path of the created file
+		 */
+		@Nonnull
+		private Path createCatalogFile(int fileIndex) throws IOException {
+			return Files.createFile(
+				ObsoleteFileMaintainerTest.this.catalogStoragePath.resolve(
+					getCatalogDataStoreFileName(CATALOG_NAME, fileIndex)
+				)
+			);
+		}
+
+		/**
+		 * The state a backup running against a compacting catalog leaves behind.
+		 *
+		 * @param pinnedFile       data file of the generation the backup's pin holds
+		 * @param supersededPurged counted down when the generation below the pin is collected
+		 * @param pinnedPurged     counted down when the pinned generation is collected
+		 */
+		private record RetiredGenerations(
+			@Nonnull Path pinnedFile,
+			@Nonnull CountDownLatch supersededPurged,
+			@Nonnull CountDownLatch pinnedPurged
+		) {
+		}
+
 	}
 
 	/**

@@ -329,6 +329,15 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 				catalogVersion
 			);
 		}
+		// the eager purge is clamped by the floor this release may have just lowered, and the departure that drove it
+		// is long past by the time a backup finishes - so whatever the clamp left behind has no other driver to come
+		// back for it. With time travel on this task is not the deleter at all: there the release is answered by
+		// `DefaultCatalogPersistenceService#retentionStateChanged`, which re-drives the trim and the sweep.
+		// Guarded on `closed` for the same reason that method is: a consumer can outlive the maintainer, and a task
+		// scheduled after the shutdown that already emptied the folder has nothing left to collect
+		if (!this.timeTravelEnabled && !this.closed.get()) {
+			this.purgeTask.trySchedule();
+		}
 	}
 
 	/**
@@ -485,12 +494,26 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * The body of {@link #purgeObsoleteFiles()}, to be run only with the folder held exclusively.
 	 */
 	private void purgeObsoleteFilesUnguarded() {
-		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
+		// the departure report answers "has everyone moved past this version", which is not the question a file has
+		// to survive: a consumer that *starts* on a version in the past never appears in it, because it is the
+		// minimum over the sessions that left. A point-in-time backup is exactly that consumer - it pins the version
+		// of the bootstrap record it copies - so the threshold is clamped by the retention floor, which is what makes
+		// a pin mean the same thing here as it does on the time-travel path where the trim honours it.
+		// The absent floor is `-1` and must never become the threshold: `0` is a pinnable version, so "nothing is
+		// held" cannot be reported as one, and taking the minimum blindly would stop this purge for good
+		final long retentionFloor = getRetentionFloor();
+		final long reportedMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
+		final long purgeThreshold = retentionFloor < 0L ?
+			reportedMinimalActiveVersion :
+			Math.min(reportedMinimalActiveVersion, retentionFloor);
 		/* TOBEDONE JNO - this is only for debugging purposes, we should rely on events instead */
 		if (!this.maintainedFiles.isEmpty()) {
 			log.info(
-				"Purging obsolete files - last known minimal active version: {}\nFiles waiting for removal:\n{}",
-				lastKnownMinimalActiveVersion,
+				"Purging obsolete files - purge threshold: {} (last known minimal active version: {}, retention " +
+					"floor: {})\nFiles waiting for removal:\n{}",
+				purgeThreshold,
+				reportedMinimalActiveVersion,
+				retentionFloor,
 				this.maintainedFiles.stream()
 					.map(MaintainedFile::path)
 					.map(Path::toString)
@@ -501,7 +524,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		final List<MaintainedFile> itemsToRemove = new LinkedList<>();
 		long newFirstCatalogVersion = 0L;
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {
-			if (maintainedFile.catalogVersion() < lastKnownMinimalActiveVersion) {
+			if (maintainedFile.catalogVersion() < purgeThreshold) {
 				purgeFile(maintainedFile);
 				itemsToRemove.add(maintainedFile);
 			} else {
