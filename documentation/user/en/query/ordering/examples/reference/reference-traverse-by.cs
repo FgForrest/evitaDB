@@ -14,7 +14,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			"categories",
         			TraverseByEntityProperty(
         				BreadthFirst,
-        				EntityPrimaryKeyNatural(Asc)
+        				AttributeNatural("order", Asc)
         			),
         			AttributeNatural("orderInCategory", Asc)
         		)

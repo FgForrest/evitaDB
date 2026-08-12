@@ -6,17 +6,16 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	FilterBy(
         		HierarchyWithin(
         			"categories",
-        			AttributeEquals("code", "accessories")
+        			AttributeEquals("code", "e-readers")
         		)
         	),
         	OrderBy(
         		ReferenceProperty(
         			"categories",
-        			TraverseByEntityProperty(
-        				BreadthFirst,
-        				EntityPrimaryKeyNatural(Asc)
+        			PickFirstByEntityProperty(
+        				AttributeNatural("order", Desc)
         			),
-        			AttributeNatural("orderInCategory", Asc)
+        			AttributeNatural("categoryPriority", Desc)
         		)
         	),
         	Require(
@@ -24,7 +23,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			AttributeContent("code"),
         			ReferenceContentWithAttributes(
         				"categories",
-        				AttributeContent("orderInCategory")
+        				AttributeContent("categoryPriority")
         			)
         		)
         	)

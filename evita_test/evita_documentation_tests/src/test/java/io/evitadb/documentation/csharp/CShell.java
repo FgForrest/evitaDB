@@ -50,6 +50,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -114,7 +115,7 @@ public class CShell {
             final BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.contains("Error") || line.contains("Exception")) {
+                if (isErrorLine(line)) {
                     throw new CsharpExecutionException(line);
                 } else {
                     actualOutput.append(line).append("\n");
@@ -140,6 +141,12 @@ public class CShell {
         return actualOutput.toString();
     }
 
+	private static boolean isErrorLine(@Nonnull String line) {
+		return line.startsWith("Error:")
+			|| line.startsWith("Exception:")
+			|| line.startsWith("Unhandled exception");
+	}
+
     /**
      * Method for downloading the latest, os-specific version of C# query validator executable.
      */
@@ -153,7 +160,7 @@ public class CShell {
         }
         final Path zipPath = Paths.get(VALIDATOR_TEMP_FOLDER_PATH.toString(), "Validator.zip");
 
-        final String zipUrl = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator" + (isWindows() ? "-win" : "") + ".zip");
+        final String zipUrl = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator" + (getOsSuffix()) + ".zip");
         log.info("Downloading C# query validator from {} to {}", zipUrl, zipPath);
         try (InputStream in = new URL(zipUrl).openStream()) {
             Files.copy(in, Paths.get(zipPath.toUri()), StandardCopyOption.REPLACE_EXISTING);
@@ -278,13 +285,29 @@ public class CShell {
         }
     }
 
+	private static String getOsName() {
+		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+	}
+
     /**
      * Helper method that returns information whether the current OS is Windows.
      * @return true if the current OS is Windows
      */
     private static boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().contains("win");
+        return getOsName().contains("win");
     }
+
+	private static String getOsSuffix() {
+		final String os = getOsName();
+
+		if (os.contains("win")) {
+			return "-win";
+		}
+		if (os.contains("mac")) {
+			return "-mac";
+		}
+		return ""; // Linux and other operating systems
+	}
 
     /**
      * Helper method that adds extension to the C# query validator executable file name based on the current OS.
