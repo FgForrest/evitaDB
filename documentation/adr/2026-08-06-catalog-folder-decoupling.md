@@ -354,40 +354,42 @@ ergonomics the absolute path used to provide.
   delete had to reach it through an injected store-backed handle. The delete routes this decoupling made
   dead were removed instead. Recorded because the constraint is a natural thing to re-derive from the old
   shape and then design around, and there is no longer anything to design around.
-- **Forward replay of rename/replace is still not implemented.** The old blocker (an unrepeatable deep
-  on-disk rename) is gone, and the disk work is now idempotent. What blocks it is narrower: the
-  completion phase stages a *live catalog instance*, and at replay time every catalog is still a
-  placeholder, so `stageCatalog` would file the name in the wrong bucket. It needs a builder path that
-  rebinds and re-buckets without a live instance.
+- **Forward replay of rename/replace shipped, and the estimate that deferred it was an order of magnitude too
+  large.** It needed no new engine mutation — the log already carries `ModifyCatalogSchemaNameMutation`, and a
+  durable crashed record of that type is the premise of the whole scenario. One `ExpandedEngineState.Builder`
+  method plus a `replayCompletionState` override was the whole shape of it.
 
-  **It does not need a new engine mutation** — the WAL already carries `ModifyCatalogSchemaNameMutation`, and a
-  durable crashed record of that type is the premise of the whole scenario. It needs one new
-  `ExpandedEngineState.Builder` method and a `replayCompletionState` override on the existing operator. Recorded
-  because the "new mutation type" estimate is what justified deferring this, and it is roughly an order of
-  magnitude too large.
+  The blocker that had to be understood first was subtler than "stages a live instance": the ordinary binding
+  builder *infers* the persisted bucket from whether it was handed a real catalog, which is right on the live
+  path and silently wrong at replay time, where opening a catalog is forbidden and only a placeholder exists.
+  Inferring there files a live catalog as inactive — no exception, no failing assert, just a catalog that comes
+  back from the next boot switched off. The replay path states the bucket instead.
 
-  **There is a second blocker, and it is the one that bites first.** Every existing `replayCompletionState`
-  mints its placeholder through the 3-arg `createUnusableCatalog`, which resolves the folder via
-  `folderIdFor(catalogName)` — and that *throws* on an unbound name while reading state still at the pre-mutation
-  version. For a rename the destination name is unbound there, so replay would throw out of the
-  `EngineTransactionManager` constructor and **the engine would not boot at all**. The 4-arg overload taking an
-  explicit folder id already exists and is the fix; the failure mode if it is missed is a dead engine.
+  **A trap that still applies:** the tombstone must be gated on the destination's presence in the catalogs map,
+  never on it merely having a binding. A MISSING destination keeps a binding by design, naming a folder that no
+  longer exists — tombstoning it authorises deleting a folder a later allocation could legitimately hold.
 
-  **What "wedges the engine" actually costs today is worse than it sounds**, and is the argument for doing this:
-  boot continues and reads serve, but every engine mutation throws — and the crashed WAL record is then
-  *truncated away* against the un-advanced state. On restart the operation has silently un-happened, the stored
-  header disagreeing with the binding is reconciled back in one direction, and the catalog schema version is
-  bumped for good measure. A rename the WAL had committed vanishes without a trace. That is a durability
-  violation of the WAL-first contract, which is the same argument that earned `RemoveCatalogSchemaMutationOperator`
-  its replay.
-
-  **A trap for whoever picks this up:** the tombstone must be gated on the destination's presence in the catalogs
-  map, never on `boundFolderIdFor(dest) != null`. A MISSING destination keeps a binding by design, naming a folder
-  that no longer exists — tombstoning it authorises deleting a folder a later allocation could legitimately hold.
+  Recovering the crash turned out to be only half the job: a boot that recovered used to brick the *next* one,
+  because truncation took its cut position from the replayed snapshot, whose log offsets are the pre-crash ones.
+  See the invariants in `documentation/developer/engine-state-operations.md` — a rebuilt state's *standing
+  orders* bind, its *log positions* do not.
+- **The boot inventory divergence is computed before forward replay and drained after it.** A catalog the replay
+  has just re-registered can therefore be marked MISSING on the strength of a folder reading taken before the
+  replay existed. The engine's own operations cannot produce it — every operator deletes a folder strictly after
+  its own commit, so a crash inside the commit window always leaves the folder standing — but an external
+  deletion or a filesystem failure during an unrecovered commit window does. Closing it means recomputing the
+  divergence after the replay rather than reusing the one taken before it. Not attempted here; noted at
+  `Evita#drainPendingCatalogInventoryDivergence`.
 - **The boot-time cosmetic rename does not exist.** §3.4 option A was accepted as *marker plus deferred
   rename*; only the `.catalogname` marker shipped. A folder therefore keeps the name it was allocated
   under forever, and `cat storage/*/.catalogname` is what answers "which folder is which". The same
   missing pass is what would retry a failed adoption rename.
+
+  The marker itself is no longer write-once-and-hope: a crash, or an ordinary I/O failure, used to leave it
+  naming the folder's previous occupant permanently, which is a bad trade for the one artefact that exists to be
+  read during disaster recovery. It now converges when the catalog is loaded. A catalog nobody opens keeps a
+  stale label, and that bound is accepted rather than chased — repairing it inside the operation would mean
+  putting a repair where nothing is allowed to report failure.
 
   **A consequence not drawn when this was written: the marker's write is best-effort and its failure is
   swallowed, and nothing ever repairs it.** A folder whose marker write failed at creation has no label and never
