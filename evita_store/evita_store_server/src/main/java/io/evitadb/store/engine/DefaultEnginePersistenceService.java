@@ -382,6 +382,49 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		return this.pendingCatalogInventoryDivergence;
 	}
 
+	@Nonnull
+	@Override
+	public List<CatalogFolderId> drainRetiredFolders() {
+		// `this.engineState` is the post-replay snapshot: `rewriteEngineStateAtNextVersion` swaps the field as part
+		// of writing the bootstrap, so the tombstone the replay staged is visible here without being passed in.
+		final RetiredFolder[] retiredFolders = this.engineState.retiredFolders();
+		if (retiredFolders.length == 0) {
+			return List.of();
+		}
+
+		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+			this.storageSettings.storageDirectory(), this.engineState
+		);
+		// Narrowed to the tombstoned folders rather than draining everything the classifier calls expendable. The
+		// construction-time pass already covered the rest against the on-disk shape the crash left, and re-deriving
+		// it from a healed state would widen what this deletes on the strength of a state change it never saw the
+		// disk for. Which folders are RETIRED is still the classifier's answer, so a tombstone naming a folder that
+		// is bound again is ignored here exactly as it is there.
+		final List<CatalogFolderClassification> retired = new ArrayList<>(retiredFolders.length);
+		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			foldersOnDisk.add(classification.folderName());
+			if (classification.state() == CatalogFolderState.RETIRED) {
+				retired.add(classification);
+			}
+		}
+
+		final Set<String> removedFolderNames = Set.copyOf(
+			CatalogFolderCleaner.drain(this.storageSettings.storageDirectory(), retired)
+		);
+		// Same two terms as `computeCatalogInventoryDivergence`, and for the same reason: a folder removed a moment
+		// ago and one that was already absent are equally provably gone, and only the second covers a deletion that
+		// succeeded on an earlier run without a commit following it.
+		final List<CatalogFolderId> drainedFolders = new ArrayList<>(retiredFolders.length);
+		for (final RetiredFolder retiredFolder : retiredFolders) {
+			final String folderName = retiredFolder.folderId().id();
+			if (removedFolderNames.contains(folderName) || !foldersOnDisk.contains(folderName)) {
+				drainedFolders.add(retiredFolder.folderId());
+			}
+		}
+		return drainedFolders;
+	}
+
 	@Override
 	public void storeEngineState(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		this.created = false;

@@ -1514,6 +1514,16 @@ public final class Evita implements EvitaContract {
 	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
 	 * this code is meant to prevent.
 	 *
+	 * **Known gap: the divergence is computed before forward replay and drained after it.** The persistence service
+	 * builds it in its constructor, from the folders it finds on disk against the bootstrap as the crash left it;
+	 * the transaction manager replays a crashed commit a layer up, and only then is this called. A catalog the
+	 * replay has just re-registered can therefore be marked MISSING here, on the strength of a reading taken before
+	 * the replay existed. The engine's own operations cannot produce it — every operator that unbinds a folder
+	 * deletes it strictly *after* its own commit, so a crash inside the commit window always leaves the folder
+	 * standing — but a folder that vanishes by other means (an external deletion, a filesystem failure) while an
+	 * unrecovered record sits in the log does. Closing it means recomputing the divergence after the replay rather
+	 * than reusing the one computed before it.
+	 *
 	 * @param divergence divergence record returned by the persistence service; never null
 	 */
 	private void drainPendingCatalogInventoryDivergence(@Nonnull CatalogInventoryDivergence divergence) {

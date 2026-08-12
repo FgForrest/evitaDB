@@ -312,7 +312,20 @@ public class EngineTransactionManager implements Closeable {
 		// the bootstrap is rewritten at `walV` with a matching `walReference`, so truncation at that point becomes
 		// a no-op by construction.
 		final boolean replayed = replayCrashedMutationIfNeeded(engineState);
-		if (!replayed) {
+		if (replayed) {
+			// A replay can commit a folder tombstone, and the boot drain that would act on it ran a layer down in
+			// the persistence-service constructor - before this, and against the state the crash left. Its ordering
+			// is deliberate and stays as it is: draining against an already-healed state would cost the ability to
+			// diagnose a drifted boot from the disk it left behind. So the tombstone gets a second, narrower pass
+			// here instead, and the superseded folder goes on the boot that recovered rather than the one after it.
+			//
+			// Only reachable on a boot that replayed something, so a steady-state boot pays nothing for it. Each
+			// discharge is noted the same way the divergence drain notes its own, and dropped from persisted state
+			// by whichever engine mutation commits next.
+			for (final CatalogFolderId drained : this.enginePersistenceService.drainRetiredFolders()) {
+				this.folderContext.noteFolderDrained(drained);
+			}
+		} else {
 			// Truncation exists to discard the tail of a commit that never finished writing. After a successful
 			// replay there is no such tail: the trailing record was read in full, applied, and made durable in the
 			// bootstrap, and the startup invariant guarantees nothing follows it. Running truncation anyway

@@ -106,6 +106,7 @@ import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.catalog.task.FullBackupTask;
 import io.evitadb.store.checksum.Checksum;
+import io.evitadb.store.engine.CatalogFolderAllocator;
 import io.evitadb.store.exception.BootstrapFileNotFound;
 import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
@@ -1171,8 +1172,8 @@ public class DefaultCatalogPersistenceService
 
 	/**
 	 * Decides whether a data file should be compacted now. This is the single decision function shared by both
-	 * compaction trigger sites (entity-collection flush and catalog-file bootstrap) - see
-	 * `docs/plans/optimizations/compaction-waste-threshold-auto-tuning.md` §3.1.
+	 * compaction trigger sites - entity-collection flush and catalog-file bootstrap - so the two cannot drift into
+	 * disagreeing about when a file is worth rewriting.
 	 *
 	 * The file is compacted when it exceeds `fileSizeCompactionThresholdBytes` (`fileBigEnough`) AND either:
 	 * (a) its active record share has fallen below `maxWasteActiveShare` - a hard override that forces compaction
@@ -4583,7 +4584,8 @@ public class DefaultCatalogPersistenceService
 	/**
 	 * Makes the identity stored inside the folder agree with the identity the catalog is being loaded under.
 	 *
-	 * Two independent reconciliations, deliberately in one place because both rewrite the same header:
+	 * Three independent reconciliations, the first two deliberately in one place because both rewrite the same
+	 * header:
 	 *
 	 * **The name.** The engine state is the sole authority on which catalog a folder holds, so this reconciles
 	 * in one direction only: whatever the header says is overwritten. Historically the incoming name was itself
@@ -4605,6 +4607,13 @@ public class DefaultCatalogPersistenceService
 	 * The rewrite covers the header, the catalog schema (including its naming variants, only when the name
 	 * actually changed) and a fresh bootstrap record; it is deliberately not written to the WAL, since it
 	 * reconciles state that predates the load.
+	 *
+	 * **The label.** The `.catalogname` marker is reconciled *outside* that guard, and the placement is
+	 * load-bearing rather than tidy: the header is rewritten during a rename's **work** phase, so after a crash in
+	 * the commit window it already carries the new name while the label — written after the commit — does not.
+	 * Testing `nameDiffers` would therefore skip the one case the repair exists for. It converges **on load**: a
+	 * catalog nobody opens keeps a stale label until something does open it, which is the same bound as everything
+	 * else on this path and is accepted rather than chased.
 	 *
 	 * @param catalogInstance               the catalog contract instance
 	 * @param catalogVersion                the version of the catalog
@@ -4692,6 +4701,11 @@ public class DefaultCatalogPersistenceService
 				)
 			);
 		}
+
+		// Deliberately unconditional - see the JavaDoc: the header can already be right while the label is still
+		// naming the folder's previous occupant, which is precisely the state a crash in the commit window leaves.
+		// The call reads before it writes, so a folder whose label already agrees costs one small read.
+		CatalogFolderAllocator.reconcileCatalogNameMarker(this.catalogStoragePath, this.catalogName);
 	}
 
 	/**

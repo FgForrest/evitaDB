@@ -230,6 +230,36 @@ public class CatalogFolderAllocator {
 	}
 
 	/**
+	 * Makes the folder's label agree with the catalog the engine has just decided lives in it, rewriting it only
+	 * when it actually disagrees.
+	 *
+	 * The label is written after the commit that moved a binding, on a best-effort basis, which leaves two ways for
+	 * it to end up naming the folder's previous occupant for good: a crash inside the commit window — forward replay
+	 * rebuilds engine state and by contract touches no disk — and a plain write failure at the moment the binding
+	 * moved. Nothing retried either, so the one artefact that makes a bare storage directory readable was reliably
+	 * wrong in exactly the situation it exists for.
+	 *
+	 * Reads first and writes only on disagreement: the steady state is a few bytes read per catalog load, and a
+	 * folder whose label is already right is never touched. An unreadable or absent label is answered by writing
+	 * one — both mean the folder is not carrying the label it should.
+	 *
+	 * @param catalogFolder folder to reconcile the label of
+	 * @param catalogName   name of the catalog the engine binds to that folder
+	 */
+	public static void reconcileCatalogNameMarker(@Nonnull Path catalogFolder, @Nonnull String catalogName) {
+		final Path marker = catalogFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG);
+		try {
+			if (catalogName.equals(Files.readString(marker, StandardCharsets.UTF_8))) {
+				return;
+			}
+		} catch (IOException ex) {
+			// absent, or present and unreadable - the write below is the answer to both, and the read failing is
+			// not worth a log line of its own when the write that follows reports its own outcome
+		}
+		writeCatalogNameMarker(catalogFolder, catalogName);
+	}
+
+	/**
 	 * Scans the storage directory and reports the highest generation observed per catalog name.
 	 *
 	 * Parsing lives here because this class owns the `<catalogName>_<generation>` convention that produced the
