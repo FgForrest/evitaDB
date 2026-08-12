@@ -71,8 +71,8 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
@@ -82,6 +82,7 @@ import io.evitadb.export.file.ExportFileService.ExportFileHandleLocal;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -94,7 +95,6 @@ import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
@@ -119,6 +119,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -211,18 +212,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		this.writeHandle
 	);
 
-	private static int countFiles(@Nonnull Path catalogDirectory) throws IOException {
-		try (var paths = Files.list(catalogDirectory)) {
-			return (int) paths.count();
-		}
-	}
-
 	@Nonnull
 	private static Catalog getMockCatalog(SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema schema) {
 		final Catalog mockCatalog = mock(Catalog.class);
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
-		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
+		when(mockCatalog.getEntityIndexIfExists(ArgumentMatchers.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
 		return mockCatalog;
 	}
 
@@ -294,6 +289,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldSerializeAndDeserializeCatalogHeader() {
 		final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
+			new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 			getStorageOptions(),
 			getTransactionOptions(),
 			Mockito.mock(Scheduler.class),
@@ -347,27 +343,77 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldDetectInvalidCatalogContents() {
+	void shouldMintFreshCatalogIdWhenRestoredUnderItsOriginalName() throws IOException {
+		// The ordinary restore: a backup of `testCatalog` restored as `testCatalog`. The stored name already
+		// matches, so only the restore flag distinguishes it — and it is the quadrant neither other test covers.
+		// Collapsing the identity condition back to `if (nameDiffers)` passes both of those and silently gives
+		// every same-name restore its source's id, which is exactly what clients key their caches on.
+		final Path renamedCatalogPath = prepareInvalidCatalogContents();
+		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
+
+		try (
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				TEST_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
+			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
+			assertEquals(TEST_CATALOG, catalogHeader.catalogName());
+			assertNotEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"Copied bytes are a new lineage whatever the name says — the flag alone decides this!"
+			);
+			// and the schema was left alone, because nothing about the name changed: keeping that gate separate
+			// is what stops an ordinary restore from bumping a schema version for no reason
+			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
+				final CatalogSchemaStoragePart storedSchema = persistenceService
+					.getStoragePartPersistenceService(lastCatalogVersion)
+					.getStoragePart(lastCatalogVersion, 1, CatalogSchemaStoragePart.class);
+				assertEquals(CATALOG_SCHEMA.version(), storedSchema.catalogSchema().version());
+				return null;
+			});
+			assertFalse(
+				renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().exists(),
+				"The restore flag must be consumed, or every later load would mint another identity!"
+			);
+		}
+	}
+
+	@Test
+	void shouldAdaptCatalogContentsStoringADifferentNameEvenWithoutRestoreFlag() throws IOException {
+		// The authority flip: the name a catalog is loaded under comes from the engine state, not from
+		// the folder, so a header naming something else is no longer evidence of a mistake - it is the ordinary
+		// trace of a rename or replace whose header rewrite did not land. Before this it threw
+		// UnexpectedCatalogContentsException unless a restore flag was present to license the adaptation.
 		prepareInvalidCatalogContents();
 
-		assertThrows(
-			UnexpectedCatalogContentsException.class,
-			() -> {
-				//noinspection EmptyTryBlock
-				try (
-					var ignored = new DefaultCatalogPersistenceService(
-						Mockito.mock(CatalogContract.class),
-						RENAMED_CATALOG,
-						getStorageOptions(),
-						getTransactionOptions(),
-						Mockito.mock(Scheduler.class),
-						Mockito.mock(ExportFileService.class)
-					)
-				) {
-					// do nothing
-				}
-			}
-		);
+		try (
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
+				Mockito.mock(CatalogContract.class),
+				RENAMED_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			final long lastCatalogVersion = persistenceService.getLastCatalogVersion();
+			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
+			assertEquals(RENAMED_CATALOG, catalogHeader.catalogName());
+			// A rename lands here too, and it must keep the catalog's identity: the folder holds the same
+			// lineage under a new name, so a client cache keyed on the id is still valid.
+			assertEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"Adapting a stored name must not mint a new identity - only copied bytes do that!"
+			);
+		}
 	}
 
 	@Test
@@ -376,9 +422,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		renamedCatalogPath.resolve(CatalogPersistenceService.RESTORE_FLAG).toFile().createNewFile();
 
 		try (
-			var persistenceService = new DefaultCatalogPersistenceService(
+			DefaultCatalogPersistenceService persistenceService = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				RENAMED_CATALOG,
+				new CatalogFolderId(RENAMED_CATALOG),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -389,11 +436,19 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final CatalogHeader catalogHeader = persistenceService.getCatalogHeader(lastCatalogVersion);
 			assertNotNull(catalogHeader);
 			assertEquals(RENAMED_CATALOG, catalogHeader.catalogName());
+			// The restore flag says these bytes were copied from another catalog, which makes this a new
+			// lineage: its version stream diverged at the moment of the copy, so a client cache keyed on the
+			// source's id is already stale with respect to it. Carrying the id across would leave a duplicate
+			// indistinguishable from its source by the very field clients use to check their cached view.
+			assertNotEquals(
+				this.catalogId, catalogHeader.catalogId(),
+				"A catalog materialised from copied bytes must be given an identity of its own!"
+			);
 
 			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
 				final CatalogSchemaStoragePart catalogSchema = persistenceService.getStoragePartPersistenceService(lastCatalogVersion)
 					.getStoragePart(lastCatalogVersion, 1, CatalogSchemaStoragePart.class);
-				assertEquals(catalogSchema.catalogSchema().getName(), RENAMED_CATALOG);
+				assertEquals(RENAMED_CATALOG, catalogSchema.catalogSchema().getName());
 				return null;
 			});
 		}
@@ -407,6 +462,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var cps = new DefaultCatalogPersistenceService(
 						SEALED_CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -430,6 +486,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var cps = new DefaultCatalogPersistenceService(
 						SEALED_CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -454,6 +511,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			var ignored1 = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -469,6 +527,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				try (
 					var ignored2 = new DefaultCatalogPersistenceService(
 						CATALOG_SCHEMA.getName(),
+						new CatalogFolderId(CATALOG_SCHEMA.getName()),
 						getStorageOptions(),
 						getTransactionOptions(),
 						Mockito.mock(Scheduler.class),
@@ -481,32 +540,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldTerminateAndDeleteCatalog() throws IOException {
-		shouldSerializeAndDeserializeCatalogHeader();
-
-		final Path catalogDirectory = getStorageOptions().storageDirectory().resolve(TEST_CATALOG);
-		try (
-			var cps = new DefaultCatalogPersistenceService(
-				Mockito.mock(CatalogContract.class),
-				TEST_CATALOG,
-				getStorageOptions(),
-				getTransactionOptions(),
-				Mockito.mock(Scheduler.class),
-				Mockito.mock(ExportFileService.class)
-			)
-		) {
-			assertTrue(catalogDirectory.toFile().exists());
-			assertTrue(countFiles(catalogDirectory) > 0);
-			cps.closeAndDelete();
-			assertFalse(catalogDirectory.toFile().exists());
-		}
-	}
-
-	@Test
 	void shouldReturnDefaultHeaderOnEmptyDirectory() {
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -533,6 +571,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			var cps = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -561,6 +600,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			var cps = new DefaultCatalogPersistenceService(
 				Mockito.mock(CatalogContract.class),
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -617,6 +657,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -671,7 +712,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				assertNotNull(record.introducedAt());
 			}
 
-			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(catalogName, storageSettings);
+			final Optional<CatalogBootstrap> first = getFirstCatalogBootstrap(
+				catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+			);
 			assertTrue(first.isPresent());
 			assertEquals(0, first.get().catalogVersion());
 
@@ -679,29 +722,40 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertNotNull(last);
 			assertEquals(13, last.catalogVersion());
 
+			final Path catalogFolder = storageSettings.storageDirectory().resolve(catalogName);
 			// a point-in-time lookup resolves the state AS OF the moment - the newest record whose timestamp is not
 			// after it - so it may never return a record stamped later than the requested moment. Versions 2..13
 			// carry the timestamp `startTime + version hours`, versions 0 and 1 both carry `startTime`.
-			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime);
+			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime
+			);
 			assertNotNull(m0);
 			assertEquals(1, m0.catalogVersion());
 
-			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5));
+			final CatalogBootstrap m1 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5)
+			);
 			assertNotNull(m1);
 			assertEquals(5, m1.catalogVersion());
 
 			// one minute PAST the version 5 checkpoint: version 6 is still an hour in the future of the requested
 			// moment and must not be handed back
-			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).plusMinutes(1));
+			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5).plusMinutes(1)
+			);
 			assertNotNull(m2);
 			assertEquals(5, m2.catalogVersion());
 
 			// one minute BEFORE the version 5 checkpoint: the state at that moment is still version 4
-			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(5).minusMinutes(1));
+			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(5).minusMinutes(1)
+			);
 			assertNotNull(m3);
 			assertEquals(4, m3.catalogVersion());
 
-			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageSettings, startTime.plusHours(15));
+			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(
+				catalogName, catalogFolder, storageSettings, startTime.plusHours(15)
+			);
 			assertNotNull(m4);
 			assertEquals(13, m4.catalogVersion());
 
@@ -710,7 +764,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			assertThrows(
 				TemporalDataNotAvailableException.class,
 				() -> getCatalogBootstrapForSpecificMoment(
-					catalogName, storageSettings, startTime.minusMinutes(1))
+					catalogName, catalogFolder, storageSettings, startTime.minusMinutes(1))
 			);
 		} finally {
 			DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS.remove();
@@ -727,6 +781,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -742,7 +797,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				Collections.emptyList(),
 				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
 			);
-			assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isPresent());
+			assertTrue(
+				getFirstCatalogBootstrap(
+					catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+				).isPresent()
+			);
 		}
 
 		// an existing file with nothing whole in it is what the method's contract calls empty. Answering it with
@@ -753,7 +812,11 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			.resolve(getCatalogBootstrapFileName(catalogName));
 		Files.write(bootstrapFilePath, new byte[0]);
 
-		assertTrue(getFirstCatalogBootstrap(catalogName, storageSettings).isEmpty());
+		assertTrue(
+			getFirstCatalogBootstrap(
+				catalogName, storageSettings.storageDirectory().resolve(catalogName), storageSettings
+			).isEmpty()
+		);
 	}
 
 	@Test
@@ -767,6 +830,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -799,6 +863,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -853,12 +918,63 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Two bootstrap records may legitimately carry the same catalog version, because some operations *materialise* a
+	 * version rather than produce one: the identity reconciliation performed when a catalog is loaded under a
+	 * different name, and a rename, which moves no data and appends nothing to the WAL. A version block spanning
+	 * such a pair must not be reported inverted - `startVersion` is derived from the previous record's version plus
+	 * one, which overshoots `endVersion` exactly when the two records share a version.
+	 */
+	@Test
+	void shouldNotReportInvertedVersionBlockWhenTwoBootstrapRecordsShareAVersion() {
+		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+		try (
+			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+				catalogName,
+				new CatalogFolderId(catalogName),
+				getStorageOptions(),
+				getTransactionOptions(),
+				Mockito.mock(Scheduler.class),
+				Mockito.mock(ExportFileService.class)
+			)
+		) {
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+
+			// version 2 is recorded twice - the second record materialises the version instead of producing it
+			ioService.recordBootstrap(1L, catalogName, 0, null);
+			ioService.recordBootstrap(2L, catalogName, 0, null);
+			ioService.recordBootstrap(2L, catalogName, 0, null);
+			ioService.recordBootstrap(3L, catalogName, 0, null);
+
+			for (final TimeFlow timeFlow : TimeFlow.values()) {
+				final PaginatedList<MaterializedVersionBlock> catalogVersions =
+					ioService.getCatalogVersions(timeFlow, 1, 20);
+				for (final MaterializedVersionBlock record : catalogVersions.getData()) {
+					assertTrue(
+						record.startVersion() <= record.endVersion(),
+						"Block " + record.startVersion() + ".." + record.endVersion() +
+							" starts after it ends (" + timeFlow + ")!"
+					);
+				}
+			}
+		}
+	}
+
 	@Test
 	void shouldTrimBootstrapRecords() {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				catalogName,
+				new CatalogFolderId(catalogName),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -937,6 +1053,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				SEALED_CATALOG_SCHEMA.getName(),
+				new CatalogFolderId(SEALED_CATALOG_SCHEMA.getName()),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -1239,6 +1356,112 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Covers the separation of a catalog's storage prefix — the name its files carry inside its folder — from the
+	 * catalog's own name, which is what allows a rename to stop touching the filesystem.
+	 */
+	@Nested
+	@DisplayName("Storage prefix discovery")
+	class StoragePrefixDiscovery {
+
+		@Test
+		@DisplayName("Takes the prefix from the bootstrap file rather than from the catalog name")
+		void shouldDiscoverStoragePrefixFromBootstrapFileRatherThanCatalogName() throws IOException {
+			final String catalogName = SEALED_CATALOG_SCHEMA.getName();
+			final StorageSettings storageSettings = new StorageSettings(
+				getStorageOptions(), getTransactionOptions()
+			);
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					catalogName,
+					new CatalogFolderId(catalogName),
+					getStorageOptions(),
+					getTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				ioService.storeHeader(
+					UUIDUtil.randomUUID(), CatalogState.ALIVE, 0L, 1, null, Collections.emptyList(),
+					new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+				);
+			}
+
+			// re-name the bootstrap file so nothing in the folder carries the catalog's own name any more
+			final Path catalogFolder = getStorageOptions().storageDirectory().resolve(catalogName);
+			Files.move(
+				catalogFolder.resolve(getCatalogBootstrapFileName(catalogName)),
+				catalogFolder.resolve(getCatalogBootstrapFileName("adopted.folder"))
+			);
+
+			assertTrue(
+				getFirstCatalogBootstrap(catalogName, catalogFolder, storageSettings).isPresent(),
+				"the bootstrap record must still be found once the files stop carrying the catalog name"
+			);
+		}
+
+		@Test
+		@DisplayName("Refuses a folder that holds files but no bootstrap file")
+		void shouldThrowExceptionWhenFolderHasFilesButNoBootstrapFile() throws IOException {
+			final StorageSettings storageSettings = new StorageSettings(
+				getStorageOptions(), getTransactionOptions()
+			);
+			final Path catalogFolder = getStorageOptions().storageDirectory()
+				.resolve("folderWithoutBootstrap");
+			Files.createDirectories(catalogFolder);
+			Files.writeString(catalogFolder.resolve("stray" + CATALOG_FILE_SUFFIX), "not a bootstrap file");
+
+			// falling back to the catalog name here would bind the service to a prefix no file on disk uses
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> getFirstCatalogBootstrap("folderWithoutBootstrap", catalogFolder, storageSettings)
+			);
+		}
+
+		@Test
+		@DisplayName("Refuses to open a catalog whose folder holds nothing but evitaDB's own markers")
+		void shouldRefuseToOpenACatalogWhoseFolderHoldsNoData() throws IOException {
+			// A folder wearing only its provisional marker is what a create, restore or duplicate leaves behind
+			// when it dies mid-write. Loading it used to succeed against an invented `CatalogBootstrap(0, 0, now,
+			// null)`, whose null file location makes the storage part service fabricate a header carrying a
+			// freshly minted random catalog id - an identity conjured for data that does not exist. The load then
+			// died at the schema read, blaming the user's data for an engine bookkeeping failure.
+			final Path catalogFolder = getStorageOptions().storageDirectory().resolve("markerOnlyFolder");
+			Files.createDirectories(catalogFolder);
+			Files.createFile(catalogFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG));
+
+			final BootstrapFileNotFound exception = assertThrows(
+				BootstrapFileNotFound.class,
+				() -> new DefaultCatalogPersistenceService(
+					Mockito.mock(CatalogContract.class),
+					"markerOnlyFolder",
+					new CatalogFolderId("markerOnlyFolder"),
+					getStorageOptions(),
+					getTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			);
+			// the message has to separate "allocated and never written" from "data present, record lost" - they
+			// are the same failure but point the reader at different causes
+			assertTrue(
+				exception.getMessage().contains("holds no catalog data at all"),
+				"A marker-only folder must be reported as never written, not as a missing bootstrap file - got `"
+					+ exception.getMessage() + "`!"
+			);
+		}
+
+		@Test
+		@DisplayName("Does not match a foreign prefix when the prefix contains a regex wildcard")
+		void shouldNotMatchForeignFilesWhenPrefixContainsRegexWildcard() {
+			// `.` is legal in a catalog name and is a regex wildcard - unquoted it matches any character at all
+			final Pattern pattern = getCatalogDataStoreFileNamePattern("my.catalog");
+			assertTrue(pattern.matcher("my.catalog_1" + CATALOG_FILE_SUFFIX).matches());
+			assertFalse(pattern.matcher("myXcatalog_1" + CATALOG_FILE_SUFFIX).matches());
+		}
+
+	}
+
+	/**
 	 * Finds the index of the first existing file for a given catalog name.
 	 *
 	 * @param catalogName the name of the catalog
@@ -1320,7 +1543,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 *
 		 * @param ioService the service under test
 		 */
-		private void writeSeveralWarmUpGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
+		private static void writeSeveralWarmUpGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
 			final UUID catalogId = UUIDUtil.randomUUID();
 			for (int i = 0; i < VERSIONS_WRITTEN; i++) {
 				ioService.getStoragePartPersistenceService(0L)
@@ -1343,6 +1566,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1381,6 +1605,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1415,6 +1640,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1466,6 +1692,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1500,6 +1727,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// a negative limit means unlimited history - it switches off the budget, not the reclamation of
 					// files no bootstrap record can reach. Those were never history, and an operator asking for
 					// unlimited history is precisely the one who would otherwise never get them back.
@@ -1519,7 +1747,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 				// run whatever compaction planned on this thread instead of racing the scheduler
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(scheduledTask.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+					.schedule(scheduledTask.capture(), ArgumentMatchers.anyLong(), any(TimeUnit.class));
 				scheduledTask.getAllValues().forEach(Runnable::run);
 
 				final List<File> afterGuard = listCatalogDataFiles();
@@ -1548,6 +1776,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService measuringService = new DefaultCatalogPersistenceService(
 					measuredCatalog,
+					new CatalogFolderId(measuredCatalog),
 					timeTravelStorageOptions(Long.MAX_VALUE),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1567,6 +1796,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(budget),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1604,6 +1834,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1653,6 +1884,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					deferredCheckpointTransactionOptions(),
 					scheduler,
@@ -1674,7 +1906,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// `checkpointIfOwed()`, which would publish the very record this step must leave unpublished. They are
 				// told apart by their delay: the guard is a zero-delay task, the ticker carries the checkpoint interval
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(scheduledTask.capture(), Mockito.eq(0L), Mockito.any(TimeUnit.class));
+					.schedule(scheduledTask.capture(), ArgumentMatchers.eq(0L), any(TimeUnit.class));
 				scheduledTask.getAllValues().forEach(Runnable::run);
 
 				final List<File> beforePublish = listCatalogDataFiles();
@@ -1701,7 +1933,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// publishing is what turns the retired generation into history, and it is the only moment that can
 				// notice - the compaction that retired the file is long past and will not come round again
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(afterPublish.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+					.schedule(afterPublish.capture(), ArgumentMatchers.anyLong(), any(TimeUnit.class));
 				afterPublish.getAllValues().forEach(Runnable::run);
 
 				assertTrue(
@@ -1750,7 +1982,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final ExportFileService exportFileService = Mockito.mock(ExportFileService.class);
 			Mockito.when(
 				exportFileService.storeFile(
-					Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.any()
+					ArgumentMatchers.anyString(), any(), ArgumentMatchers.anyString(), any()
 				)
 			).thenReturn(exportFileHandle);
 			return exportFileService;
@@ -1763,6 +1995,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the reconciliation under test could move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -1804,6 +2037,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				final DefaultCatalogPersistenceService reopened = new DefaultCatalogPersistenceService(
 					Mockito.mock(CatalogContract.class),
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
 					openScheduler,
@@ -1854,6 +2088,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the request under test can move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -1902,6 +2137,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// unlimited budget, so nothing but the request under test can move the horizon
 					timeTravelStorageOptions(-1L),
 					eagerCheckpointTransactionOptions(),
@@ -1952,6 +2188,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -1996,6 +2233,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2043,6 +2281,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2091,6 +2330,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2102,6 +2342,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// the record a point-in-time backup would have resolved just before the budget ran
 				final CatalogBootstrap staleRecord = getFirstCatalogBootstrap(
 					TEST_CATALOG,
+					timeTravelStorageOptions(0L).storageDirectory().resolve(TEST_CATALOG),
 					new StorageSettings(
 						timeTravelStorageOptions(0L), eagerCheckpointTransactionOptions()
 					).modifyForBootstrapFile()
@@ -2144,6 +2385,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(0L),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2181,6 +2423,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		void shouldToleratePinAndHoldReleaseAfterTheServiceClosed() {
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				timeTravelStorageOptions(0L),
 				eagerCheckpointTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -2217,6 +2460,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					timeTravelStorageOptions(Long.MAX_VALUE),
 					eagerCheckpointTransactionOptions(),
 					Mockito.mock(Scheduler.class),
@@ -2258,6 +2502,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// time travel OFF - the default configuration, and the one where nothing used to clamp the seam
 					eagerCompactionStorageOptions(false, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
 					eagerCheckpointTransactionOptions(),
@@ -2305,6 +2550,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (
 				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
 					// deliberately NOT compacting: every version then lands in one shared offset index, which is
 					// exactly the arrangement a backup of the *current* data reads through
 					nonCompactingStorageOptions(),
@@ -2352,6 +2598,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		void shouldNotAdvanceTheHorizonOnAClosedService() {
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				eagerCompactionStorageOptions(true, StorageOptions.DEFAULT_TIME_TRAVEL_SIZE_LIMIT_BYTES),
 				eagerCheckpointTransactionOptions(),
 				Mockito.mock(Scheduler.class),
@@ -2387,7 +2634,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 * @param ioService      the service under test
 		 * @param catalogVersion the catalog version to write
 		 */
-		private void writeOneMoreGeneration(
+		private static void writeOneMoreGeneration(
 			@Nonnull DefaultCatalogPersistenceService ioService,
 			long catalogVersion
 		) {
@@ -2428,7 +2675,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 * @param catalogVersion the catalog version to resolve
 		 * @return the catalog version of the header the read resolved to
 		 */
-		private long readCatalogHeaderVersionAt(
+		private static long readCatalogHeaderVersionAt(
 			@Nonnull CatalogOffsetIndexStoragePartPersistenceService service,
 			long catalogVersion
 		) {
@@ -2478,7 +2725,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				writeSeveralGenerations(ioService);
 
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// deliberately not executed - this is the window the files have to survive, and it is unbounded:
@@ -2497,7 +2744,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
 				writeSeveralGenerations(ioService);
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// run on the calling thread, so the copy is over by the time the assertions below are reached
@@ -2521,7 +2768,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			try (final DefaultCatalogPersistenceService ioService = duplicableService()) {
 				writeSeveralGenerations(ioService);
 				final ProgressingFuture<Void> duplication = ioService.duplicateCatalog(
-					DUPLICATE_CATALOG, getStorageOptions()
+					DUPLICATE_CATALOG, new CatalogFolderId(DUPLICATE_CATALOG), getStorageOptions()
 				);
 
 				// the copy body never runs, so its own release never happens - the future's completion is the only
@@ -2544,6 +2791,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		private DefaultCatalogPersistenceService duplicableService() {
 			return new DefaultCatalogPersistenceService(
 				TEST_CATALOG,
+				new CatalogFolderId(TEST_CATALOG),
 				getStorageOptions(),
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),

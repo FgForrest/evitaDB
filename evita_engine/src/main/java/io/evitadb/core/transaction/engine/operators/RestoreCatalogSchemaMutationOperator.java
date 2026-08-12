@@ -29,15 +29,16 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -51,20 +52,20 @@ import java.util.function.Consumer;
  *    that the engine state did not know about, registering it as `INACTIVE`.
  * 3. **Flapping recovery** — `Evita`'s boot drains a `RestoreCatalogSchemaMutation` for each name previously sat
  *    in the `missingCatalogs` bucket whose folder has reappeared. The operator additionally clears the missing
- *    bucket entry through `Builder#withRestoredFromMissing(...)`.
+ *    bucket entry, and the binding it kept alive, through `Builder#withCatalogNoLongerMissing(...)`.
  *
  * Forward-replay is intentionally **not** implemented here. Although the completion phase looks pure (wrap the
- * restored folder into an `UnusableCatalog` stub), the folder-existence precondition
- * (`catalogFolder.toFile().exists()`) is side-effect dependent on the completion of the restore work phase. Rather
- * than re-deriving that invariant at replay time, we prefer to wedge loudly via the default `Optional.empty()` in
- * `EngineMutationOperator`.
+ * restored folder into an `UnusableCatalog` stub), it rests on a precondition the work phase established: that
+ * the folder resolved for the catalog exists and holds the restored data. At replay time that folder may or may
+ * not have been written, and the reservation naming it did not survive the restart — so rather than re-deriving
+ * the invariant we wedge loudly via the default `Optional.empty()` in `EngineMutationOperator`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor
 public class RestoreCatalogSchemaMutationOperator
 	implements EngineMutationOperator<Void, RestoreCatalogSchemaMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -81,10 +82,15 @@ public class RestoreCatalogSchemaMutationOperator
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		final String catalogName = mutation.getCatalogName();
-		final Path catalogFolder = this.storageDirectory.resolve(catalogName);
+		// This operator serves three paths and none of them allocates: the folder always exists by now.
+		// - recovery from the missing bucket reads the binding the engine state already holds;
+		// - a restore from backup reads the reservation `EvitaManagement` made before writing into the folder;
+		// - an auto-discovered folder reads the reservation boot-time adoption made when it renamed the folder
+		//   into the shape the engine allocates.
+		final CatalogFolderId catalogFolder = this.folderContext.folderIdForBinding(catalogName);
 
 		Assert.isTrue(
-			catalogFolder.toFile().exists(),
+			this.folderContext.getFolderOperations().catalogFolderExists(catalogFolder),
 			"Catalog folder `" + catalogFolder + "` does not exist! Please restore the catalog first."
 		);
 
@@ -92,23 +98,34 @@ public class RestoreCatalogSchemaMutationOperator
 		return new ProgressingFuture<>(
 			0,
 			__ -> {
+				// Declare the folder complete BEFORE the binding is committed below - see
+				// `CatalogFolderContext#completeFolder` for why that order is load-bearing. A no-op for the
+				// missing-bucket and auto-discovery paths, which never allocated and so wear no marker.
+				RestoreCatalogSchemaMutationOperator.this.folderContext.completeFolder(catalogName, catalogFolder);
+
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-							// `withRestoredFromMissing` is a no-op for the restore-from-backup and auto-discovery
-							// paths, and clears the missing-bucket entry for the flapping-recovery path. Chained
-							// unconditionally so the operator stays single-shape.
+							// `withCatalogNoLongerMissing` is a no-op for the auto-discovery path, and for the
+							// other two it clears the missing-bucket entry *and* the binding that entry was
+							// keeping alive. That second half is load-bearing here: without it the binding to
+							// the folder that vanished survives, `withCatalog` declines to overwrite it, and
+							// the restored data below is left unreferenced.
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
-								.withRestoredFromMissing(catalogName)
+								.withCatalogNoLongerMissing(catalogName)
 								.withCatalog(
-									new UnusableCatalog(
-										catalogName, CatalogState.INACTIVE,
-										catalogFolder,
+									RestoreCatalogSchemaMutationOperator.this.folderContext.createUnusableCatalog(
+										catalogName, catalogFolder, CatalogState.INACTIVE,
 										CatalogInactiveException::new
-									)
+									),
+									// The name carries no binding by this point in any of the three paths, so the
+									// folder resolved above is the one that gets recorded. For flapping recovery
+									// that is the folder the catalog already occupied, which has just reappeared;
+									// for the other two it is the folder this operation filled.
+									catalogFolder
 								)
 								.build();
 						}

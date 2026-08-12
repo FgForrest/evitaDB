@@ -30,11 +30,12 @@ import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.catalog.task.stream.CountingInputStream;
-import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +51,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -61,45 +61,44 @@ import java.util.zip.ZipInputStream;
  */
 @Slf4j
 public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
+	/**
+	 * Storage configuration, supplying the root directory the folder token is resolved against.
+	 */
 	private final StorageOptions storageOptions;
+	/**
+	 * Allocates the folder the catalog is restored into. Bound by the engine rather than derived from the catalog
+	 * name — see `CatalogFolderId`. Consulted from {@link #doRestore()} rather than from the
+	 * constructor, because allocating creates a directory and claims the catalog name, and this task is created
+	 * long before it runs when the archive arrives over a chunked upload.
+	 */
+	private final CatalogFolderAllocator catalogFolderAllocator;
 
 	/**
-	 * Returns the file name with renaming the files that contain original catalog name.
+	 * Returns the name the archived file must be written under, carrying the restored catalog's name.
 	 *
-	 * @param entryName           relative path in the ZIP file
-	 * @param originalCatalogName original catalog name
-	 * @param catalogName         the new catalog name
-	 * @return the file name with renaming
+	 * The source prefix is deliberately not a parameter. An archive taken from a renamed catalog carries a prefix
+	 * that no longer matches its own top-level directory, so deriving the file name by stripping that directory's
+	 * length — as this did — mis-slices the name. The rewrite instead decomposes the incoming name by its suffix
+	 * and trailing index alone, which is independent of whatever it starts with.
+	 *
+	 * @param entryName   relative path in the ZIP file, including its top-level directory
+	 * @param catalogName the name of the catalog being restored into
+	 * @return the file name carrying the restored catalog's name
 	 */
 	@Nonnull
 	private static String getFileNameWithCatalogRename(
 		@Nonnull String entryName,
-		@Nonnull String originalCatalogName,
 		@Nonnull String catalogName
 	) {
-		final String fileName = entryName.substring(originalCatalogName.length() + 1);
-		if (entryName.endsWith(CatalogPersistenceService.BOOT_FILE_SUFFIX)) {
-			return CatalogPersistenceService.getCatalogBootstrapFileName(catalogName);
-		} else if (entryName.endsWith(CatalogPersistenceService.CATALOG_FILE_SUFFIX)) {
-			final Matcher matcher = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(originalCatalogName)
-				.matcher(fileName);
-			Assert.isPremiseValid(
-				matcher.matches(),
-				"Invalid file name for catalog date file!"
-			);
-			return CatalogPersistenceService.getCatalogDataStoreFileName(
-				catalogName, Integer.parseInt(matcher.group(1))
-			);
-		} else if (entryName.endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX)) {
-			final int walIndex = CatalogWriteAheadLog.getIndexFromWalFileName(fileName);
-			return CatalogPersistenceService.getWalFileName(catalogName, walIndex);
-		} else {
-			return fileName;
-		}
+		final int directorySeparator = entryName.indexOf('/');
+		final String fileName = directorySeparator < 0 ?
+			entryName : entryName.substring(directorySeparator + 1);
+		return CatalogFileNaming.canonicalizeTo(fileName, catalogName);
 	}
 
 	public RestoreTask(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
 		long totalSizeInBytes,
@@ -120,6 +119,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
 		);
 		this.storageOptions = storageOptions;
+		this.catalogFolderAllocator = catalogFolderAllocator;
 	}
 
 	/**
@@ -143,18 +143,19 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 			);
 			final ZipInputStream zipInputStream = new ZipInputStream(cis)
 		) {
-			final Path storagePath = DefaultCatalogPersistenceService.pathForCatalog(catalogName, this.storageOptions.storageDirectory());
+			// the folder is claimed here rather than when this task was built - inside the try, so that a refusal
+			// still closes the stream and takes the abandoned upload's archive down with it
+			final CatalogFolderId catalogFolderId = this.catalogFolderAllocator.allocate();
+			final Path storagePath = this.storageOptions.storageDirectory().resolve(catalogFolderId.id());
 			DefaultCatalogPersistenceService.verifyDirectory(storagePath, true);
 
 			ZipEntry entry = Objects.requireNonNull(zipInputStream.getNextEntry());
 			Assert.isPremiseValid(entry.isDirectory(), "First entry in the zip file must be a directory!");
-			// last character is always a slash
-			final String directoryName = entry.getName().substring(0, entry.getName().length() - 1);
 			// allocate buffer for reading
 			final ByteBuffer buffer = ByteBuffer.allocate(16_384);
 			while ((entry = zipInputStream.getNextEntry()) != null) {
 				// get the name of the file in the zip and create the file in the storage
-				final String fileName = getFileNameWithCatalogRename(entry.getName(), directoryName, catalogName);
+				final String fileName = getFileNameWithCatalogRename(entry.getName(), catalogName);
 				final Path entryPath = storagePath.resolve(fileName).normalize();
 				Assert.isTrue(entryPath.startsWith(storagePath), "Bad ZIP entry!");
 				try (final FileChannel fileChannel = FileChannel.open(entryPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {

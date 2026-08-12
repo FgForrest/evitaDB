@@ -27,6 +27,9 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +40,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Tag;
@@ -60,6 +66,21 @@ class ExpandedEngineStateTest {
 		String[] readOnly,
 		@Nullable LogFileRecordReference wal
 	) {
+		return engineState(
+			version, active, inactive, readOnly, wal,
+			identityBindings(concatDistinct(active, inactive))
+		);
+	}
+
+	@Nonnull
+	private static EngineState<LogRecordReference> engineState(
+		long version,
+		String[] active,
+		String[] inactive,
+		String[] readOnly,
+		@Nullable LogFileRecordReference wal,
+		@Nonnull CatalogFolderBinding[] catalogFolders
+	) {
 		return EngineState
 			.builder()
 			.storageProtocolVersion(1)
@@ -67,8 +88,45 @@ class ExpandedEngineStateTest {
 			.activeCatalogs(active)
 			.inactiveCatalogs(inactive)
 			.readOnlyCatalogs(readOnly)
+			.catalogFolders(catalogFolders)
 			.walFileReference(wal)
 			.build();
+	}
+
+	/**
+	 * Binds every passed name to a folder carrying that same name.
+	 *
+	 * Staging a catalog no longer invents a binding for an unbound name, so a fixture that puts a catalog into
+	 * a bucket has to bind it too — otherwise it describes a state the engine can never reach. Identity is the
+	 * right shape here because these fixtures stand for catalogs that predate folder allocation.
+	 *
+	 * @param catalogNames names to bind, in any order
+	 * @return bindings sorted by catalog name, as {@link EngineState} requires
+	 */
+	@Nonnull
+	private static CatalogFolderBinding[] identityBindings(@Nonnull String... catalogNames) {
+		final String[] sorted = catalogNames.clone();
+		Arrays.sort(sorted);
+		final CatalogFolderBinding[] bindings = new CatalogFolderBinding[sorted.length];
+		for (int i = 0; i < sorted.length; i++) {
+			bindings[i] = new CatalogFolderBinding(sorted[i], new CatalogFolderId(sorted[i]));
+		}
+		return bindings;
+	}
+
+	/**
+	 * Concatenates two name arrays, dropping duplicates so a name present in both buckets is bound only once.
+	 *
+	 * @param first  first array of names
+	 * @param second second array of names
+	 * @return the distinct union of both
+	 */
+	@Nonnull
+	private static String[] concatDistinct(@Nonnull String[] first, @Nonnull String[] second) {
+		final LinkedHashSet<String> names = new LinkedHashSet<>(first.length + second.length);
+		Collections.addAll(names, first);
+		Collections.addAll(names, second);
+		return names.toArray(String[]::new);
 	}
 
 	@Nonnull
@@ -128,7 +186,11 @@ class ExpandedEngineStateTest {
 	@Test
 	@DisplayName("withCatalog(Contract) should keep inactive")
 	void shouldKeepCatalogInactiveWhenContractProvided() {
-		final EngineState<LogRecordReference> base = engineState(10L, new String[0], new String[0], new String[0], null);
+		// `beta` is bound up front: swapping an instance re-stages a catalog the state already knows, and
+		// re-staging never establishes a binding
+		final EngineState<LogRecordReference> base = engineState(
+			10L, new String[0], new String[0], new String[0], null, identityBindings("beta")
+		);
 		final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
 
 		final CatalogContract cc = contract("beta", 7);
@@ -144,7 +206,9 @@ class ExpandedEngineStateTest {
 	@DisplayName("Builder should stage operations and bump version once on build")
 	void shouldBumpVersionOnceWhenBuilderBuilds() {
 		final CatalogContract cc = contract("beta", 2);
-		final EngineState<LogRecordReference> base = engineState(3L, new String[0], new String[0], new String[0], null);
+		final EngineState<LogRecordReference> base = engineState(
+			3L, new String[0], new String[0], new String[0], null, identityBindings("beta")
+		);
 		final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
 
 		final ExpandedEngineState built = ExpandedEngineState
@@ -159,6 +223,213 @@ class ExpandedEngineStateTest {
 		assertArrayEquals(new String[]{"beta"}, built.engineState().inactiveCatalogs());
 		assertArrayEquals(new String[]{"beta"}, built.engineState().readOnlyCatalogs());
 		assertTrue(built.getCatalog("beta").isPresent());
+	}
+
+	/**
+	 * Verifies that the staging API keeps the engine state's catalog-to-folder mapping in step with the catalog
+	 * buckets it moves names between — see {@link io.evitadb.spi.store.engine.model.CatalogFolderBinding}.
+	 */
+	@Nested
+	@DisplayName("Catalog folder binding staging")
+	class CatalogFolderBindingStaging {
+
+		@Test
+		@DisplayName("Leaves an existing binding alone when its catalog is re-staged")
+		void shouldPreserveExistingBindingWhenCatalogIsRestaged() {
+			// re-staging happens on every activation, go-live and instance swap. Overwriting the binding with
+			// the catalog's own name at any of those points would silently undo a rename.
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.inactiveCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("products_3"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalog(contract("orders", 5))
+				.build();
+
+			assertEquals(new CatalogFolderId("products_3"), built.boundFolderIdFor("orders"));
+			assertEquals(new CatalogFolderId("products_3"), expanded.boundFolderIdFor("orders"));
+		}
+
+		@Test
+		@DisplayName("Binds a catalog the state has never seen to the folder it is handed")
+		void shouldBindPreviouslyUnknownCatalogToSuppliedFolder() {
+			// The folder a new catalog occupies is decided by whoever materialised it, and has to survive the
+			// trip into engine state. Deriving it from the name here is the defect this guards: the
+			// restore wrote a whole catalog into `beta_4` and the state bound `beta`, so activation opened an
+			// empty directory and reported the data corrupted.
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[0], new String[0], null, new CatalogFolderBinding[0]
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalog(contract("beta", 1), new CatalogFolderId("beta_4"))
+				.build();
+
+			assertEquals(new CatalogFolderId("beta_4"), built.boundFolderIdFor("beta"));
+		}
+
+		@Test
+		@DisplayName("Refuses to stage a catalog that carries no binding")
+		void shouldRejectStagingOfUnboundCatalog() {
+			// Re-staging is for catalogs the state already knows; a name arriving unbound means it was never
+			// registered. Failing loudly is what stops the folder decision from silently defaulting to the
+			// catalog's own name, which is how the binding used to be lost.
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[0], new String[0], null, new CatalogFolderBinding[0]
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ExpandedEngineState.builder(expanded).withVersion(2L).withCatalog(contract("beta", 1))
+			);
+		}
+
+		@Test
+		@DisplayName("Leaves an existing binding alone even when a folder is offered")
+		void shouldNotRelocateAlreadyBoundCatalog() {
+			// A catalog that outlived a rename must keep its folder. Overwriting it with the token a caller
+			// happens to pass would undo the rename on the next re-staging.
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[]{"orders"}, new String[0], null,
+				new CatalogFolderBinding[]{
+					new CatalogFolderBinding("orders", new CatalogFolderId("products_3"))
+				}
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalog(contract("orders", 5), new CatalogFolderId("orders_9"))
+				.build();
+
+			assertEquals(new CatalogFolderId("products_3"), built.boundFolderIdFor("orders"));
+		}
+
+		@Test
+		@DisplayName("Drops the binding when a catalog is removed and keeps it when one goes missing")
+		void shouldDropBindingOnRemovalAndKeepItOnMissing() {
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.activeCatalogs(new String[]{"alpha", "beta"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("alpha", new CatalogFolderId("alpha_1")),
+						new CatalogFolderBinding("beta", new CatalogFolderId("beta_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withoutCatalog("alpha")
+				.withMissingCatalog("beta")
+				.build();
+
+			// nothing points at `alpha`'s folder any more
+			assertNull(built.boundFolderIdFor("alpha"));
+			// `beta`'s folder merely vanished - the binding names what a later reappearance must be matched
+			// against, so dropping it would make the recovered folder indistinguishable from a hand-placed one
+			assertEquals(new CatalogFolderId("beta_1"), built.boundFolderIdFor("beta"));
+			assertArrayEquals(new String[]{"beta"}, built.engineState().missingCatalogs());
+		}
+
+		@Test
+		@DisplayName("Rebinds a catalog that stops being missing to the folder it is re-registered with")
+		void shouldRebindCatalogLeavingTheMissingBucket() {
+			// `withMissingCatalog` keeps the binding on purpose - it names the folder that vanished. But a name
+			// that is still bound is one `withCatalog` will not rebind, so leaving it in place would point the
+			// recovered catalog at the folder that went away while its data sits in the one just filled. The
+			// catalog would then be staged MISSING again on the very next boot.
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.missingCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("orders_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalogNoLongerMissing("orders")
+				.withCatalog(contract("orders", 1), new CatalogFolderId("orders_7"))
+				.build();
+
+			assertEquals(new CatalogFolderId("orders_7"), built.boundFolderIdFor("orders"));
+			assertEquals(0, built.engineState().missingCatalogs().length);
+		}
+
+		@Test
+		@DisplayName("Leaves a bound catalog alone when it was never in the missing bucket")
+		void shouldNotTouchBindingOfCatalogThatWasNotMissing() {
+			// The call is chained unconditionally by three operators, so it has to be inert for the far more
+			// common case - otherwise it becomes a silent unbinding of a perfectly healthy catalog.
+			final EngineState<LogRecordReference> base = EngineState.<LogRecordReference>builder()
+				.version(1L)
+				.activeCatalogs(new String[]{"orders"})
+				.catalogFolders(
+					new CatalogFolderBinding[]{
+						new CatalogFolderBinding("orders", new CatalogFolderId("orders_1"))
+					}
+				)
+				.build();
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState built = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(2L)
+				.withCatalogNoLongerMissing("orders")
+				.build();
+
+			assertEquals(new CatalogFolderId("orders_1"), built.boundFolderIdFor("orders"));
+		}
+
+		@Test
+		@DisplayName("Keeps the folder when a catalog's instance is swapped, and refuses an unbound one")
+		void shouldKeepFolderOnInstanceSwapAndRejectUnbound() {
+			// An instance swap replaces the object behind a name that is already registered, so it must leave
+			// the folder exactly where it is — including a folder that no longer carries the catalog's name.
+			final EngineState<LogRecordReference> base = engineState(
+				1L, new String[0], new String[]{"gamma"}, new String[0], null,
+				new CatalogFolderBinding[]{
+					new CatalogFolderBinding("gamma", new CatalogFolderId("gamma_2"))
+				}
+			);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, Map.of());
+
+			final ExpandedEngineState updated = expanded.withUpdatedCatalogInstance(contract("gamma", 1));
+			assertEquals(new CatalogFolderId("gamma_2"), updated.boundFolderIdFor("gamma"));
+
+			// a swap cannot introduce a name, so an unbound one is a programming error rather than a new catalog
+			final ExpandedEngineState empty = ExpandedEngineState.create(
+				engineState(1L, new String[0], new String[0], new String[0], null, new CatalogFolderBinding[0]),
+				Map.of()
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> empty.withUpdatedCatalogInstance(contract("gamma", 1))
+			);
+		}
+
 	}
 
 	/**
@@ -180,11 +451,11 @@ class ExpandedEngineStateTest {
 		 */
 		@Nonnull
 		private static UnusableCatalog beingUpgradedPlaceholder(@Nonnull String name) {
-			return new UnusableCatalog(
+			return TestCatalogFolderContexts.onDirectory(PLACEHOLDER_PATH).createUnusableCatalog(
 				name,
 				CatalogState.BEING_UPGRADED,
-				PLACEHOLDER_PATH,
-				(cn, p) -> new IllegalStateException("Placeholder `" + cn + "` must not be queried.")
+				(cn, folderId, root) ->
+					new IllegalStateException("Placeholder `" + cn + "` must not be queried.")
 			);
 		}
 

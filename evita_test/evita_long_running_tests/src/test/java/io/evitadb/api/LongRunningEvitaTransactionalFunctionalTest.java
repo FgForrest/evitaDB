@@ -127,6 +127,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
+import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SLOW;
@@ -501,7 +502,9 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		final EntitySchemaContract productSchema = catalogSchema.getEntitySchema(Entities.PRODUCT).orElseThrow();
 		evita.close();
 
-		final Path catalogDirectory = cfg.storage().storageDirectory().resolve(TEST_CATALOG);
+		// the engine allocates `<catalogName>_<generation>` folders, so the folder has to be found rather than
+		// derived from the name - see EvitaTestSupport#catalogDirectory
+		final Path catalogDirectory = catalogDirectory(cfg.storage().storageDirectory(), TEST_CATALOG);
 		try (
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 				0L,
@@ -1302,6 +1305,7 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					try (
 						final Stream<CatalogBootstrap> bootstrapStream = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
 							TEST_CATALOG,
+							catalogDirectory(restartedEvita.getConfiguration().storage().storageDirectory(), TEST_CATALOG),
 							// bootstrap records must never be compressed
 							new StorageSettings(
 								StorageOptions.builder(restartedEvita.getConfiguration().storage())

@@ -75,6 +75,8 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.CatalogFolderContext;
+import io.evitadb.core.engine.CatalogFolderResolver;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
@@ -91,6 +93,8 @@ import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.sequence.SequenceService;
+import io.evitadb.core.sequence.SequenceType;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.session.SessionRegistry;
@@ -104,6 +108,9 @@ import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+import io.evitadb.spi.store.engine.model.CatalogGenerationPeak;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.utils.ArrayUtils;
@@ -127,6 +134,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -147,6 +155,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
+import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -202,6 +211,12 @@ public final class Evita implements EvitaContract {
 	 */
 	@Getter private final EvitaConfiguration configuration;
 	/**
+	 * Resolves the on-disk directory holding a catalog's data. This is the single sanctioned way to answer
+	 * "which folder is catalog `X`?" — see {@link CatalogFolderResolver} for why the catalog
+	 * name must stop doubling as its on-disk identity.
+	 */
+	@Getter private final CatalogFolderContext catalogFolderContext;
+	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -242,6 +257,17 @@ public final class Evita implements EvitaContract {
 	 * Reference keeps the current state of the evitaDB engine instance.
 	 */
 	private final AtomicReference<ExpandedEngineState> engineState = new AtomicReference<>();
+	/**
+	 * Generation counters numbering the storage folders each catalog occupies over its lifetime, keyed by catalog
+	 * name under {@link SequenceType#CATALOG_GENERATION}.
+	 *
+	 * This is an engine-scoped instance, distinct from the per-catalog {@link SequenceService} that hands out
+	 * entity and index primary keys and dies with its catalog: a folder generation has to outlive the catalog
+	 * object that occupied it, because a folder left behind by a failed operation is exactly what the next
+	 * allocation must not collide with. Its counters burn a number per attempt rather than per success, and are
+	 * seeded at boot from the peaks the engine state carries.
+	 */
+	@Getter private final SequenceService catalogGenerationSequences = new SequenceService();
 	/**
 	 * List of futures that are used to load all catalogs in parallel during startup and when all are completed
 	 * the list is cleared.
@@ -468,10 +494,32 @@ public final class Evita implements EvitaContract {
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
+		// Built only once the persistence service exists, because whole-folder operations are performed by the
+		// storage layer on the engine's behalf - the engine binds catalogs to opaque folder tokens and never
+		// joins one onto the storage root itself. See `CatalogFolderId` for the boundary rule.
+		this.catalogFolderContext = new CatalogFolderContext(
+			catalogName -> this.engineState.get().boundFolderIdFor(catalogName),
+			enginePersistenceService,
+			configuration.storage().storageDirectory(),
+			// one number per allocation *attempt* - a name that could not be created is never redrawn, which is
+			// what stops a folder the filesystem refuses to clear from making the catalog unallocatable forever
+			catalogName -> this.catalogGenerationSequences
+				.getOrCreateSequence(catalogName, SequenceType.CATALOG_GENERATION, 0)
+				.incrementAndGet()
+		);
+
 		this.management = new EvitaManagement(this);
 		this.proxyFactory = ProxyFactory.createInstance(this.reflectionLookup);
 
 		final EngineState<LogRecordReference> engineState = enginePersistenceService.getEngineState();
+
+		// The resolver above reads the engine state, and the stubs built below resolve their folder through it,
+		// so the persisted snapshot has to be published before the first lookup. It is published with no catalog
+		// instances attached and immediately superseded once the stubs exist - only the name-to-folder mapping is
+		// read in between.
+		this.engineState.set(ExpandedEngineState.create(engineState, Map.of()));
+		seedCatalogGenerationSequences(engineState);
+
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
@@ -483,19 +531,17 @@ public final class Evita implements EvitaContract {
 		// `UnusableCatalog(INACTIVE)` placeholder) before the catalog load futures are spawned.
 		Arrays.stream(engineState.inactiveCatalogs())
 		      .map(
-			      it -> new UnusableCatalog(
-				      it, CatalogState.INACTIVE,
-				      this.configuration.storage().storageDirectory().resolve(it),
-				      CatalogInactiveException::new
+			      it -> this.catalogFolderContext.createUnusableCatalog(
+				      it, CatalogState.INACTIVE, CatalogInactiveException::new
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
 		Arrays.stream(engineState.activeCatalogs())
 		      .map(
-			      it -> new UnusableCatalog(
+			      it -> this.catalogFolderContext.createUnusableCatalog(
 				      it, CatalogState.BEING_ACTIVATED,
-				      this.configuration.storage().storageDirectory().resolve(it),
-				      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+				      (cn, folderId, root) ->
+					      new CatalogTransitioningException(cn, folderId, root, CatalogState.BEING_ACTIVATED)
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
@@ -520,7 +566,8 @@ public final class Evita implements EvitaContract {
 			this, this.changeObserver, this.transactionExecutor, enginePersistenceService,
 			new DefaultUpgradeExecutor(
 				this.configuration.storage(), this.configuration.transaction(),
-				this.serviceExecutor, this.management.exportService()
+				this.serviceExecutor, this.management.exportService(),
+				this.catalogFolderContext
 			)
 		);
 
@@ -1401,6 +1448,43 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * Fast-forwards the engine-scoped folder generation counters to the peaks the persisted state carries.
+	 *
+	 * Two terms are applied and they are complementary rather than redundant:
+	 *
+	 * - the **persisted peaks** carry a number that was handed out for a name which may be unusable yet
+	 *   invisible to a scan — `Files.exists` reports an `AccessDeniedException` as absence, so such a name
+	 *   would be drawn again after every restart;
+	 * - the **disk scan** observes a folder an operation created before dying without persisting anything, which
+	 *   no peak knows about.
+	 *
+	 * Neither subsumes the other, so the counter is fast-forwarded past both.
+	 *
+	 * **Nothing writes the peaks yet.** No production path records a `CatalogGenerationPeak`, so the peak set
+	 * is empty on every installation and only the disk scan is live today. The scan covers the ordinary case; the
+	 * gap it leaves is exactly the case described above — a generation burned against a name the filesystem then
+	 * refuses to report — which is redrawn after a restart. Recording the peak belongs in the engine-state commit
+	 * of whichever operation drew the number.
+	 *
+	 * @param engineState persisted snapshot whose generation peaks are to be applied
+	 */
+	private void seedCatalogGenerationSequences(@Nonnull EngineState<LogRecordReference> engineState) {
+		// `getOrCreateSequence` only ever fast-forwards, so seeding is idempotent and can never walk a counter
+		// back onto a number it has already handed out - which also makes the order of the two terms irrelevant.
+		for (final CatalogGenerationPeak peak : engineState.generationPeaks()) {
+			this.catalogGenerationSequences.getOrCreateSequence(
+				peak.catalogName(), SequenceType.CATALOG_GENERATION, peak.peak()
+			);
+		}
+		for (final Entry<String, Integer> observed :
+			this.catalogFolderContext.getFolderOperations().observedFolderGenerationPeaks().entrySet()) {
+			this.catalogGenerationSequences.getOrCreateSequence(
+				observed.getKey(), SequenceType.CATALOG_GENERATION, observed.getValue()
+			);
+		}
+	}
+
+	/**
 	 * Drains the boot-time catalog inventory divergence by applying one WAL-backed engine mutation per entry. The
 	 * persistence service computed this divergence as a pure value during its construction; here we replay it through
 	 * the regular `EngineTransactionManager.applyMutation` path so each reconciliation step produces a WAL record,
@@ -1416,15 +1500,40 @@ public final class Evita implements EvitaContract {
 	 *    phase boundaries is what makes the ordering invariant load-bearing.
 	 * 2. Phase 2 — `reappeared` + `autoDiscovered`: `RestoreCatalogSchemaMutation` for each name. The two groups
 	 *    operate on disjoint name sets (a name cannot simultaneously reappear from the MISSING bucket and be newly
-	 *    auto-discovered), so they run in parallel.
+	 *    auto-discovered), so they run in parallel. Each auto-discovered folder is adopted first — renamed into
+	 *    the shape the engine allocates and reserved — so the mutation binds the catalog to the folder that
+	 *    rename produced.
+	 *
+	 * A crash between an adoption and its binding leaves a renamed, unreferenced folder, which classifies as
+	 * unclaimed: reported, never touched, and recoverable by renaming it back to a suffix-free name. That is the
+	 * same window `CatalogFolderContext#completeFolder` opens for create and restore, accepted here for the same
+	 * reason — closing it would need the binding to be committed before the folder is in its final place, which
+	 * trades a cosmetic gap for a live binding pointing at a directory that is about to move.
 	 *
 	 * Each phase awaits its `onCompletion` futures so the engine state is stable by the time we exit. Failures wedge
 	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
 	 * this code is meant to prevent.
 	 *
+	 * **Known gap: the divergence is computed before forward replay and drained after it.** The persistence service
+	 * builds it in its constructor, from the folders it finds on disk against the bootstrap as the crash left it;
+	 * the transaction manager replays a crashed commit a layer up, and only then is this called. A catalog the
+	 * replay has just re-registered can therefore be marked MISSING here, on the strength of a reading taken before
+	 * the replay existed. The engine's own operations cannot produce it — every operator that unbinds a folder
+	 * deletes it strictly *after* its own commit, so a crash inside the commit window always leaves the folder
+	 * standing — but a folder that vanishes by other means (an external deletion, a filesystem failure) while an
+	 * unrecovered record sits in the log does. Closing it means recomputing the divergence after the replay rather
+	 * than reusing the one computed before it.
+	 *
 	 * @param divergence divergence record returned by the persistence service; never null
 	 */
 	private void drainPendingCatalogInventoryDivergence(@Nonnull CatalogInventoryDivergence divergence) {
+		// Noted before the emptiness check and outside it: confirming a tombstoned folder gone produces no
+		// mutation of its own, so a boot whose only finding is a discharged tombstone still has to record it.
+		// The entry is then dropped from persisted state by whichever engine mutation comes next - possibly one
+		// of the mutations dispatched below, possibly the first catalog operation of the run.
+		for (final CatalogFolderId drained : divergence.drainedFolders()) {
+			this.catalogFolderContext.noteFolderDrained(drained);
+		}
 		if (!divergence.isEmpty()) {
 			log.info(
 				"Draining boot-time catalog inventory divergence: {} becomeMissing, {} reappeared, {} autoDiscovered.",
@@ -1447,7 +1556,7 @@ public final class Evita implements EvitaContract {
 					CompletableFuture.allOf(phase1.toArray(CompletableFuture[]::new)).join();
 				}
 				// Phase 2 — `reappeared` and `autoDiscovered` operate on disjoint name sets, so they can run
-				// in parallel. The broadened applicability rules and operator path (`Builder#withRestoredFromMissing`)
+				// in parallel. The broadened applicability rules and operator path (`Builder#withCatalogNoLongerMissing`)
 				// handle the MISSING → INACTIVE bucket move for `reappeared`; for `autoDiscovered` names the
 				// missing-bucket clearance is a no-op.
 				final List<CompletableFuture<?>> phase2 = new ArrayList<>(
@@ -1460,10 +1569,19 @@ public final class Evita implements EvitaContract {
 							.onCompletion().toCompletableFuture()
 					);
 				}
-				for (final String name : divergence.autoDiscovered()) {
+				for (final AdoptableCatalogFolder discovered : divergence.autoDiscovered()) {
+					// Adopt before dispatching, never after: the operator reads the folder to bind from the
+					// reservation this call leaves behind, and it must already name the folder the rename
+					// produced. Doing it the other way round would bind the pre-rename name and then move the
+					// folder out from under a live binding.
+					//
+					// Adoption is deliberately sequential while the mutations that follow are parallel — these
+					// are directory renames drawing from a shared generation counter, and there is nothing to
+					// win by overlapping them.
+					this.catalogFolderContext.adoptFolderFor(discovered.catalogName(), discovered.folderId());
 					phase2.add(
 						this.engineTransactionManager
-							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.applyMutation(new RestoreCatalogSchemaMutation(discovered.catalogName()), null)
 							.onCompletion().toCompletableFuture()
 					);
 				}
@@ -1494,11 +1612,10 @@ public final class Evita implements EvitaContract {
 					return null;
 				} else {
 					return existingState.withUpdatedCatalogInstance(
-						new UnusableCatalog(
+						this.catalogFolderContext.createUnusableCatalog(
 							catalogName,
 							CatalogState.CORRUPTED,
-							this.configuration.storage().storageDirectory().resolve(catalogName),
-							(tcn, path) -> new CatalogCorruptedException(tcn, path, cause)
+							(tcn, folderId, root) -> new CatalogCorruptedException(tcn, folderId, root, cause)
 						)
 					);
 				}
@@ -1537,6 +1654,48 @@ public final class Evita implements EvitaContract {
 	) {
 		return ofNullable(this.catalogSessionRegistries.get(catalogName))
 			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+	}
+
+	/**
+	 * Suspends a catalog's sessions, **installing a registry for it when it has none**.
+	 *
+	 * {@link #closeAllSessionsAndSuspend(String, SuspendOperation)} suspends only a registry that already
+	 * exists, and a catalog nobody has opened a session on since boot has none — so an operation that quiesces
+	 * a catalog through it suspends nothing at all, and every session request arriving while the operation runs
+	 * is served against the catalog the operation is about to destroy. Measured on the replace path before this
+	 * existed: 850 sessions opened on a catalog while it was being replaced.
+	 *
+	 * Registering the registry *first* and suspending it after is what closes the window: session creation goes
+	 * through `computeIfAbsent` on the same map, so a racing request either builds nothing (this call got there
+	 * first) or is the one that built it (and this call suspends the very instance it built).
+	 *
+	 * **A name that names no catalog gets no registry**, so a request for it keeps answering
+	 * {@link CatalogNotFoundException} rather than the "terminated" that a placeholder would produce — a replace
+	 * is allowed to target a catalog that does not exist.
+	 *
+	 * The caller is responsible for what happens next: a registry this call created must be **removed** if the
+	 * operation fails, never restored, or the name is left permanently refusing sessions.
+	 *
+	 * @param catalogName      catalog whose sessions are to be closed and suspended
+	 * @param suspendOperation how requests arriving during the suspension are to be treated
+	 * @return the registry now suspended under that name, or empty when the name names no catalog
+	 */
+	@Nonnull
+	public Optional<SessionRegistry> suspendCatalogSessions(
+		@Nonnull String catalogName,
+		@Nonnull SuspendOperation suspendOperation
+	) {
+		final SessionRegistry registry = this.catalogSessionRegistries.computeIfAbsent(
+			catalogName,
+			name -> getCatalogInstance(name)
+				.map(__ -> createSessionNewRegistry(new SessionTraits(name)))
+				.orElse(null)
+		);
+		if (registry == null) {
+			return empty();
+		}
+		registry.closeAllActiveSessionsAndSuspend(suspendOperation);
+		return of(registry);
 	}
 
 	/**

@@ -56,6 +56,7 @@ import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
@@ -91,7 +92,8 @@ import java.util.stream.Stream;
  *
  * Lifecycle: an instance is created by {@link CatalogPersistenceServiceFactory} (loaded via `ServiceLoader`) and
  * lives as long as the catalog is open. It must be closed with {@link #close()} when the catalog shuts down.
- * Calling {@link #closeAndDelete()} additionally removes all persistent files from disk.
+ * Removing the files themselves is not this service's job: the folder a catalog occupies is owned by the engine
+ * and is wiped through the folder context once the engine state no longer references it.
  *
  * The interface is parameterized to allow the storage-module implementation to use its own concrete types for
  * WAL file references, collection file references, and entity collection headers without exposing those types
@@ -129,6 +131,28 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	String RESTORE_FLAG = ".restored";
 
 	/**
+	 * Marker file written into a catalog directory the instant it is created, and removed **before** the engine
+	 * state commits the binding that points at it. Its presence on an unreferenced folder therefore means an
+	 * operation that was materialising that folder died part-way through, and the folder holds no data anyone
+	 * can still reach — it is the only positive evidence that lets boot-time cleanup delete something.
+	 *
+	 * This is the opposite polarity to {@link #RESTORE_FLAG}: `.restored` says *"complete, adapt the name on
+	 * load"*, `.provisional` says *"incomplete, do not trust"*. Both are needed; they answer different questions.
+	 */
+	String PROVISIONAL_FLAG = ".provisional";
+
+	/**
+	 * Marker file holding the name of the catalog whose data a folder carries. Written whenever the binding
+	 * changes, so a folder that outlived a rename still says which catalog it belongs to — folder names are
+	 * cosmetic and are only brought back in line at the next boot, while the server is not running.
+	 *
+	 * It exists for the operator doing disaster recovery against a bare storage directory with no server to
+	 * ask; nothing in the engine reads it to make a decision, because the engine state is the sole authority
+	 * on where a catalog lives.
+	 */
+	String CATALOG_NAME_FLAG = ".catalogname";
+
+	/**
 	 * Pre-compiled regex pattern that matches any entity collection file name and extracts the entity type primary
 	 * key (group 1) and the file rotation index (group 2) from the name. Used for bulk discovery of all collection
 	 * files in a catalog directory without knowing the entity types in advance.
@@ -138,29 +162,49 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Returns name of the bootstrap file that contains lead information to fetching the catalog header in fixed record
 	 * size format. This file can be traversed by jumping on expected offsets.
+	 *
+	 * The argument is the *storage prefix* the folder's files are named with, which historically equalled the catalog
+	 * name but no longer has to — see `DefaultCatalogPersistenceService#discoverStoragePrefix`.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return name of the bootstrap file
 	 */
 	@Nonnull
-	static String getCatalogBootstrapFileName(@Nonnull String catalogName) {
-		return catalogName + BOOT_FILE_SUFFIX;
+	static String getCatalogBootstrapFileName(@Nonnull String storagePrefix) {
+		return storagePrefix + BOOT_FILE_SUFFIX;
 	}
 
 	/**
 	 * Returns name of the catalog data file that contains catalog schema and catalog indexes.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     rotation index of the data file
+	 * @return name of the catalog data file
 	 */
 	@Nonnull
-	static String getCatalogDataStoreFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + CATALOG_FILE_SUFFIX;
+	static String getCatalogDataStoreFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + CATALOG_FILE_SUFFIX;
 	}
 
 	/**
-	 * Returns the pattern used to match the data store file names for a specific catalog.
+	 * Returns the pattern used to match the data store file names carrying the passed storage prefix.
 	 *
-	 * @param catalogName the name of the catalog to get the file name pattern for
-	 * @return the pattern used to match the data store file names
+	 * The prefix is quoted rather than interpolated raw. Catalog names legally contain `.`
+	 * (`ClassifierUtils.SUPPORTED_FORMAT_PATTERN` allows `[\p{Alnum}_.\-~]`), which is a regex wildcard, so an
+	 * unquoted prefix matches files belonging to a *different* prefix — `my.catalog` would also match
+	 * `myXcatalog_1.catalog`. That was harmless only while a catalog owned its folder exclusively and the prefix was
+	 * a validated catalog name; once the prefix is discovered from disk and a folder can hold files under both an old
+	 * and a new prefix, an over-permissive pattern selects the wrong catalog's data files.
+	 *
+	 * The suffix is quoted for the same reason — `.catalog` begins with a regex wildcard, so unquoted it would also
+	 * match a file name ending `Xcatalog`.
+	 *
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @return the pattern used to match the data store file names, capturing the rotation index as group 1
 	 */
 	@Nonnull
-	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String catalogName) {
-		return Pattern.compile(catalogName + "_(\\d+)" + CATALOG_FILE_SUFFIX);
+	static Pattern getCatalogDataStoreFileNamePattern(@Nonnull String storagePrefix) {
+		return Pattern.compile(Pattern.quote(storagePrefix) + "_(\\d+)" + Pattern.quote(CATALOG_FILE_SUFFIX));
 	}
 
 	/**
@@ -231,13 +275,13 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Returns name of the Write-Ahead-Log file that contains all mutations that were not yet propagated to the catalog
 	 * data file.
 	 *
-	 * @param catalogName name of the catalog
-	 * @param fileIndex   index of the WAL file
+	 * @param storagePrefix prefix shared by all files in the catalog folder
+	 * @param fileIndex     index of the WAL file
 	 * @return name of the WAL file
 	 */
 	@Nonnull
-	static String getWalFileName(@Nonnull String catalogName, int fileIndex) {
-		return catalogName + '_' + fileIndex + WAL_FILE_SUFFIX;
+	static String getWalFileName(@Nonnull String storagePrefix, int fileIndex) {
+		return storagePrefix + '_' + fileIndex + WAL_FILE_SUFFIX;
 	}
 
 	/**
@@ -410,11 +454,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Method deletes entire catalog persistent storage and closes the persistence factory.
-	 */
-	void closeAndDelete();
-
-	/**
 	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
@@ -457,7 +496,16 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	);
 
 	/**
-	 * Replaces folder of the `catalogNameToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `catalogNameToBeReplaced`, in place.
+	 *
+	 * The name is rewritten into the catalog's header and schema and a fresh bootstrap record is written — that
+	 * is the whole of it. **Nothing is moved, copied or deleted**: the catalog keeps the folder it already
+	 * occupies and every file inside keeps the name it already has. File names inside a folder are
+	 * discovered from the folder's own bootstrap file rather than derived from the catalog name, which is what
+	 * lets them stay put; the folder that the replaced catalog used to occupy is the caller's concern, retired
+	 * through the engine state rather than deleted here.
+	 *
+	 * The returned service addresses the same folder under the new name; this one is closed.
 	 *
 	 * @param catalogVersion                    version of the catalog
 	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog
@@ -628,7 +676,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -644,7 +691,6 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * Creates a full backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
 	 *
 	 * @param onStart        callback that is called before the backup starts
-	 * @param onComplete     callback that is called when the backup is finished (either successfully or with an error)
 	 * @return path to the file where the backup was created
 	 */
 	@Nonnull
@@ -655,7 +701,12 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	/**
 	 * Duplicates an existing catalog to create a new catalog with a different name.
 	 *
+	 * The folder the copy lands in is passed in rather than derived from the target name: which directory a
+	 * catalog occupies is engine state, and the duplicate is one of the three paths that materialise a folder.
+	 * The caller allocates it, marks it provisional, and clears that marker once this future completes.
+	 *
 	 * @param targetCatalogName name of the target catalog to be created
+	 * @param targetFolderId    folder the copy is written into, already allocated by the caller
 	 * @param storageOptions storage configuration options
 	 * @return progressing future that tracks the duplication process
 	 *
@@ -664,6 +715,7 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	@Nonnull
 	ProgressingFuture<Void> duplicateCatalog(
 		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId,
 		@Nonnull StorageOptions storageOptions
 	) throws EvitaIOException;
 

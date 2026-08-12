@@ -1,7 +1,7 @@
 ---
 title: Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count
 date: 2026-08-06
-updated: 2026-08-11 06:00
+updated: 2026-08-11 09:20
 status: accepted
 kind: feature
 issues: [761]
@@ -868,6 +868,29 @@ is false for the reason above (warm-up leaves one record, not many), and the wor
   snapshot would reduce the hold from *O(backup duration)* to *O(file count)* and make the filesystem
   the reference counter. Not a precondition for anything above: a global hold is an honest contract
   for an operation that is rare and bounded.
+- **Both waits in `CatalogHistoryHorizonRecoveryTest` are sleep-poll loops, and one of them fails
+  dishonestly.** `awaitWalPurge` and `awaitHistoryGivenUp` are *positive* waits — "this must happen" —
+  written as `while (not yet && before deadline) { look; Thread.sleep(250); }`. That is the pattern
+  `.claude/rules/testing.md` singles out as a positive wait wearing a loop: slower than needed when the
+  code works, and expiring when the machine is busy. This test drives a real engine whose rotation,
+  purge and reconciliation are all background tasks, so a contended box stretches exactly the window
+  they bound — a CPU-churn flake by construction, and the 60 s budget is what stands between the suite
+  and a false failure.
+  The two are **not equally bad, and the fix differs**. `awaitHistoryGivenUp` returns what it observed
+  and its caller asserts on it, so an expiry is reported honestly ("still at `N`, expected above `M`")
+  — it can still fail falsely under load, but it names the right thing. `awaitWalPurge` returns
+  `void` and simply **gives up silently**, letting the run continue and fail on a later, unrelated
+  assertion. That is not theoretical: it is how the folder-resolution defect recorded in
+  `2026-08-06-catalog-folder-decoupling` presented. Listing a directory that is not there yields no
+  files rather than an error, so the wait burned its full sixty seconds and the failure announced that
+  *log rotation* had left too few files behind — about a folder the test had never once looked at.
+  Sixty-two seconds to say the wrong thing; three seconds to pass once the real cause was fixed.
+  **A wait must fail on its own timeout, with its own message** — asserting on expiry instead of
+  returning is the one-line half of this and is worth doing even if the flake never fires, because it
+  is what stops the next defect here from being diagnosed twice. The real fix is a completion seam to
+  await rather than a filesystem state to poll: the text above says these tasks "expose no completion
+  seam to latch onto", and *that* is the thing to change. Raising the timeout is not a fix — it only
+  makes the silent-failure case slower to arrive.
 
 ## Timeline
 

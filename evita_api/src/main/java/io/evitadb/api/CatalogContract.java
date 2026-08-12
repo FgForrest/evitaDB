@@ -198,12 +198,16 @@ public interface CatalogContract {
 		throws SchemaAlteringException;
 
 	/**
-	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
-	 */
-	void terminateAndDelete();
-
-	/**
-	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `updatedSchema.getName()`, so that it becomes the catalog known under that name.
+	 *
+	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
+	 * occupies; the operation rewrites the name held in that folder's header and schema and hands back a catalog
+	 * instance addressing the same data under the new name. Retiring the folder the replaced catalog used
+	 * to occupy is the caller's concern — it is tombstoned through the engine state, not deleted here.
+	 *
+	 * @param updatedSchema        schema carrying the name this catalog is to be known under
+	 * @param catalogToBeReplaced  catalog being superseded, or `null` when this is a rename onto a free name
+	 * @return future producing the catalog instance serving the new name
 	 */
 	@Nonnull
 	ProgressingFuture<CatalogContract> replace(
@@ -376,15 +380,6 @@ public interface CatalogContract {
 	ServerTask<?, FileForFetch> fullBackup(
 		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
-
-	/**
-	 * Duplicates the current catalog to another catalog with the specified name.
-	 *
-	 * @param targetCatalogName the name of the target catalog to which the current catalog will be duplicated
-	 * @return a future that will be completed when the duplication is finished
-	 */
-	@Nonnull
-	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
 
 	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.

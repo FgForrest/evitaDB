@@ -243,7 +243,11 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 				.sorted(Comparator.comparing(o -> o.getName(o.getNameCount() - 1)))
 				.forEach(file -> {
 					try {
-						final String relativePath = catalogStoragePath.relativize(file).toString();
+						// the files on disk carry the folder's storage prefix; the archive is the canonical shape and
+						// must carry the catalog's logical name, so that it restores anywhere under any name
+						final String relativePath = CatalogFileNaming.canonicalizeTo(
+							catalogStoragePath.relativize(file).toString(), this.catalogName
+						);
 						zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + relativePath));
 						Files.copy(file, zipOutputStream);
 						zipOutputStream.closeEntry();

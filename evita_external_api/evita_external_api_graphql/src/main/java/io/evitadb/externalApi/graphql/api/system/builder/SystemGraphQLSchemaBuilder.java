@@ -168,7 +168,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
 	private static final PropertyDataFetcher<Boolean> CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
 
-	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getCatalogStoragePath().toString());
 	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getRepresentativeException().toString());
 	private static final PropertyDataFetcher<Boolean> UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
 
@@ -418,11 +417,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	@Nonnull
 	private GraphQLObjectType buildUnusableCatalogObject() {
-		this.buildingContext.registerDataFetcher(
-			UnusableCatalogDescriptor.THIS,
-			UnusableCatalogDescriptor.CATALOG_STORAGE_PATH,
-			UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER
-		);
 		this.buildingContext.registerDataFetcher(
 			UnusableCatalogDescriptor.THIS,
 			UnusableCatalogDescriptor.CAUSE,

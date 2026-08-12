@@ -128,3 +128,6 @@ mcp-jdwp-inspector.log
 /docs/
 /.claude/scheduled_tasks.lock
 /.codex-sandbox-proxy/
+# In-flight plans are working notes, not deliverables - see .claude/rules/adr.md.
+# Folders tracked before this convention stay tracked; git-ignore does not untrack.
+/specifications/

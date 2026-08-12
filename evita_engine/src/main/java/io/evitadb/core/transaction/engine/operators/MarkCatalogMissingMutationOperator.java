@@ -30,12 +30,12 @@ import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -61,13 +61,13 @@ public class MarkCatalogMissingMutationOperator
 	implements EngineMutationOperator<Void, MarkCatalogMissingMutation> {
 
 	/**
-	 * Storage root directory used to build the placeholder catalog path for the `UnusableCatalog`
-	 * instance that reports the missing folder.
+	 * Everything the engine knows about catalog storage folders — used here to build the `UnusableCatalog`
+	 * placeholder that reports which folder went missing.
 	 */
-	@Nonnull private final Path storageDirectory;
+	@Nonnull private final CatalogFolderContext folderContext;
 
-	public MarkCatalogMissingMutationOperator(@Nonnull Path storageDirectory) {
-		this.storageDirectory = storageDirectory;
+	public MarkCatalogMissingMutationOperator(@Nonnull CatalogFolderContext folderContext) {
+		this.folderContext = folderContext;
 	}
 
 	@Nonnull
@@ -105,11 +105,10 @@ public class MarkCatalogMissingMutationOperator
 						.withVersion(version)
 						.withMissingCatalog(catalogName)
 						.withInFlightPlaceholder(
-							new UnusableCatalog(
+							MarkCatalogMissingMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								CatalogState.MISSING,
-								MarkCatalogMissingMutationOperator.this.storageDirectory.resolve(catalogName),
-								(cn, path) -> new CatalogMissingException(cn)
+								(cn, folderId, root) -> new CatalogMissingException(cn)
 							)
 						)
 						.build();
@@ -141,11 +140,10 @@ public class MarkCatalogMissingMutationOperator
 				.withVersion(targetVersion)
 				.withMissingCatalog(catalogName)
 				.withInFlightPlaceholder(
-					new UnusableCatalog(
+					this.folderContext.createUnusableCatalog(
 						catalogName,
 						CatalogState.MISSING,
-						this.storageDirectory.resolve(catalogName),
-						(cn, path) -> new CatalogMissingException(cn)
+						(cn, folderId, root) -> new CatalogMissingException(cn)
 					)
 				)
 				.build()

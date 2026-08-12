@@ -28,11 +28,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import javax.annotation.Nonnull;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -41,6 +38,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.CDC;
@@ -48,6 +46,7 @@ import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.STREAM;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -81,11 +80,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(GRPC)
 @Tag(CDC)
 @Tag(STREAM)
-// shouldNotCreateThreadsWhenCallbacksAreRefused reads ThreadMXBean#getTotalStartedThreadCount(), which is
-// JVM-wide - under `parallel=all` every sibling class booting an embedded Evita+gRPC+GraphQL instance
-// inflates the same counter, so the assertion sees ambient concurrency rather than this class's behavior.
-// @Isolated forces the whole class to run alone in its fork, the same pattern as ConsoleWriterTest.
-@Isolated
+// Deliberately NOT @Isolated: nothing here reads a JVM-wide counter any more. The assertion that needed
+// isolation was `shouldNotCreateThreadsWhenCallbacksAreRefused`, which inferred a rescue from
+// ThreadMXBean#getTotalStartedThreadCount(); it is now `shouldNotRunAnyCallbackUnderSustainedRefusal`, which
+// observes the callback *running* instead. That is both load-immune and strictly stronger - a thread count
+// cannot see a rescue onto a cached pool or the common ForkJoin pool, so isolation would have bought a
+// reliable measurement of the wrong thing.
 class CdcCallbackDispatcherTest {
 
 	@Nested
@@ -172,32 +172,56 @@ class CdcCallbackDispatcherTest {
 		}
 
 		@Test
-		@DisplayName("Creates no threads of its own, however many callbacks are refused")
-		void shouldNotCreateThreadsWhenCallbacksAreRefused() {
+		@DisplayName("Runs no callback at all under sustained refusal")
+		void shouldNotRunAnyCallbackUnderSustainedRefusal() throws InterruptedException {
 			// An earlier revision rescued each refused callback onto a fresh thread. Saturation arrives in
 			// storms and the capture drain re-submits itself, so that traded a capture outage for unbounded
 			// thread creation on an already struggling JVM. Refusal must now be free.
 			//
-			// `getTotalStartedThreadCount` is JVM-wide and monotonic, so unrelated activity in this JVM can
-			// only inflate the delta - never mask a regression. The old behaviour would add one thread per
-			// refusal (1 000 of them), so the threshold discriminates cleanly without being brittle.
-			final ThreadMXBean threads = ManagementFactory.getThreadMXBean();
-			final long startedBefore = threads.getTotalStartedThreadCount();
+			// What this adds over the sibling test above: that one proves a *single* refused callback does not
+			// run *on the caller*. This one proves a *thousand* do not run *anywhere*. A per-refusal rescue
+			// satisfies the first and violates the second, so only this shape catches the regression.
+			//
+			// A rescue is observed through the callback *running*, not through a thread count. That is the
+			// definition rather than a proxy - a rescue that never runs the callback is not a rescue - and it
+			// holds for every shape the regression could take: a fresh thread, a cached pool, or
+			// `CompletableFuture.runAsync` on the common pool. A thread count cannot see the last two at all.
+			//
+			// It is also the only formulation that survives this suite. Tests run `<parallel>all</parallel>`
+			// in a single reused fork, so `ThreadMXBean#getTotalStartedThreadCount` - which this assertion used
+			// to read - counts every thread started by every sibling class booting an embedded server on
+			// another test thread. Measured deltas of 102, 162, 174, 271 and 272 against a threshold of 100
+			// made this test fail on a busy machine while the dispatcher was entirely innocent.
+			final AtomicInteger ranCount = new AtomicInteger();
+			final CountDownLatch ranAtLeastOnce = new CountDownLatch(1);
 
 			final int refusals = 1_000;
 			for (int i = 0; i < refusals; i++) {
 				CdcCallbackDispatcher.dispatch(
 					new RejectingExecutorService(() -> new EvitaClientPoolSaturatedException(4, 100)),
-					() -> {},
+					() -> {
+						ranCount.incrementAndGet();
+						ranAtLeastOnce.countDown();
+					},
 					"test callback"
 				);
 			}
 
-			final long started = threads.getTotalStartedThreadCount() - startedBefore;
-			assertTrue(
-				started < refusals / 10,
-				"refusing callbacks must not spawn threads - " + started + " thread(s) were started while " +
-					refusals + " callbacks were refused"
+			// Negative wait: load can only delay a rescued callback, never invent one, so a short window cannot
+			// fail spuriously and must not be lengthened. The old behaviour rescued *every* refusal, so 1 000
+			// of them would have to miss this window unanimously to slip through.
+			//
+			// Calibration: adding `new Thread(guardedCallback).start()` to the refusal branch of
+			// CdcCallbackDispatcher#dispatch fails this assertion in 191 ms - the very first rescued callback
+			// trips the latch, with 59 ms to spare and 999 refusals still to come.
+			assertFalse(
+				ranAtLeastOnce.await(250, TimeUnit.MILLISECONDS),
+				"a refused callback must not be rescued onto a thread of the dispatcher's own making"
+			);
+			assertEquals(
+				0, ranCount.get(),
+				() -> "refusing callbacks must not run them anywhere - " + ranCount.get() + " of " + refusals +
+					" refused callbacks ran"
 			);
 		}
 	}

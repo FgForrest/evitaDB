@@ -41,16 +41,19 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.exception.ExportServiceImplementationNotFoundException;
 import io.evitadb.core.executor.ClientRunnableTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SequentialTask;
+import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.Functions;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -74,6 +77,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -304,11 +308,24 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		long totalBytesExpected,
 		boolean deleteAfterRestore
 	) {
-		return new SequentialTask<>(
+		// The name is client-supplied and reaches folder allocation before any mutation validates it -
+		// `RestoreCatalogSchemaMutation` runs its check at *registration*, which is after a folder has been
+		// created and the whole archive written into it. Checking here makes a malformed name a client error
+		// rather than an internal one, and keeps it from ever reaching a path join.
+		ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, catalogName);
+		// Nothing is materialised here, only promised. A chunked upload creates its task on the first chunk and
+		// submits it once the last one arrives, so allocating now would leave every abandoned upload holding a
+		// directory, a consumed generation and an exclusive claim on the name. The claim lands when the
+		// restore actually starts, and `claim` is what carries it from there to whichever of the registering
+		// step and the release hook gets to it first.
+		final RestoreFolderClaim claim = new RestoreFolderClaim();
+		final SequentialTask<Void> restorationTask = new SequentialTask<>(
 			catalogName,
 			"Restore catalog " + catalogName + " from backup.",
 			Catalog.createRestoreCatalogTask(
-				catalogName, this.evita.getConfiguration().storage(),
+				catalogName,
+				() -> claim.allocate(this.evita.getCatalogFolderContext(), catalogName),
+				this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
 			new ClientRunnableTask<>(
@@ -316,9 +333,62 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				"registerInactiveCatalog",
 				"Registering restored catalog " + catalogName + ".",
 				Void.class,
-				session -> this.evita.registerRestoredCatalog(catalogName)
+				session -> registerRestoredCatalogHoldingItsFolder(catalogName, claim)
 			)
 		);
+		// This is the one materialising path whose claim has to outlive the call that took it: the registering
+		// step runs later, so releasing any earlier would let a second restore in while this one is still writing.
+		// The task's own future is the release point, and it completes on failure as well as on success -
+		// including a first step that failed, which never reaches the registering step at all. A task that never
+		// ran holds nothing, so an abandoned upload finds nothing to release.
+		//
+		// This hook can fire *while* the registering step runs: `SequentialTask#cancel()` completes the future
+		// without stopping a step already executing. `takeClaim` is therefore a handover, not a read - whichever
+		// of the two gets there first owns the release, and the other finds nothing.
+		//
+		// It can also fire before there is anything to take, when the cancel lands inside the allocation itself.
+		// This hook runs once and cannot come back for a claim published after it, so `allocate` compare-and-sets
+		// its publication and releases on the spot when it loses - see `RestoreFolderClaim`.
+		restorationTask.getFutureResult().whenComplete(
+			(result, ex) -> {
+				final CatalogFolderReservation reservation = claim.takeClaim();
+				if (reservation != null) {
+					reservation.close();
+				}
+			}
+		);
+		return restorationTask;
+	}
+
+	/**
+	 * Registers a restored catalog while holding its folder claim, so that nothing can take the name in between.
+	 *
+	 * The registering mutation resolves the restored folder **by catalog name**, so the claim has to still be
+	 * held while it runs — a second restore that took the name in that window would make this one bind its
+	 * catalog to the other one's half-written folder. Taking the claim out of the holder is what guarantees that:
+	 * the completion hook can no longer release it underneath this call.
+	 *
+	 * Finding no claim is not an error in the code, it means the task was cancelled or failed and the hook has
+	 * already given the name back. Registering anyway would publish a catalog the client was told it would not
+	 * get, so this refuses instead.
+	 *
+	 * @param catalogName name of the catalog being registered
+	 * @param claim       holder carrying the claim taken when the restore started
+	 */
+	private void registerRestoredCatalogHoldingItsFolder(
+		@Nonnull String catalogName,
+		@Nonnull RestoreFolderClaim claim
+	) {
+		final CatalogFolderReservation heldClaim = claim.takeClaim();
+		if (heldClaim == null) {
+			throw new CancellationException(
+				"Restore of catalog `" + catalogName + "` ended before it could be registered - its folder claim " +
+					"was already given back."
+			);
+		}
+		try (heldClaim) {
+			this.evita.registerRestoredCatalog(catalogName);
+		}
 	}
 
 	/**

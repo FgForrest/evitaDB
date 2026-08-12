@@ -136,6 +136,7 @@ import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
@@ -144,6 +145,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -230,7 +232,13 @@ public final class Catalog
 	private final TransactionalMap<String, EntitySchemaContract> entitySchemaIndex;
 	/**
 	 * Service containing I/O related methods.
+	 *
+	 * Exposed so that a test driving a real engine can reach the storage layer's own seams - forcing an owed
+	 * checkpoint, draining the write-ahead log - instead of polling the filesystem until the background work
+	 * happens to have run. Nothing in production reads it through the getter; every engine path that needs the
+	 * persistence service already holds it directly.
 	 */
+	@Getter
 	private final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> persistenceService;
 	/**
 	 * This instance is used to cover changes in transactional memory and persistent storage reference.
@@ -345,7 +353,8 @@ public final class Catalog
 	 * Verifies whether the catalog name could be used for a new catalog.
 	 *
 	 * @param catalogName        the name of the catalog
-	 * @param storageOptions     the storage options
+	 * @param catalogFolderAllocator allocates the folder the catalog is restored into, once the restore begins
+	 * @param storageOptions     storage configuration supplying the root the token resolves against
 	 * @param fileId             The ID of the file to be restored.
 	 * @param pathToFile         the path to the ZIP file with the catalog content
 	 * @param totalBytesExpected total bytes expected to be read from the input stream
@@ -355,6 +364,7 @@ public final class Catalog
 	@Nonnull
 	public static ServerTask<? extends FileIdCarrier, Void> createRestoreCatalogTask(
 		@Nonnull String catalogName,
+		@Nonnull CatalogFolderAllocator catalogFolderAllocator,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull UUID fileId,
 		@Nonnull Path pathToFile,
@@ -365,8 +375,8 @@ public final class Catalog
 			.findFirst()
 			.map(
 				it -> it.restoreCatalogTo(
-					catalogName, storageOptions, fileId, pathToFile, totalBytesExpected,
-					deleteAfterRestore
+					catalogName, catalogFolderAllocator, storageOptions, fileId, pathToFile,
+					totalBytesExpected, deleteAfterRestore
 				)
 			)
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
@@ -592,6 +602,9 @@ public final class Catalog
 				.map(
 					it -> it.createNew(
 						this, this.getSchema().getName(),
+						// a brand-new catalog is not in the engine state yet, so this is where its folder
+						// binding is established rather than read
+						evita.getCatalogFolderContext().folderIdForBinding(catalogName),
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,
@@ -672,6 +685,7 @@ public final class Catalog
 				.map(
 					it -> it.load(
 						this, catalogName,
+						evita.getCatalogFolderContext().folderIdFor(catalogName),
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,
@@ -1116,15 +1130,6 @@ public final class Catalog
 			});
 	}
 
-	@Override
-	public void terminateAndDelete() {
-		try {
-			this.terminateInternally();
-		} finally {
-			this.persistenceService.closeAndDelete();
-		}
-	}
-
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(
@@ -1423,10 +1428,27 @@ public final class Catalog
 		return backupTask;
 	}
 
+	/**
+	 * Copies this catalog's contents into the folder the engine allocated for the duplicate.
+	 *
+	 * Deliberately not on {@link io.evitadb.api.CatalogContract}: the folder a duplicate lands in is engine
+	 * state, and the token naming it is a storage-layer type the public contract does not expose.
+	 * Duplicating is only ever driven by `DuplicateCatalogMutationOperator`, which is engine-internal and holds
+	 * the allocation, so the narrower signature costs nothing and removes the only remaining way to ask for a
+	 * copy into a folder named after the catalog.
+	 *
+	 * @param targetCatalogName name the copy will be registered under
+	 * @param targetFolderId    folder the copy is written into, allocated and marked provisional by the caller
+	 * @return progressing future that tracks the copy
+	 */
 	@Nonnull
-	@Override
-	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
-		return this.persistenceService.duplicateCatalog(targetCatalogName, this.evitaConfiguration.storage());
+	public ProgressingFuture<Void> duplicateTo(
+		@Nonnull String targetCatalogName,
+		@Nonnull CatalogFolderId targetFolderId
+	) {
+		return this.persistenceService.duplicateCatalog(
+			targetCatalogName, targetFolderId, this.evitaConfiguration.storage()
+		);
 	}
 
 	@Nonnull
