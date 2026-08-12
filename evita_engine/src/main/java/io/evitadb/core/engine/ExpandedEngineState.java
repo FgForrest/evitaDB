@@ -555,6 +555,40 @@ public record ExpandedEngineState(
 		}
 
 		/**
+		 * Points a catalog name at a folder and files the name under **active**, whatever the passed instance is.
+		 *
+		 * This exists for **forward replay** and for nothing else. {@link #withCatalogBoundTo} decides the
+		 * persisted bucket from `catalog instanceof Catalog`, which is right on the live path — the work phase
+		 * hands it the real, loaded catalog — and wrong at replay time, where the contract forbids opening a
+		 * catalog and the only instance available is an {@link io.evitadb.core.catalog.UnusableCatalog}
+		 * placeholder. Routing a replay through `withCatalogBoundTo` would therefore file a live catalog as
+		 * *inactive*: no exception, no failing assert, just a catalog that comes back from the next boot switched
+		 * off. This is exactly the trap that made rename/replace replay look impossible.
+		 *
+		 * The placeholder itself is transient. Boot installs one for every active catalog before any catalog is
+		 * loaded (`Evita`), and the real instance replaces it as the load completes — so what has to be right
+		 * here is the *bucket*, which outlives the placeholder, not the instance.
+		 *
+		 * @param placeholder catalog or placeholder whose name is being pointed at the folder
+		 * @param folderId    folder the catalog occupies
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withActiveCatalogBoundTo(
+			@Nonnull CatalogContract placeholder,
+			@Nonnull CatalogFolderId folderId
+		) {
+			final String catalogName = placeholder.getName();
+			this.catalogFolders = EngineState.withBinding(
+				this.catalogFolders, new CatalogFolderBinding(catalogName, folderId)
+			);
+			this.catalogs.put(catalogName, new CatalogWrapper(placeholder));
+			this.activeCatalogs = insertRecordIntoOrderedArray(catalogName, this.activeCatalogs);
+			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
+			return this;
+		}
+
+		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
 		 */
 		@Nonnull

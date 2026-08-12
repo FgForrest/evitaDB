@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine.operators;
 
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -35,6 +36,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.engine.ExpandedEngineState.Builder;
+import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -43,6 +45,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,6 +77,7 @@ import static io.evitadb.utils.Assert.isTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOperator<CommitVersions, ModifyCatalogSchemaNameMutation> {
 	private final CatalogFolderContext folderContext;
@@ -175,11 +179,24 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				)
 			);
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
+			final Optional<SessionRegistry> quiescedTargetRegistry;
 			if (replaceOperation) {
-				removedCatalogSessionRegistry
-					.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT));
+				// `suspendCatalogSessions` rather than suspending only what `getCatalogSessionRegistry` already
+				// found: a target nobody has opened a session on since boot has no registry, so the captured
+				// Optional is empty and nothing is quiesced at all - which is how sessions came to be served
+				// against a catalog while it was being destroyed. It installs one only when the name names a
+				// catalog, so a replace onto a target that does not exist keeps answering
+				// `CatalogNotFoundException` rather than reporting a terminated instance.
+				//
+				// Held apart from `removedCatalogSessionRegistry`, which stays the *pre-existing* registry:
+				// `undoOperations` must remove a registry this call created rather than restore it, and the
+				// captured Optional is empty exactly when we created it ourselves.
+				quiescedTargetRegistry = evita.suspendCatalogSessions(
+					catalogNameToBeReplaced, SuspendOperation.REJECT
+				);
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
+				quiescedTargetRegistry = Optional.empty();
 			}
 
 			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = mutation.mutate(catalogToBeReplacedWith.getSchema());
@@ -242,36 +259,81 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					// move with it or disaster recovery reads the previous occupant's name. Written after the
 					// commit rather than inside it: the state updater runs under the engine-state lock, and a
 					// file only humans read has no business being written while every other mutation waits.
-					this.folderContext.recordCatalogName(catalogNameToBeReplaced, prevailingFolderId);
+					//
+					// The catch is here so that "nothing after the commit may report failure" can be verified by
+					// reading this method, rather than by tracing three layers into the store module and hoping
+					// nobody changes them. It is not, however, what absorbs an I/O failure: the write itself is
+					// best-effort at its own site, so a full disk or an unwritable folder never reaches this far.
+					// What can is a `CatalogFolderOperations` implementation that refuses the call outright - a
+					// wiring error rather than an operational one - and even that must not turn a rename that has
+					// already committed into a reported failure.
+					try {
+						this.folderContext.recordCatalogName(catalogNameToBeReplaced, prevailingFolderId);
+					} catch (RuntimeException ex) {
+						log.warn(
+							"Failed to relabel storage folder `{}` as catalog `{}` - the folder still carries its " +
+								"previous occupant's name, which only affects a human reading it directly.",
+							prevailingFolderId.id(), catalogNameToBeReplaced, ex
+						);
+					}
 
 					// notify callback that it's now a live snapshot
 					((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
 
-					if (replaceOperation) {
-						// we can resume suspended operations on catalogs
-						prevailingCatalogSessionRegistry.ifPresent(
-							sessionRegistry -> {
-								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
-								final SessionRegistry previous = evita.registerWithReplaceCatalogSessionRegistry(
-									catalogNameToBeReplaced,
-									sessionRegistry.withDifferentCatalogSupplier(
-										() -> (Catalog) evita.getCatalogInstanceOrThrowException(
-											catalogNameToBeReplaced))
-								);
-								Assert.isPremiseValid(
-									previous == null || previous == removedCatalogSessionRegistry.orElse(null),
-									"Unexpected instance of the session registry was replaced!"
-								);
-								sessionRegistry.resumeOperations();
+					// The catalog survives under the target name in BOTH operations, so its session registry
+					// follows it there - it carries the active sessions, the FIFO queue and the consumed-version
+					// census that backups pin against, all of which belong to the catalog rather than to the name
+					// it happened to be reached by. This used to run for a replace only, and the rename branch
+					// resumed `removedCatalogSessionRegistry` - which for a rename is always empty, because the
+					// target name must not exist. The source name was therefore left holding a registry suspended
+					// for ever, answering `SessionBusyException` where it owed `CatalogNotFoundException`.
+					prevailingCatalogSessionRegistry.ifPresentOrElse(
+						sessionRegistry -> {
+							evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
+							final SessionRegistry previous = evita.registerWithReplaceCatalogSessionRegistry(
+								catalogNameToBeReplaced,
+								sessionRegistry.withDifferentCatalogSupplier(
+									() -> (Catalog) evita.getCatalogInstanceOrThrowException(
+										catalogNameToBeReplaced))
+							);
+							// resumed before the straggler below is dealt with, so the name the clients want is
+							// serving again at the first possible moment rather than after a close that may wait
+							sessionRegistry.resumeOperations();
+							// compared against the registry this operation quiesced - which may be one it installed
+							// itself - rather than against whatever existed beforehand, or a registry we created
+							// and suspended would be mistaken for a straggler and closed a second time
+							retireStragglerRegistry(
+								previous, quiescedTargetRegistry.orElse(null), catalogNameToBeReplaced
+							);
+						},
+						// The surviving catalog has no registry to hand over - nothing had opened a session on it
+						// since boot. Whatever is registered under the target name is then the registry this
+						// operation installed *purely to quiesce it*, and leaving that behind would keep the name
+						// rejecting sessions for the life of the process: the catalog would survive the replace
+						// and be unreachable afterwards. Dropped rather than resumed into service, so the next
+						// request builds a clean one against the catalog that now answers to this name.
+						() -> quiescedTargetRegistry.ifPresent(
+							quiesced -> {
+								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
+								quiesced.resumeOperations();
 							}
-						);
-					} else {
-						removedCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
-					}
+						)
+					);
 
-					// terminate the catalog that was replaced
+					// Terminate the catalog that was replaced. A failure here costs open handles into a folder
+					// that is about to be deleted, which makes the delete below more likely to be refused - and
+					// that is already accounted for, because a refused delete leaves the tombstone standing for
+					// the next boot drain. What must not happen is propagating: the replace has committed.
 					if (replaceOperation && catalogToBeReplaced != null) {
-						catalogToBeReplaced.terminate();
+						try {
+							catalogToBeReplaced.terminate();
+						} catch (RuntimeException ex) {
+							log.warn(
+								"Failed to terminate the superseded catalog `{}` - its handles stay open until the " +
+									"process ends, and the folder deletion below may be refused as a result.",
+								catalogNameToBeReplaced, ex
+							);
+						}
 					}
 
 					// Strictly after `terminate()`, never before: the delete has to follow the close of every
@@ -293,6 +355,102 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		} catch (RuntimeException ex) {
 			undoOperations.run();
 			throw ex;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull ModifyCatalogSchemaNameMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		final String sourceName = mutation.getCatalogName();
+		final String targetName = mutation.getNewCatalogName();
+		// Read from the state being replayed onto, never through the folder context: its resolver answers about
+		// whichever state is live, and the whole point here is to rebuild the state the crashed commit would
+		// have produced.
+		final CatalogFolderId prevailingFolderId = currentState.boundFolderIdFor(sourceName);
+		if (prevailingFolderId == null) {
+			// The source is not bound, so the crashed run got further than we can see - or the WAL record does
+			// not describe this installation at all. Either way the safe answer is the wedge, not a guess.
+			return Optional.empty();
+		}
+		final CatalogFolderId supersededFolderId = mutation.isOverwriteTarget() ?
+			currentState.boundFolderIdFor(targetName) : null;
+		// The same premise the live path asserts: if both names resolved to one folder, the tombstone below would
+		// destroy the surviving catalog. Refuse rather than replay it.
+		if (supersededFolderId != null && supersededFolderId.equals(prevailingFolderId)) {
+			return Optional.empty();
+		}
+
+		// Everything the crashed completion phase did on disk is already done - `replaceWith` rewrote the name
+		// inside the folder before the commit - so replay is purely the three state edits. The placeholder stands
+		// in for the catalog the work phase built and the crash lost; boot replaces it with the real instance as
+		// soon as the load completes, and `reconcileStoredCatalogIdentity` settles the stored name on the way in.
+		final ExpandedEngineState.Builder builder = ExpandedEngineState
+			.builder(currentState)
+			.withVersion(targetVersion)
+			.withCatalogNoLongerMissing(targetName)
+			.withActiveCatalogBoundTo(
+				this.folderContext.createUnusableCatalog(
+					targetName, prevailingFolderId, CatalogState.BEING_ACTIVATED,
+					(cn, folderId, root) ->
+						new CatalogTransitioningException(cn, folderId, root, CatalogState.BEING_ACTIVATED)
+				),
+				prevailingFolderId
+			);
+		if (!targetName.equals(sourceName)) {
+			builder.withoutCatalog(sourceName);
+		}
+		if (supersededFolderId != null) {
+			builder.withRetiredFolder(targetName, supersededFolderId);
+		}
+		return Optional.of(builder.build());
+	}
+
+	/**
+	 * Retires the session registry the swap above displaced, when it is not the one this operation suspended.
+	 *
+	 * A third registry can be there for one reason: the target name had none when the operation started — nothing
+	 * had opened a session on it since boot — so there was nothing to suspend, and the first session request that
+	 * arrived while the operation ran built one through `Evita#createSessionInternal`. Its sessions are bound to
+	 * the catalog this operation is about to terminate, and its catalog supplier resolves a name that no longer
+	 * names anything, so it cannot serve another request whatever we do here.
+	 *
+	 * Closing it with `REJECT` is therefore about *how* those clients find out: an `InstanceTerminatedException`
+	 * says the catalog they held is gone, which is true and actionable, where leaving it alone lets them discover
+	 * it through whatever the dangling supplier throws next. It also waits for a query still running on it before
+	 * the caller terminates the catalog underneath it.
+	 *
+	 * **Nothing here may propagate.** By this point the engine-state commit is durable and the replace has
+	 * succeeded — the target already serves the incoming data and the source name is already gone. Reporting a
+	 * failure would be wrong about what happened, and would do it on the rarest path, which is exactly what the
+	 * premise assert this replaced did: it turned a completed operation into a `GenericEvitaInternalError`. Both
+	 * known throws live inside the close, which waits up to five seconds for sessions to drain and then asserts
+	 * that they did.
+	 *
+	 * @param displaced   the registry the swap replaced, or null when the target name held none
+	 * @param suspended   the registry this operation suspended for the target name, or null when it had none
+	 * @param catalogName the target name, for the log record
+	 */
+	private static void retireStragglerRegistry(
+		@Nullable SessionRegistry displaced,
+		@Nullable SessionRegistry suspended,
+		@Nonnull String catalogName
+	) {
+		if (displaced == null || displaced == suspended) {
+			return;
+		}
+		try {
+			displaced.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT);
+		} catch (RuntimeException ex) {
+			log.warn(
+				"Sessions opened on catalog `{}` while it was being replaced could not be closed — they are " +
+					"bound to the superseded catalog and will fail on their next call.",
+				catalogName, ex
+			);
 		}
 	}
 

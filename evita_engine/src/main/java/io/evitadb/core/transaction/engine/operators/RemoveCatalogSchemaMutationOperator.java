@@ -39,6 +39,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -62,6 +63,7 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperator<Void, RemoveCatalogSchemaMutation> {
 	private final CatalogFolderContext folderContext;
@@ -108,7 +110,13 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 		return new ProgressingFuture<>(
 			1,
 			theFuture -> {
-				evita.closeAllSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
+				// Belt and braces rather than the primary guard. What actually keeps a session from being
+				// opened against a catalog being wiped is the `BEING_DELETED` placeholder staged through the
+				// transition updater above: `Evita#createSessionInternal` throws an `UnusableCatalog`'s
+				// representative exception, so the refusal happens whether or not a registry exists. This
+				// call still closes the sessions that were already open, and installs a registry when there
+				// is none so the two mechanisms cannot disagree if the placeholder ever moves.
+				evita.suspendCatalogSessions(catalogName, SuspendOperation.REJECT);
 
 				theFuture.updateProgress(1);
 
@@ -141,7 +149,18 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 					// propagating a filesystem error here would report a failure for an operation that
 					// succeeded, and would do it precisely on the platform where a reader holding the
 					// directory open makes the wipe fail - the second Windows failure this design removes.
-					catalogToRemove.terminate();
+					// `terminate()` gets the same treatment for the same reason: the `finally` below only
+					// guarantees the host event, so an exception escaping here would still surface a failure
+					// for a drop that has already committed - and would additionally skip the wipe.
+					try {
+						catalogToRemove.terminate();
+					} catch (RuntimeException ex) {
+						log.warn(
+							"Failed to terminate removed catalog `{}` - its handles stay open until the process " +
+								"ends, which may cause the folder wipe below to be refused and retried at boot.",
+							catalogName, ex
+						);
+					}
 					RemoveCatalogSchemaMutationOperator.this.folderContext.deleteRetiredFolder(folderToReclaim);
 				} finally {
 					// Emit the host event AFTER the catalog has been fully removed from the live
