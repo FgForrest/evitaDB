@@ -64,6 +64,7 @@ import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -184,7 +185,7 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 		final PaginatedList<MaterializedVersionBlock> versions = evita
 			.getCatalogInstanceOrThrowException(TEST_CATALOG)
 			.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, pageSize);
-		assertTrue(!versions.getData().isEmpty(), "The catalog must retain at least one bootstrap record!");
+		assertFalse(versions.getData().isEmpty(), "The catalog must retain at least one bootstrap record!");
 		return versions.getData();
 	}
 
@@ -379,8 +380,8 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 			.toList();
 		final long newestRecordBeforeRestart = retainedRecordsBeforeRestart
 			.get(retainedRecordsBeforeRestart.size() - 1);
-		assertTrue(
-			!recordsExpectedToSurvive.isEmpty(),
+		assertFalse(
+			recordsExpectedToSurvive.isEmpty(),
 			"The fixture must leave at least one record above the floor, or the catalog would lose its whole history!"
 		);
 
@@ -460,7 +461,7 @@ class CatalogHistoryHorizonRecoveryTest implements EvitaTestSupport {
 	 *
 	 * @param evita the running engine to set up
 	 */
-	private void defineCatalogAndGoLive(@Nonnull Evita evita) {
+	private static void defineCatalogAndGoLive(@Nonnull Evita evita) {
 		evita.defineCatalog(TEST_CATALOG);
 		evita.updateCatalog(
 			TEST_CATALOG,

@@ -43,6 +43,7 @@ import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.transaction.engine.operators.*;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
@@ -808,7 +809,7 @@ public class EngineTransactionManager implements Closeable {
 	/**
 	 * Discards the folder generation counters of catalog names the commit just stopped referring to.
 	 *
-	 * The counters live in an engine-scoped {@link io.evitadb.core.sequence.SequenceService} whose maps are
+	 * The counters live in an engine-scoped {@link SequenceService} whose maps are
 	 * append-only, so without this a server that churns catalogs retains one entry per catalog name ever
 	 * materialised, for the life of the process. Nothing behaved wrongly — it is pure retention — and the
 	 * discard is likewise pure bookkeeping, which is why it rides along with a commit rather than being one.

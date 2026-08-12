@@ -73,7 +73,6 @@ import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.ServerTask;
@@ -120,6 +119,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -217,7 +217,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final Catalog mockCatalog = mock(Catalog.class);
 		when(mockCatalog.getSchema()).thenReturn(catalogSchema);
 		when(mockCatalog.getEntitySchema(schema.getName())).thenReturn(of(schema));
-		when(mockCatalog.getEntityIndexIfExists(Mockito.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
+		when(mockCatalog.getEntityIndexIfExists(ArgumentMatchers.eq(schema.getName()), any(EntityIndexKey.class), any(Class.class))).thenReturn(empty());
 		return mockCatalog;
 	}
 
@@ -448,7 +448,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			CatalogSchemaStoragePart.deserializeWithCatalog(Mockito.mock(CatalogContract.class), () -> {
 				final CatalogSchemaStoragePart catalogSchema = persistenceService.getStoragePartPersistenceService(lastCatalogVersion)
 					.getStoragePart(lastCatalogVersion, 1, CatalogSchemaStoragePart.class);
-				assertEquals(catalogSchema.catalogSchema().getName(), RENAMED_CATALOG);
+				assertEquals(RENAMED_CATALOG, catalogSchema.catalogSchema().getName());
 				return null;
 			});
 		}
@@ -1543,7 +1543,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 *
 		 * @param ioService the service under test
 		 */
-		private void writeSeveralWarmUpGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
+		private static void writeSeveralWarmUpGenerations(@Nonnull DefaultCatalogPersistenceService ioService) {
 			final UUID catalogId = UUIDUtil.randomUUID();
 			for (int i = 0; i < VERSIONS_WRITTEN; i++) {
 				ioService.getStoragePartPersistenceService(0L)
@@ -1747,7 +1747,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 				// run whatever compaction planned on this thread instead of racing the scheduler
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(scheduledTask.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+					.schedule(scheduledTask.capture(), ArgumentMatchers.anyLong(), any(TimeUnit.class));
 				scheduledTask.getAllValues().forEach(Runnable::run);
 
 				final List<File> afterGuard = listCatalogDataFiles();
@@ -1906,7 +1906,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// `checkpointIfOwed()`, which would publish the very record this step must leave unpublished. They are
 				// told apart by their delay: the guard is a zero-delay task, the ticker carries the checkpoint interval
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(scheduledTask.capture(), Mockito.eq(0L), Mockito.any(TimeUnit.class));
+					.schedule(scheduledTask.capture(), ArgumentMatchers.eq(0L), any(TimeUnit.class));
 				scheduledTask.getAllValues().forEach(Runnable::run);
 
 				final List<File> beforePublish = listCatalogDataFiles();
@@ -1933,7 +1933,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				// publishing is what turns the retired generation into history, and it is the only moment that can
 				// notice - the compaction that retired the file is long past and will not come round again
 				Mockito.verify(scheduler, Mockito.atLeastOnce())
-					.schedule(afterPublish.capture(), Mockito.anyLong(), Mockito.any(TimeUnit.class));
+					.schedule(afterPublish.capture(), ArgumentMatchers.anyLong(), any(TimeUnit.class));
 				afterPublish.getAllValues().forEach(Runnable::run);
 
 				assertTrue(
@@ -1982,7 +1982,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final ExportFileService exportFileService = Mockito.mock(ExportFileService.class);
 			Mockito.when(
 				exportFileService.storeFile(
-					Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.any()
+					ArgumentMatchers.anyString(), any(), ArgumentMatchers.anyString(), any()
 				)
 			).thenReturn(exportFileHandle);
 			return exportFileService;
@@ -2634,7 +2634,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 * @param ioService      the service under test
 		 * @param catalogVersion the catalog version to write
 		 */
-		private void writeOneMoreGeneration(
+		private static void writeOneMoreGeneration(
 			@Nonnull DefaultCatalogPersistenceService ioService,
 			long catalogVersion
 		) {
@@ -2675,7 +2675,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		 * @param catalogVersion the catalog version to resolve
 		 * @return the catalog version of the header the read resolved to
 		 */
-		private long readCatalogHeaderVersionAt(
+		private static long readCatalogHeaderVersionAt(
 			@Nonnull CatalogOffsetIndexStoragePartPersistenceService service,
 			long catalogVersion
 		) {

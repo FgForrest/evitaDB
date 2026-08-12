@@ -23,11 +23,11 @@
 
 package io.evitadb.core;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,10 +45,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -202,9 +202,7 @@ class CatalogPointerSwapReaderAvailabilityTest implements EvitaTestSupport {
 		);
 		this.evita.updateCatalog(
 			catalogName,
-			session -> {
-				session.goLiveAndClose();
-			}
+			EvitaSessionContract::goLiveAndClose
 		);
 	}
 
@@ -271,7 +269,7 @@ class CatalogPointerSwapReaderAvailabilityTest implements EvitaTestSupport {
 			this.running.set(false);
 			for (final Thread thread : this.threads) {
 				thread.join(TimeUnit.SECONDS.toMillis(30));
-				assertTrue(!thread.isAlive(), "A reader thread did not finish!");
+				assertFalse(thread.isAlive(), "A reader thread did not finish!");
 			}
 		}
 

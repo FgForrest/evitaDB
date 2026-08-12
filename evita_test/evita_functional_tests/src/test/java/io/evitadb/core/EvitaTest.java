@@ -58,7 +58,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
@@ -86,9 +85,9 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.PortManager;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -97,6 +96,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -135,14 +135,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -2139,7 +2138,7 @@ class EvitaTest implements EvitaTestSupport {
 				// we can create reflected reference even before the main one is created
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute("name", String.class, whichIs -> whichIs.localized())
+					.withAttribute("name", String.class, AttributeSchemaEditor::localized)
 					.updateVia(session);
 
 				final Locale theLocale = new Locale("cs");
@@ -5174,7 +5173,7 @@ class EvitaTest implements EvitaTestSupport {
 		// defect: the committed transaction is now in a file nothing will ever read, and the next boot sees two
 		// files whose indexes are not consecutive and refuses to open the catalog.
 		final File[] walFiles = catalogFolder(renamedCatalogName).toFile()
-			.listFiles((dir, name) -> name.endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX));
+			.listFiles((dir, name) -> name.endsWith(PersistenceService.WAL_FILE_SUFFIX));
 		assertNotNull(walFiles);
 		assertEquals(
 			1, walFiles.length,
@@ -5357,8 +5356,8 @@ class EvitaTest implements EvitaTestSupport {
 			"The replaced name must point at the folder the source was already living in!"
 		);
 		assertTrue(sourceFolder.toFile().isDirectory(), "The surviving folder must not have been touched!");
-		assertTrue(
-			supersededFolder.toFile().exists() == false,
+		assertFalse(
+			supersededFolder.toFile().exists(),
 			"The folder the replaced catalog occupied is tombstoned and must have been removed!"
 		);
 		// the label follows the data, or disaster recovery against a bare storage directory reads the previous
@@ -5394,8 +5393,8 @@ class EvitaTest implements EvitaTestSupport {
 		);
 		// the provisional marker must be gone, or the next boot would classify a fully written, referenced
 		// folder as an abandoned one
-		assertTrue(
-			duplicateFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG).toFile().exists() == false,
+		assertFalse(
+			duplicateFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG).toFile().exists(),
 			"A completed duplicate must not still declare its own contents untrustworthy!"
 		);
 		assertEquals(

@@ -440,10 +440,10 @@ class FileUtilsTest {
 		@Test
 		@DisplayName("Should handle compression of empty directory")
 		void shouldHandleCompressionOfEmptyDirectory() throws IOException {
-			Path zipFile = tmpFolder.resolve("output_empty.zip");
+			Path zipFile = FileUtilsTest.this.tmpFolder.resolve("output_empty.zip");
 
 			try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
-				FileUtils.compressDirectory(directoryTest, outputStream);
+				FileUtils.compressDirectory(FileUtilsTest.this.directoryTest, outputStream);
 			}
 
 			assertTrue(Files.exists(zipFile));
@@ -455,8 +455,8 @@ class FileUtilsTest {
 		@Test
 		@DisplayName("Should throw exception when directory does not exist")
 		void shouldThrowExceptionWhenDirectoryDoesNotExist() {
-			Path nonExistentDirectory = tmpFolder.resolve("nonExistentDir");
-			Path zipFile = tmpFolder.resolve("output_error.zip");
+			Path nonExistentDirectory = FileUtilsTest.this.tmpFolder.resolve("nonExistentDir");
+			Path zipFile = FileUtilsTest.this.tmpFolder.resolve("output_error.zip");
 
 			try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
 				assertThrows(
