@@ -266,6 +266,8 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 		} finally {
 			this.persistenceService = null;
 		}
+
+		assertStorageIsRestartable();
 	}
 
 	@Test
@@ -373,6 +375,31 @@ class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 			// boot drain acts on it
 		} finally {
 			this.persistenceService = null;
+		}
+
+		assertStorageIsRestartable();
+	}
+
+	/**
+	 * Reopens the storage from scratch and asserts the two version counters agree, which is what makes the next
+	 * boot possible at all.
+	 *
+	 * **Every replay test ends with this, and none of them may substitute an assertion made through the service
+	 * that just ran.** A live handle answers from its own counters, so it reports the state the code intended;
+	 * only a reopen reports what the next process will actually find. That gap hid a real defect for as long as
+	 * this test existed: `shouldReplayCrashedMutationBeforeTruncatingWal` asserted the recovered record was still
+	 * in the WAL, and passed, while on disk the truncation that followed the replay had already cut it away. The
+	 * bootstrap was left one version ahead of the log — a combination `DefaultEnginePersistenceService` accepts
+	 * nowhere — so the following boot refused to start, provided nothing had committed in between to close the gap.
+	 */
+	private void assertStorageIsRestartable() {
+		try (final DefaultEnginePersistenceService reopened = new DefaultEnginePersistenceService(
+			this.storageOptions, this.transactionOptions, this.scheduler
+		)) {
+			assertEquals(
+				reopened.getEngineState().version(), reopened.getLastVersionInMutationStream(),
+				"After a replay the bootstrap and the WAL must agree, or the next boot refuses to start!"
+			);
 		}
 	}
 

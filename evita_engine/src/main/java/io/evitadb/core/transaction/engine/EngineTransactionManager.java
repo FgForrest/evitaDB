@@ -311,9 +311,20 @@ public class EngineTransactionManager implements Closeable {
 		// away before the replay can read it, silently losing the committed mutation. After a successful replay
 		// the bootstrap is rewritten at `walV` with a matching `walReference`, so truncation at that point becomes
 		// a no-op by construction.
-		replayCrashedMutationIfNeeded(engineState);
-		// Truncation uses the latest engine state — replay may have advanced it to `walV`.
-		truncateWalFile(this.evita.getEngineState());
+		final boolean replayed = replayCrashedMutationIfNeeded(engineState);
+		if (!replayed) {
+			// Truncation exists to discard the tail of a commit that never finished writing. After a successful
+			// replay there is no such tail: the trailing record was read in full, applied, and made durable in the
+			// bootstrap, and the startup invariant guarantees nothing follows it. Running truncation anyway
+			// **destroyed that record** - the in-memory snapshot handed to `setNextEngineState` is the one the
+			// operator rebuilt, and it still carries the WAL reference from before the crash, so the log was cut
+			// back to the version the bootstrap had just moved past.
+			//
+			// The result was a bootstrap at `walV` over a WAL at `walV - 1`, which is in no allowed row of the
+			// startup table: the **next** boot refused to start. A recovery that bricked the installation one
+			// restart later, and only when no other commit had happened in between to paper over the gap.
+			truncateWalFile(this.evita.getEngineState());
+		}
 	}
 
 	/**
@@ -478,9 +489,12 @@ public class EngineTransactionManager implements Closeable {
 	}
 
 	/**
-	 * Truncates the write-ahead log (WAL) file associated with the provided {@link ExpandedEngineState}.
-	 * This method ensures that any non-processed actions within the WAL are executed,
-	 * and subsequently truncates the WAL file through the engine persistence service.
+	 * Cuts the write-ahead log back to the record the given state's reference ends at, discarding anything beyond
+	 * it as the residue of a commit that never finished writing.
+	 *
+	 * **Never call this after a successful forward replay.** The state's reference is then the *pre-crash* one —
+	 * the operator rebuilds state, not WAL positions — so it would cut away the very record the replay recovered.
+	 * There is nothing to discard on that path anyway: the trailing record was read whole before it was applied.
 	 *
 	 * @param engineState the current expanded engine state containing the reference to the WAL file;
 	 *                    must not be null
@@ -533,17 +547,17 @@ public class EngineTransactionManager implements Closeable {
 	 *
 	 * @param engineState the initial expanded engine state at `stateV` just restored from disk
 	 */
-	private void replayCrashedMutationIfNeeded(@Nonnull ExpandedEngineState engineState) {
+	private boolean replayCrashedMutationIfNeeded(@Nonnull ExpandedEngineState engineState) {
 		final long walVersion = this.enginePersistenceService.getLastVersionInMutationStream();
 		final long stateVersion = engineState.version();
 		if (walVersion == stateVersion) {
 			// Steady state — nothing to replay.
-			return;
+			return false;
 		}
 		if (walVersion == 0L && stateVersion == 1L) {
 			// Never-used service — initial engine state exists at version 1 before any WAL
 			// file is created. Both boot paths must treat `(walV=0, stateV=1)` as legitimate.
-			return;
+			return false;
 		}
 		if (walVersion != stateVersion + 1L) {
 			// The constructor of DefaultEnginePersistenceService enforces the allowed
@@ -559,7 +573,7 @@ public class EngineTransactionManager implements Closeable {
 					+ walVersion + ", stateVersion=" + stateVersion + ". Further mutations refused "
 					+ "until the on-disk state is reconciled by an operator."
 			);
-			return;
+			return false;
 		}
 
 		// Fetch the unprocessed transaction record at walVersion. The record bundles everything the replay path
@@ -599,7 +613,7 @@ public class EngineTransactionManager implements Closeable {
 					+ crashedMutation.getClass().getName() + " but no operator is registered. "
 					+ "Engine wedged — operator intervention required."
 			);
-			return;
+			return false;
 		}
 
 		// Ask the operator to reconstruct the completion-phase state purely from the mutation.
@@ -620,7 +634,7 @@ public class EngineTransactionManager implements Closeable {
 					+ ". Engine wedged — operator intervention required to reconcile the bootstrap "
 					+ "file manually."
 			);
-			return;
+			return false;
 		}
 		final ExpandedEngineState replayedEngineState = replayedOpt.get();
 
@@ -635,6 +649,7 @@ public class EngineTransactionManager implements Closeable {
 		this.evita.setNextEngineState(replayedEngineState);
 
 		log.info("Forward-replayed mutation at version {} after crash recovery.", walVersion);
+		return true;
 	}
 
 	/**
