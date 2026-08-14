@@ -42,6 +42,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -564,4 +566,131 @@ class SchedulerTest {
 		}
 	}
 
+
+	@Nested
+	@DisplayName("Queue purging")
+	class QueuePurging {
+
+		@Test
+		@DisplayName("keeps a waiting task that has not yet reached the waiting threshold")
+		void shouldKeepWaitingTaskWhenWaitingThresholdHasNotElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// just inside the intended ten-minute waiting interval
+			backdateCreated(task, Duration.ofMinutes(10).minusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			final Optional<TaskStatus<?, ?>> status = SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task));
+			assertTrue(status.isPresent(), "A waiting task inside the waiting interval must be kept.");
+			assertEquals(TaskSimplifiedState.WAITING_FOR_PRECONDITION, status.get().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("drops a waiting task once the waiting threshold elapses")
+		void shouldDropWaitingTaskWhenWaitingThresholdHasElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// just outside the intended ten-minute waiting interval
+			backdateCreated(task, Duration.ofMinutes(10).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isEmpty(),
+				"A waiting task past the waiting interval must be dropped."
+			);
+		}
+
+		@Test
+		@DisplayName("keeps a finished task while it is within its defense period")
+		void shouldKeepFinishedTaskWhenWithinDefensePeriod() throws Exception {
+			final ClientRunnableTask<Void> task = finishedTask();
+			// just inside the intended five-minute defense period
+			backdateFinished(task, Duration.ofMinutes(5).minusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isPresent(),
+				"A finished task inside its defense period must be kept."
+			);
+		}
+
+		@Test
+		@DisplayName("drops a finished task once its defense period elapses")
+		void shouldDropFinishedTaskWhenDefensePeriodHasElapsed() throws Exception {
+			final ClientRunnableTask<Void> task = finishedTask();
+			// just outside the intended five-minute defense period
+			backdateFinished(task, Duration.ofMinutes(5).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isEmpty(),
+				"A finished task past its defense period must be dropped."
+			);
+		}
+
+	}
+
+	/**
+	 * Creates a task parked in the waiting queue - never issued, so {@link TaskSimplifiedState#WAITING_FOR_PRECONDITION}
+	 * is the state the purge matches on.
+	 */
+	@Nonnull
+	private static ClientRunnableTask<Void> waitingTask() {
+		return new ClientRunnableTask<>("task", "Waiting task", null, () -> {
+		});
+	}
+
+	/**
+	 * Submits a task and blocks until it completes, so the caller receives one the purge sees as finished.
+	 */
+	@Nonnull
+	private ClientRunnableTask<Void> finishedTask() throws Exception {
+		final ClientRunnableTask<Void> task = new ClientRunnableTask<>("task", "Finished task", null, () -> {
+		});
+		this.scheduler.submit((ServerTask<?, ?>) task);
+		// positive wait - generous bound, returns the instant the task completes
+		task.getFutureResult().get(30, TimeUnit.SECONDS);
+		return task;
+	}
+
+	@Nonnull
+	private static UUID taskIdOf(@Nonnull AbstractServerTask<?, ?> task) {
+		return task.getStatus().taskId();
+	}
+
+	/**
+	 * Rewrites the task's creation timestamp to `age` ago. The purge reasons about task age through
+	 * {@link TaskStatus#created()}, so moving that timestamp is what lets a threshold measured in minutes be
+	 * asserted in milliseconds. Every `transitionToXxx` copies `created`, so the backdating survives later
+	 * transitions.
+	 */
+	private static <S, T> void backdateCreated(@Nonnull AbstractServerTask<S, T> task, @Nonnull Duration age) {
+		final OffsetDateTime backdated = OffsetDateTime.now().minus(age);
+		task.status.updateAndGet(
+			it -> new TaskStatus<>(
+				it.taskType(), it.taskName(), it.taskId(), it.catalogName(),
+				backdated, it.issued(), it.started(), it.finished(), it.progress(),
+				it.settings(), it.result(), it.publicExceptionMessage(), it.exceptionWithStackTrace(), it.traits()
+			)
+		);
+	}
+
+	/**
+	 * Rewrites the task's completion timestamp to `age` ago, so the finished-task defense period can be asserted
+	 * without waiting it out. See {@link #backdateCreated(AbstractServerTask, Duration)}.
+	 */
+	private static <S, T> void backdateFinished(@Nonnull AbstractServerTask<S, T> task, @Nonnull Duration age) {
+		final OffsetDateTime backdated = OffsetDateTime.now().minus(age);
+		task.status.updateAndGet(
+			it -> new TaskStatus<>(
+				it.taskType(), it.taskName(), it.taskId(), it.catalogName(),
+				it.created(), it.issued(), it.started(), backdated, it.progress(),
+				it.settings(), it.result(), it.publicExceptionMessage(), it.exceptionWithStackTrace(), it.traits()
+			)
+		);
+	}
 }

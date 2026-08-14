@@ -754,17 +754,27 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * The method is guarded by {@link #bufferLock}; a concurrent caller that cannot acquire the lock blocks until the
 	 * in-progress purge finishes rather than busy-spinning.
 	 *
+	 * Package-private rather than private so that `SchedulerTest` can drive a purge deterministically instead of
+	 * waiting out the one-minute schedule or filling the queue to force one; no caller outside this class exists.
+	 *
 	 * @return always {@code 0L}, signalling the scheduling framework to re-plan the purge at its standard interval
 	 */
-	private long purgeFinishedAndLongWaitingTasks() {
+	long purgeFinishedAndLongWaitingTasks() {
 		if (this.bufferLock.tryLock()) {
 			try {
 				// go through the entire queue, but only once
 				final int queueSize = this.queue.size();
 				//noinspection rawtypes
 				CompositeObjectArray<Task> finishedTaskInDefensePeriod = null;
-				final OffsetDateTime waitingThreshold = OffsetDateTime.now().minus(FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
-				final OffsetDateTime threshold = OffsetDateTime.now().minus(WAITING_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS);
+				// a single `now` for both thresholds - two separate reads could disagree about the current time, and
+				// the names are spelled out so that a future edit cannot silently cross them again (see #1415)
+				final OffsetDateTime now = OffsetDateTime.now();
+				final OffsetDateTime waitingThreshold = now.minus(
+					WAITING_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS
+				);
+				final OffsetDateTime defensePeriodThreshold = now.minus(
+					FINISHED_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS
+				);
 				final int batches = queueSize / BUFFER_CAPACITY + 1;
 				for (int i = 0; i < batches; i++) {
 					// effectively withdraw first block of tasks from the queue
@@ -776,13 +786,14 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						final TaskStatus<?, ?> status = task.getStatus();
 						final TaskSimplifiedState taskState = status.simplifiedState();
 						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
-							// if task is waiting for precondition and its issued time is older than the threshold, remove it
+							// a task still waiting for its precondition past the waiting interval is dropped; the clock
+							// runs from creation (a waiting task is never issued), so this is a whole-life budget
 							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
 							it.remove();
 						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
-							if (status.finished() != null && status.finished().isAfter(threshold)) {
+							if (status.finished() != null && status.finished().isAfter(defensePeriodThreshold)) {
 								if (finishedTaskInDefensePeriod == null) {
 									finishedTaskInDefensePeriod = new CompositeObjectArray<>(Task.class);
 								}
