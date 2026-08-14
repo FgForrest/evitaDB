@@ -51,9 +51,9 @@ class WasteAccumulationTest {
 	@DisplayName("The counter adds up across flushes regardless of what the rate does")
 	void shouldAccumulateStrandedBytesAcrossFlushes() {
 		final WasteAccumulation afterThree = WasteAccumulation.NONE
-			.sampled(100L, 1_000L)
-			.sampled(200L, 2_000L)
-			.sampled(300L, 3_000L);
+			.sampled(100L, 100L, 1_000L)
+			.sampled(200L, 200L, 2_000L)
+			.sampled(300L, 300L, 3_000L);
 
 		assertEquals(600L, afterThree.wasteBytesGenerated());
 	}
@@ -61,14 +61,14 @@ class WasteAccumulationTest {
 	@Test
 	@DisplayName("The first flush only opens the window; the second seeds the average with its own value")
 	void shouldSeedTheAverageWithTheSecondSampleRatherThanHalveIt() {
-		final WasteAccumulation afterFirst = WasteAccumulation.NONE.sampled(1_000L, 1_000L);
+		final WasteAccumulation afterFirst = WasteAccumulation.NONE.sampled(1_000L, 1_000L, 1_000L);
 		// nothing preceded it, so there is no interval to divide by and no rate can be claimed yet
 		assertEquals(0.0d, afterFirst.rateBytesPerSecond());
 		assertEquals(0.0d, afterFirst.effectiveRateBytesPerSecond(1_000L));
 
 		// 500 bytes over half a second is 1000 B/s, and it must be reported as that rather than blended into the
 		// zero above - which would report half the truth for the first measurable flush of every data store
-		final WasteAccumulation afterSecond = afterFirst.sampled(500L, 1_500L);
+		final WasteAccumulation afterSecond = afterFirst.sampled(500L, 500L, 1_500L);
 		assertEquals(1_000.0d, afterSecond.rateBytesPerSecond(), 0.001d);
 	}
 
@@ -76,12 +76,12 @@ class WasteAccumulationTest {
 	@DisplayName("A single burst is smoothed rather than taken at face value")
 	void shouldSmoothABurstAgainstTheEstablishedRate() {
 		final WasteAccumulation steady = WasteAccumulation.NONE
-			.sampled(0L, 1_000L)
-			.sampled(1_000L, 2_000L);
+			.sampled(0L, 0L, 1_000L)
+			.sampled(1_000L, 1_000L, 2_000L);
 		assertEquals(1_000.0d, steady.rateBytesPerSecond(), 0.001d);
 
 		// a flush ten times the size of the established one must not make the projection ten times as urgent
-		final WasteAccumulation afterBurst = steady.sampled(10_000L, 3_000L);
+		final WasteAccumulation afterBurst = steady.sampled(10_000L, 10_000L, 3_000L);
 		assertTrue(
 			afterBurst.rateBytesPerSecond() > steady.rateBytesPerSecond(),
 			"A larger flush has to move the rate up: " + afterBurst
@@ -96,21 +96,53 @@ class WasteAccumulationTest {
 	@DisplayName("Two flushes inside one millisecond move the counter without dividing by zero")
 	void shouldTolerateTwoFlushesInTheSameMillisecond() {
 		final WasteAccumulation steady = WasteAccumulation.NONE
-			.sampled(0L, 1_000L)
-			.sampled(1_000L, 2_000L);
+			.sampled(0L, 0L, 1_000L)
+			.sampled(1_000L, 1_000L, 2_000L);
 
-		final WasteAccumulation sameMillisecond = steady.sampled(400L, 2_000L);
+		final WasteAccumulation sameMillisecond = steady.sampled(400L, 400L, 2_000L);
 		assertEquals(1_400L, sameMillisecond.wasteBytesGenerated());
 		assertEquals(steady.rateBytesPerSecond(), sameMillisecond.rateBytesPerSecond());
 		assertTrue(Double.isFinite(sameMillisecond.rateBytesPerSecond()));
 	}
 
 	@Test
+	@DisplayName("Bytes flushed inside an already-sampled millisecond still reach the next rate")
+	void shouldCarrySameMillisecondBytesIntoTheNextSample() {
+		// the window opens at 1000; 500 bytes land in that same millisecond, so no interval can be measured for them
+		final WasteAccumulation burst = WasteAccumulation.NONE
+			.sampled(0L, 0L, 1_000L)
+			.sampled(500L, 500L, 1_000L);
+
+		// 100 ms later another 500 arrive. 1000 bytes have been stranded across the whole 100 ms window, so the rate
+		// is 10 000 B/s - not the 5 000 B/s that dividing only the last flush's bytes by the full interval gives.
+		// A burst of `n` flushes inside one millisecond used to drop `n - 1` of them from the rate entirely, which is
+		// the ordinary case during bulk load and WAL replay rather than an exotic one
+		final WasteAccumulation measured = burst.sampled(500L, 500L, 1_100L);
+		assertEquals(10_000.0d, measured.rateBytesPerSecond(), 0.001d);
+	}
+
+	@Test
+	@DisplayName("The file's growth rate is measured apart from the rate it is wasting at")
+	void shouldMeasureFileGrowthSeparatelyFromWaste() {
+		// a shrinking workload: every flush strands a kilobyte while appending a tenth of one - what replacing large
+		// records with small ones, or removing them outright, actually does to a data file
+		final WasteAccumulation shrinking = WasteAccumulation.NONE
+			.sampled(0L, 0L, 1_000L)
+			.sampled(1_000L, 100L, 2_000L);
+
+		assertEquals(1_000.0d, shrinking.rateBytesPerSecond(), 0.001d);
+		// the file is *not* growing at the waste rate, and a size threshold extrapolated from that would be reached
+		// ten times too soon
+		assertEquals(100.0d, shrinking.growthRateBytesPerSecond(), 0.001d);
+		assertEquals(100.0d, shrinking.effectiveGrowthRateBytesPerSecond(2_500L), 0.001d);
+	}
+
+	@Test
 	@DisplayName("The reported rate decays once flushes stop arriving")
 	void shouldDecayTheRateWhileNothingIsWritten() {
 		final WasteAccumulation steady = WasteAccumulation.NONE
-			.sampled(0L, 1_000L)
-			.sampled(1_000L, 2_000L);
+			.sampled(0L, 0L, 1_000L)
+			.sampled(1_000L, 1_000L, 2_000L);
 
 		// still inside the cadence the rate was measured at - the measurement stands
 		assertEquals(1_000.0d, steady.effectiveRateBytesPerSecond(2_500L), 0.001d);
@@ -130,16 +162,27 @@ class WasteAccumulationTest {
 	@DisplayName("Compaction resets the counter and keeps the rate")
 	void shouldCarryTheRateButNotTheCounterAcrossCompaction() {
 		final WasteAccumulation before = WasteAccumulation.NONE
-			.sampled(0L, 1_000L)
-			.sampled(1_000L, 2_000L);
+			.sampled(0L, 0L, 1_000L)
+			.sampled(1_000L, 1_000L, 2_000L);
 
 		final WasteAccumulation after = before.carriedOverToCompactedFile();
 		// the compacted file holds none of the stranded bytes ...
 		assertEquals(0L, after.wasteBytesGenerated());
+		assertEquals(0L, after.fileBytesAppended());
 		// ... but the workload that stranded them is unchanged, so a freshly compacted store must not report
 		// "no compaction foreseeable" until it happens to have flushed twice more
 		assertEquals(before.rateBytesPerSecond(), after.rateBytesPerSecond());
+		assertEquals(before.growthRateBytesPerSecond(), after.growthRateBytesPerSecond());
 		assertEquals(before.effectiveRateBytesPerSecond(2_500L), after.effectiveRateBytesPerSecond(2_500L));
+
+		// the window-start counters are the other end of the subtraction each rate is computed from, so they have to
+		// reset alongside the counters themselves - leaving them behind makes the next sample's numerator negative
+		// and reports a data file that is un-wasting itself
+		final WasteAccumulation afterNextFlush = after.sampled(500L, 500L, 3_000L);
+		assertTrue(
+			afterNextFlush.rateBytesPerSecond() > 0.0d,
+			"The first flush after compaction reported a negative rate: " + afterNextFlush
+		);
 	}
 
 }

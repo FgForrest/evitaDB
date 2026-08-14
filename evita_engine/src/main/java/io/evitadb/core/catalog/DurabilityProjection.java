@@ -42,8 +42,11 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-class DurabilityProjection {
+final class DurabilityProjection {
 
+	/**
+	 * This class is a collection of static projection helpers and must never be instantiated.
+	 */
 	private DurabilityProjection() {
 	}
 

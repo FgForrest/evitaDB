@@ -39,7 +39,13 @@ public enum AttributeIndexType {
 
 	/**
 	 * The unique index - a value maps to at most one record. Its distinct-value count and the number of records it
-	 * covers are equal by construction, which is exactly what makes a discrepancy between them worth noticing.
+	 * covers are *expected* to agree, which is what makes a divergence between them worth looking into rather than a
+	 * routine ratio to be read for selectivity.
+	 *
+	 * They are not, however, equal by construction, and code must not assume they are: a localized attribute that is
+	 * also globally unique has one locale-less key covering every locale, so one record can own several values in a
+	 * single index. See {@link CollectionIndexCardinality.AttributeCardinality#recordsCovered()} for that case and
+	 * for the membership bitmap's own staleness, which is the other way the two readings part company.
 	 */
 	UNIQUE,
 

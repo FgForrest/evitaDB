@@ -24,6 +24,7 @@
 package io.evitadb.core.engine;
 
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
+import io.evitadb.store.catalog.CatalogStorageFootprintMeasurer;
 import io.evitadb.spi.store.engine.CatalogFolderOperations;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.engine.CatalogFolderAllocator;
@@ -127,7 +128,7 @@ public final class TestCatalogFolderContexts {
 			@Nonnull CatalogFolderId folderId,
 			@Nonnull String catalogName
 		) {
-			return CatalogStorageFootprint.measure(
+			return CatalogStorageFootprintMeasurer.measure(
 				catalogName, this.storageDirectory.resolve(folderId.id()), null
 			);
 		}

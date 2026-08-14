@@ -1637,6 +1637,10 @@ public class OffsetIndex {
 		// bytes this flush strands in the data file. Deliberately *not* `recordLengthDelta`: a rewrite that shrinks
 		// a record has a negative length delta while still leaving the whole superseded record behind as waste
 		long wasteBytesGenerated = 0;
+		// bytes this flush appends to the data file, which is a third quantity again: `recordLengthDelta` is the
+		// change in *live* size and goes negative on removals, while the file only ever gets longer. A removal
+		// appends nothing and strands everything; a record replaced by a larger one appends more than it strands
+		long appendedBytes = 0;
 		int batchIndex = 0;
 
 		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
@@ -1671,6 +1675,7 @@ public class OffsetIndex {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
 					final int currentRecordLength = recordLocation.recordLength();
 					recordLengthDelta += currentRecordLength;
+					appendedBytes += currentRecordLength;
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
@@ -1690,6 +1695,7 @@ public class OffsetIndex {
 						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
 					root = root.updated(recordKey, newRecordLocation);
 					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
+					appendedBytes += newRecordLocation.recordLength();
 					// the superseded version stays in the file behind the new one
 					wasteBytesGenerated += existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
@@ -1722,9 +1728,9 @@ public class OffsetIndex {
 		// update global statistics
 		this.totalSizeBytes.addAndGet(recordLengthDelta);
 		this.maxRecordSizeBytes.set(workingMaxRecordSize);
-		// sample the waste rate here rather than per write: a flush is where the stranded bytes actually become part
-		// of the file, and it is the same moment the compaction trigger itself evaluates
-		this.wasteAccumulation = this.wasteAccumulation.sampled(wasteBytesGenerated, promotedAt);
+		// sample the waste and growth rates here rather than per write: a flush is where the stranded bytes actually
+		// become part of the file, and it is the same moment the compaction trigger itself evaluates
+		this.wasteAccumulation = this.wasteAccumulation.sampled(wasteBytesGenerated, appendedBytes, promotedAt);
 		// append the new per-version snapshots, then drop any history a catalog has released (the watermark set by
 		// purge is applied here, in the serialized writer, so no reader-side lock is needed)
 		Roots published = currentRoots.append(catalogVersion, addVersions, addRoots, addHistograms, addTimestamps);
@@ -1761,8 +1767,9 @@ public class OffsetIndex {
 		// delete-then-recreate of a key that already exists in the published root as a brand new key.
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
 			catalogVersion - 1, key);
-		final boolean update = nonFlushedValueRef.isPresent() ?
-			!nonFlushedValueRef.get().removed() : this.roots.latestRoot().containsKey(key);
+		final boolean update = nonFlushedValueRef
+			.map(versionedValue -> !versionedValue.removed())
+			.orElseGet(() -> this.roots.latestRoot().containsKey(key));
 		final FileLocation recordLocation = new StorageRecord<>(
 			this.writeKryo,
 			exclusiveWriteAccess,

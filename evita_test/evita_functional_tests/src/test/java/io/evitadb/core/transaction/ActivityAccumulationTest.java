@@ -127,6 +127,26 @@ class ActivityAccumulationTest {
 	}
 
 	@Test
+	@DisplayName("Commits inside an already-sampled millisecond still reach the next rate")
+	void shouldCarrySameMillisecondCommitsIntoTheNextSample() {
+		// the window opens at 1000, then forty-nine more commits land in that very millisecond
+		ActivityAccumulation burst = ActivityAccumulation.NONE.sampled(1, 100L, 1_000L);
+		for (int i = 0; i < 49; i++) {
+			burst = burst.sampled(1, 100L, 1_000L);
+		}
+		assertEquals(50L, burst.transactionsCommitted());
+
+		// one more a tenth of a second later. Fifty commits fall inside the 100 ms window that closes here - the
+		// first one opened it and is excluded - so the rate is 500/s. Counting only this last commit against the
+		// full interval reported 10/s, losing forty-nine of the fifty: a bulk load looked idle
+		final ActivityAccumulation measured = burst.sampled(1, 100L, 1_100L);
+		assertEquals(500.0d, measured.transactionRatePerSecond(), 0.001d);
+		// one mutation each, so the mutation rate tracks the commit rate; a hundred bytes each puts the log at 50 kB/s
+		assertEquals(500.0d, measured.mutationRatePerSecond(), 0.001d);
+		assertEquals(50_000.0d, measured.walByteRatePerSecond(), 0.001d);
+	}
+
+	@Test
 	@DisplayName("An idle catalog reports rates falling towards zero, not the load it last saw")
 	void shouldDecayEveryRateWhileNothingIsCommitted() {
 		// one transaction per second, 10 mutations and 1000 bytes each

@@ -241,7 +241,7 @@ class CompactionCadenceGateTest {
 		void shouldProjectNothingWithoutARate() {
 			// a distant date would render as a real answer on a management screen; there is no crossing to report,
 			// because nothing is stranding bytes
-			assertNull(projectCompactionTime(1_000L, 10_000L, 0.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
+			assertNull(projectCompactionTime(1_000L, 10_000L, 0.0d, 0.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
 		}
 
 		@Test
@@ -249,7 +249,7 @@ class CompactionCadenceGateTest {
 		void shouldProjectNothingForAStoreWithNoLiveBytes() {
 			// the crossing is derived from `liveBytes / targetShare`, which is `0` for an empty store - it would
 			// project a crossing that has already happened for a file that cannot be worth compacting
-			assertNull(projectCompactionTime(0L, 10_000L, 500.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
+			assertNull(projectCompactionTime(0L, 10_000L, 500.0d, 500.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW));
 		}
 
 		@Test
@@ -258,7 +258,7 @@ class CompactionCadenceGateTest {
 			// 1000 live bytes in a 1500-byte file is a share of 0.667; it falls to 0.5 at 2000 bytes, which 100 B/s
 			// of waste reaches in five seconds
 			final OffsetDateTime projected = projectCompactionTime(
-				1_000L, 1_500L, 100.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+				1_000L, 1_500L, 100.0d, 100.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
 			);
 			assertNotNull(projected);
 			assertEquals(NOW + 5_000L, projected.toInstant().toEpochMilli());
@@ -270,7 +270,7 @@ class CompactionCadenceGateTest {
 			// the softer threshold (0.5, reached at 2000 bytes) is crossed before the hard override (0.25, reached
 			// at 4000), and with the interval disabled nothing holds it back
 			final OffsetDateTime projected = projectCompactionTime(
-				1_000L, 1_500L, 100.0d, settings(0.5d, 0.25d, 100L, 0L), NOW, NOW
+				1_000L, 1_500L, 100.0d, 100.0d, settings(0.5d, 0.25d, 100L, 0L), NOW, NOW
 			);
 			assertNotNull(projected);
 			assertEquals(NOW + 5_000L, projected.toInstant().toEpochMilli());
@@ -282,7 +282,7 @@ class CompactionCadenceGateTest {
 			// same two thresholds, but the softer one cannot fire for another hour - so the answer is the hard
 			// override's own crossing at 4000 bytes (25 s at 100 B/s), not the softer one's five seconds
 			final OffsetDateTime projected = projectCompactionTime(
-				1_000L, 1_500L, 100.0d, settings(0.5d, 0.25d, 100L, 3_600_000L), NOW, NOW
+				1_000L, 1_500L, 100.0d, 100.0d, settings(0.5d, 0.25d, 100L, 3_600_000L), NOW, NOW
 			);
 			assertNotNull(projected);
 			assertEquals(NOW + 25_000L, projected.toInstant().toEpochMilli());
@@ -294,7 +294,7 @@ class CompactionCadenceGateTest {
 			// the share is already below both thresholds, so the share crossing is "now" - but nothing triggers
 			// until the file passes 10 000 bytes, which 100 B/s reaches in 85 seconds
 			final OffsetDateTime projected = projectCompactionTime(
-				100L, 1_500L, 100.0d, settings(0.5d, 0.5d, 10_000L, 0L), NOW, NOW
+				100L, 1_500L, 100.0d, 100.0d, settings(0.5d, 0.5d, 10_000L, 0L), NOW, NOW
 			);
 			assertNotNull(projected);
 			assertEquals(NOW + 85_000L, projected.toInstant().toEpochMilli());
@@ -306,7 +306,49 @@ class CompactionCadenceGateTest {
 			// a trickle of one byte per second against a large live set puts the crossing decades out, which is
 			// arithmetic rather than information
 			assertNull(projectCompactionTime(
-				10_000_000_000L, 1_500L, 1.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+				10_000_000_000L, 1_500L, 1.0d, 1.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+			));
+		}
+
+		@Test
+		@DisplayName("a file that is not lengthening never reaches the size threshold")
+		void shouldProjectNothingForAStoreThatStrandsBytesWithoutGrowing() {
+			// a delete-only workload: bytes are stranded at 100 B/s while the file appends nothing at all. It cannot
+			// grow past 10 000 bytes because it is not growing, and extrapolating the *waste* rate here - which is
+			// what a single-rate projection does - invents a date the file will never see
+			assertNull(projectCompactionTime(
+				1_000L, 1_500L, 100.0d, 0.0d, settings(0.5d, 0.5d, 10_000L, 0L), NOW, NOW
+			));
+		}
+
+		@Test
+		@DisplayName("a delete-only store already past the size threshold still projects a crossing")
+		void shouldProjectTheShareCrossingWhileTheFileStandsStill() {
+			// same store, but the size threshold is already behind it. Removals take live bytes away without adding
+			// file bytes, so the share falls from 0.667 to 0.5 in 2.5 s - twice as fast as a model holding live bytes
+			// constant and growing the file at the waste rate would have said
+			final OffsetDateTime projected = projectCompactionTime(
+				1_000L, 1_500L, 100.0d, 0.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 2_500L, projected.toInstant().toEpochMilli());
+		}
+
+		@Test
+		@DisplayName("a file growing faster than it wastes pushes the crossing out, or removes it entirely")
+		void shouldPushTheCrossingOutWhenTheFileGrowsFasterThanItWastes() {
+			// 150 B/s of growth against 100 B/s of waste: live bytes are accruing too, so the share erodes more
+			// slowly than the waste rate alone suggests - ten seconds rather than five
+			final OffsetDateTime projected = projectCompactionTime(
+				1_000L, 1_500L, 100.0d, 150.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
+			);
+			assertNotNull(projected);
+			assertEquals(NOW + 10_000L, projected.toInstant().toEpochMilli());
+
+			// at 300 B/s the share converges on 0.667 from above and never reaches 0.5 at all. There is no crossing
+			// to report, and reporting one anyway is exactly what the old arithmetic did
+			assertNull(projectCompactionTime(
+				1_000L, 1_500L, 100.0d, 300.0d, settings(0.5d, 0.5d, 100L, 0L), NOW, NOW
 			));
 		}
 

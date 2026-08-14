@@ -1542,10 +1542,8 @@ public final class Catalog
 						// four zeroes would render as a pipeline with nothing queued anywhere, which is the opposite of
 						// the truth: in WARM_UP writes bypass the pipeline entirely and none of its watermarks move
 						builder.withUnavailable(
-							component,
-							ComponentAvailability.FEATURE_DISABLED,
-							"Catalog is in `" + getCatalogState() + "` state, where writes are applied in bulk and the " +
-								"transactional commit pipeline is not used."
+							component, ComponentAvailability.FEATURE_DISABLED, bulkWriteModeExplanation(
+								getCatalogState())
 						);
 					}
 				}
@@ -1565,10 +1563,8 @@ public final class Catalog
 						// ingestion never enters the pipeline that counts them - "idle and healthy" is the exact
 						// inverse of the truth here, same as for COMMIT_PIPELINE above
 						builder.withUnavailable(
-							component,
-							ComponentAvailability.FEATURE_DISABLED,
-							"Catalog is in `" + getCatalogState() + "` state, where writes are applied in bulk and " +
-								"the transactional commit pipeline is not used."
+							component, ComponentAvailability.FEATURE_DISABLED, bulkWriteModeExplanation(
+								getCatalogState())
 						);
 					}
 				}
@@ -1661,6 +1657,24 @@ public final class Catalog
 		return this.evita.getCatalogSessionRegistry(getName())
 			.map(SessionRegistry::countActiveSessions)
 			.orElse(NO_ACTIVE_SESSIONS);
+	}
+
+	/**
+	 * Why {@link CatalogStatisticsComponent#COMMIT_PIPELINE} and {@link CatalogStatisticsComponent#ACTIVITY} are both
+	 * withheld while the catalog is writing in bulk.
+	 *
+	 * The two components report different things but are unavailable for one and the same reason - bulk writes never
+	 * enter the pipeline that either of them measures - so the sentence is written once rather than twice. Two copies
+	 * of one explanation drift, and these two already had: identical in what they produced, differing in where the
+	 * line was wrapped.
+	 *
+	 * @return the explanation handed to the client alongside {@link ComponentAvailability#FEATURE_DISABLED}
+	 * @param catalogState current state of the catalog
+	 */
+	@Nonnull
+	private static String bulkWriteModeExplanation(@Nonnull CatalogState catalogState) {
+		return "Catalog is in `" + catalogState + "` state, where writes are applied in bulk and the " +
+			"transactional commit pipeline is not used.";
 	}
 
 	/**

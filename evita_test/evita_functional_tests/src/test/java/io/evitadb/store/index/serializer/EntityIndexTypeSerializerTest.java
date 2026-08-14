@@ -50,10 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Coverage for {@link EntityIndexTypeSerializer}, and specifically for the one thing nothing else in the suite can
  * reach: an index part written before 2024.12 names an entity index type the enum no longer declares.
  *
- * **This test is the only reference to `REFERENCED_HIERARCHY_NODE` left in the codebase.** The constant was dropped
- * once nothing produced it, so from that moment the legacy read path became invisible to every other assertion - a
- * regression there would surface as an unreadable catalog rather than as a failing test. The name is therefore spelled
- * out as a literal here on purpose; it is a wire constant, not a symbol.
+ * **Nothing produces `REFERENCED_HIERARCHY_NODE` any more**, so no fixture can reach the path that reads it. The
+ * constant was dropped from {@link io.evitadb.api.index.EntityIndexType} once nothing wrote it, and from that moment
+ * the legacy read path became invisible to every other assertion in the suite - a regression there would surface as
+ * an unreadable catalog rather than as a failing test. This test is what keeps it covered.
+ *
+ * The name is spelled out as a literal here on purpose, and `EntityIndexTypeSerializer` holds its own copy for the
+ * same reason: it is a wire constant that pre-2024.12 catalogs carry on disk, so it must not follow a rename of any
+ * symbol. The duplication is the point - a shared constant would let one edit move both sides at once.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

@@ -54,6 +54,10 @@ import javax.annotation.Nonnull;
  *                                 `0` until two commits have been observed
  * @param mutationRatePerSecond    the same for mutations
  * @param walByteRatePerSecond     the same for write-ahead log bytes
+ * @param transactionsAtLastSample the commit counter as the currently-open sampling window opened, so the next
+ *                                 measurable commit divides *everything* committed since then rather than only itself
+ * @param mutationsAtLastSample    the mutation counter at the same moment, for the same reason
+ * @param walBytesAtLastSample     the write-ahead log counter at the same moment, for the same reason
  * @param lastSampleAtMillis       epoch millis of the commit that produced the rates; `0` when none has been observed
  * @param lastSampleIntervalMillis how long the interval between the last two commits was, which is the cadence the
  *                                 idle-time decay measures staleness against; `0` before a second commit
@@ -66,6 +70,9 @@ public record ActivityAccumulation(
 	double transactionRatePerSecond,
 	double mutationRatePerSecond,
 	double walByteRatePerSecond,
+	long transactionsAtLastSample,
+	long mutationsAtLastSample,
+	long walBytesAtLastSample,
 	long lastSampleAtMillis,
 	long lastSampleIntervalMillis
 ) {
@@ -74,7 +81,7 @@ public record ActivityAccumulation(
 	 * A pipeline that has not committed anything yet.
 	 */
 	public static final ActivityAccumulation NONE =
-		new ActivityAccumulation(0L, 0L, 0L, 0.0d, 0.0d, 0.0d, 0L, 0L);
+		new ActivityAccumulation(0L, 0L, 0L, 0.0d, 0.0d, 0.0d, 0L, 0L, 0L, 0L, 0L);
 
 	/**
 	 * Weight given to the newest sample. Low enough that one bulk transaction does not dominate the reported rate,
@@ -89,6 +96,12 @@ public record ActivityAccumulation(
 	 * so it contributes to the counters and leaves the rates alone. The second one seeds each average with its own
 	 * value instead of blending it into a zero, which would otherwise halve the very first rate reported.
 	 *
+	 * **Every transaction lands in exactly one sample, including those committed inside an already-sampled
+	 * millisecond.** Each numerator is the counter's movement across the whole open window - not this one
+	 * transaction's contribution - so a burst of commits sharing a millisecond is carried into the next measurable
+	 * sample rather than dropped from the rate. Fifty commits in one millisecond followed by one a tenth of a second
+	 * later is a burst of fifty-one, not of one.
+	 *
 	 * @param mutationCount   mutations this transaction carried
 	 * @param walBytes        bytes it appended to the write-ahead log
 	 * @param sampledAtMillis epoch millis at which its bytes reached the log
@@ -100,28 +113,34 @@ public record ActivityAccumulation(
 		final long mutations = this.mutationsApplied + mutationCount;
 		final long bytes = this.walBytesAppended + walBytes;
 		if (this.lastSampleAtMillis == 0L) {
+			// the window opens here: this transaction landed over an interval nothing observed, so it seeds the
+			// counters but must not become the numerator of the next sample
 			return new ActivityAccumulation(
 				committed, mutations, bytes,
 				this.transactionRatePerSecond, this.mutationRatePerSecond, this.walByteRatePerSecond,
+				committed, mutations, bytes,
 				sampledAtMillis, this.lastSampleIntervalMillis
 			);
 		}
 		final long intervalMillis = sampledAtMillis - this.lastSampleAtMillis;
 		if (intervalMillis <= 0L) {
 			// two commits inside the same millisecond - there is no interval to divide by, so the counters move and
-			// the window stays open until a measurable one comes along
+			// the window stays open until a measurable one comes along. The window's opening counters stay put with
+			// it, which is what keeps these commits in the next sample instead of losing them
 			return new ActivityAccumulation(
 				committed, mutations, bytes,
 				this.transactionRatePerSecond, this.mutationRatePerSecond, this.walByteRatePerSecond,
+				this.transactionsAtLastSample, this.mutationsAtLastSample, this.walBytesAtLastSample,
 				this.lastSampleAtMillis, this.lastSampleIntervalMillis
 			);
 		}
 		final boolean seeding = this.lastSampleIntervalMillis == 0L;
 		return new ActivityAccumulation(
 			committed, mutations, bytes,
-			smooth(this.transactionRatePerSecond, 1.0d, intervalMillis, seeding),
-			smooth(this.mutationRatePerSecond, mutationCount, intervalMillis, seeding),
-			smooth(this.walByteRatePerSecond, walBytes, intervalMillis, seeding),
+			smooth(this.transactionRatePerSecond, committed - this.transactionsAtLastSample, intervalMillis, seeding),
+			smooth(this.mutationRatePerSecond, mutations - this.mutationsAtLastSample, intervalMillis, seeding),
+			smooth(this.walByteRatePerSecond, bytes - this.walBytesAtLastSample, intervalMillis, seeding),
+			committed, mutations, bytes,
 			sampledAtMillis, intervalMillis
 		);
 	}

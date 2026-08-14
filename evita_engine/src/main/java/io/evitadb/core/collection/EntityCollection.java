@@ -1183,14 +1183,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Measures this collection's footprint on disk - the summed lengths of the data files whose names belong to it -
-	 * and attributes it to live data, compaction waste and superseded generations still on disk. The total is the sum
-	 * of one listing and every class is a subset of it, which keeps the record's total-equals-sum invariant true by
-	 * construction; see {@link CollectionStorageSize} for how each class is meant to be read.
-	 *
-	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of this collection
-	 */
-	/**
 	 * Breaks this collection's data store down by storage-part type - where its bytes actually go. Measured in bytes
 	 * rather than record counts, because counts invert the answer whenever many small records share a data store with
 	 * a few large ones; the counts travel alongside so the average per type stays exact.

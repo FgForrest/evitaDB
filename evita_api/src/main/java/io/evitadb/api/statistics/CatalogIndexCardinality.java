@@ -61,9 +61,13 @@ import java.util.Objects;
  * was admitted because the listing stays in the same size class as the collection inventory of
  * {@link CatalogStatisticsComponent#COLLECTIONS}, which that call already carries for every catalog.
  *
- * **Distinct values and records covered are the same number here**, because a globally-unique value identifies exactly
- * one record by definition. Only one of them is therefore reported: reporting both would invite a reader to compare
- * them for selectivity, and their ratio is fixed at 1 by construction.
+ * **Only the distinct-value count is reported, never the covered-record count.** For an ordinary globally-unique
+ * attribute the two are the same number, since such a value identifies exactly one record by definition. They part
+ * company for an attribute that is *localized as well*, whose single locale-less key covers every locale at once, so
+ * one record can own several values in it - see {@link GlobalUniqueIndexCardinality#distinctValueCount()}, which
+ * states the divergence precisely. The distinct count is carried here because it is the one an `O(1)` counter
+ * answers; the covered-record count comes from the per-index detail call, which reaches one catalog index instead of
+ * all of them.
  *
  * @param globalUniqueIndexes one entry per global unique index the catalog holds, in no guaranteed order; empty when
  *                            the schema declares no globally-unique attribute, or when none has been written to yet

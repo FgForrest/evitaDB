@@ -1231,13 +1231,20 @@ public class DefaultCatalogPersistenceService
 	 * active record share derived from it, and the store's own last-compaction timestamp. Re-deriving any of that in
 	 * the engine would produce a second, silently diverging notion of "due for compaction".
 	 *
-	 * **How the projection is derived.** With the live bytes `L` roughly stable, every byte of waste the workload
-	 * strands is also a byte appended to the file, so after `t` seconds at rate `r` the file holds `F + r·t` bytes at
-	 * an active share of `L / (F + r·t)`. Setting that equal to a threshold `s` gives `t = (L/s − F) / r`. Two
-	 * thresholds can fire: `maxWasteActiveShare` unconditionally, and `minimalActiveRecordShare` - which is crossed
-	 * earlier, being the higher share - only once the minimum interval has elapsed. The answer is the earlier of the
-	 * two, pushed out to whenever the file also grows past `fileSizeCompactionThresholdBytes`, because no share
-	 * crossing triggers anything below that size.
+	 * **How the projection is derived.** Two rates drive it, and conflating them is the classic error here: the file
+	 * lengthens by the bytes a flush *appends* (`g`), while the share erodes by the bytes it *strands* (`w`). A removal
+	 * strands and appends nothing; a record replaced by a larger one appends more than it strands. So after `t`
+	 * seconds the file holds `F + g·t` bytes of which `L + (g − w)·t` are live, an active share of
+	 * `(L + (g − w)·t) / (F + g·t)`. Setting that equal to a threshold `s` gives `t = (s·F − L) / (g·(1 − s) − w)`.
+	 * When `g = w` - a workload rewriting records at their own size - this reduces to `t = (L/s − F) / w`, which is
+	 * the single-rate formula this used to be, so the familiar case is unchanged.
+	 *
+	 * A non-negative denominator means live bytes are being added at least as fast as the share erodes: that threshold
+	 * is never reached and no date is produced for it. Two thresholds can fire: `maxWasteActiveShare` unconditionally,
+	 * and `minimalActiveRecordShare` - which is crossed earlier, being the higher share - only once the minimum
+	 * interval has elapsed. The answer is the earlier of the two, pushed out to whenever the file also grows past
+	 * `fileSizeCompactionThresholdBytes`, because no share crossing triggers anything below that size - and a file
+	 * that is not lengthening at all never gets there, however much of it is being wasted.
 	 *
 	 * A rate of zero yields no projection at all rather than a distant one: nothing is being stranded, so no crossing
 	 * follows, and a rendered date would read as a commitment the engine never made.
@@ -1276,6 +1283,9 @@ public class DefaultCatalogPersistenceService
 		);
 		final WasteAccumulation wasteAccumulation = offsetIndex.getWasteAccumulation();
 		final double rate = wasteAccumulation.effectiveRateBytesPerSecond(nowMillis);
+		// the file lengthens at its own rate, which is not the waste rate - the projection needs both, while the
+		// reported figure stays the waste rate, because waste is what compaction reclaims
+		final double growthRate = wasteAccumulation.effectiveGrowthRateBytesPerSecond(nowMillis);
 		return new CompactionForecast(
 			eligibleNow,
 			wasteAccumulation.wasteBytesGenerated(),
@@ -1283,7 +1293,7 @@ public class DefaultCatalogPersistenceService
 			eligibleNow ?
 				null :
 				projectCompactionTime(
-					offsetIndex.getTotalActiveSize(), fileSize, rate,
+					offsetIndex.getTotalActiveSize(), fileSize, rate, growthRate,
 					storageSettings, lastCompactionAtMillis, nowMillis
 				)
 		);
@@ -1293,48 +1303,61 @@ public class DefaultCatalogPersistenceService
 	 * Extrapolates when a data store will satisfy the compaction predicate - see {@link #forecastCompaction} for the
 	 * derivation of the arithmetic and for why an absent answer is the honest one.
 	 *
-	 * @param liveBytes              bytes of active records the store holds
-	 * @param fileSize               current length of the data file
-	 * @param rateBytesPerSecond     rate at which waste is being stranded in it
-	 * @param storageSettings        the configured compaction thresholds
-	 * @param lastCompactionAtMillis wall-clock time of this store's last compaction, in epoch milliseconds
-	 * @param nowMillis              current wall-clock time in epoch milliseconds
+	 * @param liveBytes                bytes of active records the store holds
+	 * @param fileSize                 current length of the data file
+	 * @param wasteRateBytesPerSecond  rate at which waste is being stranded in it
+	 * @param growthRateBytesPerSecond rate at which the file itself is lengthening, which is a different quantity -
+	 *                                 see above
+	 * @param storageSettings          the configured compaction thresholds
+	 * @param lastCompactionAtMillis   wall-clock time of this store's last compaction, in epoch milliseconds
+	 * @param nowMillis                current wall-clock time in epoch milliseconds
 	 * Package-visible so that `CompactionCadenceGateTest` can pin the arithmetic directly, exactly as it does for
 	 * {@link #shouldCompact} and {@link #isCompactionIntervalElapsed}. Every interesting case here is about a
 	 * threshold being approached over time, which a functional test cannot reach without waiting for it.
 	 *
-	 * @return the projected crossing, or null when none follows from the given rate
+	 * @return the projected crossing, or null when none follows from the given rates
 	 */
 	@Nullable
 	static OffsetDateTime projectCompactionTime(
 		long liveBytes,
 		long fileSize,
-		double rateBytesPerSecond,
+		double wasteRateBytesPerSecond,
+		double growthRateBytesPerSecond,
 		@Nonnull StorageSettings storageSettings,
 		long lastCompactionAtMillis,
 		long nowMillis
 	) {
-		if (rateBytesPerSecond <= 0.0d || liveBytes <= 0L) {
+		// nothing being stranded means nothing to reclaim, whatever the file is doing in length
+		if (wasteRateBytesPerSecond <= 0.0d || liveBytes <= 0L) {
 			return null;
 		}
 		// the hard override fires whenever the share is crossed; the softer threshold only once the cadence gate opens
 		final double hardOverrideMillis = millisUntilShareFallsBelow(
-			liveBytes, fileSize, rateBytesPerSecond, storageSettings.maxWasteActiveShare()
+			liveBytes, fileSize, wasteRateBytesPerSecond, growthRateBytesPerSecond,
+			storageSettings.maxWasteActiveShare()
 		);
 		final double gateOpensInMillis = Math.max(
 			0.0d, (double) (lastCompactionAtMillis + storageSettings.minCompactionIntervalMilliseconds() - nowMillis)
 		);
 		final double gatedMillis = Math.max(
 			millisUntilShareFallsBelow(
-				liveBytes, fileSize, rateBytesPerSecond, storageSettings.minimalActiveRecordShare()
+				liveBytes, fileSize, wasteRateBytesPerSecond, growthRateBytesPerSecond,
+				storageSettings.minimalActiveRecordShare()
 			),
 			gateOpensInMillis
 		);
 		final double crossingMillis = Math.min(hardOverrideMillis, gatedMillis);
-		// nothing triggers while the file is below the size threshold, however wasteful it is
-		final double bigEnoughInMillis = fileSize > storageSettings.fileSizeCompactionThresholdBytes() ?
-			0.0d :
-			(double) (storageSettings.fileSizeCompactionThresholdBytes() - fileSize) * 1000.0d / rateBytesPerSecond;
+		// nothing triggers while the file is below the size threshold, however wasteful it is - and a file that is
+		// not lengthening never reaches it, which is a real outcome of a delete-only workload rather than an edge case
+		final double bigEnoughInMillis;
+		if (fileSize > storageSettings.fileSizeCompactionThresholdBytes()) {
+			bigEnoughInMillis = 0.0d;
+		} else if (growthRateBytesPerSecond <= 0.0d) {
+			bigEnoughInMillis = Double.POSITIVE_INFINITY;
+		} else {
+			bigEnoughInMillis = (double) (storageSettings.fileSizeCompactionThresholdBytes() - fileSize)
+				* 1000.0d / growthRateBytesPerSecond;
+		}
 		final double millisFromNow = Math.max(crossingMillis, bigEnoughInMillis);
 		if (!Double.isFinite(millisFromNow) || millisFromNow > MAX_PROJECTED_COMPACTION_HORIZON_MILLIS) {
 			// past this horizon the extrapolation says more about the arithmetic than about the catalog
@@ -1346,27 +1369,39 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Returns how many milliseconds it takes for the active record share to fall below the given threshold, given that
-	 * the file grows by `rateBytesPerSecond` while its live bytes stay put.
+	 * Returns how many milliseconds it takes for the active record share to fall below the given threshold, given a
+	 * file lengthening at `growthRateBytesPerSecond` and stranding `wasteRateBytesPerSecond` of that as waste.
 	 *
-	 * @param liveBytes          bytes of active records the store holds
-	 * @param fileSize           current length of the data file
-	 * @param rateBytesPerSecond rate at which waste is being stranded in it
-	 * @param targetShare        the share to fall below
+	 * Live bytes are *not* held constant: they move at the difference of the two rates, which is what makes a
+	 * delete-only store - lengthening by nothing while shedding live bytes - reach the threshold rather than never.
+	 * See {@link #forecastCompaction} for the derivation and for why the single-rate form was wrong.
+	 *
+	 * @param liveBytes                bytes of active records the store holds
+	 * @param fileSize                 current length of the data file
+	 * @param wasteRateBytesPerSecond  rate at which waste is being stranded in it
+	 * @param growthRateBytesPerSecond rate at which the file is lengthening
+	 * @param targetShare              the share to fall below
 	 * @return milliseconds until the crossing, `0` when it has already happened, positive infinity when the threshold
-	 * is `0` or below and can therefore never be crossed
+	 * is `0` or below, or when live bytes accrue fast enough that the share never reaches it
 	 */
 	private static double millisUntilShareFallsBelow(
 		long liveBytes,
 		long fileSize,
-		double rateBytesPerSecond,
+		double wasteRateBytesPerSecond,
+		double growthRateBytesPerSecond,
 		double targetShare
 	) {
 		if (targetShare <= 0.0d) {
 			return Double.POSITIVE_INFINITY;
 		}
-		final double targetFileSize = (double) liveBytes / targetShare;
-		return Math.max(0.0d, (targetFileSize - (double) fileSize) * 1000.0d / rateBytesPerSecond);
+		// share(t) = (L + (g - w)·t) / (F + g·t) = s  =>  t = (s·F - L) / (g·(1 - s) - w)
+		final double denominator = growthRateBytesPerSecond * (1.0d - targetShare) - wasteRateBytesPerSecond;
+		if (denominator >= 0.0d) {
+			// live bytes are being added at least as fast as the share erodes - this threshold is never crossed
+			return Double.POSITIVE_INFINITY;
+		}
+		final double numerator = targetShare * (double) fileSize - (double) liveBytes;
+		return Math.max(0.0d, numerator / denominator * 1000.0d);
 	}
 
 	/**
@@ -3520,9 +3555,11 @@ public class DefaultCatalogPersistenceService
 		// `stat` per data store that this listing has already paid for, and would let the reported waste and the
 		// reported eligibility describe two different moments of a file that is being appended to
 		final File[] files = this.catalogStoragePath.toFile().listFiles();
+		// the *prefix*, not the catalog name: the two diverge after a rename or a `replaceCatalog`, and every file
+		// name the measurement matches on is built from the former
 		final CatalogStorageFootprint footprint = files == null ?
-			CatalogStorageFootprint.measure(this.catalogName, this.catalogStoragePath, generations) :
-			CatalogStorageFootprint.measure(this.catalogName, files, generations);
+			CatalogStorageFootprintMeasurer.measure(this.storagePrefix, this.catalogStoragePath, generations) :
+			CatalogStorageFootprintMeasurer.measure(this.storagePrefix, files, generations);
 		// keyed by name, restricted to the current generation of each store - the only files a forecast applies to.
 		// A directory that could not be listed leaves this empty, and every store falls back to reading its own
 		// length rather than being forecast against a length of zero
@@ -3571,8 +3608,10 @@ public class DefaultCatalogPersistenceService
 	@Nonnull
 	@Override
 	public CatalogStorageFootprint measureStorageFootprint() {
-		return CatalogStorageFootprint.measure(
-			this.catalogName,
+		// the *prefix*, not the catalog name - see `measureFragmentation` for why the two cannot be used
+		// interchangeably here
+		return CatalogStorageFootprintMeasurer.measure(
+			this.storagePrefix,
 			this.catalogStoragePath,
 			describeDataStoreGenerations(this.bootstrapUsed)
 		);

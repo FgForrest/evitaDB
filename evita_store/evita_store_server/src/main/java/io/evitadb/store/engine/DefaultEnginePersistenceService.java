@@ -53,6 +53,7 @@ import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.catalog.CatalogStorageFootprintMeasurer;
 import io.evitadb.store.catalog.Migration_2026_1;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -1294,8 +1295,11 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull String catalogName
 	) {
 		// a folder that is not there lists as `null`, which the measurement already reports as an all-zero
-		// footprint - so the missing-folder case needs no branch of its own here
-		return CatalogStorageFootprint.measure(catalogName, pathOf(folderId), null);
+		// footprint - so the missing-folder case needs no branch of its own here.
+		// The name is passed as the *fallback* prefix only: this catalog would not open, so there is no
+		// `storagePrefix` to hand over, and the measurement reads the real one off the folder's bootstrap file. That
+		// matters here more than anywhere else - a renamed catalog is a renamed catalog whether or not it loads
+		return CatalogStorageFootprintMeasurer.measure(catalogName, pathOf(folderId), null);
 	}
 
 	@Nonnull
