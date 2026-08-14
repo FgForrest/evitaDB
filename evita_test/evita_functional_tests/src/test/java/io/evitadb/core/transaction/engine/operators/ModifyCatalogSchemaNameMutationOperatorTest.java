@@ -426,7 +426,7 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 	}
 
 	@Nested
-	@DisplayName("A commit that fails takes the early publication back with it")
+	@DisplayName("A commit that fails leaves each name answering through the registry it started with")
 	class CommitFailure {
 
 		@Test
@@ -504,8 +504,9 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 
 			assertSame(
 				targetRegistry, registries.get(TARGET_CATALOG_NAME),
-				"The replace changed nothing, so the target must answer through its own registry again - the " +
-					"derived view the completion phase published belongs to a catalog that never took its place."
+				"The replace changed nothing, so the target must still answer through the registry it had - a " +
+					"replace onto an existing catalog never publishes the derived view ahead of the commit, so " +
+					"there is nothing here for the undo to restore and nothing that may have displaced it."
 			);
 			assertTrue(
 				isServing(targetRegistry),

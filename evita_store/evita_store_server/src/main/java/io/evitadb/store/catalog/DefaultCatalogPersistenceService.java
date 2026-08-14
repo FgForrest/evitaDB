@@ -80,6 +80,7 @@ import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
@@ -2868,44 +2869,64 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.lastEntityCollectionPrimaryKey()
 		);
 
-		// the bootstrap keeps being written under the prefix the folder's files already carry - the files are not
-		// renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that does not
-		// exist and leave the real one holding a stale pointer
-		recordBootstrap(
-			newCatalogVersion,
-			this.storagePrefix,
-			this.bootstrapUsed.catalogFileIndex(),
-			dataStoreMemoryBuffer
-		);
+		// **Everything from here to the end of this method is past the operation's point of no return, and the
+		// wrapper is what tells the engine so.** The line falls here rather than at the `close()` further down,
+		// because what makes the rename irreversible is not losing the service - it is the folder's stored
+		// identity ceasing to agree with engine state. The writes above are buffered; this call is where they
+		// become durable, since `recordBootstrap` flushes the offset index and forces the pending syncs at its
+		// fence. A failure at or after this point can therefore leave the folder relabelled for a rename the
+		// engine-state commit will never make, and the damage that does is not theoretical: any transaction
+		// accepted afterwards is appended to the write-ahead log and replayed at the next boot against the
+		// name the folder now carries, which engine state has never heard of - the catalog then fails to
+		// load at all. A failure *before* this call has relabelled nothing and is fully compensable, which is
+		// why the span starts here and not at the top.
+		//
+		// Only this layer knows where that line falls, so only this layer can draw it; the engine's part is to
+		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
+		try {
+			// the bootstrap keeps being written under the prefix the folder's files already carry - the files are not
+			// renamed, so naming this record after the incoming catalog would address a `<newName>.boot` that does not
+			// exist and leave the real one holding a stale pointer
+			recordBootstrap(
+				newCatalogVersion,
+				this.storagePrefix,
+				this.bootstrapUsed.catalogFileIndex(),
+				dataStoreMemoryBuffer
+			);
 
-		// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
-		// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
-		// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
-		// version it names - so that older pointer would land after the one just written and the service reopened
-		// at the end of this method would load the catalog under the name it had before the rename. Discarding it
-		// is right on the merits rather than merely expedient: the record written above already did everything the
-		// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
-		// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is scheduled,
-		// so the history this record reveals is still accounted for and the discard drops a duplicate
-		// publication rather than the bookkeeping that rides along with it. The field is only ever set together
-		// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
-		// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
-		if (this.deferredCheckpointBootstrap != null) {
-			this.deferredCheckpointBootstrap = null;
-			Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
+			// A checkpoint owed by an earlier round still holds a prepared record addressing the root as it was BEFORE
+			// the header written above, and `close` below publishes whatever is owed. The bootstrap file is read back
+			// by position - `getLastCatalogBootstrapWithAutomaticUpgrade` takes the last record in the file, whatever
+			// version it names - so that older pointer would land after the one just written and the service reopened
+			// at the end of this method would load the catalog under the name it had before the rename. Discarding it
+			// is right on the merits rather than merely expedient: the record written above already did everything the
+			// owed checkpoint would have, since `recordBootstrap` flushes the offset index and forces the pending syncs
+			// at the fence inside `writeCatalogBootstrap` - which is also where the time travel size guard is
+			// scheduled, so the history this record reveals is still accounted for and the discard drops a duplicate
+			// publication rather than the bookkeeping that rides along with it. The field is only ever set together
+			// with the coordinator's own debt, so it is the exact condition, and settling it keeps the cadence gauge
+			// honest - reporting a completion when nothing was owed would fill it with samples no checkpoint produced.
+			if (this.deferredCheckpointBootstrap != null) {
+				this.deferredCheckpointBootstrap = null;
+				Objects.requireNonNull(this.checkpointCoordinator).noteCheckpointCompleted();
+			}
+
+			// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
+			// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
+			// progress waits forever on an operation that has already finished.
+			progressObserver.accept(1, 1);
+
+			// close the catalog and reopen it under its new name, in the very same folder. Past this close there
+			// is additionally no service behind the catalog at all, and this method cannot make one, having just
+			// failed to - so a caller resuming session admission would be admitting sessions against a catalog
+			// with no persistence layer. The span already covers it.
+			this.close();
+			return new DefaultCatalogPersistenceService(
+				catalogNameToBeReplaced, this.catalogStoragePath, this
+			);
+		} catch (RuntimeException ex) {
+			throw new CatalogHandoverFailedException(catalogNameToBeReplaced, ex);
 		}
-
-		// The operation is a fixed amount of work now that nothing is copied or moved, so there is no meaningful
-		// intermediate progress to report - but the terminal tick still has to arrive, or a client tracking
-		// progress waits forever on an operation that has already finished.
-		progressObserver.accept(1, 1);
-
-		// close the catalog and reopen it under its new name, in the very same folder
-		this.close();
-
-		return new DefaultCatalogPersistenceService(
-			catalogNameToBeReplaced, this.catalogStoragePath, this
-		);
 	}
 
 	@Override

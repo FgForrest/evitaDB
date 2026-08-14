@@ -28,6 +28,9 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.exception.EvitaError;
+import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +51,12 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 
@@ -55,6 +64,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SESSION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -85,18 +95,38 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * `resumeOperations` call from that branch - the target then answers `InstanceTerminatedException` for the rest
  * of the process.
  *
- * **How the failure is injected, and why here.** No production seam is used and no timing is raced. `replaceWith`
- * writes the header and the bootstrap record through handles opened at boot, which file permissions cannot fail;
- * it then closes the former persistence service and constructs a new one, and *that* constructor opens the
- * folder's data file afresh. Revoking read permission on that file before the rename therefore fails the
- * operation at exactly the point the issue's second shape failed at - after the old service is gone - and does so
- * deterministically. POSIX permissions are also why the test is confined to Linux and macOS, and why it skips
- * itself when the revocation does not bite, which is what happens when the suite runs as root.
+ * The last two pin the invariants that made the declaration necessary, and both were written red against the
+ * behaviour they now forbid: a session served under the surviving name observed the *target's* schema name, and a
+ * single retried write was appended durably to the write-ahead log before the commit pipeline died on that
+ * poisoned name (`ExpandedEngineState#replaceCatalogReference` found no such catalog) - after which the next boot
+ * failed replaying it, which is issue #1414's headline symptom re-created by the branch that fixes it. They are
+ * written against the invariant rather than against the fix, so they stay green whether the window is closed
+ * (prepare-then-commit in the store) or declared, as it is today.
+ *
+ * **How the failure is injected, and where it actually lands.** No production seam is used and no timing is raced.
+ * Revoking read permission on the folder's data file before the rename fails `replaceWith` deterministically, and
+ * the cause chain says exactly where: `SyncFailedException` wrapping an `AccessDeniedException`, raised by the
+ * offset-index flush inside `recordBootstrap`. That is **before** the former persistence service is closed, not
+ * after - an earlier version of this comment claimed the failure landed in the takeover constructor, and it does
+ * not. The distinction is worth the words, because it is the whole reason the catalog is unusable afterwards: the
+ * header naming the incoming catalog has already been written, so the folder's stored identity disagrees with
+ * engine state, while the service that could still write to it is very much alive. That is the point of no return
+ * (`CatalogHandoverFailedException`), and it is reached here without any service ever being lost.
+ *
+ * **The same revocation lands on either side of that line, depending on how warm the engine is**, and the suite
+ * covers both deliberately. Warm, the offset index has writes buffered and the failure comes at the flush, past
+ * the relabel. Freshly booted, it has none, so `replaceWith` fails opening the file before writing anything and
+ * the catalog is untouched - `shouldLeaveTheTargetServingWhenTheFailedReplaceInstalledItsRegistry` asserts that
+ * this one is *not* reported as a handover failure. Without that pairing nothing stops the marker widening until
+ * every failed rename takes a healthy catalog offline.
+ *
+ * POSIX permissions are also why the test is confined to Linux and macOS, and why it skips itself when the
+ * revocation does not bite, which is what happens when the suite runs as root.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
-@DisplayName("A rename that fails after the persistence service has been handed over")
+@DisplayName("A rename or replace that fails partway through its storage handover")
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 @Tag(SESSION)
@@ -129,51 +159,44 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("Leaves the catalog usable under its former name and the engine able to restart")
-	void shouldLeaveCatalogUsableWhenRenameFailsAfterTheServiceHandover() throws Exception {
+	@DisplayName("Refuses sessions legibly under its former name, and recovers on restart")
+	void shouldRefuseSessionsLegiblyWhenRenameFailsPastTheFolderRelabel() throws Exception {
 		defineCatalogAndGoLive(TEST_CATALOG);
 		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
 
-		final Path dataFile = soleCatalogDataFile(catalogFolder(TEST_CATALOG));
-		final Set<PosixFilePermission> originalPermissions = Files.getPosixFilePermissions(dataFile);
+		failRenamePastTheFolderRelabel();
 
-		try {
-			Files.setPosixFilePermissions(dataFile, Collections.emptySet());
-			assumeTrue(
-				isUnreadable(dataFile),
-				"Revoking read permission did not bite - the suite is running as a user that ignores it."
-			);
-
-			// the rename has to fail, and it has to fail *inside* the handover rather than in validation: the
-			// header and the bootstrap record are already written at this point, and the former service closed
-			assertThrows(
-				RuntimeException.class,
-				() -> this.evita.renameCatalog(TEST_CATALOG, RENAMED_CATALOG),
-				"The rename must report the failure rather than swallow it!"
-			);
-		} finally {
-			// restored before anything else touches the catalog - a wedged fixture would otherwise be
-			// indistinguishable from the defect under test, and would take the cleanup down with it
-			Files.setPosixFilePermissions(dataFile, originalPermissions);
-		}
-
-		// the catalog must answer under the name it still has. The issue reported the opposite: sessions on the
-		// former name stayed suspended because the operator resumed them only on the success path, so the name
-		// answered `SessionBusyException` where it owed either data or `CatalogNotFoundException`.
+		// The name stays listed, and must: the commit never ran, so engine state still binds it to its folder.
+		// What changed is the *instance* behind the name. What must never happen is the symptom the issue is
+		// named after - the name answering `SessionBusyException` for the life of the process, because the
+		// operator resumed its sessions only on the success path.
 		assertTrue(
 			this.evita.getCatalogNames().contains(TEST_CATALOG),
 			"A failed rename must leave the catalog under the name it started with!"
 		);
-		assertEquals(
-			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
-			"A failed rename must leave the data readable through a fresh session!"
+
+		// **This test asserted the opposite until the write path was measured.** The catalog was left serving,
+		// and reads did work - out of memory. Behind them the persistence service was closed, and a single
+		// write accepted afterwards was appended to the write-ahead log and then wedged the next boot
+		// replaying it. Serving a catalog whose persistence layer is gone is not availability, it is a trap
+		// that converts "recoverable by restart" into "unloadable at boot", so the honest answer past the
+		// handover is a refusal that says exactly what happened and leaves the restart able to repair it.
+		final CatalogCorruptedException refusal = assertThrows(
+			CatalogCorruptedException.class,
+			() -> readPayload(TEST_CATALOG, 1),
+			"A rename that failed past its point of no return must refuse sessions legibly!"
+		);
+		// walked rather than read off `getCause()` directly: the failure travels out of a nested future and
+		// arrives wrapped, and it is the marker's presence that matters, not its depth
+		assertTrue(
+			carriesHandoverFailure(refusal),
+			"The refusal must name the failed handover in its cause chain, not merely report corruption!"
 		);
 
 		// the reported symptom: `close()` returned, yet the lock was still held and the next boot in the same
-		// JVM refused to start
-		this.evita.close();
-		this.evita = new Evita(getEvitaConfiguration());
-		this.evita.waitUntilFullyInitialized();
+		// JVM refused to start. The restart is also what *lifts* the refusal above - the folder is reconciled
+		// against the name engine state binds it to, so the catalog comes back whole and under its own name.
+		restartEngine();
 
 		assertTrue(
 			this.evita.getCatalogNames().contains(TEST_CATALOG),
@@ -186,8 +209,8 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("Leaves both catalogs of a failed replace usable")
-	void shouldLeaveBothCatalogsUsableWhenReplaceFailsAfterTheServiceHandover() throws Exception {
+	@DisplayName("Refuses only the source of a failed replace, and leaves its target serving")
+	void shouldRefuseOnlyTheSourceWhenReplaceFailsPastTheFolderRelabel() throws Exception {
 		defineCatalogAndGoLive(TEST_CATALOG);
 		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
 		defineCatalogAndGoLive(REPLACED_CATALOG);
@@ -218,20 +241,23 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 			Files.setPosixFilePermissions(dataFile, originalPermissions);
 		}
 
-		// a failed replace changes nothing, so both catalogs have to answer exactly as they did before it - the
-		// source under its own name, and the target, whose sessions the operation quiesced with REJECT
-		assertEquals(
-			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
-			"A failed replace must leave the source catalog readable!"
+		// The source is the catalog whose handover failed, so it - and only it - is refused past that point,
+		// for the reason spelled out in the rename test above.
+		assertThrows(
+			CatalogCorruptedException.class,
+			() -> readPayload(TEST_CATALOG, 1),
+			"A replace that failed past its point of no return must refuse sessions on the source legibly!"
 		);
+		// The target is the half of a replace that the handover never touches: its folder, its service and its
+		// data are exactly as they were, and the operation owes it nothing but the lifting of the REJECT
+		// suspension it opened with. Refusing it too would be the failure the branch already fixed, dressed
+		// up as caution - so the blast radius of the declaration above has to stop here, and this asserts it.
 		assertEquals(
 			TARGET_VALUE, readPayload(REPLACED_CATALOG, 2),
 			"A failed replace must leave the target catalog readable rather than rejecting sessions!"
 		);
 
-		this.evita.close();
-		this.evita = new Evita(getEvitaConfiguration());
-		this.evita.waitUntilFullyInitialized();
+		restartEngine();
 
 		assertEquals(
 			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
@@ -269,10 +295,23 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 				"Revoking read permission did not bite - the suite is running as a user that ignores it."
 			);
 
-			assertThrows(
+			// **This injection lands on the other side of the point of no return from its siblings, and that is
+			// the point of the test.** On a freshly booted engine the offset index has nothing buffered, so the
+			// first thing `replaceWith` does is *open* the data file - which fails outright
+			// (`UnexpectedIOException` wrapping `FileNotFoundException`) before a single byte of the relabel is
+			// written. The sibling tests keep the engine warm, so the same revocation instead survives as far as
+			// the flush inside `recordBootstrap` and leaves the header already naming the incoming catalog.
+			// Same fault, same file, opposite verdicts - and the assertions below are what hold the engine to
+			// telling them apart.
+			final RuntimeException reported = assertThrows(
 				RuntimeException.class,
 				() -> this.evita.replaceCatalog(TEST_CATALOG, REPLACED_CATALOG),
 				"The replace must report the failure rather than swallow it!"
+			);
+			assertFalse(
+				carriesHandoverFailure(reported),
+				"A replace that failed before it relabelled anything must not be reported as a handover " +
+					"failure - declaring this one unusable would take a healthy catalog offline!"
 			);
 		} finally {
 			Files.setPosixFilePermissions(dataFile, originalPermissions);
@@ -290,10 +329,181 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 			TARGET_VALUE, readPayload(REPLACED_CATALOG, 2),
 			"A failed replace must leave an untouched target readable rather than rejecting sessions!"
 		);
+		// The source stays readable here, where its sibling above is refused, and the difference is not
+		// arbitrary: this failure never reached the relabel, so there is nothing about the catalog that a
+		// restart would need to repair and no reason to take it offline. Compensation is the right answer on
+		// this side of the line, and this asserts that the declaration does not creep across it.
 		assertEquals(
 			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
-			"A failed replace must leave the source catalog readable!"
+			"A replace that failed before it relabelled anything must leave the source catalog readable!"
 		);
+
+		// **The only place the deferred schema exchange can be observed, and therefore the only place that
+		// holds it honest.** Past the relabel the catalog is refused outright, so a schema naming the wrong
+		// catalog would sit there unseen; here the catalog keeps serving, so an exchange performed ahead of
+		// the handover is visible through a plain session - and dangerous, because the commit pipeline looks
+		// a catalog up by the name its schema reports. A write accepted against a source still claiming the
+		// target's name is appended to the write-ahead log and wedges the next boot, which is the failure
+		// the sibling tests exist for, reached by a route the declaration deliberately does not guard.
+		assertEquals(
+			TEST_CATALOG,
+			this.evita.queryCatalog(
+				TEST_CATALOG,
+				(Function<EvitaSessionContract, String>) session -> session.getCatalogSchema().getName()
+			),
+			"A replace that failed before it relabelled anything must leave the source's schema naming the " +
+				"source - it is still serving, so a schema naming the replace's target poisons every write!"
+		);
+	}
+
+	@Test
+	@DisplayName("Never serves the target's schema name through a session after a failed rename")
+	void shouldNeverServeTargetSchemaNameWhenRenameFailsPastTheFolderRelabel() throws Exception {
+		defineCatalogAndGoLive(TEST_CATALOG);
+		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
+
+		failRenamePastTheFolderRelabel();
+
+		// Two outcomes honour the invariant, and the test deliberately accepts both so it survives either fix:
+		// a legible refusal (the catalog declares itself unusable past the point of no return), or a served
+		// session that tells the truth (the handover never destroyed anything, so there is nothing to hide).
+		// What must never happen is what happens today: a session is served, and it observes a catalog whose
+		// schema names the target of the rename that just FAILED - listed as `testCatalog`, answering
+		// `renamedCatalog`. Every consumer keying on the schema name - including the engine's own commit
+		// pipeline, see the sibling test - is lied to from that moment on.
+		try {
+			final String reportedName = this.evita.queryCatalog(
+				TEST_CATALOG,
+				(Function<EvitaSessionContract, String>) session -> session.getCatalogSchema().getName()
+			);
+			assertEquals(
+				TEST_CATALOG, reportedName,
+				"A session served after a failed rename must never observe the schema of the name the " +
+					"catalog does NOT answer to!"
+			);
+		} catch (RuntimeException refusal) {
+			// a refusal is the other acceptable outcome, but only a legible one: every deliberate evitaDB
+			// exception carries the `EvitaError` contract, and a bare NPE or wrapper leaking from a damaged
+			// internal state does not
+			assertTrue(
+				refusal instanceof EvitaError,
+				() -> "A refusal after a failed rename must be a legible evitaDB error, not " +
+					refusal.getClass().getName() + "!"
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("Survives the restart even when a client retried a write after the failed rename")
+	void shouldRecoverOnRestartWhenWriteWasAttemptedAfterTheFailedRename() throws Exception {
+		defineCatalogAndGoLive(TEST_CATALOG);
+		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
+
+		failRenamePastTheFolderRelabel();
+
+		// The retry a real client makes after seeing the rename fail. Its own outcome is deliberately not
+		// asserted - a legible refusal and a successful commit are both acceptable, depending on which fix
+		// lands - but it must not be allowed to hang the test, so it runs on a bounded daemon thread.
+		attemptWriteIgnoringOutcome(TEST_CATALOG, 7, "retried after the failed rename");
+
+		// The write above must not have poisoned the write-ahead log. Today it does: the commit pipeline
+		// appends the transaction durably and then dies looking the catalog up by its poisoned schema name
+		// (`ExpandedEngineState#replaceCatalogReference` finds no `renamedCatalog`), and the next boot dies
+		// replaying it - `processWriteAheadLog` stages a catalog named `renamedCatalog` that has no folder
+		// binding. One retried write converts "recoverable by restart" - which the sibling test proves holds
+		// when nothing touches the damaged catalog - into "unloadable at boot", which is issue #1414's
+		// headline symptom re-created. Whatever a fix does with the write itself, the boot must recover.
+		restartEngine();
+
+		assertTrue(
+			this.evita.getCatalogNames().contains(TEST_CATALOG),
+			"The catalog must come back from the restart even though a write was attempted after the " +
+				"failed rename!"
+		);
+		assertEquals(
+			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
+			"The transaction committed before the failed rename must survive the restart even though a " +
+				"write was attempted after it!"
+		);
+	}
+
+	/**
+	 * Tells whether a failure carries the storage layer's point-of-no-return marker anywhere in its cause
+	 * chain - the signal that the folder had already been relabelled when the handover failed.
+	 *
+	 * @param failure failure reported to the caller
+	 * @return true when the handover marker is present
+	 */
+	private static boolean carriesHandoverFailure(@Nonnull Throwable failure) {
+		Throwable current = failure;
+		while (current != null && current != current.getCause()) {
+			if (current instanceof CatalogHandoverFailedException) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
+	}
+
+	/**
+	 * Fails a rename of {@link #TEST_CATALOG} to {@link #RENAMED_CATALOG} deterministically inside the
+	 * persistence-service handover - after the former service is closed - by revoking read permission on the
+	 * catalog's data file for the duration of the operation. See the class javadoc for why this seam and no
+	 * other reaches the point the issue's second shape failed at.
+	 */
+	private void failRenamePastTheFolderRelabel() throws IOException {
+		final Path dataFile = soleCatalogDataFile(catalogFolder(TEST_CATALOG));
+		final Set<PosixFilePermission> originalPermissions = Files.getPosixFilePermissions(dataFile);
+		try {
+			Files.setPosixFilePermissions(dataFile, Collections.emptySet());
+			assumeTrue(
+				isUnreadable(dataFile),
+				"Revoking read permission did not bite - the suite is running as a user that ignores it."
+			);
+			assertThrows(
+				RuntimeException.class,
+				() -> this.evita.renameCatalog(TEST_CATALOG, RENAMED_CATALOG),
+				"The rename must report the failure rather than swallow it!"
+			);
+		} finally {
+			// restored before anything else touches the catalog - a wedged fixture would otherwise be
+			// indistinguishable from the defect under test, and would take the cleanup down with it
+			Files.setPosixFilePermissions(dataFile, originalPermissions);
+		}
+	}
+
+	/**
+	 * Commits a single product on a bounded daemon thread and swallows whatever the attempt produces -
+	 * success, refusal or timeout. Used where the *consequences* of an attempted write are under test rather
+	 * than the write itself, so its outcome must not decide the test and its potential hang must not stall it.
+	 *
+	 * @param catalogName    catalog to write into
+	 * @param primaryKey     primary key of the product
+	 * @param attributeValue value stored in the payload attribute
+	 */
+	private void attemptWriteIgnoringOutcome(
+		@Nonnull String catalogName,
+		int primaryKey,
+		@Nonnull String attributeValue
+	) {
+		final ExecutorService executor = Executors.newSingleThreadExecutor(
+			runnable -> {
+				final Thread thread = new Thread(runnable, "bounded-write-attempt");
+				thread.setDaemon(true);
+				return thread;
+			}
+		);
+		try {
+			executor
+				.submit(() -> commitProduct(catalogName, primaryKey, attributeValue))
+				.get(30, TimeUnit.SECONDS);
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException | TimeoutException ex) {
+			// deliberately ignored - the attempt's outcome is not what this test asserts about
+		} finally {
+			executor.shutdownNow();
+		}
 	}
 
 	/**

@@ -42,6 +42,7 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +81,12 @@ import static io.evitadb.utils.Assert.isTrue;
 @Slf4j
 @RequiredArgsConstructor
 public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOperator<CommitVersions, ModifyCatalogSchemaNameMutation> {
+	/**
+	 * How far down a failure's cause chain the handover marker is looked for. Generous enough for the few
+	 * wrappers a nested future adds, and finite so a self-referencing chain cannot hang the failure path.
+	 */
+	private static final int MAX_INSPECTED_CAUSE_DEPTH = 32;
+
 	private final CatalogFolderContext folderContext;
 
 	@Nonnull
@@ -165,7 +172,26 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		final Optional<SessionRegistry> quiescedTargetRegistry = replaceOperation ?
 			evita.obtainCatalogSessionRegistry(catalogNameToBeReplaced) : Optional.empty();
 
-		final Runnable undoOperations = () -> {
+		final Consumer<Throwable> undoOperations = failure -> {
+			// **Past the point of no return, compensating is the wrong verb.** Everything below puts session
+			// bookkeeping back, which is the whole of what a failure before the handover disturbed. Once the
+			// handover has relabelled the folder, it has disturbed something no bookkeeping reaches: the
+			// folder's stored identity no longer agrees with engine state, and the commit that would have
+			// settled the disagreement is never going to run. Resuming its sessions regardless is how a
+			// rename that merely failed becomes a catalog that serves reads, accepts a write, appends it to
+			// the write-ahead log and then wedges the next boot replaying it against a name engine state has
+			// never heard of - the very symptom this issue is named after, re-created by the code that fixes
+			// it. Where the line falls is the storage layer's to know and it marks the failures past it.
+			//
+			// So the name is declared unusable instead, and **declared before the resume below**, never
+			// after: the resume is what lets the waiting callers through, and there must be nothing usable
+			// on the other side of it when they arrive. What they get is a `CatalogCorruptedException`
+			// naming the handover as its cause - refused, legibly, until a restart rebuilds the catalog
+			// from its folder, which it can, because the commit never ran and the load path reconciles the
+			// name the folder was left carrying.
+			if (isHandoverFailure(failure)) {
+				evita.markCatalogCorrupted(catalogNameToBeReplacedWith, failure);
+			}
 			// What belongs under the target name is decided by what answered to it when the operation started,
 			// never by what answers to it now.
 			if (quiescedTargetRegistry.isPresent()) {
@@ -316,8 +342,8 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						Assert.isPremiseValid(
 							displacedRegistry == null,
 							() -> new GenericEvitaInternalError(
-								"Catalog `" + catalogNameToBeReplaced + "` gained a session registry while it was " +
-									"being renamed - the sessions it holds would be orphaned by the handoff!"
+								"Catalog `" + catalogNameToBeReplaced + "` gained a session registry while its name " +
+									"was being claimed - the sessions it holds would be orphaned by the handoff!"
 							)
 						);
 					}
@@ -463,12 +489,38 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						replacedCatalog.getSchema().version()
 					);
 				},
-				ex -> undoOperations.run()
+				undoOperations::accept
 			);
 		} catch (RuntimeException ex) {
-			undoOperations.run();
+			undoOperations.accept(ex);
 			throw ex;
 		}
+	}
+
+	/**
+	 * Tells whether a failure was raised at or after the handover's point of no return - the moment inside
+	 * `replaceWith` where the folder's stored identity becomes the incoming catalog's and stops agreeing with
+	 * engine state.
+	 *
+	 * The cause chain is walked rather than the top exception inspected, because the failure travels out of a
+	 * nested {@link ProgressingFuture} and arrives wrapped. Only the storage layer can raise the marker, and
+	 * it raises it at exactly one place, so finding it anywhere in the chain is proof the line was crossed.
+	 *
+	 * @param failure failure reported by the operation, if any
+	 * @return true when the failure crossed the point of no return
+	 */
+	private static boolean isHandoverFailure(@Nullable Throwable failure) {
+		Throwable current = failure;
+		// bounded rather than "until null": a cause chain that refers back into itself would otherwise spin
+		// here forever, and a failure path is the worst possible place to discover that
+		for (int depth = 0; current != null && depth < MAX_INSPECTED_CAUSE_DEPTH; depth++) {
+			if (current instanceof CatalogHandoverFailedException) {
+				return true;
+			}
+			final Throwable cause = current.getCause();
+			current = cause == current ? null : cause;
+		}
+		return false;
 	}
 
 	@Nonnull

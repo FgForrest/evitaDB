@@ -1178,7 +1178,6 @@ public final class Catalog
 			theFuture -> {
 				final long catalogVersion = getVersion();
 				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
-				exchangeCatalogSchema(renamedSchema, getInternalSchema());
 				final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> newIoService =
 					this.persistenceService.replaceWith(
 						catalogVersion,
@@ -1207,6 +1206,17 @@ public final class Catalog
 					.toList();
 
 				this.transactionManager.advanceVersion(catalogVersionAfterRename);
+				// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
+				// exchange mutates *this* catalog - the one still published under the name it is being renamed
+				// away from - so performed early it hands a live catalog a schema naming a rename that has not
+				// happened yet, and every failure between the two leaves it there for the life of the process.
+				// The damage is not cosmetic: the commit pipeline looks a catalog up by the name its schema
+				// reports (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
+				// appended to the write-ahead log and then dies against a name the engine state has never
+				// heard of - and the next boot fails replaying it. Deferred to here, no failure in the
+				// handover can reach that state, because the only step left is the constructor below, which
+				// is what reads the exchanged schema through `previousCatalogVersion.getInternalSchema()`.
+				exchangeCatalogSchema(renamedSchema, getInternalSchema());
 				return new Catalog(
 					catalogVersionAfterRename,
 					catalogState,
