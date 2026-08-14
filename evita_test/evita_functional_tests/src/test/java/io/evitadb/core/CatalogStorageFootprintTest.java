@@ -364,11 +364,15 @@ class CatalogStorageFootprintTest implements EvitaTestSupport {
 	/**
 	 * Returns the file system directory the test catalog is stored in.
 	 *
+	 * The folder is **not** named after the catalog: a catalog is bound to an opaque folder token, so the name is
+	 * resolved through the engine rather than assumed - see `CatalogFolderId`.
+	 *
 	 * @return path of the test catalog directory
 	 */
 	@Nonnull
 	private Path catalogDirectory() {
-		return this.paths.storage().resolve(CATALOG);
+		return this.paths.storage()
+			.resolve(this.evita.getCatalogFolderContext().folderIdFor(CATALOG).id());
 	}
 
 	/**

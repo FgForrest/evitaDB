@@ -3888,10 +3888,14 @@ class EvitaTest implements EvitaTestSupport {
 			assertNull(statistics1.recordCounts());
 			assertNull(statistics1.indexSummary());
 			assertNull(statistics1.collections());
+			// a coarse plausibility window rather than an exact figure: the point is that a catalog which would not
+			// load still reports a real, non-zero disk footprint. The upper bound carries headroom for the folder's
+			// `.catalogname` marker, whose length is the catalog name's - so the window must not sit so tight that
+			// renaming the test catalog breaks it
 			final long sizeOnDisk1 = statistics1.storageSize().sizeOnDiskInBytes();
 			assertTrue(
-				sizeOnDisk1 > 900L && sizeOnDisk1 < 1200L,
-				"Expected size on disk to be between 900 and 1200 bytes, but was " + sizeOnDisk1
+				sizeOnDisk1 > 900L && sizeOnDisk1 < 1400L,
+				"Expected size on disk to be between 900 and 1400 bytes, but was " + sizeOnDisk1
 			);
 
 			// a healthy catalog holding one collection with one entity - the catalog index plus the collection's own
