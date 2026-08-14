@@ -69,7 +69,9 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
@@ -246,8 +248,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * Returns the appropriate normalizer function for particular attribute type and key.
 	 *
 	 * `BigDecimal` values are normalized to an order-preserving scaled `int` (respecting the schema's
-	 * `indexedDecimalPlaces`) so the value tree stores them in the compact `IntValueColumn`. The normalizer is
-	 * idempotent: an already-scaled `Integer` (and `null`) passes through unchanged, so a value may be normalized
+	 * `indexedDecimalPlaces`) so the value tree stores them in the compact `IntValueColumn`. Temporal values
+	 * (`OffsetDateTime` and `LocalDateTime`, the latter anchored at UTC) are normalized to an `Instant` so the tree
+	 * stores them in the parallel-array `InstantValueColumn` rather than boxing them. The normalizer is
+	 * idempotent: an already-normalized value (and `null`) passes through unchanged, so a value may be normalized
 	 * more than once on a probe→lookup path without a `ClassCastException`.
 	 *
 	 * @param attributeType        type of the attribute
@@ -263,6 +267,14 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		if (OffsetDateTime.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof OffsetDateTime offsetDateTime
 				? offsetDateTime.toInstant()
+				: (Serializable) comparable;
+		} else if (LocalDateTime.class.isAssignableFrom(attributeType)) {
+			// a local date time has no offset of its own, so it is anchored at UTC - a *constant* offset, which makes
+			// the mapping a lossless bijection AND monotonic with `LocalDateTime`'s natural order, so bucket lookup and
+			// ordered iteration are unaffected. This is purely the index encoding: the schema keeps declaring
+			// `LocalDateTime`, and the value handed back to the client comes from `AttributesStoragePart`, not here
+			return comparable -> comparable instanceof LocalDateTime localDateTime
+				? localDateTime.toInstant(ZoneOffset.UTC)
 				: (Serializable) comparable;
 		} else if (Currency.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Currency currency

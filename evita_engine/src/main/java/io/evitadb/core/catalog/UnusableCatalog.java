@@ -23,6 +23,7 @@
 
 package io.evitadb.core.catalog;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.CatalogIdentity;
@@ -59,8 +60,8 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
-import io.evitadb.utils.FileUtils;
+import io.evitadb.spi.store.engine.CatalogFolderOperations;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -74,16 +75,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 /**
  * This implementation of {@link CatalogContract} represents a unusable catalog instance that is not loaded into
  * a memory and cannot process requests. Most methods of this implementation throw exception when invoked.
- * The appropriate exception and catalog path are accessible via. {@link #getCatalogStoragePath()} and
- * {@link #getCause()} methods. The catalog can provide only its name, state and storage path.
+ * The appropriate exception and folder binding are accessible via. {@link #getCatalogFolderId()} and
+ * {@link #getCause()} methods. The catalog can provide only its name, state and folder binding.
+ *
+ * Being the placeholder for a catalog that has no persistence service, it cannot perform folder-level work
+ * itself and is handed a {@link CatalogFolderOperations} handle for the one piece of folder-level work it still
+ * has to do — measuring the folder for {@link #getStatistics()}. Removal is not among them: it tombstones the
+ * folder and wipes it through the folder context, never through the catalog instance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -91,14 +97,47 @@ import java.util.stream.Stream;
 public final class UnusableCatalog implements CatalogContract {
 	private final String catalogName;
 	private final CatalogState catalogState;
-	@Getter private final Path catalogStoragePath;
-	@Getter private final BiFunction<String, Path, RuntimeException> cause;
+	@Getter private final CatalogFolderId catalogFolderId;
+	/**
+	 * Configured root holding all catalog folders. Reported alongside the folder token in error messages so an
+	 * operator can locate the folder without the engine ever joining the two — knowing the root is
+	 * configuration, knowing the join rule is storage layout. See `CatalogFolderId` for the boundary rule.
+	 */
+	private final Path storageRoot;
+	private final CatalogFolderOperations folderOperations;
+	@Getter private final UnusableCatalogExceptionFactory cause;
 	private boolean terminated;
+
+	/**
+	 * Produces the exception every unusable-catalog operation throws.
+	 *
+	 * Takes the folder token and the storage root separately rather than a resolved path, so that the failure
+	 * message can name a concrete location without the engine deriving one.
+	 */
+	@FunctionalInterface
+	public interface UnusableCatalogExceptionFactory {
+
+		/**
+		 * Creates the exception describing why this catalog is unusable.
+		 *
+		 * @param catalogName name of the unusable catalog
+		 * @param folderId    token identifying the folder bound to the catalog
+		 * @param storageRoot configured root directory holding all catalog folders
+		 * @return exception to be thrown from the invoked operation
+		 */
+		@Nonnull
+		RuntimeException create(
+			@Nonnull String catalogName,
+			@Nonnull CatalogFolderId folderId,
+			@Nonnull Path storageRoot
+		);
+
+	}
 
 	@Nonnull
 	@Override
 	public SealedCatalogSchema getSchema() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
@@ -107,13 +146,13 @@ public final class UnusableCatalog implements CatalogContract {
 		@Nonnull EvitaContract evita, @Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public UUID getCatalogId() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
@@ -130,87 +169,82 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Override
 	public long getVersion() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override
 	public boolean supportsTransaction() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getEntityTypes() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollectionContract getCollectionForEntityOrThrowException(@Nonnull String entityType) throws CollectionNotFoundException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollection getCollectionForEntityPrimaryKeyOrThrowException(int entityTypePrimaryKey) throws CollectionNotFoundException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
-	}
-
-	@Override
-	public void terminateAndDelete() {
-		FileUtils.deleteDirectory(this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nullable CatalogContract catalogToBeReplaced) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override
 	public void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override
 	public void processWriteAheadLog(@Nonnull Consumer<CatalogContract> updatedCatalog) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
@@ -218,31 +252,31 @@ public final class UnusableCatalog implements CatalogContract {
 	public MaterializedVersionBlock getLastCatalogVersionBefore(
 		@Nullable OffsetDateTime moment
 	) throws TemporalDataNotAvailableException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public PaginatedList<MaterializedVersionBlock> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override
@@ -253,7 +287,7 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public CatalogContract goLive() {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
@@ -262,25 +296,17 @@ public final class UnusableCatalog implements CatalogContract {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
-	}
-
-	@Nonnull
-	@Override
-	public ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
@@ -327,7 +353,7 @@ public final class UnusableCatalog implements CatalogContract {
 
 	/**
 	 * Measures the disk footprint of a catalog that would not load, through the same classifier a loaded catalog
-	 * uses - handing it `null` generations, which is how "the header could not be read" is expressed.
+	 * uses - handing it no generations, which is how "the header could not be read" is expressed.
 	 *
 	 * Two classes survive that, because both are recognised from the file name alone: the bootstrap file and the
 	 * write-ahead log. Telling an operator which of the two is holding the disk of a corrupted catalog is the
@@ -335,12 +361,16 @@ public final class UnusableCatalog implements CatalogContract {
 	 * the data store files - separating live records from compaction waste, or a current generation from a
 	 * superseded one, needs the header. {@link StorageSizeStatistics} documents that reading.
 	 *
+	 * The listing itself is asked of {@link CatalogFolderOperations} rather than taken here: measuring means
+	 * resolving the folder token to a directory, and joining a token with the storage root is the storage layer's
+	 * to do - see {@link CatalogFolderId}.
+	 *
 	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of an unusable catalog
 	 */
 	@Nonnull
 	private StorageSizeStatistics measureStorageSize() {
 		return StorageSizeProjection.toStorageSizeStatistics(
-			CatalogStorageFootprint.measure(this.catalogName, this.catalogStoragePath, null)
+			this.folderOperations.catalogFolderFootprint(this.catalogFolderId, this.catalogName)
 		);
 	}
 
@@ -350,14 +380,14 @@ public final class UnusableCatalog implements CatalogContract {
 		// no empty page here, where `getStatistics` answers per component with `CATALOG_UNUSABLE`: that response has a
 		// slot to carry the reason in, and a browse result has none - an empty page would read as "this catalog holds no
 		// indexes", which is precisely the reading an operator must not be given about a catalog that would not load
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Nonnull
 	@Override
 	public IndexDetail describeIndex(int indexPrimaryKey) {
 		// not `IndexNotFoundException`, which would claim the catalog was read and found to hold no such index
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override
@@ -373,19 +403,19 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	/**
 	 * Returns the exception detailing the cause of the corrupted catalog.
-	 * The exception is generated by applying the cause function to the catalog name
-	 * and the catalog storage path.
+	 * The exception is generated by applying the cause factory to the catalog name, its folder token and the
+	 * configured storage root.
 	 *
 	 * @return a RuntimeException indicating the cause of the catalog corruption
 	 */
 	@Nonnull
 	public RuntimeException getRepresentativeException() {
-		return this.cause.apply(this.catalogName, this.catalogStoragePath);
+		return this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 }

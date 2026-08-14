@@ -31,12 +31,15 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.test.utils.SortUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Random;
 
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,6 +57,8 @@ import static org.mockito.Mockito.when;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(ENGINE)
+@Tag(ORDER)
 @DisplayName("RandomSorter random ordering and slicing")
 class RandomSorterTest {
 	/**

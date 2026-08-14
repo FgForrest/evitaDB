@@ -924,8 +924,15 @@ public class TransactionManager implements Closeable {
 		final Catalog previousLivingCatalog = getLivingCatalog();
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
+			// what this guards is that the live view never regresses to an older state - so the comparison is
+			// "must not go backwards", not "must strictly advance". Republishing the same version used to be
+			// possible only by publishing the very same instance again; a rename is the second way, since it
+			// produces a new instance holding the same data under a new name and deliberately consumes no
+			// catalog version (it appends nothing to the WAL that a version could be accounted against).
+			// The identity escape stays: relaxing `<` to `<=` only ever admits more, but dropping the escape
+			// would reject a republication of the very same instance that used to be allowed at any version
 			Assert.isPremiseValid(
-				previousLivingCatalog.getVersion() < catalogVersion || (previousLivingCatalog == livingCatalog),
+				previousLivingCatalog.getVersion() <= catalogVersion || previousLivingCatalog == livingCatalog,
 				"Catalog versions must be in order! " +
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
@@ -1470,6 +1477,11 @@ public class TransactionManager implements Closeable {
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
+							// this continuity check is also what guards the write-ahead log against reordered,
+							// duplicated or dropped transactions - the log's cumulative checksum cannot see them,
+							// because folding a checksum into the state that produced it resets that state (the
+							// full account is on `AbstractMutationLog#checksum`). Relaxing this to "greater than"
+							// or dropping it would leave that entire class of damage undetected.
 							Assert.isPremiseValid(
 								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
@@ -1687,6 +1699,26 @@ public class TransactionManager implements Closeable {
 	 * commit-progress record is considered genuinely stalled. Five times the acceptance timeout gives
 	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
 	 * threshold sensible on deployments that tune the acceptance timeout very low.
+	 *
+	 * **The assumption, and where it does not hold.** This is a *wall-clock* deadline standing in for a
+	 * liveness signal: "pending longer than the worst-case pipeline latency ⇒ dangling". That inference
+	 * is sound whenever the pipeline gets to run, and false exactly when the host is oversubscribed —
+	 * a starved executor makes a perfectly healthy commit look identical to a dropped one, because the
+	 * only thing being measured is elapsed time. Symptom: commits failed by
+	 * {@link PendingCommitProgressRegistry#sweepRecordsOlderThan} on a loaded machine with nothing wrong
+	 * in the pipeline. Before hunting a transaction bug, check the load.
+	 *
+	 * The threshold is deliberately **not** tuned for that case: on a live deployment a commit pending
+	 * 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI box would
+	 * trade a real guard for a test-harness convenience. Callers that knowingly run oversubscribed
+	 * should instead raise
+	 * {@link io.evitadb.api.configuration.TransactionOptions.Builder#waitForTransactionAcceptanceInMillis(long)},
+	 * which scales this deadline with it — see `SharedRgeiSoakTest` in `evita_long_running_tests`.
+	 *
+	 * A progress-aware sweep (re-anchoring the clock whenever a record advances a pipeline stage, or
+	 * failing only records the live catalog version has already moved past) would separate "slow" from
+	 * "dropped" without a bigger number, and is the principled upgrade should this become a recurring
+	 * problem in production rather than in tests.
 	 *
 	 * @return the stall-detection deadline in milliseconds
 	 */

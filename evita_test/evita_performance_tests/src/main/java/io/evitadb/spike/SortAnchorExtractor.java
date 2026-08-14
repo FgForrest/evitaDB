@@ -62,7 +62,6 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -234,7 +233,9 @@ public class SortAnchorExtractor {
 		@Nonnull StorageSettings storageSettings
 	) {
 		final AtomicReference<CatalogBootstrap> last = new AtomicReference<>();
-		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(CATALOG_NAME, storageSettings)) {
+		try (final Stream<CatalogBootstrap> stream = getCatalogBootstrapRecordStream(
+			CATALOG_NAME, storageSettings.storageDirectory().resolve(CATALOG_NAME), storageSettings
+		)) {
 			stream.forEach(last::set);
 		}
 		final CatalogBootstrap bootstrap = last.get();

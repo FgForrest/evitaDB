@@ -26,6 +26,8 @@ package io.evitadb.core.exception;
 import io.evitadb.api.CatalogState;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.nio.file.Path;
@@ -39,10 +41,26 @@ import java.nio.file.Path;
 public class CatalogTransitioningException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -1879981512928524957L;
 
-	public CatalogTransitioningException(@Nonnull String catalogName, @Nonnull Path absolutePath, @Nonnull CatalogState state) {
+	/**
+	 * Reports an attempt to work with a catalog that is in the middle of a state transition.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 * @param state       transitional state the catalog is currently in
+	 */
+	public CatalogTransitioningException(
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull Path storageRoot,
+		@Nonnull CatalogState state
+	) {
 		super(
-			"The catalog on a path `" + absolutePath +
-				"` is currently " + state.name() + ". " +
+			"The catalog in folder `" + folderId + "` (storage root: `" + storageRoot +
+				"`) is currently " + state.name() + ". " +
 				"The catalog `" + catalogName + "` cannot be used - you need to wait until the transition is fully finished.",
 			"The catalog `" + catalogName + "` cannot be used because it is " + state.name() + ". " +
 				"You need to wait until the operation is finished."

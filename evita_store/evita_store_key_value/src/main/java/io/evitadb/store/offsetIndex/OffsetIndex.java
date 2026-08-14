@@ -1752,7 +1752,17 @@ public class OffsetIndex {
 		final byte recordType = this.recordTypeRegistry.idFor(value.getClass());
 		final RecordKey key = new RecordKey(recordType, primaryKey);
 
-		final boolean update = this.roots.latestRoot().containsKey(key);
+		// a not-yet-flushed write to this key from an EARLIER, different version always overrides the published
+		// root, which may not yet reflect it - same precedence as doRemove's lookup below, so a batch that both
+		// removes and re-adds the same key across several not-yet-flushed versions resolves consistently at
+		// promote time. The lookup is deliberately bounded to versions strictly before this one: a remove and a
+		// re-add within the SAME version fold into one entry regardless (see NonFlushedValueSet#put/#remove), so
+		// consulting this version's own not-yet-registered activity here would misjudge a same-transaction
+		// delete-then-recreate of a key that already exists in the published root as a brand new key.
+		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
+			catalogVersion - 1, key);
+		final boolean update = nonFlushedValueRef.isPresent() ?
+			!nonFlushedValueRef.get().removed() : this.roots.latestRoot().containsKey(key);
 		final FileLocation recordLocation = new StorageRecord<>(
 			this.writeKryo,
 			exclusiveWriteAccess,
@@ -2211,13 +2221,20 @@ public class OffsetIndex {
 		/**
 		 * Stores instance of the record to the non-flushed index.
 		 *
-		 * @param create - when true it affects {@link #nonFlushedValuesHistogram} results
+		 * @param create - when true it affects {@link #nonFlushedValuesHistogram} results; when false it still
+		 *               affects them if this version had already removed the same key, because the removal and
+		 *               this write fold into a plain overwrite whose cardinality effect cancels out
 		 */
 		public void put(@Nonnull RecordKey key, @Nonnull VersionedValue value, boolean create) {
 			if (create) {
 				this.nonFlushedValuesHistogram.merge(key.recordType(), 1, Integer::sum);
 				this.addedKeys.add(key);
 				this.removedKeys.remove(key);
+			} else if (this.removedKeys.remove(key)) {
+				// this version already dropped a record that existed before it and now writes it back: the two
+				// fold into a plain overwrite, so the removal's cardinality effect has to be undone. Without
+				// this the in-flight count reports one record fewer than the very next flush publishes.
+				this.nonFlushedValuesHistogram.merge(key.recordType(), 1, Integer::sum);
 			}
 			this.nonFlushedValueIndex.put(key, value);
 			this.nonFlushedBlockSizeChangedCallback.accept(value.fileLocation().recordLength());
@@ -2231,8 +2248,12 @@ public class OffsetIndex {
 			this.nonFlushedValuesHistogram.merge(key.recordType(), -1, Integer::sum);
 			this.nonFlushedValueIndex.put(
 				key, new VersionedValue(key.primaryKey(), (byte) (key.recordType() * -1), fileLocation));
-			this.addedKeys.remove(key);
-			this.removedKeys.add(key);
+			// a record created in this very version and dropped again folds into a no-op - undo the creation
+			// rather than record the removal of something that was never published, which would otherwise
+			// make the in-flight count of an untouched index go negative
+			if (!this.addedKeys.remove(key)) {
+				this.removedKeys.add(key);
+			}
 			this.nonFlushedBlockSizeChangedCallback.accept(fileLocation.recordLength());
 		}
 

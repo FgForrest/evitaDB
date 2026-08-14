@@ -23,6 +23,7 @@
 
 package io.evitadb.core.session;
 
+import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -38,6 +39,7 @@ import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +59,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -345,8 +348,17 @@ public final class SessionRegistry {
 				() -> {
 					this.activeSessions.put(newSession.getId(), sessionTuple);
 					this.sessionsFifoQueue.add(sessionTuple);
-					this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-						.registerSessionConsumingCatalogInVersion(catalogVersion, newSession.getSessionTraits());
+					// the lease rides on the tuple rather than in a map keyed by version: two sessions holding the same
+					// version across a catalog replacement hold pins on *different* instances, and only the session
+					// that took one knows which
+					sessionTuple.versionPin().set(
+						this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
+							.registerSessionConsumingCatalogInVersion(
+								catalogVersion,
+								newSession.getSessionTraits(),
+								this.catalogSupplier
+							)
+					);
 					this.sharedDataStore.addSession(sessionTuple);
 				}
 			);
@@ -379,7 +391,8 @@ public final class SessionRegistry {
 						.unregisterSessionConsumingCatalogInVersion(
 							session.getCatalogVersion(),
 							session.getSessionTraits(),
-							this.catalogSupplier
+							this.catalogSupplier,
+							removedSession.versionPin().get()
 						);
 
 					// emit event
@@ -449,17 +462,20 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * Returns control object that allows external objects signalize work with the catalog of particular version.
+	 * Returns control object that allows a backup to hold a catalog version against reclamation for as long as it
+	 * is copying that version.
 	 *
-	 * @param catalogName the name of the catalog
+	 * @param catalogName the name of the catalog whose consumer census is ensured to exist
 	 * @return the control object
 	 */
 	@Nonnull
 	public CatalogConsumerControl createCatalogConsumerControl(@Nonnull String catalogName) {
-		return new CatalogConsumerControlInternal(
-			this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions()),
-			this.catalogSupplier
-		);
+		// the returned control holds versions through the catalog itself and never consults the census - but the
+		// census is kept present for this name regardless, because the map outlives a single registry (a rename
+		// hands it to the registry built by `withDifferentCatalogSupplier`) and the removal path reads it with a
+		// bare `get`. Ensuring it here costs nothing and is the behaviour every caller has had so far.
+		this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions());
+		return new CatalogConsumerControlInternal(this.catalogSupplier);
 	}
 
 	/**
@@ -537,7 +553,8 @@ public final class SessionRegistry {
 	private record EvitaSessionTuple(
 		@Nonnull EvitaSession plainSession,
 		@Nonnull EvitaInternalSessionContract proxySession,
-		@Nonnull ReentrantLock atomicLock
+		@Nonnull ReentrantLock atomicLock,
+		@Nonnull AtomicReference<CatalogVersionPin> versionPin
 	) {
 
 		private EvitaSessionTuple(
@@ -547,7 +564,10 @@ public final class SessionRegistry {
 			this(
 				plainSession,
 				proxySession,
-				new ReentrantLock()
+				new ReentrantLock(),
+				// replaced by the real lease as the session registers; a session that never got that far holds
+				// nothing, and closing this releases nothing
+				new AtomicReference<>(CatalogVersionPin.NONE)
 			);
 		}
 
@@ -590,8 +610,16 @@ public final class SessionRegistry {
 		 * Registers a session consuming catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
+		 * @return the lease holding that version, which the caller keeps for the session's lifetime and hands back to
+		 *         {@link #unregisterSessionConsumingCatalogInVersion} - {@link CatalogVersionPin#NONE} when the pin
+		 *         could not be taken at all
 		 */
-		void registerSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+		@Nonnull
+		CatalogVersionPin registerSessionConsumingCatalogInVersion(
+			long version,
+			@Nonnull SessionTraits traits,
+			@Nonnull Supplier<Catalog> catalog
+		) {
 			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
 				this.versionConsumingReadWriteSessions :
 				this.versionConsumingReadOnlySessions;
@@ -600,6 +628,34 @@ public final class SessionRegistry {
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
+
+			// Pin the version against reclamation. This is not symmetrical bookkeeping with the maps above: those
+			// answer "is anyone still here" on departure, which can only ever report a rising minimum. A consumer
+			// that starts on a version in the past - a point-in-time backup pins the bootstrap record it copies -
+			// is invisible to that, so retention has to be told about the arrival, not only about the departure.
+			//
+			// INVARIANT - *every* session pins, read-only ones included, and this must not be "optimized" away.
+			// Reclamation of files no bootstrap record can reach runs without asking about pins at all, and the only
+			// thing making that safe is that a session reads exclusively through the record serving its version,
+			// while the trim deciding which records are retained is clamped by this very pin. Drop the pin for
+			// read-only sessions and that argument collapses silently - no test fails, and a reader loses the
+			// generation underneath it. See the deleter matrix in
+			// `documentation/adr/2026-08-06-time-travel-disk-budget.md`.
+			try {
+				final Catalog theCatalog = catalog.get();
+				// in rare cases (catalog replacement) the catalog might not be available already. A pin that was not
+				// taken needs no separate record of the omission: `NONE` closes to nothing, so the release cannot give
+				// back something this session never held
+				if (theCatalog == null) {
+					return CatalogVersionPin.NONE;
+				}
+				theCatalog.catalogVersionPinned(version);
+				// bound to `theCatalog`, so a replacement taking over this name later cannot receive the release
+				return CatalogVersionPin.pinnedOn(version, theCatalog::catalogVersionReleased);
+			} catch (CatalogTransitioningException ignored) {
+				// catalog is transitioning, we cannot notify it anyway - and nothing was pinned, so nothing is owed
+				return CatalogVersionPin.NONE;
+			}
 		}
 
 		/**
@@ -611,7 +667,8 @@ public final class SessionRegistry {
 		void unregisterSessionConsumingCatalogInVersion(
 			long version,
 			@Nonnull SessionTraits traits,
-			@Nonnull Supplier<Catalog> catalog
+			@Nonnull Supplier<Catalog> catalog,
+			@Nonnull CatalogVersionPin versionPin
 		) {
 			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
 				this.versionConsumingReadWriteSessions :
@@ -621,6 +678,13 @@ public final class SessionRegistry {
 				version,
 				(k, v) -> v == null || v == 1 ? null : v - 1
 			);
+
+			// give the lease taken on registration back - paired and counted, so the version stays held until the last
+			// consumer of it has gone, independently of the last-reader notification below. The lease releases on the
+			// catalog instance that granted it and does nothing when registration could not take a pin at all, so
+			// neither a replacement taking over this name nor a skipped acquisition can turn this into a decrement of
+			// somebody else's pin
+			versionPin.close();
 
 			// the minimal active catalog version used by another session now
 			final OptionalLong minimalActiveCatalogVersion;
@@ -735,21 +799,34 @@ public final class SessionRegistry {
 	}
 
 	/**
-	 * This interface allows external objects signalize work with the catalog of particular version.
+	 * Holds a catalog version against reclamation on behalf of a backup, and gives that hold back - see
+	 * {@link CatalogConsumerControl}. Sessions are not held this way: they are pinned and released by
+	 * {@link VersionConsumingSessions}, which also keeps the consumer census this class stays out of.
 	 */
 	@RequiredArgsConstructor
 	private static class CatalogConsumerControlInternal implements CatalogConsumerControl {
-		private final VersionConsumingSessions versionConsumingSessions;
 		private final Supplier<Catalog> catalog;
 
+		@Nonnull
 		@Override
-		public void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
-			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits);
-		}
-
-		@Override
-		public void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
-			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, traits, this.catalog);
+		public CatalogVersionPin pinCatalogVersion(long version) {
+			// deliberately intolerant, unlike the session registration above. The only caller is a backup, and this
+			// pin is the whole of its protection against having the history it is copying reclaimed underneath it -
+			// its own post-pin re-verification is conclusive *because* the pin landed first. Swallowing the failure
+			// would not degrade the backup, it would silently remove the guarantee and let it run to completion over
+			// files that are free to be deleted. A `CatalogTransitioningException` is likewise left to propagate: the
+			// caller can retry, whereas a backup that never held anything cannot be repaired afterwards
+			final Catalog theCatalog = this.catalog.get();
+			if (theCatalog == null) {
+				throw new GenericEvitaInternalError(
+					"Catalog is not available - catalog version " + version +
+						" cannot be held against reclamation!"
+				);
+			}
+			theCatalog.catalogVersionPinned(version);
+			// bound to `theCatalog` and not to this supplier: a rename or a replace between here and the release must
+			// not be able to redirect the release onto the instance that took over the name
+			return CatalogVersionPin.pinnedOn(version, theCatalog::catalogVersionReleased);
 		}
 
 	}

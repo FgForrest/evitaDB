@@ -1,12 +1,12 @@
 ---
-title: Řazení referencí / podle atributu reference
-perex: Entity můžete řadit podle atributů na referencích a také můžete řadit načtené referencované entity podle jejich atributů nebo podle atributů referencí, které na ně odkazují. Přestože se jedná o zásadně odlišné scénáře, oba jsou popsány v této sekci.
+title: Řazení referencí / podle referenčního atributu
+perex: Můžete řadit entity podle atributů v referencích a také můžete řadit načtené referencované entity podle jejich atributů nebo podle atributů referencí, které na ně ukazují. Přestože se jedná o zásadně odlišné scénáře, oba jsou popsány v této sekci.
 date: '25.6.2023'
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 ## Vlastnost reference
 

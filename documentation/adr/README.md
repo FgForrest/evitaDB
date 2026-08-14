@@ -34,7 +34,17 @@ filename date that disagrees with `date:`.
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
 | 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339 |
+| 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
+| 2026-08-06 | [Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count](2026-08-06-time-travel-disk-budget.md) | feature | accepted | #761, PR #1402 |
+| 2026-08-06 | [Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap](2026-08-06-catalog-folder-decoupling.md) | refactor | partially-implemented | #649 |
+| 2026-08-05 | [Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation](2026-08-05-schema-handling-write-path-optimizations.md) | optimization | accepted | #1390, PR #1395 |
+| 2026-08-05 | [Never decorate a streaming gRPC channel with RetryingClient](2026-08-05-streaming-calls-must-not-be-retry-decorated.md) | fix | accepted | #1388, PR #1389 |
+| 2026-08-04 | [Turn query telemetry into an actionable profile, and render the formula plan without ever computing it](2026-08-04-query-telemetry-actionable-profile.md) | feature | accepted | #1341, PR #1385 |
+| 2026-08-04 | [Report HTTP/2 RST_STREAM floods instead of enforcing against them, and turn the Rapid-Reset defence off by default](2026-08-04-http2-connection-teardown-observability.md) | fix | accepted | #1369, PR #1383 |
+| 2026-08-04 | [Fail fast on client pool saturation and never run consumer callbacks on the submitting thread](2026-08-04-client-pool-fail-fast-and-cdc-channel-isolation.md) | fix | accepted | #1387, PR #1389 |
 | 2026-08-03 | [Readiness discovery-phase probe failures log at DEBUG; only a known-good endpoint failing logs ERROR](2026-08-03-readiness-discovery-log-level.md) | fix | proposed | #1364, PR #1366 |
+| 2026-08-03 | [Enforce the test-tag policy from a JUnit PostDiscoveryFilter, because listener exceptions are swallowed](2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md) | fix | accepted | #1374, PR #1382 |
+| 2026-08-03 | [Align client/server keep-alive timing and always retry provably-unprocessed gRPC calls](2026-08-03-driver-connection-resilience.md) | fix | accepted | #1367, #1368, PR #1371 |
 | 2026-08-02 | [Route release cuts through workflow_dispatch on the release_* branch, not workflow_run from master](2026-08-02-ci-release-pipeline-patch-versioning-fix.md) | infrastructure | accepted | #1359, #1362 |
 | 2026-08-02 | [Keep IDEA and Claude formatting in step with a shared .editorconfig and a diff-scoped hook, not Spotless](2026-08-02-editorconfig-formatting-parity.md) | infrastructure | accepted | #1119 |
 | 2026-08-01 | [Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path](2026-08-01-bplustree-cursor-free-insert-path.md) | optimization | accepted | #1333, PR #1356 |

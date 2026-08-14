@@ -1,12 +1,12 @@
 ---
 title: Konstantní pořadí
-perex: Existují situace, kdy je pořadí entit určeno mimo evitaDB. Omezení konstantního pořadí umožňují ovládat pořadí vybraných entit podle logiky volajícího.
+perex: Existují situace, kdy je pořadí entit určeno mimo evitaDB. Omezení konstantního pořadí umožňují řídit pořadí vybraných entit podle logiky volajícího.
 date: '17.1.2023'
 author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 Konstantní pořadové omezení jsou obzvláště užitečná, pokud máte seřazenou množinu unikátních atributů nebo přímo primární klíče entit, které poskytuje externí systém a které je potřeba zachovat ve výstupu evitaDB (například představují relevanci těchto entit z fulltextového enginu).
 

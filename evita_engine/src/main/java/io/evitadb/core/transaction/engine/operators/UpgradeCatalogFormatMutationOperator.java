@@ -32,13 +32,14 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogForma
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -72,10 +73,10 @@ public class UpgradeCatalogFormatMutationOperator
 	implements EngineMutationOperator<Void, UpgradeCatalogFormatMutation> {
 
 	/**
-	 * Storage root directory used to build the placeholder catalog path for the transient `UnusableCatalog`
-	 * installed while the upgrade is running.
+	 * Everything the engine knows about catalog storage folders — used here to build the transient
+	 * `UnusableCatalog` installed while the upgrade is running.
 	 */
-	@Nonnull private final Path storageDirectory;
+	@Nonnull private final CatalogFolderContext folderContext;
 	/**
 	 * Executor invoked during the work phase. Production wiring injects `DefaultUpgradeExecutor`
 	 * through the full constructor (driven by `Evita` at boot); the single-arg convenience ctor
@@ -88,10 +89,10 @@ public class UpgradeCatalogFormatMutationOperator
 	 * standalone operator usage that only exercises state-transition bookkeeping without touching
 	 * disk. Production code paths go through the two-arg constructor with `DefaultUpgradeExecutor`.
 	 *
-	 * @param storageDirectory storage root directory
+	 * @param folderContext catalog folder bindings and whole-folder operations
 	 */
-	public UpgradeCatalogFormatMutationOperator(@Nonnull Path storageDirectory) {
-		this(storageDirectory, UpgradeExecutor.NoOpUpgradeExecutor.INSTANCE);
+	public UpgradeCatalogFormatMutationOperator(@Nonnull CatalogFolderContext folderContext) {
+		this(folderContext, UpgradeExecutor.NoOpUpgradeExecutor.INSTANCE);
 	}
 
 	/**
@@ -99,14 +100,14 @@ public class UpgradeCatalogFormatMutationOperator
 	 * the five-arg `EngineTransactionManager` constructor at boot time, so the operator drives the real on-disk
 	 * v4→v5 migration.
 	 *
-	 * @param storageDirectory storage root directory
+	 * @param folderContext   catalog folder bindings and whole-folder operations
 	 * @param upgradeExecutor  upgrade executor invoked during the work phase
 	 */
 	public UpgradeCatalogFormatMutationOperator(
-		@Nonnull Path storageDirectory,
+		@Nonnull CatalogFolderContext folderContext,
 		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
-		this.storageDirectory = storageDirectory;
+		this.folderContext = folderContext;
 		this.upgradeExecutor = upgradeExecutor;
 	}
 
@@ -135,7 +136,7 @@ public class UpgradeCatalogFormatMutationOperator
 				"UpgradeCatalogFormatMutation requires a pre-existing catalog."
 		);
 
-		final Path catalogFolder = this.storageDirectory.resolve(catalogName);
+		final CatalogFolderId catalogFolder = this.folderContext.folderIdFor(catalogName);
 
 		// Transition phase — install the BEING_UPGRADED placeholder so any concurrent access fails fast
 		// with a transient `CatalogBeingUpgradedException` while the work phase runs. We use
@@ -150,11 +151,11 @@ public class UpgradeCatalogFormatMutationOperator
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withInFlightPlaceholder(
-							new UnusableCatalog(
+							UpgradeCatalogFormatMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
-								CatalogState.BEING_UPGRADED,
 								catalogFolder,
-								(cn, path) -> new CatalogBeingUpgradedException(cn)
+								CatalogState.BEING_UPGRADED,
+								(cn, folderId, root) -> new CatalogBeingUpgradedException(cn)
 							)
 						)
 						.build();

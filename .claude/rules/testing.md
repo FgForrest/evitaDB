@@ -19,13 +19,30 @@ paths:
 
 ## Tag taxonomy
 
-Every test method must carry **at least one layer tag** and **at least one capability tag** from `io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyListener` in **strict mode by default** — an untagged test fails the build before any test executes. Set `-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags (`slow`, `flaky`) are optional.
+Every test method must carry **at least one layer tag** and **at least one capability tag** from
+`io.evitadb.test.TestTags`. The policy is enforced by `TestTagPolicyFilter` in **strict mode by
+default** — an untagged test aborts discovery, so the build fails before any test executes. Set
+`-Dtest.tag.policy=warn` to downgrade to logging-only, or `-Dtest.tag.policy=off` to silence the
+check entirely (only useful for ad-hoc local iteration on a freshly-stubbed test class). Cost tags
+(`slow`, `flaky`) are optional.
 
 - **Cost (optional, mutually exclusive)**: `slow`, `flaky`
-- **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`, `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`
-- **Capability (≥1 required)**: `query`, `filter`, `order`, `require`, `attribute`, `hierarchy`, `facet`, `price`, `histogram`, `reference`, `schema`, `transaction`, `wal`, `cdc`, `cache`, `session`, `proxy`, `export`, `stream`, `serialization`, `expression`, `comparator`, `observability`, `task`, `security`, `data_type`, `traffic_engine`, `management`
+- **Layer (≥1 required)**: `contract`, `engine`, `indexing`, `storage`, `driver`, `server`,
+  `external_api`, `rest`, `graphql`, `grpc`, `lab`, `system_api`, `observability_api`, `cli`,
+  `test_harness`
+- **Capability (≥1 required)**: `query`, `filter`, `order`, `require`, `attribute`, `hierarchy`,
+  `facet`, `price`, `histogram`, `reference`, `schema`, `transaction`, `wal`, `cdc`, `cache`,
+  `session`, `proxy`, `export`, `stream`, `serialization`, `expression`, `comparator`,
+  `observability`, `task`, `security`, `data_type`, `traffic_engine`, `management`, `test_harness`
 
-A facet test exercising the GraphQL surface should carry e.g. `@Tag(GRAPHQL) @Tag(EXTERNAL_API) @Tag(FACET)`. Tags can be applied at class level (inherited by all methods) or per method.
+A facet test exercising the GraphQL surface should carry e.g.
+`@Tag(GRAPHQL) @Tag(EXTERNAL_API) @Tag(FACET)`. Tags can be applied at class level (inherited by all
+methods) or per method. `indexing` and `test_harness` are listed on both axes and satisfy the policy
+on their own.
+
+Reworking the gate: it must raise from a phase whose exceptions JUnit propagates — a
+`TestExecutionListener` will not do, the platform swallows those. Prove it by making a real build
+fail; see `documentation/adr/2026-08-03-test-tag-policy-gate-via-post-discovery-filter.md`.
 
 When introducing a new tag, add it to `TestTags` and register it in either `LAYER_TAGS` or `CAPABILITY_TAGS`. The taxonomy is intentionally flat — no `cap:` / `surface:` prefixes.
 
@@ -68,6 +85,73 @@ These bite when running a **targeted** class from the command line and reading t
   rtk mvn -o -pl evita_engine install -DskipTests
   ```
   Skip this and the failure surfaces as a **compile** error in the test module (e.g. `wrong number of type arguments; required 3`, `NoSuchMethodError`) that points at test code which is actually fine — the stale binary is the real cause.
+- **`evita_long_running_tests` must be built *with* `evita_functional_tests`, and `install` cannot rescue
+  it.** It depends on functional_tests' **test-jar** for shared fixtures, but functional_tests sets
+  `maven.install.skip=true`, so that test-jar is *never* refreshed in `~/.m2` — `mvn install` on it prints
+  "Skipping artifact installation" and exits **successfully**, which is what makes this one so easy to
+  misdiagnose. Building the long-running module alone therefore resolves whatever `-tests` jar happens to
+  sit in the local repository, possibly months stale, and you get dozens of compile errors against helper
+  signatures (`AssertionUtils.assertSavepointCommitKeeps` and friends) pointing at long-running test code
+  that is perfectly correct. Always use one reactor:
+  ```bash
+  rtk mvn -pl evita_test/evita_functional_tests,evita_test/evita_long_running_tests test -P longRunning
+  ```
+  The tell is a signature in the error that exists nowhere in the source: compare the compiler's
+  `declared in method` line against the current declaration **before** touching a single call site.
+  `javap -cp ~/.m2/.../evita_functional_tests-<version>-tests.jar io.evitadb.utils.AssertionUtils` settles
+  it in one command.
+
+## Waiting for concurrency — the asymmetry that decides flakiness
+
+Tests run in **parallel forks that contend for CPU**. A wall-clock budget that is comfortable on an idle
+laptop is not comfortable in CI, so every wait has to be chosen by what it is asserting — not by what
+felt long enough when it was written.
+
+**Positive waits ("this must happen") are the flake risk. Negative waits ("this must not happen") are not.**
+A loaded machine can only make work take *longer*, so it pushes a positive wait toward expiry (false
+failure) and a negative wait toward holding (still passes). The two therefore get opposite treatment:
+
+- **Positive → latch, and generous.** Use `CountDownLatch` / `join` sized to the work, awaited at **30 s**.
+  A generous bound costs nothing on a passing run — the latch returns the instant the work completes —
+  and still fails a genuine hang. Prefer one latch over a barrier when both would do.
+- **Negative → short, and left alone.** `assertFalse(latch.await(250, MILLISECONDS))` is correct as-is.
+  Do **not** lengthen it "to be safe": it cannot fail spuriously, and every extra millisecond is paid on
+  every run. The real caveat is that a short window *proves less* on a loaded box — that is reduced
+  sensitivity, not flakiness, and the fix is a better seam, not a bigger number.
+
+**Never poll with `Thread.sleep`.** `for (i < N && !condition) Thread.sleep(20)` is the worst of both:
+slower than needed when the code works, and expiring when the machine is busy. It is a positive wait
+wearing a loop — replace it with a latch. `Thread.sleep` is acceptable only as a *detection widener*
+(a 1 ms pause **inside** a task to make an overlap observable), where a slow machine makes detection
+more likely and can never cause a false failure. Say which one it is in a comment.
+
+**A stress loop belongs in `evita_long_running_tests`, never in the fast loop.** When an interleaving
+cannot be hit deterministically — no seam exists between the two statements that race — the answer is not
+to give up on coverage, and not to sweep the loop into `evita_functional_tests` either. In the fast loop a
+probabilistic test fails once per few hundred CI runs and teaches everyone to press re-run; the *same*
+test, `@Disabled` in the long-running module and executed deliberately on a quiet machine, is real
+evidence. That module exists precisely for tests that need time and an idle box. Mark it
+`@Disabled("<why> - enable manually when needed")`, `@Tag(SLOW)`, and in order of preference:
+
+1. **Introduce a real seam** and test it deterministically in the fast loop, if one can exist.
+2. **Stress test in `evita_long_running_tests`, `@Disabled`** — sweep the timing rather than fixing it,
+   and **state the calibration**: what counterfactual makes it fail, and how fast. A stress test that no
+   longer fails when the guarded code is removed has silently become decorative, and only a recorded
+   calibration lets the next person notice.
+3. **Leave it uncovered and say so in a comment at the site**, so the next reader does not delete it as
+   dead code — last resort, and only when even a sweep cannot reach it.
+
+Either way, name the reachable neighbour that *is* covered in the fast loop. See the `finally` re-check in
+`SerialCdcExecutor.drain()` and `LongRunningSerialCdcExecutorStressTest` for the worked example.
+
+**Name the test after the path it actually takes.** A test named for a window it never reaches is worse
+than no test: it reports coverage that does not exist. Verify by reverting the code the test claims to
+guard and confirming it fails — a guard that survives its own removal is guarding nothing.
+
+**Shut fixtures down, with daemon threads.** `Executors.newSingleThreadExecutor()` creates **non-daemon**
+threads; a fixture that leaks one keeps the surefire JVM alive and pollutes JVM-wide assertions made by
+sibling classes in the same fork. Give fixture pools a daemon `ThreadFactory` *and* close them in a
+`finally` or `@AfterEach`.
 
 ## Test performance — reuse shared datasets
 

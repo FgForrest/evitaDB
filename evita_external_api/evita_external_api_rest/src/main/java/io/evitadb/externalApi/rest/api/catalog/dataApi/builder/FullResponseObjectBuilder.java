@@ -42,6 +42,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FormulaPlanDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.extraResult.ReferenceHistogramObjectBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
@@ -67,7 +70,6 @@ import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -125,6 +127,12 @@ public class FullResponseObjectBuilder {
 		// `implementedInterface` resolves correctly.
 		this.buildingContext.registerType(HistogramDescriptor.THIS_INTERFACE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HistogramDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		// the nested metrics object has to be registered before the telemetry object that references it
+		this.buildingContext.registerType(
+			QueryTelemetryMetricsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		// the plan is self-referencing through its `children`, exactly as the telemetry step is through `steps`
+		this.buildingContext.registerType(FormulaPlanDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(FacetRequestImpactDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
@@ -216,16 +224,14 @@ public class FullResponseObjectBuilder {
 	private Optional<OpenApiProperty> buildExtraResultsProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                            boolean localized) {
 		final Optional<OpenApiTypeReference> extraResultsObject = buildExtraResultsObject(entitySchema, localized);
-		if (extraResultsObject.isEmpty()) {
-			return Optional.empty();
-		}
+		return extraResultsObject
+			.map(
+				openApiTypeReference -> ResponseDescriptor.EXTRA_RESULTS
+					.to(this.propertyBuilderTransformer)
+					.type(nonNull(openApiTypeReference))
+					.build()
+			);
 
-		return Optional.of(
-			ResponseDescriptor.EXTRA_RESULTS
-				.to(this.propertyBuilderTransformer)
-				.type(nonNull(extraResultsObject.get()))
-				.build()
-		);
 	}
 
 	@Nonnull
@@ -243,11 +249,6 @@ public class FullResponseObjectBuilder {
 		buildFacetSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		buildHierarchyProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		extraResultProperties.add(ExtraResultsDescriptor.QUERY_TELEMETRY.to(this.propertyBuilderTransformer).build());
-
-		if (extraResultProperties.isEmpty()) {
-			return Optional.empty();
-		}
-
 		extraResultProperties.forEach(extraResultObjectBuilder::property);
 		return Optional.of(this.buildingContext.registerType(extraResultObjectBuilder.build()));
 	}
@@ -255,16 +256,13 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private Optional<OpenApiProperty> buildAttributeHistogramProperty(@Nonnull EntitySchemaContract entitySchema) {
 		final Optional<OpenApiTypeReference> attributeHistogramObject = buildAttributeHistogramObject(entitySchema);
-		if (attributeHistogramObject.isEmpty()) {
-			return Optional.empty();
-		}
-
-		return Optional.of(
-			ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM
+		return attributeHistogramObject.map(
+			openApiTypeReference -> ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM
 				.to(this.propertyBuilderTransformer)
-				.type(attributeHistogramObject.get())
+				.type(openApiTypeReference)
 				.build()
 		);
+
 	}
 
 	@Nonnull
@@ -317,16 +315,13 @@ public class FullResponseObjectBuilder {
 		boolean localized
 	) {
 		final Optional<OpenApiTypeReference> referenceSummaryObject = buildReferenceSummaryObject(entitySchema, localized);
-		if (referenceSummaryObject.isEmpty()) {
-			return Optional.empty();
-		}
-
-		return Optional.of(
-			ExtraResultsDescriptor.REFERENCE_SUMMARY
+		return referenceSummaryObject.map(
+			openApiTypeReference -> ExtraResultsDescriptor.REFERENCE_SUMMARY
 				.to(this.propertyBuilderTransformer)
-				.type(referenceSummaryObject.get())
+				.type(openApiTypeReference)
 				.build()
 		);
+
 	}
 
 	@Nonnull
@@ -486,16 +481,13 @@ public class FullResponseObjectBuilder {
 	private Optional<OpenApiProperty> buildFacetSummaryProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                            boolean localized) {
 		final Optional<OpenApiTypeReference> facetSummaryObject = buildFacetSummaryObject(entitySchema, localized);
-		if (facetSummaryObject.isEmpty()) {
-			return Optional.empty();
-		}
-
-		return Optional.of(
-			ExtraResultsDescriptor.FACET_SUMMARY
+		return facetSummaryObject.map(
+			openApiTypeReference -> ExtraResultsDescriptor.FACET_SUMMARY
 				.to(this.propertyBuilderTransformer)
-				.type(facetSummaryObject.get())
+				.type(openApiTypeReference)
 				.build()
 		);
+
 	}
 
 	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
@@ -599,17 +591,17 @@ public class FullResponseObjectBuilder {
 		final OpenApiObject facetStatisticsObject = EntityFacetStatisticsDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(constructFacetStatisticsObjectName(entitySchema, referenceSchema, localized))
-			.property(EntityFacetStatisticsDescriptor.FACET_ENTITY
-				.to(this.propertyBuilderTransformer)
-				.type(facetEntityObject))
+			.property(FacetStatisticsDescriptor.FACET_ENTITY.to(this.propertyBuilderTransformer).type(facetEntityObject))
 			.build();
 
 		return this.buildingContext.registerType(facetStatisticsObject);
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildReferencedEntityObject(@Nullable EntitySchemaContract referencedEntitySchema,
-	                                                         boolean localized) {
+	private static OpenApiTypeReference buildReferencedEntityObject(
+		@Nullable EntitySchemaContract referencedEntitySchema,
+		boolean localized
+	) {
 		if (referencedEntitySchema != null) {
 			return typeRefTo(constructEntityObjectName(referencedEntitySchema, localized));
 		} else {

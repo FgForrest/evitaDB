@@ -1,11 +1,11 @@
 ---
 title: Směrování
-perex: Směrování v e-commerce katalozích je složitá záležitost. Hraje klíčovou roli v SEO a uživatelské zkušenosti a URL adresy jsou obvykle odvozeny z názvů entit bez jakýchkoli dalších informací o smysluplné struktuře. Ať už se nám jako vývojářům líbí nebo ne, byznys určuje pravidla a my je musíme dodržovat. V tomto článku se podíváme na některé přístupy k řešení problémů se směrováním v e-commerce katalozích.
+perex: Směrování v e-commerce katalozích je složitý problém. Hraje klíčovou roli v SEO a uživatelské zkušenosti a URL adresy jsou obvykle odvozeny z názvů entit bez jakýchkoli dalších informací s významnou strukturou. Ať už se nám jako vývojářům líbí nebo ne, obchodní požadavky určují pravidla a my je musíme dodržovat. V tomto článku se podíváme na některé přístupy k řešení problémů se směrováním v e-commerce katalozích.
 date: '4.2.2024'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 Očekáváme, že entity, které jsou dosažitelné přes URL, budou mít atribut typu [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), který obsahuje buď úplnou absolutní URL, nebo relativní. Rozhodnutí, zda použít absolutní nebo relativní URL, má své důsledky a mělo by být dobře promyšleno. Ukládání absolutních URL do databáze obvykle není dobrý nápad, protože to ztěžuje použití stejného záznamu v různých prostředích (produkce/testování/vývoj), která mají různá doménová jména. Obecně doporučujeme ukládat do databáze relativní URL bez protokolu a domény a úplné absolutní URL sestavovat až v aplikaci.
 

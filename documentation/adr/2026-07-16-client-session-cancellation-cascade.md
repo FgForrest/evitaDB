@@ -1,7 +1,7 @@
 ---
 title: Fix the gRPC session-cancellation cascade, and move the test-only executor switch off public config into a per-dataset real-pool opt-in
 date: 2026-07-16
-updated: 2026-07-31 21:50
+updated: 2026-08-03 15:50
 status: accepted
 kind: fix
 issues: []
@@ -9,7 +9,7 @@ prs: [1284]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_engine/core, evita_api/exception, evita_api/configuration, evita_server, evita_test_support, evita_test/evita_functional_tests]
 supersedes: []
 superseded-by: []
-relates: []
+relates: [2026-08-03-driver-connection-resilience, 2026-08-04-http2-connection-teardown-observability]
 ---
 
 # Fix the gRPC keep-alive self-kill and session-cancellation cascade
@@ -274,7 +274,11 @@ Re-checked against the current tree, not just carried from `RESULTS.md`:
 - **Resolved, not open:** CDC gate hardening (blocking-semantics Javadoc + timeout) — confirmed
   present in `ClientChangeCapturePublisher`'s Javadoc.
 - **Resolved, not open:** the inert-ping defect (client ping silently disabled by the old coupled
-  idle timeout) — confirmed fixed via the decoupled `idleTimeoutMillis` knob described above.
+  idle timeout) — confirmed fixed via the decoupled `idleTimeoutMillis` knob described above. This only
+  ever covered the *client's* half of the contract, though: the server still ignored inbound client pings
+  as connection activity (`ExternalApiServer`'s single-argument `idleTimeoutMillis` overload rode
+  Armeria's `keepAliveOnPing = false` default), an unrecognized gap in this fix, not a regression —
+  closed in `2026-08-03-driver-connection-resilience.md`.
 - Part C (bounded-wait before throwing CSAE on guard collision) was **not implemented** — the CDC
   ordering fix removed the register-then-mutate race that was the only observed source of guard
   collisions, so RESULTS.md records the decision to skip it rather than build unneeded hardening.

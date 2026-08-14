@@ -104,6 +104,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor facetGroupRelationLevelValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetGroupRelationLevel.class);
 	protected final EvitaQLValueTokenVisitor facetRelationTypeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetRelationType.class);
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
+	protected final EvitaQLValueTokenVisitor queryTelemetryContentValueTokenVisitor =
+		EvitaQLValueTokenVisitor.withAllowedTypes(QueryTelemetryContent.class);
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor stringValueListTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
@@ -2658,7 +2660,17 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitQueryTelemetryConstraint(QueryTelemetryConstraintContext ctx) {
-		return parse(ctx, QueryTelemetry::new);
+		return parse(
+			ctx,
+			() -> ctx.args == null ?
+				// `queryTelemetry()` - timings only, and the overwhelmingly common form
+				new QueryTelemetry() :
+				new QueryTelemetry(
+					ctx.args.value
+						.accept(this.queryTelemetryContentValueTokenVisitor)
+						.asEnum(QueryTelemetryContent.class)
+				)
+		);
 	}
 
 	@Nonnull

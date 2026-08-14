@@ -1078,6 +1078,12 @@ class OffsetIndexTest implements EvitaTestSupport {
 						offsetIndex.contains(1L, 1, EntityBodyStoragePart.class),
 						"contains at v1 should be false after put-then-remove in the same version"
 					);
+					// the two operations fold into a no-op, so the in-flight cardinality must be zero - never
+					// negative, which is what recording the removal of a record that was never published gives
+					assertEquals(
+						0, offsetIndex.count(1L),
+						"count at v1 should be zero after put-then-remove in the same version"
+					);
 				});
 			}
 
@@ -1101,6 +1107,34 @@ class OffsetIndexTest implements EvitaTestSupport {
 					assertTrue(
 						offsetIndex.contains(2L, 1, EntityBodyStoragePart.class),
 						"contains at v2 should be true after remove-then-reput"
+					);
+					// the removal is undone by the re-put, so the record stays counted - the in-flight count
+					// must agree with what the flush is about to publish
+					assertEquals(
+						1, offsetIndex.count(2L),
+						"count at v2 should still be one after remove-then-reput in the same version"
+					);
+				});
+			}
+
+			@DisplayName("remove then re-put of a still-unflushed record keeps the in-flight count at one")
+			@Test
+			void shouldCountRecordRePutAfterRemoveOverUnflushedRecord() {
+				runWithIndex((offsetIndex, decoder) -> {
+					// same shape as above, except the record key 1 stands on is itself still in-flight: it was
+					// created at v1 and never flushed on its own, so the fold at v2 has to be judged against
+					// v1's pending creation rather than against the (still empty) published state
+					offsetIndex.put(1L, bodyPartWithLocale(1, 1, Locale.ENGLISH));
+					offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+					offsetIndex.put(2L, bodyPartWithLocale(2, 1, Locale.GERMAN));
+
+					assertEquals(
+						1, offsetIndex.count(1L),
+						"count at v1 should be one - the record created there is untouched by v2's fold"
+					);
+					assertEquals(
+						1, offsetIndex.count(2L),
+						"count at v2 should be one after remove-then-reput over a still-unflushed record"
 					);
 				});
 			}
@@ -1528,6 +1562,62 @@ class OffsetIndexTest implements EvitaTestSupport {
 					assertEquals(1, offsetIndex.count(1L), "count at v1 sees only key 1");
 					assertEquals(2, offsetIndex.count(2L), "count at v2 sees keys 1 and 2");
 					assertEquals(3, offsetIndex.count(3L), "count at v3 sees keys 1, 2 and 3");
+				});
+			}
+
+			@DisplayName("a flushed record removed at one version and re-added at the next survives the batch")
+			@Test
+			void shouldPromoteRemovalAndReAddOfFlushedRecordInOneBatch() {
+				runWithIndex((offsetIndex, decoder) -> {
+					final EntityBodyStoragePart original = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+					final EntityBodyStoragePart reAdded = bodyPartWithLocale(3, 1, Locale.FRENCH);
+
+					// key 1 is published by its own flush, then dropped at v2 and re-created at v3 - both
+					// promoted by one flush. The re-add is a creation, not an overwrite: by the time v3 is
+					// applied, v2 has already taken the key out of the root the batch is folding into.
+					offsetIndex.put(1L, original);
+					offsetIndex.flush(1L);
+					offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+					offsetIndex.put(3L, reAdded);
+					offsetIndex.flush(3L);
+
+					assertEquals(reAdded, offsetIndex.get(3L, 1, EntityBodyStoragePart.class),
+						"get key 1 at v3 resolves the re-added payload");
+					assertTrue(offsetIndex.contains(3L, 1, EntityBodyStoragePart.class),
+						"contains key 1 at v3 agrees with get");
+					assertFalse(offsetIndex.contains(2L, 1, EntityBodyStoragePart.class),
+						"key 1 stays absent at v2, where it was removed");
+					assertEquals(original, offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+						"get key 1 at v1 still resolves the payload flushed there");
+					assertEquals(1, offsetIndex.count(1L), "count at v1 sees key 1");
+					assertEquals(0, offsetIndex.count(2L), "count at v2 sees no key");
+					assertEquals(1, offsetIndex.count(3L), "count at v3 sees the re-added key 1");
+				});
+			}
+
+			@DisplayName("an in-flight record removed and re-added inside one later version survives the batch")
+			@Test
+			void shouldPromoteRemovalAndReAddOfInFlightRecordWithinOneVersion() {
+				runWithIndex((offsetIndex, decoder) -> {
+					final EntityBodyStoragePart original = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+					final EntityBodyStoragePart reAdded = bodyPartWithLocale(2, 1, Locale.GERMAN);
+
+					// key 1 is created at v1 but never flushed on its own; v2 drops and immediately re-creates
+					// it, folding both into a single entry. That entry is an overwrite, not a creation: v1 puts
+					// the key into the root first when the whole batch is promoted by one flush.
+					offsetIndex.put(1L, original);
+					offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+					offsetIndex.put(2L, reAdded);
+					offsetIndex.flush(2L);
+
+					assertEquals(reAdded, offsetIndex.get(2L, 1, EntityBodyStoragePart.class),
+						"get key 1 at v2 resolves the re-added payload");
+					assertTrue(offsetIndex.contains(2L, 1, EntityBodyStoragePart.class),
+						"contains key 1 at v2 agrees with get");
+					assertEquals(original, offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+						"get key 1 at v1 still resolves the payload written there");
+					assertEquals(1, offsetIndex.count(1L), "count at v1 sees key 1");
+					assertEquals(1, offsetIndex.count(2L), "count at v2 sees the re-added key 1");
 				});
 			}
 		}

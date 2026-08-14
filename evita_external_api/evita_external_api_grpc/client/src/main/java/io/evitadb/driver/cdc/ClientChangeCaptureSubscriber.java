@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
@@ -152,6 +153,25 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	private volatile ClientSubscription<C, REQ, RES> subscription;
 
 	/**
+	 * Serializing view over the shared client pool, used exclusively for {@link HeartBeatSensor} notifications.
+	 *
+	 * Heartbeat delivery has to satisfy two constraints at once. It must not run on the gRPC inbound thread —
+	 * the SPI exists so a consumer can notice a stale stream and *re-establish* it, which re-enters
+	 * {@link ClientChangeCapturePublisher#subscribe} and blocks in {@link #awaitAcknowledgement()} on a frame
+	 * only that thread could deliver. And it must stay **ordered**, because a sensor detects missed heartbeats
+	 * from the continuity of {@link HeartBeat#index()}; dispatching each notification independently onto
+	 * a multi-threaded pool would let two reorder and manufacture a phantom gap.
+	 *
+	 * {@link SerialCdcExecutor} satisfies both: tasks run on the shared pool, never on the submitter, and at
+	 * most one at a time in submission order.
+	 *
+	 * Assigned in {@link #attachSubscription} *before* the `subscription` field, so any thread that observes
+	 * a non-null subscription also observes this executor.
+	 */
+	@Nullable
+	private volatile Executor heartBeatExecutor;
+
+	/**
 	 * The last heartbeat received from the server, used to monitor the connection health.
 	 *
 	 * Declared `volatile` because {@link #toString} may be invoked from arbitrary threads
@@ -231,6 +251,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param subscription the subscription created by the publisher
 	 */
 	void attachSubscription(@Nonnull ClientSubscription<C, REQ, RES> subscription) {
+		// assign the heartbeat executor first — both fields are volatile, so a thread that observes
+		// a non-null `subscription` is guaranteed to observe the executor too
+		this.heartBeatExecutor = new SerialCdcExecutor(
+			subscription.getExecutorService(),
+			"deliver onHeartBeat to the delegate subscriber",
+			// a heartbeat that cannot be delivered fails the whole subscription rather than being dropped:
+			// the consumer derives missed-heartbeat counts from index continuity, so resuming after a silent
+			// gap would read as *server* heartbeats being missed when the driver dropped them
+			this::notifyClientFailureAndClose
+		);
 		this.subscription = subscription;
 	}
 
@@ -266,6 +296,23 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 *
 	 * The acknowledgement is delivered on the gRPC inbound thread — never on the caller thread that
 	 * runs `subscribe` — so this wait cannot deadlock the delivery of the acknowledgement it awaits.
+	 *
+	 * **That is a load-bearing invariant, and it is the only thing that keeps this wait from being
+	 * a deadlock.** Armeria delivers inbound frames on an event loop thread, and a client normally holds
+	 * exactly one event loop per endpoint (`DefaultEventLoopScheduler.DEFAULT_MAX_NUM_EVENT_LOOPS` is 1,
+	 * and `HttpChannelPool` is instantiated per event loop). If any mechanism ever causes driver or
+	 * consumer work to run *on* that inbound thread while `subscribe` is parked here, the thread that
+	 * would deliver the acknowledgement becomes the thread waiting for it, and the whole HTTP/2 connection
+	 * dies — no inbound frames are read at all, so every outstanding and future call on it fails on
+	 * timeout. Issue #1387 was exactly this: `ThreadPoolExecutor.CallerRunsPolicy` on the shared client
+	 * pool ran rejected capture-teardown tasks inline on the submitting thread, which under saturation was
+	 * the event loop. The pool now fails fast (`EvitaClientRejectingExecutorHandler`) and every consumer
+	 * callback is dispatched off the submitting thread ({@link CdcCallbackDispatcher}) — do not
+	 * reintroduce any "run it on the caller" fallback on these paths.
+	 *
+	 * This gate is also what serializes session-bound calls around
+	 * `EvitaClientSession#registerChangeCatalogCapture` — see that method for the ordering contract that
+	 * any new asynchronous session API has to respect.
 	 *
 	 * @throws GenericEvitaInternalError if the server does not acknowledge the subscription within
 	 *         the streaming timeout, the stream fails before the acknowledgement arrives, or the
@@ -349,11 +396,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				}
 				this.lastHeartBeat = heartBeat;
 				if (this.delegate instanceof HeartBeatSensor heartBeatSensor) {
-					try {
-						heartBeatSensor.onHeartBeat(heartBeat);
-					} catch (Exception e) {
-						log.error("Error occurred in HeartBeatSensor while processing heartbeat: {}", heartBeat, e);
-					}
+					// `onHeartBeat` is consumer code, and the whole point of the SPI is to let a consumer
+					// notice a stale stream and re-establish it — i.e. re-enter `subscribe()`, which blocks
+					// in `awaitAcknowledgement()`. Running it here would park the gRPC inbound thread that
+					// has to deliver that acknowledgement. The gap detection above stays inline: it is
+					// driver-internal, non-blocking, and depends on the inbound thread's ordering.
+					// `SerialCdcExecutor` guards the callback and never throws, so no dispatcher wrapper here
+					Objects.requireNonNull(
+						this.heartBeatExecutor,
+						"`heartBeatExecutor` must be assigned by `attachSubscription` before `onNext`."
+					).execute(() -> heartBeatSensor.onHeartBeat(heartBeat));
 				}
 			});
 		if (activeSubscription.getSubscriptionId() == null) {
@@ -444,9 +496,18 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				this.subscription,
 				"Subscription must be attached before `onError` is invoked."
 			);
-			// we notify the subscriber about the error
+			// we notify the subscriber about the error — dispatched off this thread, which is the gRPC
+			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
+			// block the very thread that has to deliver the acknowledgement it then waits for.
+			// The dispatch result is deliberately ignored: this is already the terminal path, so a refusal
+			// leaves nothing further to escalate to — the dispatcher logs it, and the teardown below runs
+			// either way.
 			try {
-				activeSubscription.getExecutorService().execute(() -> this.delegate.onError(rootCause));
+				CdcCallbackDispatcher.dispatch(
+					activeSubscription.getExecutorService(),
+					() -> this.delegate.onError(rootCause),
+					"deliver onError to the delegate subscriber"
+				);
 			} finally {
 				// this handles cleanup and calling #close on this instance
 				activeSubscription.cancel();
@@ -479,7 +540,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				"Subscription must be attached before `notifyClientFailureAndClose` is invoked."
 			);
 			try {
-				activeSubscription.getExecutorService().execute(() -> this.delegate.onError(cause));
+				// off-thread for the same reason as in `onError` — the caller is the drain task, and
+				// a rejected dispatch must not strand the terminal notification
+				CdcCallbackDispatcher.dispatch(
+					activeSubscription.getExecutorService(),
+					() -> this.delegate.onError(cause),
+					"deliver onError (client-side failure) to the delegate subscriber"
+				);
 			} finally {
 				// triggers `close()` which still sees `serverSideClosed == false` and therefore
 				// propagates the cancellation to the gRPC stream
@@ -511,7 +578,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				"Subscription must be attached before `onComplete` is invoked."
 			);
 			try {
-				activeSubscription.getExecutorService().execute(this.delegate::onComplete);
+				// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread
+				CdcCallbackDispatcher.dispatch(
+					activeSubscription.getExecutorService(),
+					this.delegate::onComplete,
+					"deliver onComplete to the delegate subscriber"
+				);
 			} finally {
 				// this handles cleanup and calling #close on this instance
 				activeSubscription.cancel();
@@ -566,10 +638,20 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
 				observer.cancel("Closed manually by the client.", new PublisherClosedByClientException());
 			}
-			// if the delegate is closeable, close it quietly
+			// if the delegate is closeable, close it quietly — always off this thread. This is the exact
+			// submission the issue #1387 stack trace re-entered: the delegate's `close` callback is consumer
+			// code that commonly re-subscribes, and running it in place (as `CallerRunsPolicy` did, and as
+			// a naive "run the cleanup synchronously" fallback would) walks straight back into
+			// `subscribe()` → `awaitAcknowledgement()` on the thread that must deliver the acknowledgement.
+			// Driver-side teardown is already complete at this point (`observer.cancel` ran above), so
+			// nothing driver-internal depends on this task.
 			final ClientSubscription<C, REQ, RES> activeSubscription = this.subscription;
 			if (activeSubscription != null && this.delegate instanceof AutoCloseable closeable) {
-				activeSubscription.getExecutorService().execute(() -> IOUtils.closeQuietly(closeable::close));
+				CdcCallbackDispatcher.dispatch(
+					activeSubscription.getExecutorService(),
+					() -> IOUtils.closeQuietly(closeable::close),
+					"close the delegate subscriber"
+				);
 			}
 		}
 	}

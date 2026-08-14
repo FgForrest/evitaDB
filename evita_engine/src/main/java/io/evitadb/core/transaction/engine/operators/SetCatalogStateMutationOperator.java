@@ -29,7 +29,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
@@ -37,9 +37,9 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -57,9 +57,10 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class SetCatalogStateMutationOperator implements EngineMutationOperator<Void, SetCatalogStateMutation> {
-	private final Path storageDirectory;
+	private final CatalogFolderContext folderContext;
 
 	@Nonnull
 	@Override
@@ -94,11 +95,11 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						.builder(expandedEngineState)
 						.withVersion(version)
 						.withCatalog(
-							new UnusableCatalog(
+							SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
 								catalogName,
 								transitionState,
-								SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
-								(cn, path) -> new CatalogTransitioningException(cn, path, transitionState)
+								(cn, folderId, root) ->
+									new CatalogTransitioningException(cn, folderId, root, transitionState)
 							)
 						).build();
 				}
@@ -133,7 +134,10 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 			return new ProgressingFuture<>(
 				0,
 				progressingFuture -> {
-					evita.closeAllSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
+					// Installs a registry when the catalog has none - see `Evita#suspendCatalogSessions`. Without
+					// it a catalog nobody has queried since boot is not quiesced at all, and a session opened
+					// while it is being deactivated is served against a catalog about to be terminated.
+					evita.suspendCatalogSessions(catalogName, SuspendOperation.REJECT);
 
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -143,9 +147,8 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 									.builder(expandedEngineState)
 									.withVersion(version)
 									.withCatalog(
-										new UnusableCatalog(
+										SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
 											catalogName, CatalogState.INACTIVE,
-											SetCatalogStateMutationOperator.this.storageDirectory.resolve(catalogName),
 											CatalogInactiveException::new
 										)
 									)
@@ -160,7 +163,19 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 					// transition regardless of downstream cleanup failures.
 					try {
 						evita.removeCatalogSessionRegistryIfPresent(catalogName);
-						theCatalog.terminate();
+						// Logged rather than propagated: the state transition has already committed, so an
+						// exception escaping here would report a failure for an operation that succeeded. The
+						// `finally` below guarantees only that the host event fires, not that the caller is
+						// told the truth about the outcome.
+						try {
+							theCatalog.terminate();
+						} catch (RuntimeException ex) {
+							log.warn(
+								"Failed to terminate catalog `{}` while deactivating it - its handles stay open " +
+									"until the process ends.",
+								catalogName, ex
+							);
+						}
 					} finally {
 						// Emit the host event AFTER the engine state and the live `Catalog`
 						// resources have been torn down so subscribers see the INACTIVE settlement

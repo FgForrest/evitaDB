@@ -27,7 +27,11 @@ package io.evitadb.core.engine;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -93,6 +97,69 @@ public record ExpandedEngineState(
 	@Nonnull
 	public static Builder builder(@Nonnull ExpandedEngineState base) {
 		return new Builder(base);
+	}
+
+	/**
+	 * Returns the binding array guaranteed to carry an entry for the passed catalog name, binding it to the
+	 * passed folder when it has none yet.
+	 *
+	 * An existing binding is left exactly as it is — a catalog being re-staged (activated, made alive, swapped
+	 * for a newer instance) must keep pointing at the folder it already occupies, and overwriting it would undo
+	 * a rename. Only a name the state has never seen is bound, and it is bound to the token the caller supplies.
+	 *
+	 * **The token is never derived here.** This method used to invent `new CatalogFolderId(catalogName)` for an
+	 * unbound name, which silently discarded the folder an allocation had just created: the folder was written,
+	 * the catalog was bound to a *different*, identity-named directory, and nothing reported a failure. Deciding
+	 * a folder is `CatalogFolderContext`'s job — see `folderIdForBinding`, whose identity branch is the one
+	 * legitimate source of an identity token (a folder discovered on disk under the catalog's own name).
+	 *
+	 * @param bindings    bindings currently recorded, strictly ascending by catalog name
+	 * @param catalogName name that must be bound in the result
+	 * @param folderId    folder to bind the name to when it carries no binding yet
+	 * @return binding array containing the name; the input array is never modified
+	 */
+	@Nonnull
+	private static CatalogFolderBinding[] bindingsIncluding(
+		@Nonnull CatalogFolderBinding[] bindings,
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId folderId
+	) {
+		for (final CatalogFolderBinding binding : bindings) {
+			if (binding.catalogName().equals(catalogName)) {
+				return bindings;
+			}
+		}
+		return EngineState.withBinding(bindings, new CatalogFolderBinding(catalogName, folderId));
+	}
+
+	/**
+	 * Returns the binding array unchanged, having verified it already binds the passed catalog name.
+	 *
+	 * Used by every staging path that re-stages a catalog the engine state already knows — a transition
+	 * placeholder, a catalog going live, a freshly loaded instance. Such a path has no business choosing a
+	 * folder, and an unbound name reaching it means the catalog was never registered, which is a programming
+	 * error rather than something to paper over with a default.
+	 *
+	 * @param bindings    bindings currently recorded, strictly ascending by catalog name
+	 * @param catalogName name expected to be bound already
+	 * @return the input array, unmodified
+	 * @throws GenericEvitaInternalError when the name carries no binding
+	 */
+	@Nonnull
+	private static CatalogFolderBinding[] bindingsRequiring(
+		@Nonnull CatalogFolderBinding[] bindings,
+		@Nonnull String catalogName
+	) {
+		for (final CatalogFolderBinding binding : bindings) {
+			if (binding.catalogName().equals(catalogName)) {
+				return bindings;
+			}
+		}
+		throw new GenericEvitaInternalError(
+			"Catalog `" + catalogName + "` is being staged without a folder binding! Only a path that " +
+				"registers a catalog for the first time may establish one, and it must pass the folder token " +
+				"explicitly."
+		);
 	}
 
 	/**
@@ -206,6 +273,21 @@ public record ExpandedEngineState(
 	}
 
 	/**
+	 * Returns the folder token holding the data of the passed catalog as recorded by the persisted snapshot, or
+	 * `null` when the catalog has no binding.
+	 *
+	 * This is the runtime entry point to the engine state's name-to-folder authority — see
+	 * {@link EngineState#boundFolderIdFor(String)} for why an unbound name is reported rather than guessed at.
+	 *
+	 * @param catalogName name of the catalog to resolve
+	 * @return token identifying the folder bound to the catalog, or `null` when the catalog is unbound
+	 */
+	@Nullable
+	public CatalogFolderId boundFolderIdFor(@Nonnull String catalogName) {
+		return this.engineState.boundFolderIdFor(catalogName);
+	}
+
+	/**
 	 * Determines whether the catalog identified by the specified catalog name is in a read-only state.
 	 *
 	 * @param catalogName the name of the catalog to check, must not be null
@@ -281,7 +363,8 @@ public record ExpandedEngineState(
 
 		final EngineState.Builder<LogRecordReference> engineStateBuilder = EngineState
 			.builder(this.engineState)
-			.version(this.engineState.version());
+			.version(this.engineState.version())
+			.catalogFolders(bindingsRequiring(this.engineState.catalogFolders(), catalog.getName()));
 
 		if (catalog instanceof Catalog) {
 			engineStateBuilder.activeCatalogs(
@@ -336,6 +419,8 @@ public record ExpandedEngineState(
 		@Nonnull private String[] inactiveCatalogs;
 		@Nonnull private String[] readOnlyCatalogs;
 		@Nonnull private String[] missingCatalogs;
+		@Nonnull private CatalogFolderBinding[] catalogFolders;
+		@Nonnull private RetiredFolder[] retiredFolders;
 
 		/**
 		 * Initializes builder with values from the provided snapshot.
@@ -349,6 +434,8 @@ public record ExpandedEngineState(
 			this.inactiveCatalogs = base.engineState.inactiveCatalogs();
 			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
 			this.missingCatalogs = base.engineState.missingCatalogs();
+			this.catalogFolders = base.engineState.catalogFolders();
+			this.retiredFolders = base.engineState.retiredFolders();
 		}
 
 		/**
@@ -365,11 +452,76 @@ public record ExpandedEngineState(
 
 
 		/**
-		 * Stages the provided catalog into the snapshot.
+		 * Stages a catalog the engine state already knows.
 		 * If the catalog is a live Catalog instance it will be marked active, otherwise inactive.
+		 *
+		 * The catalog keeps the folder binding it already has. A name arriving here unbound is a programming
+		 * error — use {@link #withCatalog(CatalogContract, CatalogFolderId)} to register a name for the first
+		 * time, which is the only way a binding is ever established.
+		 *
+		 * @param catalog catalog to stage; must already be bound to a folder
+		 * @return this builder instance
 		 */
 		@Nonnull
 		public Builder withCatalog(@Nonnull CatalogContract catalog) {
+			this.catalogFolders = bindingsRequiring(this.catalogFolders, catalog.getName());
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Stages a catalog the engine state does not know yet, binding it to the passed folder.
+		 *
+		 * This is the only entry point that establishes a binding, and it is deliberately separate from
+		 * {@link #withCatalog(CatalogContract)}: the folder a new catalog occupies is decided by whoever
+		 * materialised it — a create and a restore allocate one, boot discovery adopts the one it found — and
+		 * that decision must travel to the state rather than being re-derived from the catalog's name here.
+		 *
+		 * Re-staging a name that *is* already bound leaves its binding untouched, so passing a token for a
+		 * catalog that turns out to be known is harmless rather than a silent relocation.
+		 *
+		 * @param catalog  catalog to stage
+		 * @param folderId folder the catalog occupies, used only when the name carries no binding yet
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withCatalog(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
+			this.catalogFolders = bindingsIncluding(this.catalogFolders, catalog.getName(), folderId);
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Points a catalog name at a folder, overwriting whatever it was bound to before.
+		 *
+		 * This is the one entry point that overwrites an existing binding, and it is the whole of a rename and a
+		 * replace: no folder is created, none is deleted, nothing is copied, and not a single byte moves on disk.
+		 * `renameCatalog(A → B)` makes `B` name the folder `A` was in; `replaceCatalog(A → B)` does the same and
+		 * leaves `B`'s former folder to be tombstoned by the caller.
+		 *
+		 * The distinction from {@link #withCatalog(CatalogContract, CatalogFolderId)} is deliberate and worth
+		 * keeping: that one establishes a binding for a name the state has never seen and leaves an existing one
+		 * untouched, so a create or a restore cannot silently relocate a live catalog by passing a stale token.
+		 * Only the pointer swap is allowed to repoint a name, and only because repointing *is* the operation.
+		 *
+		 * @param catalog  catalog whose name is being pointed at the folder
+		 * @param folderId folder the catalog now occupies
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withCatalogBoundTo(@Nonnull CatalogContract catalog, @Nonnull CatalogFolderId folderId) {
+			this.catalogFolders = EngineState.withBinding(
+				this.catalogFolders, new CatalogFolderBinding(catalog.getName(), folderId)
+			);
+			return stageCatalog(catalog);
+		}
+
+		/**
+		 * Moves the catalog into the bucket its type implies, leaving folder bindings alone.
+		 *
+		 * @param catalog catalog to stage
+		 * @return this builder instance
+		 */
+		@Nonnull
+		private Builder stageCatalog(@Nonnull CatalogContract catalog) {
 			this.catalogs.put(catalog.getName(), new CatalogWrapper(catalog));
 			if (catalog instanceof Catalog) {
 				this.activeCatalogs = insertRecordIntoOrderedArray(catalog.getName(), this.activeCatalogs);
@@ -403,6 +555,40 @@ public record ExpandedEngineState(
 		}
 
 		/**
+		 * Points a catalog name at a folder and files the name under **active**, whatever the passed instance is.
+		 *
+		 * This exists for **forward replay** and for nothing else. {@link #withCatalogBoundTo} decides the
+		 * persisted bucket from `catalog instanceof Catalog`, which is right on the live path — the work phase
+		 * hands it the real, loaded catalog — and wrong at replay time, where the contract forbids opening a
+		 * catalog and the only instance available is an {@link io.evitadb.core.catalog.UnusableCatalog}
+		 * placeholder. Routing a replay through `withCatalogBoundTo` would therefore file a live catalog as
+		 * *inactive*: no exception, no failing assert, just a catalog that comes back from the next boot switched
+		 * off. This is exactly the trap that made rename/replace replay look impossible.
+		 *
+		 * The placeholder itself is transient. Boot installs one for every active catalog before any catalog is
+		 * loaded (`Evita`), and the real instance replaces it as the load completes — so what has to be right
+		 * here is the *bucket*, which outlives the placeholder, not the instance.
+		 *
+		 * @param placeholder catalog or placeholder whose name is being pointed at the folder
+		 * @param folderId    folder the catalog occupies
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withActiveCatalogBoundTo(
+			@Nonnull CatalogContract placeholder,
+			@Nonnull CatalogFolderId folderId
+		) {
+			final String catalogName = placeholder.getName();
+			this.catalogFolders = EngineState.withBinding(
+				this.catalogFolders, new CatalogFolderBinding(catalogName, folderId)
+			);
+			this.catalogs.put(catalogName, new CatalogWrapper(placeholder));
+			this.activeCatalogs = insertRecordIntoOrderedArray(catalogName, this.activeCatalogs);
+			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
+			return this;
+		}
+
+		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
 		 */
 		@Nonnull
@@ -413,6 +599,11 @@ public record ExpandedEngineState(
 
 		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
+		 *
+		 * The catalog's folder binding goes with it — nothing points at that folder any more. Recording the
+		 * folder as a tombstone so the engine may later delete it is a separate concern and belongs to whoever
+		 * knows whether the data is meant to survive the removal: a drop retires the folder, whereas a rename
+		 * unbinds the old name while the very same folder stays bound to the new one.
 		 */
 		@Nonnull
 		public Builder withoutCatalog(@Nonnull String catalogName) {
@@ -421,6 +612,7 @@ public record ExpandedEngineState(
 			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
 			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
 			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			this.catalogFolders = EngineState.withoutBinding(this.catalogFolders, catalogName);
 			return this;
 		}
 
@@ -428,7 +620,15 @@ public record ExpandedEngineState(
 		 * Stages the transition of the specified catalog to the MISSING bucket. The catalog is removed from the
 		 * active / inactive / read-only arrays and its in-memory `CatalogWrapper` is dropped — MISSING catalogs
 		 * cannot serve any requests. The catalog name is added to the `missingCatalogs` array so it remains visible
-		 * to the engine and can be recovered by auto-discovery in a future release.
+		 * to the engine and so a later boot can recover it: reconciliation sorts a name whose folder is back into
+		 * the `reappeared` bucket of `CatalogInventoryDivergence`, and `Evita` drains that bucket by dispatching
+		 * a `RestoreCatalogSchemaMutation` per name. Its operator calls
+		 * {@link #withCatalogNoLongerMissing(String)}, which clears the bucket entry and the binding it kept
+		 * alive, landing the catalog back in the inactive array.
+		 *
+		 * The folder binding is deliberately kept. It names the folder that went missing, which is precisely what
+		 * a later reappearance has to be matched against; dropping it would leave the recovered folder
+		 * indistinguishable from one an operator hand-placed.
 		 *
 		 * @param catalogName name of the catalog to mark as missing; must not be null
 		 * @return this builder instance
@@ -444,19 +644,80 @@ public record ExpandedEngineState(
 		}
 
 		/**
-		 * Stages removal of the catalog from the `missingCatalogs` bucket — used by
-		 * `RestoreCatalogSchemaMutationOperator` to support the flapping-recovery transition (MISSING → INACTIVE).
+		 * Stages removal of the catalog from the `missingCatalogs` bucket, **and drops the binding that bucket
+		 * entry was keeping alive**.
 		 *
-		 * The call is a no-op when the catalog is not currently in the missing bucket, so it is safe to chain
-		 * unconditionally before `withCatalog(...)` — auto-discovery (catalog name unknown) and flapping recovery
-		 * (catalog name in missing bucket) share the same operator path and only the latter has any work to do here.
+		 * Both halves are needed, and the second one is the whole point. {@link #withMissingCatalog(String)}
+		 * deliberately keeps the binding, because it names the folder that vanished and that is what a later
+		 * reappearance is matched against. But a name that is still bound is a name
+		 * {@link #withCatalog(CatalogContract, CatalogFolderId)} will not rebind — it establishes a binding only
+		 * for a name the state has never seen. So clearing the bucket alone leaves the catalog pointing at the
+		 * folder that went missing while its real data sits in the folder this operation just filled, and the
+		 * next boot stages the name MISSING all over again.
 		 *
-		 * @param catalogName name of the catalog whose missing-bucket entry should be cleared
+		 * Dropping the binding here rather than widening `withCatalog` is deliberate: the three-way split between
+		 * `withCatalog(catalog)`, `withCatalog(catalog, folderId)` and `withCatalogBoundTo(...)` is what stops a
+		 * create carrying a stale token from silently relocating a live catalog, and it is worth keeping. Making
+		 * the binding *absent* leaves that guard intact and simply tells the truth: a catalog whose folder is
+		 * gone is bound to nothing.
+		 *
+		 * The call is a no-op — on both arrays — when the catalog is not in the missing bucket, so it is safe to
+		 * chain unconditionally. Every path that re-registers a name which may be missing must call it first:
+		 * recovery, restore-from-backup, auto-discovery, a fresh create under the name, and a replace onto it.
+		 *
+		 * @param catalogName name of the catalog that is no longer missing
 		 * @return this builder instance
 		 */
 		@Nonnull
-		public Builder withRestoredFromMissing(@Nonnull String catalogName) {
-			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+		public Builder withCatalogNoLongerMissing(@Nonnull String catalogName) {
+			final String[] remainingMissing = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			//noinspection ArrayEquality - the helper returns the very same instance when nothing was removed
+			if (remainingMissing != this.missingCatalogs) {
+				this.missingCatalogs = remainingMissing;
+				this.catalogFolders = EngineState.withoutBinding(this.catalogFolders, catalogName);
+			}
+			return this;
+		}
+
+		/**
+		 * Records that nothing points at the passed folder any more and that the engine owes its deletion.
+		 *
+		 * This is what makes a folder removal non-blocking: the tombstone is durable *before* anything touches the
+		 * filesystem, so a delete that the operating system refuses merely postpones the work to the next boot
+		 * instead of failing the operation the user asked for. It is also the only positive evidence of ownership
+		 * that authorises deleting a folder the engine no longer references — without it such a folder classifies
+		 * as unclaimed, which is deliberately never destroyed.
+		 *
+		 * Stage it in the **same commit** that unbinds the folder. A tombstone written afterwards is not durable
+		 * across the crash it exists to survive, and one written before would authorise deleting a folder that is
+		 * still live if the commit never happens.
+		 *
+		 * @param catalogName name of the catalog whose data the folder holds, carried for diagnostics only
+		 * @param folderId    folder awaiting deletion
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withRetiredFolder(@Nonnull String catalogName, @Nonnull CatalogFolderId folderId) {
+			this.retiredFolders = EngineState.withRetiredFolder(
+				this.retiredFolders, new RetiredFolder(catalogName, folderId)
+			);
+			return this;
+		}
+
+		/**
+		 * Drops the tombstones of folders whose deletion has since been confirmed.
+		 *
+		 * Applied centrally by the engine-state commit path rather than by the operators, so that a tombstone is
+		 * discharged by *any* subsequent engine mutation instead of only by whoever happened to delete the folder.
+		 * Nothing else would ever drop it: a folder that is gone is never classified again, so the entry would
+		 * otherwise be carried in persisted state forever.
+		 *
+		 * @param drainedFolders folders whose removal is confirmed; entries that were never tombstoned are ignored
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withoutRetiredFolders(@Nonnull Set<CatalogFolderId> drainedFolders) {
+			this.retiredFolders = EngineState.withoutRetiredFolders(this.retiredFolders, drainedFolders);
 			return this;
 		}
 
@@ -489,7 +750,9 @@ public record ExpandedEngineState(
 				.activeCatalogs(this.activeCatalogs)
 				.inactiveCatalogs(this.inactiveCatalogs)
 				.readOnlyCatalogs(this.readOnlyCatalogs)
-				.missingCatalogs(this.missingCatalogs);
+				.missingCatalogs(this.missingCatalogs)
+				.catalogFolders(this.catalogFolders)
+				.retiredFolders(this.retiredFolders);
 			return new ExpandedEngineState(
 				this.startVersion,
 				engineStateBuilder.build(),

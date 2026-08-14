@@ -1,11 +1,11 @@
 ---
 title: Zobrazit produkty v kategorii
-perex: Výpis a filtrování produktů přiřazených k hierarchické entitě (obvykle kategorii) patří mezi nejběžnější úkoly v katalogových e-commerce systémech. Zároveň však jde o jednu z nejnáročnějších funkcí z hlediska výkonu a použitelnosti. Tento článek přináší sadu osvědčených postupů a příkladů, jak tuto funkcionalitu implementovat ve vaší aplikaci.
+perex: Výpis a filtrování produktů přiřazených k hierarchické entitě (obvykle kategorii) je jedním z nejběžnějších úkolů v katalogových e-commerce systémech. Zároveň však patří mezi nejnáročnější z hlediska výkonu a použitelnosti. Tento článek přináší soubor osvědčených postupů a příkladů, jak tuto funkcionalitu implementovat ve vaší aplikaci.
 date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '4f4bf94120e5667bded014a2e6e81839c94d4a17'
 ---
 Typická stránka s výpisem produktů může vypadat takto:
 

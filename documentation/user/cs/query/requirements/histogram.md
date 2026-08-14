@@ -1,12 +1,12 @@
 ---
 title: Histogram
 date: '7.11.2023'
-perex: Histogramy hrají klíčovou roli v parametrickém filtrování v e-commerce tím, že vizuálně zobrazují rozložení produktových atributů a umožňují zákazníkům efektivně upravovat kritéria vyhledávání. Usnadňují interaktivnější a přesnější filtrování, kdy uživatelé mohou měnit rozsah vlastností, jako je cena nebo velikost, na základě skutečné dostupnosti položek.
+perex: Histogramy hrají klíčovou roli v parametrizovaném filtrování v e-commerce tím, že vizuálně zobrazují rozložení produktových atributů a umožňují zákazníkům efektivně upravovat kritéria vyhledávání. Usnadňují interaktivnější a přesnější filtrování, kdy uživatelé mohou měnit rozsah vlastností, jako je cena nebo velikost, na základě skutečné dostupnosti položek.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: '939634b9ad902a7fb058d9e91ef6e2b6c637964d'
 ---
 Ve skutečnosti existuje jen několik případů použití histogramů na e-commerce webech. Nejčastějším je cenový histogram, který slouží k filtrování produktů podle ceny. Příklad takového histogramu můžete vidět na webu Booking.com:
 

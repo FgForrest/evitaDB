@@ -82,6 +82,12 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final int timeTravelEnabled;
 
+	@Label("Time travel size limit in Bytes")
+	@Description("Configured upper bound on the disk space retained history may occupy on top of the active data " +
+		"set, per catalog (`storage.timeTravelSizeLimitBytes`). Negative means no limit.")
+	@ExportMetric(metricType = MetricType.GAUGE)
+	private final long timeTravelSizeLimitBytes;
+
 	@Label("Maximum number of threads to handle read-only requests")
 	@Description("Configured threshold for the maximum number of threads to handle read-only requests (`server.requestThreadPool.maxThreadCount`).")
 	@ExportMetric(metricType = MetricType.GAUGE)
@@ -218,10 +224,11 @@ public class EvitaStatisticsEvent extends AbstractSystemCatalogEvent {
 		this.trafficRecordingEnabled = serverConfiguration.trafficRecording().enabled() ? 1 : 0;
 
 		final StorageOptions storageConfiguration = configuration.storage();
-		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandles();
+		this.readOnlyHandlesLimit = storageConfiguration.maxOpenedReadHandlesOrDefault();
 		this.compactionMinimalActiveRecordSharePercent = Math.toIntExact(Math.round(storageConfiguration.minimalActiveRecordShare() * 100.0));
 		this.compactionFileSizeThresholdBytes = storageConfiguration.fileSizeCompactionThresholdBytes();
 		this.timeTravelEnabled = storageConfiguration.timeTravelEnabled() ? 1 : 0;
+		this.timeTravelSizeLimitBytes = storageConfiguration.timeTravelSizeLimitBytes();
 
 		final TransactionOptions transactionConfiguration = configuration.transaction();
 		this.transactionMemoryBufferLimitSizeBytes = transactionConfiguration.transactionMemoryBufferLimitSizeBytes();

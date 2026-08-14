@@ -1,11 +1,11 @@
 ---
 title: GraphQL
-perex: GraphQL je open-source jazyk pro dotazování a manipulaci s daty pro API, který poskytuje výkonnou alternativu k REST tím, že umožňuje klientům přesně specifikovat, jaká data potřebují, a tím snižuje nadměrné nebo nedostatečné načítání dat. Vyvinutý společností Facebook v roce 2012 a uvolněný jako open-source v roce 2015 umožňuje deklarativní získávání dat, kdy si klient může vyžádat přesně to, co potřebuje, a dostane právě to.
+perex: GraphQL je open-source jazyk pro dotazování a manipulaci s daty pro API, který představuje výkonnou alternativu k REST tím, že umožňuje klientům přesně specifikovat, jaká data potřebují, a tím snižuje nadměrné nebo nedostatečné načítání dat. Vyvinutý společností Facebook v roce 2012 a open-sourcovaný v roce 2015 umožňuje deklarativní získávání dat, kde si klient může vyžádat přesně to, co potřebuje, a dostane právě to.
 date: '21.3.2023'
 author: Lukáš Hornych
 preferredLang: graphql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: d8486a0e6853c4657c60a4fa9cb28f5179b91fb5
 ---
 <LS to="e,j,c,r">
 Tato kapitola popisuje GraphQL protokol pro evitaDB a nedává smysl pro jiné jazyky. Pokud vás zajímají

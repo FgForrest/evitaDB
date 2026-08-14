@@ -1453,8 +1453,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
 			pastMoment, catalogVersion, includingWAL,
-			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
-			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
+			// a backup holds a version against reclamation, but it is not a session at that version - registering it
+			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
+			ccControl::pinCatalogVersion
 		);
 	}
 
@@ -1471,8 +1472,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.fullBackup(
-			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
-			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
+			// a backup holds a version against reclamation, but it is not a session at that version - registering it
+			// as one makes it a phantom read-write consumer of the oldest retained version for the whole copy
+			ccControl::pinCatalogVersion
 		);
 	}
 

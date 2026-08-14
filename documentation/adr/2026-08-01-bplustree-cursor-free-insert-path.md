@@ -1,7 +1,7 @@
 ---
 title: Answer the B+ tree insert-boundary asserts from the descent instead of a captured cursor path
 date: 2026-08-01
-updated: 2026-08-01 10:45
+updated: 2026-08-05 16:00
 status: accepted
 kind: optimization
 issues: [1333]
@@ -9,7 +9,7 @@ prs: [1356]
 areas: [evita_engine/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-08-05-schema-handling-write-path-optimizations]
 ---
 
 # Free the B+ tree insert and read paths from the cursor path

@@ -1,12 +1,12 @@
 ---
 title: Porovnatelné filtrování
 date: '29.5.2023'
-perex: Všechny datové typy atributů v evitaDB mají vzájemně porovnatelné hodnoty – vždy je možné jednoznačně určit, zda jsou dvě hodnoty stejné, jedna menší než druhá, nebo naopak. Tato skutečnost je základem základní sady filtračních omezení, která běžně používáte při vytváření dotazů.
+perex: Všechny datové typy atributů v evitaDB mají vzájemně porovnatelné hodnoty – vždy je možné jednoznačně určit, zda jsou dvě hodnoty stejné, jedna je menší než druhá, nebo naopak. Tato skutečnost je základem základní sady filtračních omezení, která běžně používáte při vytváření dotazů.
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 translated: 'true'
-commit: '77da5b36c170430534ee4d9a4a2903da4de68555'
+commit: ecc9ddd4a929f8020bca123be8bf4b2ed9b635b7
 ---
 <Note type="info">
 V souvislosti s omezeními popsanými v této kapitole by vás mohly zajímat obecná pravidla pro práci s datovými typy a poli, která jsou popsána v [základech dotazovacího jazyka](../basics.md#obecná-pravidla-dotazů).

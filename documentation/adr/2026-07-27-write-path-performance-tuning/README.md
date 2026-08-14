@@ -9,7 +9,7 @@ prs: [1317, 1298]
 areas: [evita_engine/core/transaction, evita_engine/index, evita_engine/core/buffer, evita_engine/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-08-10-catalog-and-collection-statistics]
+relates: [2026-07-10-more-optimized-data-structures, 2026-08-05-schema-handling-write-path-optimizations, 2026-08-10-catalog-and-collection-statistics]
 ---
 
 # Write-path performance tuning — commit-merge latency and allocation

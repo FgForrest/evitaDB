@@ -32,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -2413,6 +2414,185 @@ class EvitaDataTypesTest {
 
 			assertEquals("CATALOG", result);
 		}
+	}
+
+	@Nested
+	@DisplayName("Conversion to supported stored type")
+	class ConversionToSupportedStoredType {
+
+		@Test
+		@DisplayName(
+			"should keep LocalDateTime as"
+			+ " LocalDateTime"
+		)
+		void shouldKeepLocalDateTime() {
+			// the query-path variant rewrites this
+			// value to an OffsetDateTime at UTC; a
+			// value on its way into storage must
+			// keep the type its schema declares
+			final LocalDateTime input =
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				);
+
+			assertSame(
+				input,
+				EvitaDataTypes.toSupportedStoredType(
+					input
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep a LocalDateTime array"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateTimeArray() {
+			final LocalDateTime[] input = {
+				LocalDateTime.of(
+					2021, 6, 15, 10, 30
+				),
+				LocalDateTime.of(
+					2021, 6, 16, 11, 45
+				)
+			};
+
+			assertSame(
+				input,
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still normalize Float to"
+			+ " BigDecimal"
+		)
+		void shouldStillNormalizeFloat() {
+			assertEquals(
+				new BigDecimal("3.14"),
+				EvitaDataTypes.toSupportedStoredType(
+					3.14f
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still convert non-@SupportedEnum"
+			+ " to String"
+		)
+		void shouldStillConvertNonSupportedEnum() {
+			assertEquals(
+				"CATALOG",
+				EvitaDataTypes.toSupportedStoredType(
+					ClassifierType.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should still reject an unsupported type"
+		)
+		void shouldStillRejectUnsupportedType() {
+			assertThrows(
+				UnsupportedDataTypeException.class,
+				() -> EvitaDataTypes
+					.toSupportedStoredType(
+						new HashMap<String, String>()
+					)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt array from the"
+			+ " first non-null element"
+		)
+		void shouldTypeRebuiltArrayFromFirstNonNullElement() {
+			// a leading `null` says nothing about what the
+			// remaining elements normalize to - deriving the
+			// component type from element zero alone rebuilt
+			// a Float[] and then threw on Array.set
+			final Float[] input = {null, 1.5f};
+
+			final Serializable result =
+				EvitaDataTypes
+					.toSupportedStoredTypeOrItsArray(
+						input
+					);
+
+			assertInstanceOf(
+				BigDecimal[].class, result
+			);
+			final BigDecimal[] normalized =
+				(BigDecimal[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				new BigDecimal("1.5"), normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should type a rebuilt query-path array from"
+			+ " the first non-null element"
+		)
+		void shouldTypeRebuiltQueryArrayFromFirstNonNull() {
+			// same hazard on the query path, where a
+			// LocalDateTime element still normalizes away
+			final LocalDateTime[] input = {
+				null,
+				LocalDateTime.of(2026, 5, 20, 12, 19, 26)
+			};
+
+			final Serializable result =
+				EvitaDataTypes.toSupportedTypeOrItsArray(
+					input
+				);
+
+			assertInstanceOf(
+				OffsetDateTime[].class, result
+			);
+			final OffsetDateTime[] normalized =
+				(OffsetDateTime[]) result;
+			assertNull(normalized[0]);
+			assertEquals(
+				input[1].atOffset(ZoneOffset.UTC),
+				normalized[1]
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should keep LocalDate and LocalTime"
+			+ " untouched"
+		)
+		void shouldKeepLocalDateAndLocalTime() {
+			final LocalDate date =
+				LocalDate.of(2021, 6, 15);
+			final LocalTime time =
+				LocalTime.of(10, 30);
+
+			assertSame(
+				date,
+				EvitaDataTypes.toSupportedStoredType(
+					date
+				)
+			);
+			assertSame(
+				time,
+				EvitaDataTypes.toSupportedStoredType(
+					time
+				)
+			);
+		}
+
 	}
 
 	@Nested

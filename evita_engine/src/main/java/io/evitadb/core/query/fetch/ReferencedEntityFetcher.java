@@ -150,19 +150,37 @@ import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.A
 import static java.util.Optional.ofNullable;
 
 /**
- * The single implementation of {@link ReferenceFetcher} interface that needs to be declared in public API module
- * because it's required by {@link Entity} and {@link EntityDecorator} that are preset there.
+ * The engine-side implementation of the {@link ReferenceFetcher} interface. It is the interface - not this class -
+ * that has to live in the public API module, because {@link Entity} and {@link EntityDecorator} declared there refer
+ * to it; this class is its only implementation that actually fetches anything (the other one being the no-op
+ * {@link ReferenceFetcher#NO_IMPLEMENTATION}).
  *
  * The implementation fetches all required referenced entities in bulk in its container for all entity primary keys
  * that are required to be fetched from the persistent storage. The implementation is efficient in the way that it
  * eliminates multiple round-trips and fetches only entities of the filtered references accordingly to the requested
  * specs.
  *
+ * Expected lifecycle - one of the `initReferenceIndex` methods must run first, prefetching the parents and the
+ * referenced entity (and group) bodies into internal indexes. Only afterwards may the accessors
+ * ({@link #getEntityFetcher(ReferenceSchemaContract)}, {@link #getEntityGroupFetcher(ReferenceSchemaContract)},
+ * {@link #getEntityComparator(ReferenceSchemaContract)}, {@link #getEntityFilter(ReferenceSchemaContract)},
+ * {@link #getEnvelopingEntityRequest()}) be called - they fail with {@link GenericEvitaInternalError} otherwise.
+ * The instance carries mutable state produced by that init call and is not safe for concurrent use.
+ *
+ * Nested references are handled recursively - {@link #createSubReferenceFetcher} spawns another instance of this
+ * class for the referenced collection, so a deep `referenceContent` requirement produces a chain of fetchers, each
+ * of them still fetching its own level in bulk.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
-	 * Comparator that allows to sort reduced entity indexes by their discriminator.
+	 * Orders reduced entity indexes by their {@link RepresentativeReferenceKey} discriminator. The ordering is not
+	 * cosmetic - {@link #getFilteredReferencedEntityIds} depends on it: sorting brings all indexes sharing the same
+	 * discriminator next to each other, which allows their partial results to be OR-ed together in a single streaming
+	 * pass instead of being accumulated in a map (the same discriminator may be backed by more than one index, e.g.
+	 * one per examined scope). An index carrying no discriminator fails fast here, since it could never take part in
+	 * that aggregation.
 	 */
 	private static final Comparator<AbstractReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
 		rede -> {
@@ -204,10 +222,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nonnull private final ChunkTransformerAccessor chunkTransformerAccessor;
 	/**
-	 * Index of prefetched entities assembled by {@link #initReferenceIndex} via {@link #prefetchEntities} and quickly
-	 * available when the entity is requested by the {@link EntityDecorator} constructor. The key is
-	 * {@link ReferenceSchemaContract#getName()}, the value is the information containing the indexes of fetched
-	 * entities and their groups, information about their ordering and validity index.
+	 * Fetcher over the entities prefetched by {@link #initReferenceIndex} via {@link #prefetchEntities}, quickly
+	 * available when the entity is requested by the {@link EntityDecorator} constructor. It wraps per-reference
+	 * {@link PrefetchedEntities} keyed by {@link ReferenceSchemaContract#getName()} - each of them holding the indexes
+	 * of fetched entities and their groups, information about their ordering and the validity index.
+	 *
+	 * Stays `null` until one of the `initReferenceIndex` methods runs - all accessors therefore reach it through
+	 * {@link #requireFetchedEntities()}, which turns premature access into a comprehensible error.
 	 *
 	 * @see PrefetchedEntities
 	 */
@@ -264,16 +285,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Utility function that fetches and returns filtered map of {@link SealedEntity} indexed by their primary key
-	 * according to `entityPrimaryKeys` argument. The method is reused both for fetching the referenced entities and
-	 * their groups.
+	 * according to `referencedRecordIds` argument. The method is reused both for fetching the referenced entities and
+	 * their groups - hence `entityType` is passed separately from `referenceSchema` (for groups it is the referenced
+	 * group type, not the referenced entity type).
 	 *
 	 * @param executionContext        query context that will be used for fetching
 	 * @param referenceSchema         the schema of the reference ({@link ReferenceSchemaContract#getName()})
 	 * @param entityType              represents the entity type ({@link EntitySchemaContract#getName()}) that should be loaded
 	 * @param existingEntityRetriever lambda allowing to reuse already fetched entities from previous decorator instance
+	 * @param entityFilterBy          reference level `filterBy` - only its entity level part is propagated into
+	 *                                the derived fetch request, see {@link #unwrapFilterBy(FilterBy)}
+	 * @param entityOrderBy           reference level `orderBy` - only its entity level part is propagated into
+	 *                                the derived fetch request, see {@link #unwrapOrderBy(OrderBy)}
 	 * @param entityFetch             contains the "richness" requirements for the fetched entities
 	 * @param referencedRecordIds     contains array of filtered referenced record ids to fetch
-	 * @return filtered map of {@link SealedEntity} indexed by their primary key according to `entityPrimaryKeys` argument
+	 * @return filtered map of {@link SealedEntity} indexed by their primary key according to `referencedRecordIds`
+	 * argument; empty map when there is nothing to fetch
 	 */
 	@Nonnull
 	private static Map<Integer, ServerEntityDecorator> fetchReferencedEntities(
@@ -313,9 +340,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * and {@link EntityLocaleEquals} constraints. {@link GroupHaving} constraints are intentionally
 	 * excluded because they are handled separately via group-level indexes.
 	 *
-	 * @param entityFilterBy the {@code FilterBy} object potentially containing entity-level constraints
-	 * @return a new {@code FilterBy} instance with the extracted entity-level constraints,
-	 * or null if the {@code entityFilterBy} is null or contains no matching constraints
+	 * The lookup does not descend into {@link SeparateEntityScopeContainer} constraints - those delimit a nested
+	 * scope whose constraints must not leak into the enclosing entity level filter.
+	 *
+	 * @param entityFilterBy the `FilterBy` object potentially containing entity-level constraints
+	 * @return a new `FilterBy` instance holding the extracted entity-level constraints; `null` is returned only when
+	 * `entityFilterBy` itself is `null` - a filter that contains no matching constraints still yields a container
 	 */
 	@Nullable
 	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy) {
@@ -346,12 +376,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Unwraps the provided {@code OrderBy} object by extracting its relevant constraints and
-	 * constructing a new {@code OrderBy} instance based on its children.
+	 * Unwraps the provided `OrderBy` object to extract entity-level ordering. It picks up the children of
+	 * {@link EntityProperty} as well as standalone {@link EntityPrimaryKeyExact}, {@link EntityPrimaryKeyNatural}
+	 * and {@link EntityPrimaryKeyInFilter} constraints, and does not descend into a nested {@link EntityProperty}
+	 * container - its children already belong to the level being unwrapped. Everything else (typically ordering by
+	 * reference attributes) is deliberately dropped here, because it is honoured by the reference comparator built
+	 * from the very same `orderBy` in {@link #createPrefetchedEntities}.
 	 *
-	 * @param entityOrderBy the {@code OrderBy} object to be unwrapped; may be null
-	 * @return a new {@code OrderBy} instance derived from the provided {@code OrderBy},
-	 * or null if the input is null or its constraints do not meet the expected criteria
+	 * @param entityOrderBy the `OrderBy` object to be unwrapped; may be null
+	 * @return a new `OrderBy` instance holding the extracted entity-level constraints; `null` is returned only when
+	 * `entityOrderBy` itself is `null` - an ordering that contains no matching constraints still yields a container
 	 */
 	@Nullable
 	private static OrderBy unwrapOrderBy(@Nullable OrderBy entityOrderBy) {
@@ -436,7 +470,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * {@link #fetchReferenceBodies} and {@link #fetchParentBodies} which differ only in hierarchy content,
 	 * query phase, and telemetry message.
 	 *
-	 * @param referenceName           the reference name for telemetry logging, or null for parent fetching
+	 * Telemetry - the `pushStep` and its matching `popStep` must both be issued on the `executionContext`, never on
+	 * the `nestedQueryContext` created a few lines above. Both are in scope here, and popping the wrong one detaches
+	 * the step from the enclosing {@link QueryPhase#FETCHING_REFERENCE_BODIES} subtree, which flattens the telemetry
+	 * tree and skews every parent timing - a regression that already happened once. The `popStep` lives in a `finally`
+	 * block so that a failed fetch cannot leave an unbalanced step behind either.
+	 *
+	 * The step label is handed over as a lazy supplier on purpose: this method runs once per reference name per page
+	 * of results, so the label must never be assembled unless telemetry is actually being collected.
+	 *
+	 * @param referenceName           the reference name used to build the (lazily evaluated) telemetry label, or
+	 *                                null when parents are fetched and no label is needed
 	 * @param entityIds               the ids of entities to fetch
 	 * @param fetchRequest            request that describes the requested richness of the fetched entities
 	 * @param executionContext        current query context
@@ -475,7 +519,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		try {
 			if (referenceName != null) {
-				executionContext.pushStep(queryPhase, "Reference name: `" + referenceName + "`");
+				// this runs per reference name per page, so the label must never be built unless it is collected
+				executionContext.pushStep(queryPhase, () -> "Reference name: `" + referenceName + "`");
 			} else {
 				executionContext.pushStep(queryPhase);
 			}
@@ -494,6 +539,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * by `fetchRequest`. Entities are fetched from `entityCollection` and limited / enriched using `referenceFetcher`
 	 * and `existingEntityRetriever`.
 	 *
+	 * The `existingEntityRetriever` is consulted first for every id - when the same entity is only being enriched, its
+	 * body is already at hand and no storage read is issued. Whatever ends up in the index (freshly read or reused) is
+	 * finally passed through {@link EntityCollection#limitAndFetchExistingEntities} so that every entity carries
+	 * exactly the requested richness, no more and no less.
+	 *
+	 * @param entityPks               primary keys of the entities to fetch; repeated ids are fetched only once
+	 * @param fetchRequest            request that describes the requested richness of the fetched entities
+	 * @param queryContext            planning context of the collection the entities are fetched from
+	 * @param entityCollection        the collection the entities are fetched from
+	 * @param referenceFetcher        fetcher resolving the references of the fetched entities (i.e. one level deeper)
+	 * @param existingEntityRetriever lambda providing access to potentially already prefetched entities (when only
+	 *                                enrichment occurs)
 	 * @return rich entity forms indexed by their {@link EntityContract#getPrimaryKey()}
 	 */
 	@Nonnull
@@ -575,16 +632,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Returns array of all referenced entity ids that are referenced by any of passed `entityPrimaryKeys`. Initializes
-	 * starting validity relations in `validityMapping` where each entity sees all its referenced entities. This initial
-	 * visibility setup will be refined during fetch process.
+	 * Returns all entity ids referenced by any of the passed `entityPrimaryKeys`, kept apart per {@link Scope} of the
+	 * owner entity. Initializes starting validity relations in `validityMapping` where each entity sees all its
+	 * referenced entities. This initial visibility setup will be refined during fetch process.
 	 *
-	 * @param entityPrimaryKeys        the set of entity ids whose references should be looked up
+	 * The per-scope split is not decorative - references are indexed only within a single scope, so the caller has to
+	 * be able to tell which referenced ids originate from owner entities living in a scope that is not indexed for
+	 * the reference in question.
+	 *
+	 * @param entityPrimaryKeys        the entity ids whose references should be looked up, indexed by the scope
+	 *                                 their owner entities live in
 	 * @param referencedEntityResolver the lambda that will retrieve the data from the index (we need either referenced
 	 *                                 entities or their groups)
 	 * @param validityMapping          contains the DTO tracking the reachability of the referenced entities by owner
 	 *                                 entities (see {@link ValidEntityToReferenceMapping} for more details)
-	 * @return non-filtered complete array of referenced entity ids
+	 * @return non-filtered complete set of referenced entity ids, per scope of their owner entities
 	 */
 	@Nonnull
 	private static Map<Scope, Bitmap> getAllReferencedEntityIds(
@@ -653,6 +715,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *                                            constraints; may be {@code null} when group filtering is
 	 *                                            not applicable
 	 * @return filtered bitmap of referenced entity ids
+	 * @throws EntityNotManagedException when `filterBy` reaches into the referenced entity body (`entityHaving`)
+	 *                                   while the referenced entity type is not managed by evitaDB
 	 */
 	@Nonnull
 	private static Bitmap getFilteredReferencedEntityIds(
@@ -1039,23 +1103,27 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Limits the referenced entity IDs to include only those that exist in the provided entity collection
-	 * and scopes, optionally updating the validity mapping as necessary.
+	 * Limits the referenced entity ids to those that really exist in the passed entity collection, evaluated
+	 * separately for each examined scope.
 	 *
-	 * @param allReferencedEntityIdsIncludingNonExisting A {@link Bitmap} containing IDs of all referenced
-	 *                                                   entities, including ones that may not exist.
-	 * @param entityCollection                           The {@link EntityCollection} containing indexes used to determine which
-	 *                                                   entities exist. If null, no filtering is applied and an empty bitmap is returned.
-	 * @param examinedScopes                             A set of {@link Scope} objects defining the scopes within which to check for
-	 *                                                   existing entities.
-	 * @param requiredLocale                             when not {@code null} and the target schema is localized, entities that
-	 *                                                   have no content in this particular locale are excluded as well - they
-	 *                                                   would otherwise be returned without a body, which defeats the purpose of
-	 *                                                   {@link ManagedReferencesBehaviour#EXISTING}. This mirrors the gate applied
-	 *                                                   later by {@code EntityCollection#fetchEntityDecorator}, which exempts
-	 *                                                   non-localized schemas from the check altogether.
-	 * @return A {@link Bitmap} containing the IDs of entities that exist in the specified scopes of
-	 * the entity collection. If no entities exist for the given parameters, an empty bitmap is returned.
+	 * @param allReferencedEntityIdsIncludingNonExisting all referenced entity ids, including ones that
+	 *                                                  may point to entities that do not exist
+	 * @param entityCollection                          collection whose global indexes decide what exists;
+	 *                                                  when `null` the target collection is absent altogether
+	 *                                                  and an empty map is returned - which excludes every
+	 *                                                  referenced id, it does not pass them through
+	 * @param examinedScopes                            scopes in which the existence is checked; a scope with
+	 *                                                  no global index is left out of the result entirely
+	 * @param requiredLocale                            when not `null` and the target schema is localized,
+	 *                                                  entities that have no content in this particular locale
+	 *                                                  are excluded as well - they would otherwise be returned
+	 *                                                  without a body, which defeats the purpose of
+	 *                                                  {@link ManagedReferencesBehaviour#EXISTING}. This mirrors
+	 *                                                  the gate applied later by
+	 *                                                  `EntityCollection#fetchEntityDecorator`, which exempts
+	 *                                                  non-localized schemas from the check altogether
+	 * @return ids of entities that exist, per examined scope; a scope in which nothing survives maps to an empty
+	 * bitmap, a scope without a global index is missing from the map
 	 */
 	@Nonnull
 	private static Map<Scope, Bitmap> limitToExistingEntities(
@@ -1110,9 +1178,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * then resolved by {@link EvitaRequest}'s derived-request constructor and finally consulted by the entity collection
 	 * through {@link EvitaRequest#getRequiredOrImplicitLocale()}.
 	 *
-	 * @param referenceFilterBy the reference-level {@code filterBy} (may contain its own {@link EntityLocaleEquals})
+	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
+	 * them makes the constraint finder throw `MoreThanSingleResultException`.
+	 *
+	 * @param referenceFilterBy the reference-level `filterBy` (may contain its own {@link EntityLocaleEquals})
 	 * @param executionContext  the current query execution context
-	 * @return the resolved locale, or {@code null} if none is required
+	 * @return the resolved locale, or `null` if none is required
 	 */
 	@Nullable
 	private static Locale resolveRequiredLocale(
@@ -1135,7 +1206,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *
 	 * In other words it combines "current" scopes with the scopes that are explicitly requested in the filter or
 	 * nearest `entityHaving` constraint. Currently it doesn't support more complex scenarios with multiple
-	 * `EntityScope` constraints - in that case the error is thrown (but it could be handled if some time is invested).
+	 * `EntityScope` constraints - in that case the constraint finder throws `MoreThanSingleResultException` (but it
+	 * could be handled if some time is invested).
 	 *
 	 * @param filterBy the filter criteria that may contain constraints influencing the scopes to search
 	 * @param scopes   the initial set of scopes to be considered for examination
@@ -1203,6 +1275,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * around context preparation.
 	 *
 	 * @param index                       to be used for filter by transformation
+	 * @param entitySchema                schema of the entity owning the reference - it delimits the attribute schema
+	 *                                    lookup performed while the `filterBy` is being translated
 	 * @param referenceSchema             related {@link ReferenceSchemaContract}
 	 * @param filterByVisitor             visitor to be used for filter by analysis
 	 * @param filterBy                    filtering constraint to be analyzed
@@ -1432,12 +1506,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Groups a list of entities by their scope and returns a map where each scope
-	 * is associated with an array of primary keys of the entities belonging to that scope.
+	 * Groups a list of entities by their scope and returns a map where each scope is associated with an array of
+	 * primary keys of the entities belonging to that scope. Primary keys keep the order of the input list and
+	 * duplicates are not removed.
 	 *
-	 * @param entities the list of entities to be processed, where each entity must extend SealedEntity. Must not be null.
-	 * @return a map where the keys are scopes and the values are arrays of primary keys associated with each scope.
-	 * Each scope only includes entities from the input list.
+	 * @param entities the list of entities to be processed
+	 * @param <T>      the concrete {@link SealedEntity} implementation of the processed entities
+	 * @return primary keys of the passed entities grouped by the scope they live in; a scope not present among the
+	 * input entities is missing from the map
 	 */
 	@Nonnull
 	private static <T extends SealedEntity> Map<Scope, int[]> getPrimaryKeysIndexedByScope(@Nonnull List<T> entities) {
@@ -1938,7 +2014,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Constructor that is used to further enrich already rich entity.
+	 * Constructor used when an already fetched entity is being further enriched. Bodies the passed `entity` still
+	 * carries from its previous fetch are reused instead of being read from the storage again - see
+	 * {@link ExistingEntityDecoratorProvider}.
+	 *
+	 * @param hierarchyContent          requirement for fetching the parents, `null` when parents are not requested
+	 * @param referenceFetch            requirements for fetching the references, keyed by reference name
+	 * @param namedReferenceFetch       requirements for fetching named reference sets, keyed by
+	 *                                  {@link ReferenceContentKey}
+	 * @param defaultRequirementContext requirements applied to references with no explicit entry in `referenceFetch`,
+	 *                                  `null` when there is no such default
+	 * @param executionContext          context of the query this fetch takes part in
+	 * @param entity                    the entity being enriched - it has to be an {@link EntityDecorator}, otherwise
+	 *                                  the constructor fails with a {@link ClassCastException}
+	 * @param chunkTransformerAccessor  accessor providing {@link ChunkTransformer} implementations for particular
+	 *                                  references
 	 */
 	public ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
@@ -1959,7 +2049,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Constructor that is used for initial entity construction.
+	 * Constructor used for the initial entity construction, when nothing has been fetched yet - every referenced body
+	 * has to be read from the storage (see {@link EmptyEntityProvider}).
+	 *
+	 * @param hierarchyContent          requirement for fetching the parents, `null` when parents are not requested
+	 * @param referenceFetch            requirements for fetching the references, keyed by reference name
+	 * @param namedReferenceFetch       requirements for fetching named reference sets, keyed by
+	 *                                  {@link ReferenceContentKey}
+	 * @param defaultRequirementContext requirements applied to references with no explicit entry in `referenceFetch`,
+	 *                                  `null` when there is no such default
+	 * @param executionContext          context of the query this fetch takes part in
+	 * @param chunkTransformerAccessor  accessor providing {@link ChunkTransformer} implementations for particular
+	 *                                  references
 	 */
 	public ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
@@ -1978,7 +2079,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Internal constructor.
+	 * Internal constructor both public ones delegate to - they differ only in the way already fetched bodies are
+	 * looked up. See them for the description of the remaining parameters.
+	 *
+	 * @param existingEntityRetriever provider of entity bodies fetched during a previous fetch of the same entity;
+	 *                                {@link EmptyEntityProvider#INSTANCE} when there is no such history
 	 */
 	private ReferencedEntityFetcher(
 		@Nullable HierarchyContent hierarchyContent,
@@ -1998,6 +2103,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		this.chunkTransformerAccessor = chunkTransformerAccessor;
 	}
 
+	/**
+	 * Single-entity variant of the prefetch. It first makes sure the entity really carries its reference container
+	 * (it may have arrived from the cache without it), and then prefetches the parents and the referenced bodies for
+	 * this one entity.
+	 *
+	 * Because only a single entity is processed, the `entityPk` handed to the resolver lambdas can never be anything
+	 * else than the primary key of this very entity - the lambdas therefore ignore it and read the entity directly.
+	 *
+	 * Unlike the bulk variant this path does not open its own {@link QueryPhase#FETCHING_REFERENCE_BODIES} telemetry
+	 * step; the nested {@link QueryPhase#FETCHING_REFERENCES} and {@link QueryPhase#FETCHING_PARENTS} steps of the
+	 * individual fetches are still recorded.
+	 *
+	 * @param entity           the entity whose references should be prefetched
+	 * @param entityCollection collection the entity belongs to, used to lazily fetch the missing reference container
+	 * @return the entity with its references guaranteed to be fetched - possibly a different (richer) instance than
+	 * the one passed in
+	 */
 	@Nonnull
 	@Override
 	public <T extends SealedEntity> T initReferenceIndex(
@@ -2070,6 +2192,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return richEnoughEntity;
 	}
 
+	/**
+	 * Bulk variant of the prefetch and the main entry point for a whole page of results. All entities are first made
+	 * sure to carry their reference containers, then the parents and all the referenced bodies are fetched in bulk -
+	 * once per reference instead of once per entity, which is the entire point of this class.
+	 *
+	 * The prefetch is wrapped in the {@link QueryPhase#FETCHING_REFERENCE_BODIES} telemetry step, popped in a
+	 * `finally` block so that a failing fetch cannot unbalance the step stack. The per-reference storage reads appear
+	 * nested below it as {@link QueryPhase#FETCHING_REFERENCES} children.
+	 *
+	 * @param entities         the entities whose references should be prefetched
+	 * @param entityCollection collection the entities belong to, used to lazily fetch missing reference containers
+	 * @return the very same list instance that was passed in - the prefetched data stay in this fetcher and are
+	 * handed over to the {@link EntityDecorator} constructors afterwards
+	 */
 	@Nonnull
 	@Override
 	public <T extends SealedEntity> List<T> initReferenceIndex(
@@ -2152,6 +2288,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			.orElse(null);
 	}
 
+	/**
+	 * Returns the request that has to be used to fetch the top level (enveloping) entity - it may have been widened
+	 * with requirements the reference comparators need in order to sort. Available only once one of the
+	 * `initReferenceIndex` methods has run; premature access ends with {@link GenericEvitaInternalError}.
+	 */
 	@Nonnull
 	@Override
 	public EvitaRequest getEnvelopingEntityRequest() {
@@ -2162,24 +2303,45 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return this.envelopingEntityRequest;
 	}
 
+	/**
+	 * Provides access to the referenced entity bodies prefetched for the passed reference. When the reference was not
+	 * prefetched at all, a no-op function resolving every primary key to `null` is returned instead of failing.
+	 * Requires a preceding `initReferenceIndex` call - fails with {@link GenericEvitaInternalError} otherwise.
+	 */
 	@Nonnull
 	@Override
 	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return requireFetchedEntities().getEntityFetcher(referenceSchema);
 	}
 
+	/**
+	 * Provides access to the group entity bodies prefetched for the passed reference. When the reference was not
+	 * prefetched at all, a no-op function resolving every primary key to `null` is returned instead of failing.
+	 * Requires a preceding `initReferenceIndex` call - fails with {@link GenericEvitaInternalError} otherwise.
+	 */
 	@Nonnull
 	@Override
 	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return requireFetchedEntities().getEntityGroupFetcher(referenceSchema);
 	}
 
+	/**
+	 * Returns the comparator ordering the references of the passed reference schema, or `null` when the reference was
+	 * not prefetched at all or no ordering was requested for it. Requires a preceding `initReferenceIndex` call -
+	 * fails with {@link GenericEvitaInternalError} otherwise.
+	 */
 	@Nullable
 	@Override
 	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return requireFetchedEntities().getEntityComparator(referenceSchema);
 	}
 
+	/**
+	 * Returns the predicate deciding which references of the passed reference schema remain visible for a particular
+	 * owner entity - it is backed by the {@link ValidEntityToReferenceMapping} built during the prefetch. Returns
+	 * `null` when the reference was not prefetched at all or when nothing had to be filtered out. Requires
+	 * a preceding `initReferenceIndex` call - fails with {@link GenericEvitaInternalError} otherwise.
+	 */
 	@Nullable
 	@Override
 	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(
@@ -2188,6 +2350,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return requireFetchedEntities().getEntityFilter(referenceSchema);
 	}
 
+	/**
+	 * Returns the `attributeContent` requirement that has to be applied when the references of the passed reference
+	 * schema are read. It is gathered during the prefetch, both from the reference's own `attributeContent`
+	 * requirement and from whatever the ordering turned out to need, so that all these attributes come along with the
+	 * references in a single read. Returns `null` when nothing extra has to be prefetched. Requires a preceding
+	 * `initReferenceIndex` call - fails with {@link GenericEvitaInternalError} otherwise.
+	 */
 	@Nullable
 	@Override
 	public AttributeContent getAttributeContentToPrefetch(
@@ -2196,6 +2365,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		return requireFetchedEntities().getAttributeContentToPrefetch(referenceSchema);
 	}
 
+	/**
+	 * Wraps the passed references into the {@link DataChunk} requested for the given reference name (page / strip).
+	 * The `entity` argument is part of the {@link ReferenceFetcher} contract but is not consulted here - the chunking
+	 * is driven purely by the per-reference {@link ChunkTransformer}. The return value of
+	 * {@link #requireFetchedEntities()} is not used either; the call only asserts that the prefetch has already run.
+	 */
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> createChunk(
@@ -2206,12 +2381,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Creates and returns a ReferenceSetFetcher based on the specified reference content instance name.
+	 * Returns the {@link ReferenceSetFetcher} that the prefetch built for the named reference set of the given
+	 * instance name. Named reference sets are separate views over the same source references, each with its own
+	 * filtering, ordering and chunking - which is exactly why they are kept aside from {@link #fetchedEntities}.
 	 *
-	 * @param instanceName the name of the instance to fetch the ReferenceSetFetcher for, must not be null
-	 * @return the ReferenceSetFetcher associated with the given instance name, never null
+	 * @param instanceName {@link ReferenceContentKey#instanceName()} of the named reference set - unique among the
+	 *                     named references of a single entity type
+	 * @return the fetcher associated with the given instance name, never null
 	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method
-	 * @throws NullPointerException      if no ReferenceSetFetcher is found for the given instance name
+	 * @throws NullPointerException      if no fetcher is registered for the given instance name
 	 */
 	@Nonnull
 	public ReferenceSetFetcher getMinimalReferenceFetcher(@Nonnull String instanceName) {
@@ -2259,6 +2437,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param groupToReferencedEntityIdTranslator the function that translates group ids to referenced entity ids
 	 * @param referencedEntityToGroupIdTranslator the function that translates referenced entity ids to group ids
 	 * @param entityPrimaryKey                    the array of top entity primary keys for which the references are being fetched
+	 * @return the request that should be used to fetch the enveloping (top level) entity - the original request when
+	 * nothing extra had to be collected, or its copy widened by the requirements the comparators need
 	 */
 	@Nonnull
 	private EvitaRequest prefetchEntities(
@@ -2359,7 +2539,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param scopes            the set of scopes within which to look up hierarchy indexes
 	 * @param parentIdsSupplier the function returning the array of parent entity primary keys to prefetch for a given
 	 *                          scope
-	 * @param parentCount       the expected number of parent entities (used for initial capacity of internal maps)
+	 * @param parentCount       number of entities being processed, used only as the initial capacity hint of the
+	 *                          internal parent index - the number of parents actually discovered may differ in
+	 *                          either direction, since the traversal walks all the way to the root and shared
+	 *                          ancestors are registered only once
 	 */
 	private void prefetchParents(
 		@Nullable HierarchyContent hierarchyContent,

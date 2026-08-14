@@ -25,6 +25,8 @@ package io.evitadb.core.exception;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.nio.file.Path;
@@ -37,10 +39,24 @@ import java.nio.file.Path;
 public class CatalogInactiveException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 3045990643597839065L;
 
-	public CatalogInactiveException(@Nonnull String catalogName, @Nonnull Path absolutePath) {
+	/**
+	 * Reports an attempt to work with a catalog that is not loaded into memory.
+	 *
+	 * The folder token and the storage root are carried separately and never joined — printing them side by
+	 * side lets an operator locate the data while keeping the engine clear of deriving a catalog's directory.
+	 *
+	 * @param catalogName name of the catalog that cannot be used
+	 * @param folderId    token naming the folder the catalog's data lives in
+	 * @param storageRoot configured root directory holding all catalog folders
+	 */
+	public CatalogInactiveException(
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull Path storageRoot
+	) {
 		super(
-			"The catalog on a path `" + absolutePath +
-				"` was not loaded to memory. " +
+			"The catalog in folder `" + folderId + "` (storage root: `" + storageRoot +
+				"`) was not loaded to memory. " +
 				"The catalog `" + catalogName + "` cannot be used - you need to load it first.",
 			"The catalog `" + catalogName + "` cannot be used because it is not loaded to memory. " +
 				"You need to load the catalog first."

@@ -66,17 +66,18 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.engine.CatalogFolderReservation;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -92,9 +93,9 @@ import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.PortManager;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -103,6 +104,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -144,14 +146,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -1450,9 +1451,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1491,9 +1491,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldRenameEntityCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1530,9 +1529,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1560,9 +1558,8 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -1621,9 +1618,8 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
-		final File theCollectionFile = getEvitaTestDirectory()
-			.resolve(
-				TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
+		final File theCollectionFile = catalogFolder(TEST_CATALOG)
+			.resolve(Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
@@ -2153,7 +2149,7 @@ class EvitaTest implements EvitaTestSupport {
 				// we can create reflected reference even before the main one is created
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withAttribute("name", String.class, whichIs -> whichIs.localized())
+					.withAttribute("name", String.class, AttributeSchemaEditor::localized)
 					.updateVia(session);
 
 				final Locale theLocale = new Locale("cs");
@@ -3780,13 +3776,18 @@ class EvitaTest implements EvitaTestSupport {
 
 		assertEquals(CatalogState.WARMING_UP, this.evita.getCatalogState(TEST_CATALOG + "_1").orElseThrow());
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -3999,13 +4000,18 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -4099,13 +4105,18 @@ class EvitaTest implements EvitaTestSupport {
 			}
 		);
 
+		// Resolved while the engine is still open, and through its binding rather than by name: a catalog's
+		// folder is not named after it, and here that matters twice over - `testCatalog_1` is both a catalog
+		// this test creates and the folder allocated for `testCatalog`, so joining by name corrupts the wrong one.
+		final Path productCollectionFile = catalogFolder(TEST_CATALOG + "_1")
+			.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX
+			);
+
 		this.evita.close();
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
-					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -5068,6 +5079,455 @@ class EvitaTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 			}
 		);
+	}
+
+	@Test
+	@DisplayName("Bind a created catalog to the very folder its allocation created")
+	void shouldBindCreatedCatalogToTheFolderItWasAllocated() {
+		setupCatalogWithProductAndCategory();
+
+		// The binding has to name the folder the data was actually written into. When it does not, nothing
+		// fails: the folder is written, the catalog is bound to a different directory, and the mismatch only
+		// surfaces later as "no schema found, the data are probably corrupted". The check that
+		// catches it is *counting* the folders, not reading the bound one - a create whose allocated token
+		// never reached the engine state leaves its empty allocation behind as a second directory.
+		final Path boundFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(boundFolder.toFile().isDirectory(), "The bound folder must exist!");
+		assertTrue(
+			boundFolder.resolve(
+				Entities.PRODUCT.toLowerCase() + "-1_0" + ENTITY_COLLECTION_FILE_SUFFIX
+			).toFile().exists(),
+			"The bound folder must be the one the catalog's data was written into!"
+		);
+
+		final File[] siblings = getEvitaTestDirectory().toFile().listFiles(
+			(dir, name) -> name.equals(TEST_CATALOG) || name.startsWith(TEST_CATALOG + "_")
+		);
+		assertNotNull(siblings);
+		assertEquals(
+			1, siblings.length,
+			() -> "Exactly one folder may exist for `" + TEST_CATALOG + "`, found: " +
+				Arrays.toString(Arrays.stream(siblings).map(File::getName).toArray(String[]::new))
+		);
+		assertEquals(boundFolder.toFile().getName(), siblings[0].getName());
+	}
+
+	@Test
+	@DisplayName("Reserve nothing for a restore whose upload never completes")
+	void shouldReserveNothingUntilTheRestoreActuallyRuns() {
+		// A chunked upload creates its restoration task on the *first* chunk and submits it only once the last
+		// one has arrived, so a client that disappears mid-upload leaves that task behind, unsubmitted. When the
+		// folder was allocated at task creation, that cost a directory nobody would ever write into, a burned
+		// generation number, and an exclusive claim that left the name un-restorable for the life of the
+		// process. Nothing may be reserved until the restore actually starts.
+		final String restoredCatalogName = TEST_CATALOG + "_restored";
+		final SequentialTask<Void> neverSubmitted = this.evita.management().createRestorationTask(
+			restoredCatalogName,
+			UUIDUtil.randomUUID(),
+			getEvitaTestDirectory().resolve("upload-never-finished.zip"),
+			1024L,
+			true
+		);
+		assertNotNull(neverSubmitted);
+
+		final File[] folders = getEvitaTestDirectory().toFile().listFiles(
+			(dir, name) -> name.equals(restoredCatalogName) || name.startsWith(restoredCatalogName + "_")
+		);
+		assertNotNull(folders);
+		assertEquals(
+			0, folders.length,
+			() -> "A restore that never started must own no folder, found: " +
+				Arrays.toString(Arrays.stream(folders).map(File::getName).toArray(String[]::new))
+		);
+
+		// and the name is still free to materialise - a claim nobody holds must not refuse a later restore
+		try (final CatalogFolderReservation laterAttempt =
+			     this.evita.getCatalogFolderContext().allocateFolderFor(restoredCatalogName)) {
+			assertNotNull(laterAttempt.folderId());
+		}
+	}
+
+	@Test
+	@DisplayName("Free the folder and the name when a catalog is dropped")
+	void shouldFreeFolderAndNameWhenCatalogIsDropped() {
+		// Dropping a catalog tombstones its folder and deletes it *outside* the commit, so the disk effect is
+		// not implied by the engine-state change and no call site asserts it. Both halves are load-bearing: the
+		// folder has to leave the disk, and the name has to be usable again afterwards.
+		final Path droppedFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(Files.isDirectory(droppedFolder));
+
+		this.evita.deleteCatalogIfExists(TEST_CATALOG);
+		assertTrue(Files.notExists(droppedFolder), "A dropped catalog's folder must leave the disk.");
+
+		// The catalog defined afterwards must land in a *different* folder. Handing the same generation back
+		// would collide with the folder a refused delete leaves behind - the one case the generation exists for.
+		// This holds within a single engine run because the in-memory sequence never walks back; it deliberately
+		// does not survive a restart, because nothing persists the generation peaks yet, so do not add a reboot
+		// here expecting it to.
+		this.evita.defineCatalog(TEST_CATALOG);
+		final Path recreatedFolder = catalogFolder(TEST_CATALOG);
+		assertTrue(Files.isDirectory(recreatedFolder));
+		assertNotEquals(
+			droppedFolder, recreatedFolder,
+			"A recreated catalog must get a fresh generation rather than the folder the dropped one occupied."
+		);
+	}
+
+	@Test
+	@DisplayName("Label a created catalog's folder with the catalog's name")
+	void shouldLabelCreatedCatalogFolderWithItsCatalogName() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		// Folder names are cosmetic and go stale the moment a catalog is renamed, so the label is what makes a
+		// bare storage directory interpretable during disaster recovery - the one case where there is no server
+		// left to ask which folder holds which catalog.
+		assertEquals(
+			TEST_CATALOG,
+			Files.readString(
+				catalogFolder(TEST_CATALOG).resolve(CatalogPersistenceService.CATALOG_NAME_FLAG)
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("Rename a catalog without moving a single byte")
+	void shouldRenameCatalogAsAPointerSwap() {
+		setupCatalogWithProductAndCategory();
+
+		final Path folderBeforeRename = catalogFolder(TEST_CATALOG);
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// The whole of a rename: the new name points at the folder the old one was pointing at. Nothing is
+		// created, moved or copied, which is what makes the operation atomic instead of a five-step dance that a
+		// crash - or a Windows file lock - can leave half-finished.
+		assertEquals(
+			folderBeforeRename, catalogFolder(renamedCatalogName),
+			"A rename must repoint the name, never move the data!"
+		);
+		assertTrue(folderBeforeRename.toFile().isDirectory(), "The folder must still be exactly where it was!");
+		// the folder's name deliberately still says `testCatalog` - folder names are cosmetic and the label
+		// inside the folder is what carries the truth for anyone reading the storage directory by hand
+		assertTrue(
+			folderBeforeRename.toFile().getName().startsWith(TEST_CATALOG + "_"),
+			"The folder keeps the name it was allocated under, since renaming it is not part of the operation!"
+		);
+	}
+
+	@Test
+	@DisplayName("Address a renamed catalog's write-ahead log by its folder prefix, not by its new name")
+	void shouldKeepWriteAheadLogAddressableAfterRename() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+
+		// A WAL file exists only once a transaction has been committed against a live catalog. Every other
+		// rename test in this class renames a catalog that never had one - which is exactly why they stayed
+		// green while the WAL file name was still being derived from the catalog name stored in the header.
+		final EvitaSessionContract session = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		session.upsertEntity(
+			session.createNewEntity(Entities.PRODUCT, 1)
+			       .setAttribute("testAttribute", "committed before the rename")
+		);
+		assertNotNull(session.closeNowWithProgress().onChangesVisible().toCompletableFuture().join());
+
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// A rename rewrites the name inside the header and leaves the files on the prefix they were created
+		// with, so the WAL has to be looked up under that prefix. Looked up under the *new* name instead
+		// - which is what the header's own file-name provider yields, since it is built from the name the
+		// header stores - the lookup addresses a file that does not exist, reports it empty and creates it.
+		// That happens while the service is being reopened, so a second `.wal` appearing here is the whole
+		// defect: the committed transaction is now in a file nothing will ever read, and the next boot sees two
+		// files whose indexes are not consecutive and refuses to open the catalog.
+		final File[] walFiles = catalogFolder(renamedCatalogName).toFile()
+			.listFiles((dir, name) -> name.endsWith(PersistenceService.WAL_FILE_SUFFIX));
+		assertNotNull(walFiles);
+		assertEquals(
+			1, walFiles.length,
+			() -> "Exactly one WAL file may exist after a rename, found: " +
+				Arrays.toString(Arrays.stream(walFiles).map(File::getName).toArray(String[]::new))
+		);
+		assertEquals(
+			CatalogPersistenceService.getWalFileName(TEST_CATALOG, 0), walFiles[0].getName(),
+			"The WAL must keep the prefix the folder's files were created with, not take the new catalog name!"
+		);
+
+		// The rename consumes no catalog version, so the WAL's last written version still agrees with the
+		// bootstrap's and the catalog opens. Consuming one - which a rename appends nothing to the WAL to
+		// justify - leaves the two counters one apart and `verifyIntegrity` refuses the boot outright.
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals(
+			"committed before the rename", readProductAttribute(renamedCatalogName, 1),
+			"The transaction committed before the rename must survive the restart!"
+		);
+	}
+
+	@Test
+	@DisplayName("Keep a renamed catalog's version accounting intact across restarts and further commits")
+	void shouldNotLoseACatalogVersionToARename() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+		commitProduct(TEST_CATALOG, 1, "before the rename");
+
+		final long versionBeforeRename = this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion);
+
+		final String renamedCatalogName = TEST_CATALOG + "_renamed";
+		this.evita.renameCatalog(TEST_CATALOG, renamedCatalogName);
+
+		// A rename moves no data and writes no transaction, so it must not consume a catalog version: the WAL
+		// would have no record for the version it consumed, and every version in the line is supposed to have
+		// come from a transaction. That is what `verifyIntegrity` asserts at boot.
+		assertEquals(
+			versionBeforeRename,
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion),
+			"A rename must not consume a catalog version - it writes nothing to the write-ahead log!"
+		);
+
+		// first restart - the window the version mismatch used to close, since nothing has been committed
+		// since the rename to put the two counters back in step
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals(
+			versionBeforeRename,
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion),
+			"The version must survive the restart unchanged!"
+		);
+		assertEquals("before the rename", readProductAttribute(renamedCatalogName, 1));
+
+		// the catalog is still writable under its new name, and the version line continues from where it was
+		commitProduct(renamedCatalogName, 2, "after the rename");
+		assertTrue(
+			this.evita.queryCatalog(renamedCatalogName, EvitaSessionContract::getCatalogVersion) > versionBeforeRename,
+			"A transaction committed after the rename must advance the version!"
+		);
+
+		// second restart - now with a WAL record written after the rename, which is the state the previous
+		// behaviour happened to survive and therefore the one that hid the defect
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("before the rename", readProductAttribute(renamedCatalogName, 1));
+		assertEquals("after the rename", readProductAttribute(renamedCatalogName, 2));
+	}
+
+	@Test
+	@DisplayName("Keep a replaced catalog's version accounting intact across restarts and further commits")
+	void shouldNotLoseACatalogVersionToAReplace() {
+		final String sourceCatalogName = TEST_CATALOG + "_source";
+		this.evita.defineCatalog(sourceCatalogName);
+		this.evita.updateCatalog(
+			sourceCatalogName,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+				       .withAttribute("testAttribute", String.class)
+				       .updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+		commitProduct(sourceCatalogName, 1, "committed in the source");
+
+		final long versionBeforeReplace = this.evita.queryCatalog(
+			sourceCatalogName, EvitaSessionContract::getCatalogVersion);
+
+		// the replaced name is served by the source's folder afterwards, so this exercises the same
+		// `replaceWith` path a rename does - TEST_CATALOG is already defined by the fixture
+		this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+
+		assertEquals(
+			versionBeforeReplace,
+			this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion),
+			"A replace must not consume a catalog version - it writes nothing to the write-ahead log!"
+		);
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("committed in the source", readProductAttribute(TEST_CATALOG, 1));
+
+		commitProduct(TEST_CATALOG, 2, "committed after the replace");
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
+
+		assertEquals("committed in the source", readProductAttribute(TEST_CATALOG, 1));
+		assertEquals("committed after the replace", readProductAttribute(TEST_CATALOG, 2));
+	}
+
+	/**
+	 * Commits a single product into a live catalog and waits until the change becomes visible, so the caller can
+	 * rely on the transaction having reached the write-ahead log before it continues.
+	 *
+	 * @param catalogName    the catalog to commit into
+	 * @param primaryKey     the primary key of the product to create
+	 * @param attributeValue the value stored in the `testAttribute` attribute
+	 */
+	private void commitProduct(@Nonnull String catalogName, int primaryKey, @Nonnull String attributeValue) {
+		final EvitaSessionContract session = this.evita.createSession(
+			new SessionTraits(catalogName, SessionFlags.READ_WRITE));
+		session.upsertEntity(
+			session.createNewEntity(Entities.PRODUCT, primaryKey)
+			       .setAttribute("testAttribute", attributeValue)
+		);
+		assertNotNull(session.closeNowWithProgress().onChangesVisible().toCompletableFuture().join());
+	}
+
+	/**
+	 * Reads the `testAttribute` of a single product back, failing when the entity is not there at all.
+	 *
+	 * @param catalogName the catalog to read from
+	 * @param primaryKey  the primary key of the product to read
+	 * @return the value stored in the `testAttribute` attribute
+	 */
+	@Nonnull
+	private String readProductAttribute(@Nonnull String catalogName, int primaryKey) {
+		return this.evita.queryCatalog(
+			catalogName,
+			theSession -> {
+				final String attribute = theSession.getEntity(Entities.PRODUCT, primaryKey, attributeContentAll())
+					.orElseThrow()
+					.getAttribute("testAttribute");
+				return Objects.requireNonNull(attribute);
+			}
+		);
+	}
+
+	@Test
+	@DisplayName("Replace a catalog by repointing at the source folder and retiring the superseded one")
+	void shouldReplaceCatalogAsAPointerSwap() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		final String sourceCatalogName = TEST_CATALOG + "_source";
+		this.evita.defineCatalog(sourceCatalogName);
+		final Path sourceFolder = catalogFolder(sourceCatalogName);
+		final Path supersededFolder = catalogFolder(TEST_CATALOG);
+
+		this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+
+		assertEquals(
+			sourceFolder, catalogFolder(TEST_CATALOG),
+			"The replaced name must point at the folder the source was already living in!"
+		);
+		assertTrue(sourceFolder.toFile().isDirectory(), "The surviving folder must not have been touched!");
+		assertFalse(
+			supersededFolder.toFile().exists(),
+			"The folder the replaced catalog occupied is tombstoned and must have been removed!"
+		);
+		// the label follows the data, or disaster recovery against a bare storage directory reads the previous
+		// occupant's name off a folder that now holds something else entirely
+		assertEquals(
+			TEST_CATALOG,
+			Files.readString(sourceFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+		);
+	}
+
+	@Test
+	@DisplayName("Duplicate a catalog into an allocated folder rather than one named after it")
+	void shouldDuplicateCatalogIntoAnAllocatedFolder() throws IOException {
+		setupCatalogWithProductAndCategory();
+
+		final String duplicateName = TEST_CATALOG + "_copy";
+		this.evita.duplicateCatalog(TEST_CATALOG, duplicateName);
+
+		// The duplicate was the last path still writing into a directory named after its catalog, which breaks
+		// the one rule the whole scheme rests on: every folder evitaDB creates carries a generation, and only a
+		// suffix-free folder is treated as one an operator hand-placed and may be adopted.
+		final Path duplicateFolder = catalogFolder(duplicateName);
+		assertTrue(
+			duplicateFolder.toFile().getName().startsWith(duplicateName + "_"),
+			() -> "A duplicate must land in an allocated folder, but landed in `" +
+				duplicateFolder.toFile().getName() + "`!"
+		);
+		assertTrue(
+			duplicateFolder.resolve(
+				CatalogPersistenceService.getCatalogBootstrapFileName(duplicateName)
+			).toFile().exists(),
+			"The bound folder must be the one the copy was written into!"
+		);
+		// the provisional marker must be gone, or the next boot would classify a fully written, referenced
+		// folder as an abandoned one
+		assertFalse(
+			duplicateFolder.resolve(CatalogPersistenceService.PROVISIONAL_FLAG).toFile().exists(),
+			"A completed duplicate must not still declare its own contents untrustworthy!"
+		);
+		assertEquals(
+			duplicateName,
+			Files.readString(duplicateFolder.resolve(CatalogPersistenceService.CATALOG_NAME_FLAG))
+		);
+	}
+
+	@Test
+	@DisplayName("Discharge a folder's tombstone once its removal is confirmed")
+	void shouldNotAccumulateTombstonesAcrossRepeatedReplaces() {
+		setupCatalogWithProductAndCategory();
+
+		// A tombstone is durable on purpose - it is what lets a delete the operating system refuses be retried
+		// on the next boot. Nothing would ever remove it again, though, because a folder that is gone is never
+		// classified again; without the discharge below, every replace and every drop would add one entry to
+		// persisted engine state and none would ever leave.
+		for (int i = 1; i <= 3; i++) {
+			final String sourceCatalogName = TEST_CATALOG + "_source" + i;
+			this.evita.defineCatalog(sourceCatalogName);
+			this.evita.replaceCatalog(sourceCatalogName, TEST_CATALOG);
+			assertTrue(
+				this.evita.getEngineState().engineState().retiredFolders().length <= 1,
+				"Tombstones must not accumulate — each replace discharges the previous one!"
+			);
+		}
+
+		// The discharge rides on the *next* engine mutation, so the final replace leaves its own tombstone
+		// behind until something else commits. Any mutation will do; this one is deliberately unrelated.
+		this.evita.defineCatalog(TEST_CATALOG + "_unrelated");
+
+		assertEquals(
+			0, this.evita.getEngineState().engineState().retiredFolders().length,
+			"Every removal succeeded, so no tombstone may survive the mutation that follows it!"
+		);
+	}
+
+	/**
+	 * Returns the directory holding the passed catalog's files, resolved through the engine's own binding.
+	 *
+	 * A catalog's folder is no longer named after it — folders are allocated and carry a generation, and one
+	 * that outlives a rename keeps its old name. A test that joins the storage root with the
+	 * catalog name therefore addresses a directory that may not exist, or worse, may belong to *another*
+	 * catalog: with allocation in place, the folder of a catalog called `testCatalog` is literally
+	 * `testCatalog_1`, which is also the name of a catalog these tests create.
+	 *
+	 * Must be called while the engine is open, and the generation must never be hard-coded — allocation burns
+	 * a number per attempt, so the suffix is not predictable.
+	 *
+	 * @param catalogName name of the catalog whose folder is wanted
+	 * @return path of the catalog's storage folder
+	 */
+	@Nonnull
+	private Path catalogFolder(@Nonnull String catalogName) {
+		return getEvitaTestDirectory()
+			.resolve(this.evita.getCatalogFolderContext().folderIdFor(catalogName).id());
 	}
 
 	@Nonnull

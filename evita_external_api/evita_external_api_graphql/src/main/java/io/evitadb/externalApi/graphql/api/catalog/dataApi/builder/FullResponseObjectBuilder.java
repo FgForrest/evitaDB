@@ -63,9 +63,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryMetricsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -108,8 +110,6 @@ import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
-import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
 /**
  * Builds schema object representing {@link io.evitadb.api.requestResponse.EvitaResponse} with entities and extra results.
@@ -194,6 +194,18 @@ public class FullResponseObjectBuilder {
 
 		this.buildingContext.registerType(buildHistogramObject());
 		this.buildingContext.registerType(buildFacetRequestImpactObject());
+
+		// the metrics object has to be registered before the telemetry node that references it; both are static
+		// (identical for every entity type and catalog), so a single shared instance serves the whole schema
+		this.buildingContext.registerType(
+			QueryTelemetryMetricsDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			FormulaPlanNodeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			QueryTelemetryNodeDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
 	}
 
 	@Nonnull
@@ -429,7 +441,9 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildAttributeHistogramForSingleAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+	private static BuiltFieldDescriptor buildAttributeHistogramForSingleAttributeField(
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
 		final GraphQLFieldDefinition attributeFieldForSingleAttribute = newFieldDefinition()
 			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(typeRef(HistogramDescriptor.THIS.name()))
@@ -887,9 +901,7 @@ public class FullResponseObjectBuilder {
 		return EntityFacetStatisticsDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(EntityFacetStatisticsDescriptor.FACET_ENTITY
-				.to(this.fieldBuilderTransformer)
-				.type(facetEntityObject))
+			.field(FacetStatisticsDescriptor.FACET_ENTITY.to(this.fieldBuilderTransformer).type(facetEntityObject))
 			.build();
 	}
 
@@ -1263,7 +1275,10 @@ public class FullResponseObjectBuilder {
 		return new BuiltFieldDescriptor(
 			ExtraResultsDescriptor.QUERY_TELEMETRY
 				.to(this.fieldBuilderTransformer)
-				.type(nonNull(OBJECT)) // workaround because GQL doesn't support infinite recursive structures
+				// the telemetry tree is of unbounded depth, and GraphQL puts the client in charge of how deep it
+				// selects - so it is published flattened into a pre-order list carrying `level`, the same trade
+				// `LevelInfo` makes for the hierarchy extra result, rather than as an untyped JSON scalar
+				.type(nonNull(list(nonNull(typeRef(QueryTelemetryNodeDescriptor.THIS.name())))))
 				.build(),
 			QueryTelemetryDataFetcher.getInstance()
 		);

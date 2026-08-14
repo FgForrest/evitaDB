@@ -44,4 +44,30 @@ public interface CatalogConsumersListener {
 		long lastKnownMinimalActiveVersionWritten
 	);
 
+	/**
+	 * Notifies listener that a consumer started using a particular catalog version and that version must not be
+	 * reclaimed until the matching {@link #catalogVersionReleased(long)} arrives.
+	 *
+	 * This exists because {@link #catalogConsumersLeft(long, long)} fires only when the *last* reader of a version
+	 * leaves, and therefore only ever reports a rising minimum. A point-in-time backup pins a version in the **past**
+	 * (`BackupTask` registers the bootstrap record's own version), which no departure notification can express - a
+	 * floor derived from departures alone stays above it and the retention logic concludes nothing is pinned there.
+	 *
+	 * @param catalogVersion the catalog version the consumer started using
+	 */
+	default void catalogVersionPinned(long catalogVersion) {
+		// listeners that do not reclaim files have nothing to hold back
+	}
+
+	/**
+	 * Notifies listener that a consumer stopped using a catalog version pinned by
+	 * {@link #catalogVersionPinned(long)}. Calls are paired and counted, so the version stays pinned until as many
+	 * releases as pins have arrived.
+	 *
+	 * @param catalogVersion the catalog version the consumer stopped using
+	 */
+	default void catalogVersionReleased(long catalogVersion) {
+		// listeners that do not reclaim files have nothing to release
+	}
+
 }

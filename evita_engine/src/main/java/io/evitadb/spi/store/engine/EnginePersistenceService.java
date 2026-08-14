@@ -29,12 +29,14 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -43,11 +45,13 @@ import java.util.stream.Stream;
 /**
  * This interface represents a link between {@link EngineState} and its persistent storage.
  * The interface contains all methods necessary for fetching or persisting engine state to/from durable
- * storage.
+ * storage. It is also the surface through which the engine acts on catalog storage folders as a whole - see
+ * {@link CatalogFolderOperations}, which it extends.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EnginePersistenceService<T extends LogRecordReference> extends PersistenceService {
+public non-sealed interface EnginePersistenceService<T extends LogRecordReference>
+	extends PersistenceService, CatalogFolderOperations {
 	String ENGINE_NAME = "evitaDB";
 
 	/**
@@ -101,6 +105,31 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 	 */
 	@Nonnull
 	CatalogInventoryDivergence getPendingCatalogInventoryDivergence();
+
+	/**
+	 * Acts on the folder tombstones the engine state carries *now*, and reports which of them are discharged.
+	 *
+	 * The boot drain that runs during construction sees the state the crash left behind, deliberately: a drain
+	 * against an already-healed state would stop a drifted boot being diagnosable. A forward replay staged one
+	 * layer up therefore commits its tombstone after that drain has already been and gone, and the folder would
+	 * otherwise survive until the *next* restart. This is the second pass that closes that gap, and it is meant to
+	 * be called only on a boot that actually recovered something — on every other boot there is nothing new to act
+	 * on and the directory scan would be pure cost.
+	 *
+	 * Only tombstoned folders are removed. A tombstone is a durable standing order recorded in the engine state,
+	 * whereas the other expendable state is an inference drawn from a folder nothing is bound to — re-deriving that
+	 * inference from a state the replay has just healed would be a change of policy dressed up as a retry. What is
+	 * and is not deletable stays the classifier's decision either way: a tombstone found on a folder that is still
+	 * bound is litter, not authorisation.
+	 *
+	 * A folder that cannot be removed keeps its tombstone and is retried by the next boot, exactly as on the
+	 * construction-time pass. The returned ids are those the caller may report as drained so a later engine-state
+	 * commit stops carrying them — removed just now, or already absent.
+	 *
+	 * @return ids of the tombstoned folders confirmed gone; never null, possibly empty
+	 */
+	@Nonnull
+	List<CatalogFolderId> drainRetiredFolders();
 
 	/**
 	 * Stores {@link EngineState} stored in current boot file.

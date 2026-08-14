@@ -34,9 +34,13 @@ memory of *reasoning*; the code only remembers outcomes.
   open follow-ups" of every hit — known traps and deliberately-deferred work live there.
 - **After finishing work that clears the bar**, write the record and delete the assignment/plan it
   replaces. Not optional, and not a follow-up task.
-- **In-flight plans live in `specifications/`, and must leave it when the work finalizes** — merged,
-  abandoned, or decided against. Two exits, no third: it becomes a record, or it is deleted. A plan
-  left behind reads as current intent long after it stopped being true.
+- **In-flight plans live in `specifications/` and are never committed to git.** They are working
+  notes, not a deliverable — tracking them puts intent into the history where a later reader cannot
+  tell it apart from outcome. `/specifications/` is git-ignored to make this automatic rather than a
+  matter of remembering.
+- **A plan must leave the disk when the work finalizes** — merged, abandoned, or decided against. Two
+  exits, no third: write the ADR and delete the plan, or delete the plan outright. A plan left behind
+  reads as current intent long after it stopped being true.
 - **The bar defaults to no.** All three must hold: a genuine fork (a reasonable alternative was
   rejected for a reason the code doesn't show), reasoning that outlives the change (it constrains
   work beyond the files you touched), and nothing cheaper that carries it (a commit message or a

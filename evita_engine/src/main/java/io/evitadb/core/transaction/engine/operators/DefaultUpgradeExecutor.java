@@ -27,6 +27,7 @@ package io.evitadb.core.transaction.engine.operators;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CatalogBeingUpgradedException;
+import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.export.ExportService;
@@ -55,6 +56,7 @@ public class DefaultUpgradeExecutor implements UpgradeExecutor {
 	@Nonnull private final TransactionOptions transactionOptions;
 	@Nonnull private final Scheduler scheduler;
 	@Nonnull private final ExportService exportService;
+	@Nonnull private final CatalogFolderContext folderContext;
 	@Nonnull private final CatalogPersistenceServiceFactory factory;
 
 	/**
@@ -67,17 +69,20 @@ public class DefaultUpgradeExecutor implements UpgradeExecutor {
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler          scheduler for background tasks during the upgrade
 	 * @param exportService      service used to create the pre-migration backup archive
+	 * @param folderContext      catalog folder bindings, used to look the catalog's folder token up
 	 */
 	public DefaultUpgradeExecutor(
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportService exportService
+		@Nonnull ExportService exportService,
+		@Nonnull CatalogFolderContext folderContext
 	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
 		this.exportService = exportService;
+		this.folderContext = folderContext;
 		this.factory = ServiceLoader
 			.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
@@ -96,7 +101,8 @@ public class DefaultUpgradeExecutor implements UpgradeExecutor {
 			catalogName
 		);
 		this.factory.upgradeStorageProtocol(
-			catalogName, this.storageOptions, this.transactionOptions, this.scheduler, this.exportService
+			catalogName, this.folderContext.folderIdFor(catalogName),
+			this.storageOptions, this.transactionOptions, this.scheduler, this.exportService
 		);
 		log.info(
 			"DefaultUpgradeExecutor: catalog `{}` storage-protocol upgrade completed.",

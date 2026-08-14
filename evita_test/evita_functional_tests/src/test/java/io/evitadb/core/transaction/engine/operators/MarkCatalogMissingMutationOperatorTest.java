@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine.operators;
 
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.engine.TestCatalogFolderContexts;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.CatalogMissingException;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -167,7 +168,7 @@ class MarkCatalogMissingMutationOperatorTest {
 		when(evita.getEngineState()).thenReturn(startingState);
 
 		final MarkCatalogMissingMutationOperator operator =
-			new MarkCatalogMissingMutationOperator(STORAGE_DIRECTORY);
+			new MarkCatalogMissingMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 		final MarkCatalogMissingMutation mutation = new MarkCatalogMissingMutation(CATALOG_NAME);
 
 		final ProgressingFuture<Void> future = operator.applyMutation(
@@ -217,7 +218,7 @@ class MarkCatalogMissingMutationOperatorTest {
 		// The operation name is surfaced in progress reports and CDC notifications. Asserting the
 		// exact format guards against accidental wording drift that downstream operators may grep for.
 		final MarkCatalogMissingMutationOperator operator =
-			new MarkCatalogMissingMutationOperator(STORAGE_DIRECTORY);
+			new MarkCatalogMissingMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 		final MarkCatalogMissingMutation mutation = new MarkCatalogMissingMutation(CATALOG_NAME);
 
 		assertEquals(
@@ -347,12 +348,13 @@ class MarkCatalogMissingMutationOperatorTest {
 			// Re-applying the mutation against a snapshot that already has the catalog parked in
 			// `missingCatalogs` must produce the same shape: still in missing-only bucket, still served
 			// by an `UnusableCatalog(MISSING)` placeholder.
-			final UnusableCatalog existingPlaceholder = new UnusableCatalog(
-				CATALOG_NAME,
-				CatalogState.MISSING,
-				STORAGE_DIRECTORY.resolve(CATALOG_NAME),
-				(cn, path) -> new CatalogMissingException(cn)
-			);
+			final UnusableCatalog existingPlaceholder = TestCatalogFolderContexts
+				.onDirectory(STORAGE_DIRECTORY)
+				.createUnusableCatalog(
+					CATALOG_NAME,
+					CatalogState.MISSING,
+					(cn, folderId, root) -> new CatalogMissingException(cn)
+				);
 			final ExpandedEngineState startingState = buildAlreadyMissingState(existingPlaceholder);
 
 			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater =
@@ -392,7 +394,7 @@ class MarkCatalogMissingMutationOperatorTest {
 
 			// Branch B — re-derive the same completion-phase snapshot through replayCompletionState.
 			final MarkCatalogMissingMutationOperator operator =
-				new MarkCatalogMissingMutationOperator(STORAGE_DIRECTORY);
+				new MarkCatalogMissingMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 			final MarkCatalogMissingMutation mutation = new MarkCatalogMissingMutation(CATALOG_NAME);
 			final Evita evita = mock(Evita.class);
 
@@ -515,7 +517,7 @@ class MarkCatalogMissingMutationOperatorTest {
 			mock(Consumer.class);
 
 		final MarkCatalogMissingMutationOperator operator =
-			new MarkCatalogMissingMutationOperator(STORAGE_DIRECTORY);
+			new MarkCatalogMissingMutationOperator(TestCatalogFolderContexts.onDirectory(STORAGE_DIRECTORY));
 		final ProgressingFuture<Void> future = operator.applyMutation(
 			UUID.randomUUID(),
 			new MarkCatalogMissingMutation(CATALOG_NAME),

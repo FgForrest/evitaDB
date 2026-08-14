@@ -113,6 +113,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
+			storageOptions.storageDirectory().resolve(catalogName),
 			storageOptions
 		).forEach(it -> {
 			System.out.println(
@@ -187,6 +188,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		getCatalogBootstrapRecordStream(
 			catalogName,
+			storageSettings.storageDirectory().resolve(catalogName),
 			storageSettings
 		).forEach(it -> {
 			System.out.print(
@@ -242,8 +244,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 				new LogFileRecordReference(index -> CatalogPersistenceService.getWalFileName(catalogName, index)),
 				storageSettings,
 				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-				position -> System.out.println("Trim attempted: " + position),
-				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
+				position -> System.out.println("History horizon advance attempted: " + position),
 				catalogFilePath, catalogKryoPool
 			)
 		) {

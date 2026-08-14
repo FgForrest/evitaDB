@@ -33,12 +33,18 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
+import io.evitadb.dataType.ClassifierType;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.RetiredFolder;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -56,6 +62,8 @@ import io.evitadb.store.wal.EngineMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.FolderLock;
 import io.evitadb.utils.IOUtils;
@@ -70,14 +78,17 @@ import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.model.StorageRecord.read;
@@ -233,15 +244,13 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				// Update engine state with new storage protocol version and corrected WAL reference.
 				// Storage protocol version is orthogonal to the logical version counter — a migration
 				// is not a WAL-backed mutation, so the version counter must not advance here.
-				final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
-					STORAGE_PROTOCOL_VERSION,
-					this.engineState.version(),
-					this.engineState.introducedAt(),
-					correctedWalRef != null ? correctedWalRef : this.engineState.walReference(),
-					this.engineState.activeCatalogs(),
-					this.engineState.inactiveCatalogs(),
-					this.engineState.readOnlyCatalogs()
-				);
+				// Everything else is carried forward through the builder rather than re-listed: enumerating the
+				// fields here silently dropped whichever buckets were added after this line was written, and the
+				// catalog-to-folder bindings are one such bucket that cannot be reconstructed once lost.
+				final EngineState<LogFileRecordReference> newEngineState = EngineState.builder(this.engineState)
+					.storageProtocolVersion(STORAGE_PROTOCOL_VERSION)
+					.walFileReference(correctedWalRef != null ? correctedWalRef : this.engineState.walReference())
+					.build();
 				rewriteEngineStateInPlace(newEngineState);
 			}
 		} else {
@@ -285,9 +294,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Any other combination still throws — those indicate actual corruption or tampering and require operator
 		// intervention.
 		//
-		// This check runs BEFORE `syncEngineStateByFolderContents` so a drifted state cannot be
-		// silently "healed" by the reconciliation (which rewrites the bootstrap file in place).
-		// Preserving the drift on disk is critical for post-mortem diagnosis.
+		// This check runs BEFORE the classify/drain/divergence block below so a drifted state cannot be
+		// silently "healed" on the way past. That block is a pure value computation and rewrites no bootstrap,
+		// but the drain it runs first does delete folders — and preserving the drift on disk untouched is
+		// critical for post-mortem diagnosis.
 		final long walVersion = this.mutationLog == null ? 0L : this.mutationLog.getLastWrittenVersion();
 		final long stateVersion = this.engineState.version();
 		Assert.isPremiseValid(
@@ -308,7 +318,17 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// divergence as proper WAL-backed engine mutations once `EngineTransactionManager` exists,
 		// preserving the WAL-first invariant and making the boot-time reconciliation observable through CDC.
 		if (!this.created) {
-			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(this.storageSettings, this.engineState);
+			// Classify once and use the verdicts twice: removing abandoned folders is a side effect and has to
+			// stay out of the divergence computation, which must remain a pure value.
+			final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+				this.storageSettings.storageDirectory(), this.engineState
+			);
+			final List<String> removedFolders = CatalogFolderCleaner.drain(
+				this.storageSettings.storageDirectory(), classifications
+			);
+			this.pendingCatalogInventoryDivergence = computeCatalogInventoryDivergence(
+				classifications, removedFolders, this.engineState
+			);
 		}
 	}
 
@@ -361,6 +381,49 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Override
 	public CatalogInventoryDivergence getPendingCatalogInventoryDivergence() {
 		return this.pendingCatalogInventoryDivergence;
+	}
+
+	@Nonnull
+	@Override
+	public List<CatalogFolderId> drainRetiredFolders() {
+		// `this.engineState` is the post-replay snapshot: `rewriteEngineStateAtNextVersion` swaps the field as part
+		// of writing the bootstrap, so the tombstone the replay staged is visible here without being passed in.
+		final RetiredFolder[] retiredFolders = this.engineState.retiredFolders();
+		if (retiredFolders.length == 0) {
+			return List.of();
+		}
+
+		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+			this.storageSettings.storageDirectory(), this.engineState
+		);
+		// Narrowed to the tombstoned folders rather than draining everything the classifier calls expendable. The
+		// construction-time pass already covered the rest against the on-disk shape the crash left, and re-deriving
+		// it from a healed state would widen what this deletes on the strength of a state change it never saw the
+		// disk for. Which folders are RETIRED is still the classifier's answer, so a tombstone naming a folder that
+		// is bound again is ignored here exactly as it is there.
+		final List<CatalogFolderClassification> retired = new ArrayList<>(retiredFolders.length);
+		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			foldersOnDisk.add(classification.folderName());
+			if (classification.state() == CatalogFolderState.RETIRED) {
+				retired.add(classification);
+			}
+		}
+
+		final Set<String> removedFolderNames = Set.copyOf(
+			CatalogFolderCleaner.drain(this.storageSettings.storageDirectory(), retired)
+		);
+		// Same two terms as `computeCatalogInventoryDivergence`, and for the same reason: a folder removed a moment
+		// ago and one that was already absent are equally provably gone, and only the second covers a deletion that
+		// succeeded on an earlier run without a commit following it.
+		final List<CatalogFolderId> drainedFolders = new ArrayList<>(retiredFolders.length);
+		for (final RetiredFolder retiredFolder : retiredFolders) {
+			final String folderName = retiredFolder.folderId().id();
+			if (removedFolderNames.contains(folderName) || !foldersOnDisk.contains(folderName)) {
+				drainedFolders.add(retiredFolder.folderId());
+			}
+		}
+		return drainedFolders;
 	}
 
 	@Override
@@ -918,42 +981,75 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 *
 	 * - Catalogs registered as active or inactive whose folder is no longer present → `becomeMissing`.
 	 * - Catalogs that previously sat in the `missingCatalogs` bucket whose folder has reappeared → `reappeared`.
-	 * - Folders on disk that are unknown to the engine state → `autoDiscovered`.
+	 * - Folders on disk that are unknown to the engine state **and offered for adoption** → `autoDiscovered`.
+	 *
+	 * A registered catalog is looked up through its **binding**, never by assuming its folder is named after it —
+	 * that assumption is exactly what this line of work removes. An unreferenced folder is put through
+	 * {@link CatalogFolderClassifier}, and only a {@link CatalogFolderState#FOREIGN} one is adoptable; everything
+	 * else is reported and left where it is. Before this, *every* unknown directory was registered as a catalog,
+	 * which turned an operator's stray folder into a catalog the engine claimed to own.
 	 *
 	 * Each list is sorted alphabetically so the resulting WAL trail is deterministic across reboots over the same
 	 * on-disk shape. The persistence service does not rewrite the bootstrap here — `Evita` drains the divergence
 	 * after `EngineTransactionManager` is wired by emitting one engine mutation per entry, which preserves the
 	 * WAL-first invariant and makes the reconciliation observable through CDC.
 	 *
-	 * @param storageSettings configuration options for persistent storage, including the storage directory
+	 * A fourth category is reported rather than detected: the tombstoned folders that are provably gone, either
+	 * because the drain that ran just before this removed them or because they were already absent. They produce
+	 * no mutation — the engine simply needs to know, so that the next engine-state commit stops carrying their
+	 * tombstones.
+	 *
+	 * @param classifications verdicts {@link CatalogFolderClassifier} reached for the storage directory
+	 * @param removedFolders  folders the drain removed, in the order it processed them
 	 * @param engineState the current engine state to compare against the on-disk folder contents
 	 * @return divergence record; never null, possibly {@link CatalogInventoryDivergence#EMPTY}
 	 */
 	@Nonnull
 	private static CatalogInventoryDivergence computeCatalogInventoryDivergence(
-		@Nonnull StorageSettings storageSettings,
+		@Nonnull List<CatalogFolderClassification> classifications,
+		@Nonnull List<String> removedFolders,
 		@Nonnull EngineState<LogFileRecordReference> engineState
 	) {
-		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
-		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
-		for (final Path dir : directories) {
-			catalogsOnDisk.add(dir.getName(dir.getNameCount() - 1).toString());
+		final Set<String> foldersOnDisk = CollectionUtils.createHashSet(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			foldersOnDisk.add(classification.folderName());
+		}
+		final Set<String> removedFolderNames = Set.copyOf(removedFolders);
+		// every name the engine already knows, in any bucket - a folder whose bare name collides with one
+		// of these cannot be adopted under that name, whatever folder the catalog itself lives in
+		final Set<String> registeredCatalogNames = CollectionUtils.createHashSet(
+			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length +
+				engineState.missingCatalogs().length
+		);
+		Collections.addAll(registeredCatalogNames, engineState.activeCatalogs());
+		Collections.addAll(registeredCatalogNames, engineState.inactiveCatalogs());
+		Collections.addAll(registeredCatalogNames, engineState.missingCatalogs());
+
+		// Tombstones whose folder is provably gone. Both terms are needed and neither subsumes the other: the
+		// drain covers a folder removed a moment ago, while the absence check covers one whose removal succeeded
+		// on an earlier run that never got to record the fact - a crash between the delete and the next commit.
+		final List<CatalogFolderId> drainedFolders = new ArrayList<>(engineState.retiredFolders().length);
+		for (final RetiredFolder retiredFolder : engineState.retiredFolders()) {
+			final String folderName = retiredFolder.folderId().id();
+			if (removedFolderNames.contains(folderName) || !foldersOnDisk.contains(folderName)) {
+				drainedFolders.add(retiredFolder.folderId());
+			}
 		}
 
 		final ArrayList<String> becomeMissing = new ArrayList<>(16);
 		final ArrayList<String> reappeared = new ArrayList<>(16);
-		final ArrayList<String> autoDiscovered = new ArrayList<>(16);
+		final ArrayList<AdoptableCatalogFolder> autoDiscovered = new ArrayList<>(16);
 
-		// Active / inactive catalogs whose folder vanished while the engine was down.
+		// Active / inactive catalogs whose bound folder vanished while the engine was down.
 		for (final String catalog : engineState.activeCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				continue;
 			}
 			log.warn("Registered active catalog `{}` is missing on disk — staging MISSING transition.", catalog);
 			becomeMissing.add(catalog);
 		}
 		for (final String catalog : engineState.inactiveCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				continue;
 			}
 			log.warn("Registered inactive catalog `{}` is missing on disk — staging MISSING transition.", catalog);
@@ -962,27 +1058,138 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Previously-missing catalogs whose folder reappeared — they will be demoted back to INACTIVE.
 		for (final String catalog : engineState.missingCatalogs()) {
-			if (catalogsOnDisk.remove(catalog)) {
+			if (boundFolderPresent(engineState, foldersOnDisk, catalog)) {
 				log.info("Previously missing catalog `{}` has reappeared on disk — staging INACTIVE restoration.", catalog);
 				reappeared.add(catalog);
 			}
 		}
 
-		// Whatever folders remain on disk are unknown to the engine — auto-discovered.
-		for (final String catalogName : catalogsOnDisk) {
-			log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}", catalogName);
-			autoDiscovered.add(catalogName);
+		// Everything the engine state does not reference, sorted into what may be adopted and what may not.
+		for (final CatalogFolderClassification classification : classifications) {
+			final String folderName = classification.folderName();
+			switch (classification.state()) {
+				case REFERENCED -> {
+					// already accounted for above, through the binding rather than through the folder name
+				}
+				case FOREIGN -> {
+					// Checked *before* the folder is touched. Adoption renames the folder into the shape the
+					// engine allocates and only then dispatches a registration mutation, which validates the
+					// name - so a folder whose name is not a usable catalog name would be moved first and
+					// rejected second, failing boot reconciliation outright and leaving the operator's import
+					// renamed. A folder we cannot adopt must be left exactly as it was found.
+					if (!isAdoptableCatalogName(folderName, registeredCatalogNames)) {
+						continue;
+					}
+					log.info("Discovered previously unknown catalog on disk — staging INACTIVE registration: {}",
+						folderName);
+					// the folder name doubles as the catalog name here, and only here: a FOREIGN folder is
+					// suffix-free by definition, so the two are the same string. Reading the name from the
+					// catalog's own header instead — which is what would let a folder/header mismatch be
+					// *detected* rather than silently accepted — needs an open offset index, and boot
+					// classification has no persistence service to get one from. Recorded as a known gap.
+					autoDiscovered.add(new AdoptableCatalogFolder(folderName, new CatalogFolderId(folderName)));
+				}
+				case UNCLAIMED -> log.warn(
+					"Storage folder `{}` is shaped like one evitaDB allocated but no catalog claims it — leaving " +
+						"it untouched. Rename it to a name without the `_<number>` suffix to have it adopted.",
+					folderName
+				);
+				case JUNK -> log.warn(
+					"Storage folder `{}` holds no catalog bootstrap file and is not referenced — leaving it " +
+						"untouched.", folderName
+				);
+				case PROVISIONAL -> {
+					// already removed by the drain that ran before this, or left in place for the next boot
+					// because the removal failed - either way it is not part of the divergence
+				}
+				case RETIRED -> {
+					// removed by the drain that ran before this, or left in place for the next boot because the
+					// removal failed - a removed one is reported through `drainedFolders`, a surviving one keeps
+					// its tombstone so the next boot tries again
+				}
+				// an arrow-form switch *statement* is not exhaustiveness-checked, so a seventh state would
+				// otherwise be dropped on the floor here - in the one place that decides what happens to a
+				// folder nobody claims
+				default -> throw new GenericEvitaInternalError(
+					"Unhandled catalog folder state `" + classification.state() + "` for folder `" +
+						folderName + "`!"
+				);
+			}
 		}
 
-		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty()) {
+		if (becomeMissing.isEmpty() && reappeared.isEmpty() && autoDiscovered.isEmpty() && drainedFolders.isEmpty()) {
 			return CatalogInventoryDivergence.EMPTY;
 		}
 
 		// Sort each bucket so the WAL trail is deterministic across reboots over the same on-disk shape.
 		Collections.sort(becomeMissing);
 		Collections.sort(reappeared);
-		Collections.sort(autoDiscovered);
-		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered);
+		autoDiscovered.sort(Comparator.comparing(AdoptableCatalogFolder::catalogName));
+		return new CatalogInventoryDivergence(becomeMissing, reappeared, autoDiscovered, drainedFolders);
+	}
+
+	/**
+	 * Tells whether a discovered folder may be adopted under its own name.
+	 *
+	 * Two ways it may not. The name may not be a legal catalog name at all — a directory in the storage root is
+	 * whatever an operator called it, while a catalog name has to satisfy the classifier format. Or the name may
+	 * already belong to a registered catalog, which lives in a folder of its own; adopting would then be a second
+	 * catalog claiming a taken name.
+	 *
+	 * Both are reported and the folder is left untouched, because both are situations only a human can resolve —
+	 * and because the alternative is worse than doing nothing: adoption renames the folder before the mutation
+	 * that would reject it ever runs, so the failure would arrive after the import had already been moved.
+	 *
+	 * @param folderName              name of the discovered folder, which doubles as the candidate catalog name
+	 * @param registeredCatalogNames  every catalog name the engine state already knows, in any bucket
+	 * @return true when the folder can be offered for adoption
+	 */
+	private static boolean isAdoptableCatalogName(
+		@Nonnull String folderName,
+		@Nonnull Set<String> registeredCatalogNames
+	) {
+		if (registeredCatalogNames.contains(folderName)) {
+			log.warn(
+				"Storage folder `{}` looks like a catalog placed here by hand, but a catalog of that name is " +
+					"already registered and lives elsewhere — leaving the folder untouched. Rename it to a free " +
+					"catalog name to have it adopted.",
+				folderName
+			);
+			return false;
+		}
+		try {
+			ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, folderName);
+			return true;
+		} catch (RuntimeException ex) {
+			log.warn(
+				"Storage folder `{}` looks like a catalog placed here by hand, but its name cannot be a catalog " +
+					"name ({}) — leaving the folder untouched. Rename it to a valid catalog name to have it " +
+					"adopted.",
+				folderName, ex.getMessage()
+			);
+			return false;
+		}
+	}
+
+	/**
+	 * Tells whether the folder a catalog is bound to is actually present on disk.
+	 *
+	 * The lookup goes through the binding rather than assuming the folder carries the catalog's name. Once a
+	 * folder outlives a rename the two differ, and matching by name would report a perfectly healthy catalog as
+	 * missing — which stages a MISSING transition and takes it out of service.
+	 *
+	 * @param engineState   state carrying the name-to-folder bindings
+	 * @param foldersOnDisk names of every directory found under the storage root
+	 * @param catalogName   catalog whose folder is being looked for
+	 * @return true when the catalog is bound to a folder that exists
+	 */
+	private static boolean boundFolderPresent(
+		@Nonnull EngineState<LogFileRecordReference> engineState,
+		@Nonnull Set<String> foldersOnDisk,
+		@Nonnull String catalogName
+	) {
+		final CatalogFolderId folderId = engineState.boundFolderIdFor(catalogName);
+		return folderId != null && foldersOnDisk.contains(folderId.id());
 	}
 
 	/**
@@ -993,8 +1200,40 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 */
 	@Nonnull
 	private EngineState<LogFileRecordReference> createNewEngineState(@Nonnull StorageSettings storageSettings) {
-		// Get all directories in the storage directory to identify active catalogs
-		final Path[] directories = FileUtils.listDirectories(storageSettings.storageDirectory());
+		// A directory name is NOT a catalog name. This path runs whenever the engine bootstrap is absent - a
+		// storage root copied to another host, restored from a filesystem backup, or one whose bootstrap was
+		// corrupted and removed - which is exactly the disaster-recovery situation, and it is the one boot path
+		// that has no engine state to consult. Taking every directory name as a catalog name was correct only
+		// while a folder was named after its catalog. Now that folders carry a generation, it would register
+		// catalog `products_1` for a folder holding catalog `products`, and the load would then *adapt the
+		// stored name to match* - permanently renaming the catalog after its own directory, silently, with no
+		// way back short of restoring a backup.
+		//
+		// So the same classification the normal boot path uses decides here too, against an empty state: a
+		// suffix-free folder holding a bootstrap is foreign and adoptable, which registers a legacy installation
+		// exactly as before, while anything carrying a generation suffix is unclaimed - reported, left alone,
+		// and recovered by renaming it suffix-free. Reading the catalog's real name out of the folder's
+		// `.catalogname` marker would recover more of these automatically and is the natural next step; it is
+		// not needed for correctness, and it must not be taken before the ambiguity of two folders claiming one
+		// name is resolved.
+		final List<CatalogFolderClassification> classifications = CatalogFolderClassifier.classify(
+			storageSettings.storageDirectory(),
+			EngineState.<LogFileRecordReference>builder().version(1L).build()
+		);
+		final List<String> adoptableCatalogs = new ArrayList<>(classifications.size());
+		for (final CatalogFolderClassification classification : classifications) {
+			if (classification.state() == CatalogFolderState.FOREIGN) {
+				adoptableCatalogs.add(classification.folderName());
+			} else {
+				log.warn(
+					"Storage folder `{}` was found without any engine state to explain it and cannot be claimed " +
+						"({}) — leaving it untouched. Rename it to a name with no `_<number>` suffix to have it " +
+						"registered.",
+					classification.folderName(), classification.state()
+				);
+			}
+		}
+		Collections.sort(adoptableCatalogs);
 
 		// Create new engine state with initial values
 		final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
@@ -1002,11 +1241,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			1L,  // Initial version
 			OffsetDateTime.now(),
 			null,  // No WAL file reference initially
-			// Extract directory names as active catalogs
-			Arrays.stream(directories)
-			      .map(it -> it.getName(it.getNameCount() - 1).toString())
-			      .sorted()
-			      .toArray(String[]::new),
+			adoptableCatalogs.toArray(String[]::new),
 			ArrayUtils.EMPTY_STRING_ARRAY,  // No inactive catalogs initially
 			ArrayUtils.EMPTY_STRING_ARRAY   // No read-only catalogs initially
 		);
@@ -1014,6 +1249,92 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		// Store the newly created engine state
 		storeEngineState(newEngineState);
 		return newEngineState;
+	}
+
+	/**
+	 * Joins a catalog folder token onto the configured storage root.
+	 *
+	 * This is the only place the join is performed for whole-folder operations, and it is deliberately private
+	 * — the engine hands down opaque tokens and must never learn the join rule. {@link CatalogFolderId}
+	 * validates at construction that a token is a single path segment, so the result cannot escape the root.
+	 *
+	 * @param folderId token identifying the catalog folder
+	 * @return directory the token denotes, which is not guaranteed to exist
+	 */
+	@Nonnull
+	private Path pathOf(@Nonnull CatalogFolderId folderId) {
+		return this.storageSettings.storageDirectory().resolve(folderId.id());
+	}
+
+	@Override
+	public boolean catalogFolderExists(@Nonnull CatalogFolderId folderId) {
+		return pathOf(folderId).toFile().exists();
+	}
+
+	@Override
+	public void dropCatalogFolder(@Nonnull CatalogFolderId folderId) {
+		// No existence pre-check. `exists` answers false both for "absent" and for "cannot be determined" - it
+		// reports an AccessDeniedException as absence - so a guard here would turn a folder the operating system
+		// merely refuses to talk about into a reported success, and the caller would discharge its tombstone
+		// against data that is still on disk. `deleteDirectory` already returns quietly on a folder that is
+		// genuinely gone, so the guard bought nothing and cost that.
+		FileUtils.deleteDirectory(pathOf(folderId));
+	}
+
+	@Override
+	public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
+		final Path folder = pathOf(folderId);
+		return folder.toFile().exists() ? FileUtils.getDirectorySize(folder) : 0L;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStorageFootprint catalogFolderFootprint(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName
+	) {
+		// a folder that is not there lists as `null`, which the measurement already reports as an all-zero
+		// footprint - so the missing-folder case needs no branch of its own here
+		return CatalogStorageFootprint.measure(catalogName, pathOf(folderId), null);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogFolderId allocateCatalogFolder(
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	) {
+		return CatalogFolderAllocator.allocate(
+			this.storageSettings.storageDirectory(), catalogName, generationSupplier
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogFolderId adoptCatalogFolder(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName,
+		@Nonnull IntSupplier generationSupplier
+	) {
+		return CatalogFolderAllocator.adopt(
+			this.storageSettings.storageDirectory(), folderId, catalogName, generationSupplier
+		);
+	}
+
+	@Override
+	public void recordCatalogNameInFolder(@Nonnull CatalogFolderId folderId, @Nonnull String catalogName) {
+		CatalogFolderAllocator.writeCatalogNameMarker(pathOf(folderId), catalogName);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, Integer> observedFolderGenerationPeaks() {
+		return CatalogFolderAllocator.observedPeaks(this.storageSettings.storageDirectory());
+	}
+
+	@Override
+	public void clearProvisionalCatalogFolderMarker(@Nonnull CatalogFolderId folderId) {
+		CatalogFolderAllocator.clearProvisionalMarker(pathOf(folderId));
 	}
 
 }

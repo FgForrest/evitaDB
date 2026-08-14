@@ -69,7 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 /**
@@ -208,12 +208,16 @@ public interface CatalogContract {
 		throws SchemaAlteringException;
 
 	/**
-	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
-	 */
-	void terminateAndDelete();
-
-	/**
-	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
+	 * Relabels this catalog as `updatedSchema.getName()`, so that it becomes the catalog known under that name.
+	 *
+	 * **No folder is replaced and nothing is copied or moved.** The catalog keeps the storage folder it already
+	 * occupies; the operation rewrites the name held in that folder's header and schema and hands back a catalog
+	 * instance addressing the same data under the new name. Retiring the folder the replaced catalog used
+	 * to occupy is the caller's concern — it is tombstoned through the engine state, not deleted here.
+	 *
+	 * @param updatedSchema        schema carrying the name this catalog is to be known under
+	 * @param catalogToBeReplaced  catalog being superseded, or `null` when this is a rename onto a free name
+	 * @return future producing the catalog instance serving the new name
 	 */
 	@Nonnull
 	ProgressingFuture<CatalogContract> replace(
@@ -359,8 +363,8 @@ public interface CatalogContract {
 	 *                       when set not null, the pastMoment parameter is ignored
 	 * @param includingWAL   if true, the backup will include the Write-Ahead Log (WAL) file and when the catalog is
 	 *                       restored, it'll replay the WAL contents locally to bring the catalog to the current state
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 * @throws TemporalDataNotAvailableException when the past data is not available
 	 */
@@ -369,8 +373,7 @@ public interface CatalogContract {
 		@Nullable OffsetDateTime pastMoment,
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	) throws TemporalDataNotAvailableException;
 
 	/**
@@ -379,24 +382,14 @@ public interface CatalogContract {
 	 * After restoring catalog from the full backup, the catalog will contain all the data - so you should be able to
 	 * create even point-in-time backups from it.
 	 *
-	 * @param onStart        callback that will be executed before the backup process starts
-	 * @param onComplete     callback that will be executed when the backup process is completed
+	 * @param onStart        holds the version being copied against reclamation; the lease it returns is closed by
+	 *                       the task's tear-down, whether the backup finished, failed or was never queued
 	 * @return jobId of the backup process
 	 */
 	@Nonnull
 	ServerTask<?, FileForFetch> fullBackup(
-		@Nullable LongConsumer onStart,
-		@Nullable LongConsumer onComplete
+		@Nullable LongFunction<CatalogVersionPin> onStart
 	);
-
-	/**
-	 * Duplicates the current catalog to another catalog with the specified name.
-	 *
-	 * @param targetCatalogName the name of the target catalog to which the current catalog will be duplicated
-	 * @return a future that will be completed when the duplication is finished
-	 */
-	@Nonnull
-	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
 
 	/**
 	 * Returns a component-selected snapshot of this catalog's statistics.
