@@ -52,7 +52,6 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -151,14 +150,21 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		final Optional<SessionRegistry> removedCatalogSessionRegistry =
 			evita.getCatalogSessionRegistry(catalogNameToBeReplaced);
 
-		// Written as soon as the target registry is owned - before it is drained, never after - and read only by
-		// `undoOperations`, which is declared above that point and cannot capture the local it produces.
-		final AtomicReference<SessionRegistry> quiescedTargetRegistryHolder = new AtomicReference<>();
+		final boolean replaceOperation = catalogToBeReplaced != catalogToBeReplacedWith;
+		// Owned here, above everything that can fail, and drained further down. Ownership cannot wait for the
+		// drain that establishes it: `closeAllActiveSessionsAndSuspend` publishes the suspension before waiting
+		// for the sessions to leave, so it throws with that suspension standing. Nor can it wait for anything
+		// else inside the `try` - the surviving catalog's own drain runs ahead of it and can spend five seconds
+		// failing, and throughout all of it the target is a live, unquiesced catalog. A session opened against it
+		// in that window installs a registry through the same `computeIfAbsent`, and an undo that had not
+		// recorded ownership would mistake that registry for its own leftover and unpublish it - splitting the
+		// catalog's session bookkeeping across two registries and hiding one of them from every later quiesce.
+		final Optional<SessionRegistry> quiescedTargetRegistry = replaceOperation ?
+			evita.obtainCatalogSessionRegistry(catalogNameToBeReplaced) : Optional.empty();
 
 		final Runnable undoOperations = () -> {
 			// Which of the three outcomes applies is decided by what answered to the target name when the
 			// operation started, never by what answers to it now.
-			final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
 			if (removedCatalogSessionRegistry.isPresent()) {
 				// A registry that predates the operation: restored under its name first, resumed after, in that
 				// order. Session creation goes through `computeIfAbsent` on this same map, so a name left empty
@@ -168,26 +174,28 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				// A replace quiesces its target with REJECT before touching anything, and a failure leaves that
 				// target standing - the operation changed nothing. Resuming it is therefore part of undoing, or
 				// the catalog that was *not* replaced spends the rest of the process answering
-				// `InstanceTerminatedException` to every session opened against it. Guarded on the holder so that
-				// a suspension this operation never installed is not cleared on someone else's behalf.
-				if (quiescedTargetRegistry != null) {
-					quiescedTargetRegistry.resumeOperations();
-				}
-			} else if (quiescedTargetRegistry != null) {
-				// A registry this operation installed itself, purely to quiesce the target. The replace failed,
-				// so that catalog is still there and still answers to this name - which makes a resumed registry
-				// under it exactly what the first session would have built anyway.
+				// `InstanceTerminatedException` to every session opened against it. Safe on the paths that failed
+				// before the drain ran, because `resumeOperations` lifts a suspension if one is standing and does
+				// nothing at all otherwise.
+				quiescedTargetRegistry.ifPresent(SessionRegistry::resumeOperations);
+			} else if (quiescedTargetRegistry.isPresent()) {
+				// A registry this operation owns without having found one: either it installed it, or a session
+				// that raced the obtain above did and this operation adopted it. The replace failed, so that
+				// catalog is still there and still answers to this name - which makes a resumed registry under
+				// it exactly what the first session would have left behind anyway.
 				//
 				// Resumed **in place**, never unpublished: the drain can give up with sessions still inside it,
 				// and a registry that cannot be reached through the map is invisible to every later quiesce -
 				// replace, delete, engine shutdown - so those sessions would outlive the catalog they are bound
 				// to. Unpublishing while suspended has the mirror-image cost, since a resume that follows the
 				// removal lets a racing `createSession` populate a registry nobody can reach any more.
-				quiescedTargetRegistry.resumeOperations();
+				quiescedTargetRegistry.get().resumeOperations();
 			} else {
-				// Nothing was quiesced under this name: a rename, whose target names nothing until the commit
-				// lands, or a replace onto a name that names no catalog. Whatever answers to it can only have
-				// been put there by the registry swap on the success path, and goes back with the rest of it.
+				// This name was never a catalog this operation could quiesce: a rename, whose target names
+				// nothing until the commit lands, or a replace onto a name that names no catalog. Nothing can
+				// have installed a registry under it in the meantime for the same reason - session creation
+				// refuses a name it cannot resolve to a catalog - so whatever answers to it now was put there by
+				// the registry swap on the success path, and goes back with the rest of it.
 				evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
 			}
 			// and revert the suspension the operation opened with. Resuming used to happen on the success path
@@ -211,7 +219,6 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE)
 			);
 
-			final boolean replaceOperation = catalogToBeReplaced != catalogToBeReplacedWith;
 			// Both folders are resolved here, in the read-only phase, and never again. The commit below repoints
 			// the target name at the source folder, so re-reading either afterwards would answer about the world
 			// the commit has just created rather than the one it acted on.
@@ -234,31 +241,20 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				)
 			);
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
-			final Optional<SessionRegistry> quiescedTargetRegistry;
 			if (replaceOperation) {
-				// Obtained rather than looked up, for the reason the surviving catalog is: a target nobody has
-				// opened a session on since boot has no registry, so suspending what `getCatalogSessionRegistry`
-				// finds quiesces nothing at all - which is how sessions came to be served against a catalog while
-				// it was being destroyed. A registry is installed only when the name names a catalog, so a
-				// replace onto a target that does not exist keeps answering `CatalogNotFoundException` rather
-				// than reporting a terminated instance.
+				// The registry was obtained above, before anything that can fail; only the drain belongs here.
+				// Draining it is what stops sessions being served against a catalog that is being destroyed, and
+				// the registry it drains may be one this operation installed - a target nobody has opened a
+				// session on since boot has none, so a name-keyed lookup would have quiesced nothing at all.
 				//
-				// Ownership is recorded *between* obtaining and draining, deliberately. The drain publishes the
-				// suspension before it waits, so it throws with the suspension standing; recording afterwards
-				// would leave `undoOperations` unaware of a registry it has to resume, and the catalog that was
-				// not replaced would reject every session until the process ended.
-				//
-				// Held apart from `removedCatalogSessionRegistry`, which stays the *pre-existing* registry: the
-				// captured Optional is empty exactly when this operation installed the registry itself, and undo
-				// resumes that one in place rather than restoring anything.
-				quiescedTargetRegistry = evita.obtainCatalogSessionRegistry(catalogNameToBeReplaced);
-				quiescedTargetRegistry.ifPresent(quiescedTargetRegistryHolder::set);
+				// Kept apart from `removedCatalogSessionRegistry`, which stays the *pre-existing* registry: that
+				// Optional is empty exactly when this operation, rather than an earlier session, put the registry
+				// there, and undo resumes such a registry in place rather than restoring anything.
 				quiescedTargetRegistry.ifPresent(
 					sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT)
 				);
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
-				quiescedTargetRegistry = Optional.empty();
 			}
 
 			final CatalogSchemaWithImpactOnEntitySchemas updatedSchemaWrapper = mutation.mutate(catalogToBeReplacedWith.getSchema());

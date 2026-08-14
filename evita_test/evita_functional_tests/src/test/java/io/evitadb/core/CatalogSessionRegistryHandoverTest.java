@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -56,6 +57,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SESSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -506,7 +508,7 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			} finally {
 				release.countDown();
 			}
-			awaitBlockedSession(blockedSession);
+			awaitCompletionQuietly(blockedSession);
 
 			// The rename changed nothing, so the source must answer under its own name. The suspension used to be
 			// published before the `try` that installs the undo path, so nothing lifted it and this read failed
@@ -539,7 +541,7 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			} finally {
 				release.countDown();
 			}
-			awaitBlockedSession(blockedSession);
+			awaitCompletionQuietly(blockedSession);
 
 			// The target's own drain is what failed, and it fails *inside* the call that hands the registry to the
 			// operation - so the ownership the undo path resumes has to be recorded before the drain, not after it.
@@ -552,6 +554,60 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			assertEquals(
 				BRANDS_IN_SOURCE,
 				brandCount(SOURCE_CATALOG),
+				"A replace that failed must leave its source serving too!"
+			);
+		}
+
+		@Test
+		@DisplayName("Owns the target's registry before the source's drain can fail")
+		void shouldOwnTheTargetRegistryBeforeTheSourceDrainCanFail() throws Exception {
+			createCatalogWithBrands(TARGET_CATALOG, BRANDS_IN_TARGET);
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+			// the target must start with no registry, or the undo takes the branch that restores a pre-existing
+			// one and the ownership this test is about is never exercised
+			restartEngine();
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).isPresent(),
+				"The fixture must leave the target without a registry, or the test proves nothing!"
+			);
+
+			final CountDownLatch release = new CountDownLatch(1);
+			final Future<?> blockedSession = holdSessionOpen(SOURCE_CATALOG, release);
+			try {
+				assertThrows(
+					RuntimeException.class,
+					() -> CatalogSessionRegistryHandoverTest.this.evita.replaceCatalog(SOURCE_CATALOG, TARGET_CATALOG),
+					"A replace whose source will not drain must report the failure rather than swallow it!"
+				);
+			} finally {
+				release.countDown();
+			}
+			awaitCompletionQuietly(blockedSession);
+
+			// The heart of it, and observable without racing anything: the operation reached its own first failure
+			// point - the source's five-second drain - with the target's registry already in hand, so a registry
+			// exists under that name even though no session was ever opened on it. Owned late instead, the
+			// operation would spend that whole drain with the target unclaimed, and the undo would take a
+			// registry a session installed in the meantime to be its own leftover and unpublish it - hiding that
+			// session from every later quiesce and splitting the catalog's bookkeeping in two when the next
+			// session built a second registry.
+			final SessionRegistry targetRegistry = CatalogSessionRegistryHandoverTest.this.evita
+				.getCatalogSessionRegistry(TARGET_CATALOG)
+				.orElseThrow(() -> new AssertionError(
+					"The replace must own the target's registry before its source drain can fail, and leave it " +
+						"published when that drain does fail!"
+				));
+			assertEquals(
+				BRANDS_IN_TARGET, brandCount(TARGET_CATALOG),
+				"A replace that failed while quiescing its source must leave the target serving!"
+			);
+			assertSame(
+				targetRegistry,
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).orElse(null),
+				"A session opened after the failure must reuse that registry rather than build a second one!"
+			);
+			assertEquals(
+				BRANDS_IN_SOURCE, brandCount(SOURCE_CATALOG),
 				"A replace that failed must leave its source serving too!"
 			);
 		}
@@ -589,16 +645,17 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Waits out the held session once it has been released. Its own outcome is not asserted: the drain rolled
-		 * it back and closed it underneath us, so it may well report that, and what this class is about is the
-		 * state the *catalogs* are left in.
+		 * Waits out work submitted to the executor — a held session, or an operation expected to fail. Its outcome
+		 * is deliberately not asserted: the held session was rolled back and closed underneath us and may report
+		 * that, the operation is *supposed* to throw, and what this class is about is the state the **catalogs**
+		 * are left in afterwards.
 		 *
-		 * @param blockedSession handle returned by {@link #holdSessionOpen(String, CountDownLatch)}
+		 * @param work handle of the submitted work to wait out
 		 */
-		private void awaitBlockedSession(@Nonnull Future<?> blockedSession)
+		private void awaitCompletionQuietly(@Nonnull Future<?> work)
 			throws InterruptedException, TimeoutException {
 			try {
-				blockedSession.get(30, TimeUnit.SECONDS);
+				work.get(30, TimeUnit.SECONDS);
 			} catch (ExecutionException ex) {
 				// expected - see above
 			}
