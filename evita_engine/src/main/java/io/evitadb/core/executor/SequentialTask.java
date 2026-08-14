@@ -185,7 +185,17 @@ public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServ
 				final T theFinalResult = (T) this.steps[this.steps.length - 1]
 					.getFutureResult()
 					.getNow(null);
-				this.futureResult.complete(theFinalResult);
+				// `complete` is the arbiter of the one window the guard above cannot see - a cancel landing after
+				// that check has already passed. It returns false there, having lost to `cancel()`. The status
+				// transition must therefore follow the future instead of running unconditionally:
+				// `transitionToFinished` does not inspect the state it replaces, so a cancel arriving here used to be
+				// stamped back to FINISHED, reporting a real result on a task whose own future says cancelled - the
+				// same future/status mismatch this class's cancellation guard exists to rule out. `cancel()` has
+				// already recorded the CancellationException, so nothing needs stamping on this path.
+				// Covered by SequentialTaskTest#shouldNotReportFinishedWhenCancelLandedAfterLastStep
+				if (!this.futureResult.complete(theFinalResult)) {
+					return null;
+				}
 
 				this.status.updateAndGet(current -> current.transitionToFinished(theFinalResult));
 

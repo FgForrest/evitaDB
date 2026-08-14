@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -189,6 +190,44 @@ class SequentialTaskTest {
 			assertEquals(
 				TaskSimplifiedState.FAILED, status.simplifiedState(),
 				"a sequence whose result future is cancelled reported a state other than FAILED"
+			);
+			assertEquals("Task was cancelled.", status.publicExceptionMessage());
+			assertTrue(status.exceptionWithStackTrace().startsWith(CancellationException.class.getName()));
+		}
+
+		@Test
+		@DisplayName("does not report FINISHED when the cancel landed after the last step completed")
+		void shouldNotReportFinishedWhenCancelLandedAfterLastStep() {
+			// the one window the post-loop guard cannot see: the cancel arrives after that check has already passed.
+			// `complete()` then correctly no-ops on the cancelled future, but the status transition that follows it
+			// was unconditional, stamping FINISHED with a real result over a future that reports cancelled.
+			final AtomicReference<SequentialTask<Integer>> holder = new AtomicReference<>();
+			final ClientRunnableTask<Void> step1 = recordingStep("first", new ArrayList<>(1));
+			// the seam: SequentialTask reads the last step's future exactly once, between the post-loop cancellation
+			// guard and `futureResult.complete(...)` - nothing else in the engine calls a step's getFutureResult()
+			// during execution. Cancelling from that read lands the cancel inside the window deterministically and on
+			// a single thread, where a second thread could only sweep for it probabilistically.
+			final ClientCallableTask<Void, Integer> step2 = new ClientCallableTask<Void, Integer>(
+				"step", "second", null, theTask -> 42, TaskTrait.CAN_BE_CANCELLED
+			) {
+				@Nonnull
+				@Override
+				public CompletableFuture<Integer> getFutureResult() {
+					holder.get().cancel();
+					return super.getFutureResult();
+				}
+			};
+			final SequentialTask<Integer> sequence = new SequentialTask<>(null, "Sequence", step1, step2);
+			holder.set(sequence);
+			sequence.transitionToIssued();
+
+			assertNull(sequence.execute(), "a sequence cancelled before it completed must report no result");
+			assertTrue(sequence.getFutureResult().isCancelled(), "the result future was not cancelled");
+
+			final TaskStatus<Void, Integer> status = sequence.getStatus();
+			assertEquals(
+				TaskSimplifiedState.FAILED, status.simplifiedState(),
+				"the sequence reported FINISHED while its own future reports cancelled"
 			);
 			assertEquals("Task was cancelled.", status.publicExceptionMessage());
 			assertTrue(status.exceptionWithStackTrace().startsWith(CancellationException.class.getName()));

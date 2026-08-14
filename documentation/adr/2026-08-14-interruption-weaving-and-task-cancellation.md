@@ -1,7 +1,7 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 14:50
+updated: 2026-08-14 14:55
 status: accepted
 kind: fix
 issues: [1416]
@@ -162,9 +162,9 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   It needs no build artifacts and would have caught the `anyOf` defect in milliseconds. `InterruptionAdviceWovenTest`
   keeps exactly one assertion per module, owning the orthogonal claim that the plugin ran against the shipped
   classes; the two are deliberately not merged.
-- Six further defects were found in the cancellation chain and fixed here, each calibrated by confirming its test
-  fails with the predicted symptom before the fix goes in. The last two were written test-first, which is the
-  preferable order for the reason recorded under *Consequences*: a test written red needs no revert step, so
+- Seven further defects were found in the cancellation chain and fixed here, each calibrated by confirming its
+  test fails with the predicted symptom before the fix goes in. The last three were written test-first, which is
+  the preferable order for the reason recorded under *Consequences*: a test written red needs no revert step, so
   there is nothing to forget to undo.
   - `AbstractServerTask#attachExecutionHandle` — a cancel arriving between `submit(...)` and the attach found no
     handle and never interrupted, silently reinstating the defect this record exists to fix.
@@ -197,8 +197,14 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
     "was a cancel requested", never "is this why the body threw"; the branch now also requires the throwable to be
     (or wrap) a `CancellationException`/`InterruptedException`.
     `AbstractServerTaskCancellationTest#shouldKeepRealExceptionWhenUnrelatedFailureRacedCancellation`.
-- Tag-scoped regression run after all fixes: `-Dgroups="task & engine"` → **99 tests, 0 failures**; targeted
-  classes → **77 tests, 0 failures**. Both on a `mvn clean` rebuild of the woven modules.
+  - `SequentialTask#execute` again, one window further on — the guard added above stops a cancel that arrives
+    *before* the post-loop check, but a cancel landing after it was stamped back to FINISHED. `complete()`
+    correctly no-ops on the cancelled future, yet the status transition that followed ran unconditionally and
+    `transitionToFinished` does not inspect what it replaces, so the sequence reported FINISHED with a real
+    result while its own future reported cancelled. `complete()`'s return value is now the race arbiter.
+    `SequentialTaskTest#shouldNotReportFinishedWhenCancelLandedAfterLastStep`.
+- Tag-scoped regression run after all fixes: `-Dgroups="task & engine"` → **100 tests, 0 failures**; targeted
+  classes → **78 tests, 0 failures**. Both on a `mvn clean` rebuild of the woven modules.
 - Request-path run, because the `ObservableThreadExecutor` fix executes on every task completion in the Armeria
   request path and the tag scoping above is orthogonal to it: five GraphQL and REST end-to-end functional classes
   → **123 tests, 0 failures**, and zero `InterruptedException` occurrences in the log, which is the signal that
@@ -243,6 +249,15 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   exception in the status and returns the cancelled outcome. Revisit if a caller ever needs the handler's side
   effects on a cancelled task, which would make the two contracts genuinely incompatible rather than merely
   adjacent.
+- **`isCancelled()` is a check-then-act hazard, and it produced three separate defects in this one record.**
+  Reading it and then acting on the answer is only correct while nothing can cancel in between — and on every
+  path here something can. The three instances failed in different ways for the same reason: clearing the
+  interrupt flag on it missed an interrupt that was genuinely delivered; branching on it attributed an unrelated
+  failure to cancellation; guarding a completion block with it left a window on the far side of the check. The
+  general shape of the fix is to act on something atomic and then read the outcome — `complete()`'s return value,
+  a CAS on an explicit state — rather than to ask a question whose answer is stale by the next line. Treat a bare
+  `isCancelled()` on a concurrent path as suspect; the reliable uses left in this code are the ones where the
+  answer being stale is harmless.
 - **The thread-tracking pattern this record rejects for new code was still live in the request path**, and is
   now fixed rather than merely noted. `AbstractObservableTask#cancel()` reads a `volatile Thread` and interrupts
   it directly; nothing ordered that interrupt against the worker clearing its flag and taking the next task, so
