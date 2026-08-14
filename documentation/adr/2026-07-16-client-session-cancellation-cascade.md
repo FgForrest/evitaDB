@@ -1,7 +1,7 @@
 ---
 title: Fix the gRPC session-cancellation cascade, and move the test-only executor switch off public config into a per-dataset real-pool opt-in
 date: 2026-07-16
-updated: 2026-08-03 15:50
+updated: 2026-08-14 09:50
 status: accepted
 kind: fix
 issues: []
@@ -9,7 +9,7 @@ prs: [1284]
 areas: [evita_external_api_grpc/client/driver, evita_external_api_core/configuration, evita_engine/core, evita_api/exception, evita_api/configuration, evita_server, evita_test_support, evita_test/evita_functional_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-03-driver-connection-resilience, 2026-08-04-http2-connection-teardown-observability]
+relates: [2026-08-03-driver-connection-resilience, 2026-08-04-http2-connection-teardown-observability, 2026-08-14-interruption-weaving-and-task-cancellation]
 ---
 
 # Fix the gRPC keep-alive self-kill and session-cancellation cascade
@@ -262,6 +262,11 @@ reconfirm them — they were the merge-gating numbers, not re-measured for this 
 ## Consequences & open follow-ups
 
 Re-checked against the current tree, not just carried from `RESULTS.md`:
+
+- **Unrecognized at the time — the far end of this chain read nothing.** The cancellation delivered here
+  set the thread interrupt flag correctly, but `@Interruptible` had never woven a single check, so no query
+  ever polled it. Closed in `2026-08-14-interruption-weaving-and-task-cancellation.md`, which also fixes the
+  discarded executor `Future` that left running background tasks uninterruptible.
 
 - **Still open — no dedicated real-pool CI stage.** `RESULTS.md` deferred "a dedicated sequential
   real-pool CI stage" as a separate follow-up; confirmed still absent from `.github/workflows/`.

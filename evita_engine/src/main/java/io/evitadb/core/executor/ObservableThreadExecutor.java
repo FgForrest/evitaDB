@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -717,6 +718,21 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 * Volatile ensures visibility between the worker thread and any cancelling thread.
 		 */
 		@Nullable protected volatile Thread executingThread;
+		/**
+		 * Where this task stands as interrupt delivery sees it.
+		 *
+		 * The {@link #executingThread} reference alone cannot make delivery safe: nothing orders a canceller's
+		 * `Thread#interrupt()` call against the worker clearing that field and moving on, so a cancel arriving just as
+		 * the task finishes can land its interrupt inside the *next*, unrelated task the pooled thread picks up. Now
+		 * that the `@Interruptible` checkpoints actually poll the flag, that aborts a healthy request with an
+		 * `InterruptedException` its signatures never declared.
+		 *
+		 * This state machine closes the window the way `FutureTask` does: only a canceller that wins the
+		 * `RUNNING -> CANCELLING` transition delivers an interrupt at all, and {@link #finishExecution()} waits that
+		 * transition out before clearing the flag. The interrupt is therefore delivered inside the delegate's own
+		 * execution, or not at all.
+		 */
+		private final AtomicReference<ExecutionState> executionState = new AtomicReference<>(ExecutionState.PENDING);
 
 		/**
 		 * @param name         human-readable task identifier returned by {@link #toString()}, or {@code null}
@@ -761,19 +777,49 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 * In both cases {@link #onCompletion} is fired (at most once) and the internal future is transitioned to
 		 * the cancelled state.
 		 *
+		 * The interrupt is only ever sent by the caller that wins the `RUNNING -> CANCELLING` transition, and the
+		 * worker cannot leave {@link #finishExecution()} until that transition completes — see
+		 * {@link #executionState} for why a bare `executingThread.interrupt()` is not enough.
+		 *
 		 * This method is safe to call from any thread and is idempotent.
 		 */
 		@Override
 		public void cancel() {
 			this.future.cancel(true);
 			fireCompletion();
-			final Thread t = this.executingThread;
-			if (t != null) {
-				t.interrupt();
+			// outside RUNNING there is nothing safe to interrupt: the worker either has not started (its run/call
+			// method will return without touching the delegate) or has already left, and an interrupt sent then lands
+			// on whatever that pooled thread runs next
+			if (this.executionState.compareAndSet(ExecutionState.RUNNING, ExecutionState.CANCELLING)) {
+				try {
+					final Thread t = this.executingThread;
+					if (t != null) {
+						deliverInterrupt(t);
+					}
+				} finally {
+					// in a finally because finishExecution() parks while this task is CANCELLING - a delivery that
+					// threw would otherwise leave the worker spinning for the life of the process
+					this.executionState.set(ExecutionState.INTERRUPTED);
+				}
 			}
 			new BackgroundTaskTimedOutEvent(
 				this.name == null ? "Unknown" : this.name, 1
 			).commit();
+		}
+
+		/**
+		 * Delivers the cancellation interrupt to the worker thread running this task.
+		 *
+		 * Invoked by {@link #cancel()} while the task is held in `CANCELLING`, which is precisely what guarantees the
+		 * interrupt lands inside the delegate's own execution rather than in whatever the pooled thread runs next.
+		 *
+		 * Carved out as its own method so a test can hold the delivery open and observe that a finishing worker waits
+		 * for it; production code has no reason to override it.
+		 *
+		 * @param thread the worker thread to interrupt
+		 */
+		protected void deliverInterrupt(@Nonnull Thread thread) {
+			thread.interrupt();
 		}
 
 		@Nonnull
@@ -798,13 +844,37 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		}
 
 		/**
+		 * Pre-execution bookkeeping invoked at the very start of the subclass's run/call method: publishes the worker
+		 * thread, then moves the task into `RUNNING`.
+		 *
+		 * That order is what makes {@link #cancel()} safe — a canceller winning the `RUNNING -> CANCELLING`
+		 * transition is thereby guaranteed to find a thread to interrupt rather than a `null`.
+		 */
+		protected void beginExecution() {
+			this.executingThread = Thread.currentThread();
+			this.executionState.compareAndSet(ExecutionState.PENDING, ExecutionState.RUNNING);
+		}
+
+		/**
 		 * Post-execution cleanup invoked from the {@code finally} block of the subclass's run/call method: fires
-		 * the completion callback exactly once, clears the executing-thread reference, and clears the worker
-		 * thread's interrupt flag when the task was cancelled so the interrupt does not leak into the next task
-		 * picked up by the same worker thread.
+		 * the completion callback exactly once, closes the task to further interrupt delivery, clears the
+		 * executing-thread reference, and clears the worker thread's interrupt flag when the task was cancelled so
+		 * the interrupt does not leak into the next task picked up by the same worker thread.
+		 *
+		 * When a concurrent {@link #cancel()} has already claimed the task, this method parks until that cancel has
+		 * finished delivering — clearing the flag while an interrupt is still in flight would let it arrive after the
+		 * worker has moved on, which is the whole failure mode {@link #executionState} exists to rule out.
 		 */
 		protected void finishExecution() {
 			fireCompletion();
+			if (!this.executionState.compareAndSet(ExecutionState.RUNNING, ExecutionState.DONE)) {
+				// a canceller claimed this task and is delivering its interrupt right now. `Thread#yield` rather than
+				// `Thread#onSpinWait`: what is being waited for is another thread being scheduled, not a cache line
+				// arriving - `FutureTask#handlePossibleCancellationInterrupt` waits the same way for the same reason
+				while (this.executionState.get() == ExecutionState.CANCELLING) {
+					Thread.yield();
+				}
+			}
 			this.executingThread = null;
 			// clear interrupt flag to prevent leaking to the next task on this worker thread
 			if (this.future.isCancelled()) {
@@ -817,6 +887,21 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		public String toString() {
 			return this.name == null ? getDelegate().toString() : this.name;
 		}
+
+		/**
+		 * Lifecycle of a single task run, as {@link #cancel()} and {@link #finishExecution()} see it.
+		 *
+		 * - `PENDING` — no worker has picked the task up; a cancel must not interrupt anything.
+		 * - `RUNNING` — the delegate is executing on {@link #executingThread}; the only state an interrupt may be
+		 *   delivered from.
+		 * - `CANCELLING` — a canceller has claimed the interrupt and is delivering it; the worker must not clear the
+		 *   flag nor leave {@link #finishExecution()} while this holds.
+		 * - `INTERRUPTED` — the interrupt has been delivered and the worker is free to finish.
+		 * - `DONE` — the task finished before any cancel claimed it, so no interrupt will ever be delivered.
+		 */
+		private enum ExecutionState {
+			PENDING, RUNNING, CANCELLING, INTERRUPTED, DONE
+		}
 	}
 
 	/**
@@ -826,7 +911,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	 *
 	 * - Captures the caller's MDC / tracing context at construction time and restores it on the worker thread
 	 *   for the duration of {@link #run()}, enabling correlated log entries across thread boundaries.
-	 * - Tracks the executing thread via a volatile field so that {@link #cancel()} can interrupt it at any time.
+	 * - Tracks the executing thread and the task's execution state so that {@link #cancel()} can interrupt it for
+	 *   exactly as long as the delegate is running, and no longer.
 	 * - Exposes a {@link CompletableFuture} that is completed (normally, exceptionally, or via cancellation)
 	 *   when the task finishes, allowing callers to chain dependent actions.
 	 * - Decrements the outer executor's queue-size counter exactly once when the task either completes or is
@@ -884,22 +970,22 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 *
 		 * Execution sequence:
 		 *
-		 * 1. Records the current thread in {@link #executingThread} so that a concurrent {@link #cancel()}
-		 *    call can interrupt it.
+		 * 1. Runs the shared {@link #beginExecution()} bookkeeping, which publishes the current thread and opens the
+		 *    window in which a concurrent {@link #cancel()} call may interrupt it.
 		 * 2. Returns immediately if the future was already cancelled.
 		 * 3. Restores the captured tracing context (MDC + thread-local) if one was present at construction time.
 		 * 4. Invokes the delegate. On success the future is completed normally; on exception the future is
 		 *    completed exceptionally, the error is logged, and the exception is rethrown wrapped in
 		 *    {@link ObservableExecutionException}.
 		 * 5. Clears the tracing context in a {@code finally} block.
-		 * 6. Runs the shared {@link #finishExecution()} cleanup (fires {@link #onCompletion} exactly once,
-		 *    clears {@link #executingThread}, and clears a leftover interrupt flag on cancellation).
+		 * 6. Runs the shared {@link #finishExecution()} cleanup (fires {@link #onCompletion} exactly once, closes the
+		 *    interrupt window, clears {@link #executingThread}, and clears a leftover flag on cancellation).
 		 *
 		 * @throws ObservableExecutionException wrapping any exception thrown by the delegate
 		 */
 		@Override
 		public void run() {
-			this.executingThread = Thread.currentThread();
+			beginExecution();
 			try {
 				if (this.future.isCancelled()) {
 					return;
@@ -995,7 +1081,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		@Nullable
 		@Override
 		public V call() throws Exception {
-			this.executingThread = Thread.currentThread();
+			beginExecution();
 			try {
 				if (this.future.isCancelled()) {
 					return null;

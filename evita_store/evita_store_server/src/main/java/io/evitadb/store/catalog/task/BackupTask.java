@@ -291,7 +291,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					);
 				}
 			} catch (RuntimeException exception) {
-				// remove the files
+				// `Exception` rather than `RuntimeException`, mirroring FullBackupTask: the `@Interruptible`
+				// checkpoints woven into the helpers below raise the *checked* InterruptedException from bytecode, so
+				// it is invisible in these signatures and a narrower catch lets it slip past this cleanup. The archive
+				// left behind is not merely a stray temp file - closing the stream still writes a valid central
+				// directory and registers the file for fetch, so users are offered a backup missing most of its entries
 				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
 					.ifPresent(it -> exportService.deleteFile(it.fileId()));
 
