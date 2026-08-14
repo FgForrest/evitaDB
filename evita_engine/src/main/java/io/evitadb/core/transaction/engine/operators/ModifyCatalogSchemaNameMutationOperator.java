@@ -152,18 +152,31 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		final AtomicReference<SessionRegistry> quiescedTargetRegistryHolder = new AtomicReference<>();
 
 		final Runnable undoOperations = () -> {
-			// A replace quiesces its target with REJECT before touching anything, and a failure leaves that
-			// target standing - the operation changed nothing. Resuming it is therefore part of undoing, or the
-			// catalog that was *not* replaced spends the rest of the process answering
-			// `InstanceTerminatedException` to every session opened against it.
-			final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
-			if (quiescedTargetRegistry != null) {
-				quiescedTargetRegistry.resumeOperations();
-			}
-			// revert session registry swap
+			// The registry map is put back the way it was *before* anything is resumed, and a registry dropped
+			// here is never resumed at all. Session creation goes through `computeIfAbsent` on this very map, so
+			// a registry that is both reachable and running accepts sessions: resuming first opens a window in
+			// which a racing `createSession` lands a live session in a registry the next line then unpublishes.
+			// Every later quiesce - replace, delete, engine shutdown - walks the map, so that session would be
+			// invisible to all of them and its catalog could be terminated underneath it.
 			if (removedCatalogSessionRegistry.isPresent()) {
+				// revert session registry swap
 				evita.registerCatalogSessionRegistry(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
+				// A replace quiesces its target with REJECT before touching anything, and a failure leaves that
+				// target standing - the operation changed nothing. Resuming it is therefore part of undoing, or
+				// the catalog that was *not* replaced spends the rest of the process answering
+				// `InstanceTerminatedException` to every session opened against it. Guarded on the holder rather
+				// than resumed unconditionally, so that a suspension this operation did not install - one a
+				// concurrent operation is holding - is never cleared on its behalf.
+				final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
+				if (quiescedTargetRegistry != null) {
+					quiescedTargetRegistry.resumeOperations();
+				}
 			} else {
+				// Whatever answers to this name is the registry `suspendCatalogSessions` installed purely to
+				// quiesce the target. It is dropped rather than resumed into service - the rule the success path
+				// and `retireStragglerRegistry` already follow - so the next request builds a clean one through
+				// the map, while a thread still holding a stale reference keeps being refused instead of
+				// populating a registry nobody can reach any more.
 				evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
 			}
 			// and revert the suspension the operation opened with. Resuming used to happen on the success path
@@ -336,12 +349,17 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						// rejecting sessions for the life of the process: the catalog would survive the replace
 						// and be unreachable afterwards. Dropped rather than resumed into service, so the next
 						// request builds a clean one against the catalog that now answers to this name.
-						() -> quiescedTargetRegistry.ifPresent(
-							quiesced -> {
+						//
+						// Unpublished and left suspended, never resumed: a resumed registry that no longer answers
+						// to any name still accepts sessions from whoever holds a reference to it, and those
+						// sessions are then invisible to every later quiesce - which walks the registry map. The
+						// caller that loses this race is refused rather than served, which is precisely what
+						// quiescing the target is for.
+						() -> {
+							if (quiescedTargetRegistry.isPresent()) {
 								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
-								quiesced.resumeOperations();
 							}
-						)
+						}
 					);
 
 					// Terminate the catalog that was replaced. A failure here costs open handles into a folder

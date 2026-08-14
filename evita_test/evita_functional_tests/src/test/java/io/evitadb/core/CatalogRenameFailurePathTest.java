@@ -71,13 +71,22 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * all three - the lock now sits once on the storage root rather than per catalog, and a rename commits nothing
  * until the storage work has succeeded - but "expected to" is what this test exists to replace.
  *
- * **Both tests found live defects, and both are calibrated against the fixes that closed them.** Drop
+ * **The first two tests found live defects, and both are calibrated against the fixes that closed them.** Drop
  * `prevailingCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations)` from `undoOperations` in
  * `ModifyCatalogSchemaNameMutationOperator#doReplaceCatalogInternal` and the rename test fails reading the
  * catalog back, with `SessionBusyException`. Drop the `quiescedTargetRegistry` resume beside it and the replace
  * test fails the same way with `InstanceTerminatedException`, thrown out of
  * `SessionRegistry#awaitResumeOrRefuse` - the catalog that was *not* replaced refusing every session it is
  * offered. Both suspensions used to be lifted on the success path only.
+ *
+ * The third covers the *other* undo branch, which the second deliberately avoids: a target nobody has opened a
+ * session on since boot has no registry, so the operation installs one purely to quiesce it and the undo has to
+ * unpublish that registry rather than restore it. Calibrated by dropping the
+ * `removeCatalogSessionRegistryIfPresent` call from that branch - the target then answers
+ * `InstanceTerminatedException` for the rest of the process. What it cannot calibrate is the *ordering* within
+ * that branch - unpublishing before resuming, so a racing `createSession` cannot land a live session in a
+ * registry that is about to become unreachable - because reaching that window needs an interleaving no seam
+ * exposes. The removal is asserted; the ordering is argued at the site.
  *
  * **How the failure is injected, and why here.** No production seam is used and no timing is raced. `replaceWith`
  * writes the header and the bootstrap record through handles opened at boot, which file permissions cannot fail;
@@ -235,6 +244,69 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 			TARGET_VALUE, readPayload(REPLACED_CATALOG, 2),
 			"The target catalog must survive the restart that follows a failed replace!"
 		);
+	}
+
+	@Test
+	@DisplayName("Leaves no registry behind when it installed one purely to quiesce the replace target")
+	void shouldLeaveNoRegistryBehindWhenReplaceFailsAgainstAnUntouchedTarget() throws Exception {
+		defineCatalogAndGoLive(TEST_CATALOG);
+		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
+		defineCatalogAndGoLive(REPLACED_CATALOG);
+		commitProduct(REPLACED_CATALOG, 2, TARGET_VALUE);
+
+		// session registries live in memory only, so a restart is what produces a catalog that has none - and
+		// that is the branch where the operation has to install one before it can quiesce the target at all
+		restartEngine();
+		assertTrue(
+			this.evita.getCatalogSessionRegistry(REPLACED_CATALOG).isEmpty(),
+			"The target must start with no session registry, or this test exercises the other undo branch!"
+		);
+
+		final Path dataFile = soleCatalogDataFile(catalogFolder(TEST_CATALOG));
+		final Set<PosixFilePermission> originalPermissions = Files.getPosixFilePermissions(dataFile);
+
+		try {
+			Files.setPosixFilePermissions(dataFile, Collections.emptySet());
+			assumeTrue(
+				isUnreadable(dataFile),
+				"Revoking read permission did not bite - the suite is running as a user that ignores it."
+			);
+
+			assertThrows(
+				RuntimeException.class,
+				() -> this.evita.replaceCatalog(TEST_CATALOG, REPLACED_CATALOG),
+				"The replace must report the failure rather than swallow it!"
+			);
+		} finally {
+			Files.setPosixFilePermissions(dataFile, originalPermissions);
+		}
+
+		// asserted before anything opens a session, which would build a registry of its own and hide the leak.
+		// The registry the operation installed is suspended with REJECT, so leaving it published would make the
+		// target - a catalog that was never touched - answer `InstanceTerminatedException` for the rest of the
+		// process. Unpublishing it while it is still suspended is also what keeps a racing session request from
+		// landing in a registry that is about to become unreachable.
+		assertTrue(
+			this.evita.getCatalogSessionRegistry(REPLACED_CATALOG).isEmpty(),
+			"A failed replace must unpublish the registry it installed purely to quiesce the target!"
+		);
+		assertEquals(
+			TARGET_VALUE, readPayload(REPLACED_CATALOG, 2),
+			"A failed replace must leave an untouched target readable rather than rejecting sessions!"
+		);
+		assertEquals(
+			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
+			"A failed replace must leave the source catalog readable!"
+		);
+	}
+
+	/**
+	 * Closes the engine and boots a new one over the same storage folder.
+	 */
+	private void restartEngine() {
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	/**
