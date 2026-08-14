@@ -63,8 +63,10 @@ import java.lang.reflect.Field;
  *
  * {@link AbstractGraphWalker} is package-private and its `getAllReferenceFields` — which caches the reference fields
  * per class and pre-authorises them for reflection — is `protected`. Subclassing is the only way to reuse it, and
- * reusing it is what keeps this walker's field enumeration identical to JOL's. See {@link GraphPathRecords} for the
- * same trade-off made for the same reason.
+ * reusing it is what keeps this walker's field enumeration identical to JOL's.
+ *
+ * This relies on JOL being a plain classpath jar with no `module-info` (verified for jol-core 0.17). Should JOL ever
+ * ship as a named module, this class stops compiling — which is the correct way for that assumption to fail.
  *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */

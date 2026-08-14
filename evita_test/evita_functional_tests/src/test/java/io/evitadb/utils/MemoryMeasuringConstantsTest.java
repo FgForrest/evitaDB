@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.openjdk.jol.vm.VM;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -129,9 +130,34 @@ class MemoryMeasuringConstantsTest {
 		}
 
 		@Test
-		@DisplayName("Should have positive BigDecimal size")
-		void shouldHavePositiveBigDecimalSize() {
+		@DisplayName("Should measure a whole BigDecimal object, header and padding included")
+		void shouldMeasureAWholeBigDecimalObject() {
+			// a compact decimal - the magnitude fits `intCompact`, so no `BigInteger` is allocated and the shallow
+			// size IS the whole object. That is the case `BIG_DECIMAL_WHOLE_SIZE` describes
+			final BigDecimal compact = BigDecimal.valueOf(12345L, 2);
+			assertEquals(
+				JolHeapSize.shallowSize(compact),
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep the payload constant strictly smaller than the whole-object one")
+		void shouldKeepThePayloadConstantSmallerThanTheWholeOne() {
+			// the two are separate constants precisely because they were once one, and every structure that OWNS a
+			// `BigDecimal` charged the payload alone - under-reporting itself by a header plus its padding. This
+			// pins the gap so the two can never be silently collapsed back together
 			assertTrue(MemoryMeasuringConstants.BIG_DECIMAL_SIZE > 0);
+			assertTrue(
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE > MemoryMeasuringConstants.BIG_DECIMAL_SIZE,
+				"the whole size must exceed the payload by at least the object header"
+			);
+			assertEquals(
+				MemoryMeasuringConstants.align(
+					MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE
+				),
+				MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE
+			);
 		}
 
 		@Test

@@ -91,6 +91,16 @@ public interface MemoryMeasuringConstants {
 	 */
 	int BIG_DECIMAL_SIZE = LONG_SIZE + 2 * INT_SIZE + 2 * REFERENCE_SIZE;
 	/**
+	 * Whole heap footprint of one {@link java.math.BigDecimal} object - {@link #BIG_DECIMAL_SIZE} plus the object
+	 * header, aligned to the VM's allocation granularity.
+	 *
+	 * **Use this whenever a structure *owns* the `BigDecimal` it points at**, which is nearly always; reach for the
+	 * bare {@link #BIG_DECIMAL_SIZE} only when composing a payload whose header the caller adds itself. The two were
+	 * one constant until the payload/whole-size split, and every owner that kept charging the payload alone
+	 * under-reported itself by a header plus its padding.
+	 */
+	int BIG_DECIMAL_WHOLE_SIZE = (int) VMLayout.current().sizeOfObject(BIG_DECIMAL_SIZE);
+	/**
 	 * Payload of a {@link java.math.BigInteger}: `int signum`, the `mag` reference and the four cached `int` fields.
 	 * A rough figure for a small magnitude - the backing `int[]` is counted separately.
 	 */

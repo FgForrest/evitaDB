@@ -201,7 +201,7 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	@Override
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.BIG_DECIMAL_SIZE +
+			MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE +
 			this.buckets.length * CacheableBucket.BUCKET_MEMORY_SIZE;
 	}
 

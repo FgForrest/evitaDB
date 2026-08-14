@@ -117,7 +117,7 @@ public record CumulatedPrice(
 			// inner record id
 			MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeHashMapSize(innerRecordPrices()) +
 			// price without and with tax + tax
-			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE);
+			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE);
 	}
 
 	@Override

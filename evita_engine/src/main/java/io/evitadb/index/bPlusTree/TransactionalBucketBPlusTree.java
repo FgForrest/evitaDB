@@ -3227,7 +3227,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
 			// transactional layer, which is a separate node object owning separate arrays
-			final int keyCount = Math.max(this.peek, 0);
+			// `peek` is the last occupied index, so the counts below are peek and peek+1 - and NOT clamped at zero:
+			// a node emptied by a merge carries peek == -1 with `children[0]` already nulled, and clamping would
+			// walk that slot
+			final int keyCount = this.peek;
 			if (separatorsOwned) {
 				for (int i = 0; i < keyCount; i++) {
 					final M key = this.keys[i];

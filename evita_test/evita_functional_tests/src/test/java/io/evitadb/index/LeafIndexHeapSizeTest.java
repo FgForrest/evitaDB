@@ -638,10 +638,13 @@ class LeafIndexHeapSizeTest {
 			// because the index allocates them itself.
 			final VMLayout layout = VMLayout.current();
 			final Locale[] locales = {Locale.ENGLISH, Locale.GERMAN, Locale.FRENCH, Locale.ITALIAN};
+			// one instance for both sides: the exclusion set is matched by identity, so sizing one index and walking
+			// a second one built the same way compares two unrelated object graphs
+			final GlobalUniqueIndex index = localizedGlobal(locales, 200);
 			assertExceedsMeasuredHeapBy(
-				localizedGlobal(locales, 200).getHeapSizeInBytes(),
+				index.getHeapSizeInBytes(),
 				locales.length * layout.sizeOfObject(Integer.BYTES),
-				localizedGlobal(locales, 200),
+				index,
 				locales,
 				GLOBAL_EXCLUSIONS
 			);

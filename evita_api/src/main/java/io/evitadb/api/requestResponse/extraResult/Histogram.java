@@ -144,7 +144,7 @@ public class Histogram implements HistogramContract {
 	@Override
 	public int estimateSize() {
 		int size = MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.BIG_DECIMAL_SIZE +
+			MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE +
 			this.buckets.length * Bucket.BUCKET_MEMORY_SIZE;
 		if (this.minReferencedEntity != null) {
 			size += this.minReferencedEntity.estimateSize();

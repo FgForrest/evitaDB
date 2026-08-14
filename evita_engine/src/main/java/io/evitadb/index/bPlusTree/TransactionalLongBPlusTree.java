@@ -1842,7 +1842,10 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 			size += layout.sizeOfArray(this.children.length, layout.referenceSize());
 			// THIS instance's own count, deliberately not `keyCount()`: that accessor resolves the calling thread's
 			// transactional layer, which is a separate node object owning a separate `children` array
-			final int childCount = Math.max(this.peek, 0) + 1;
+			// `peek` is the last occupied index, so the counts below are peek and peek+1 - and NOT clamped at zero:
+			// a node emptied by a merge carries peek == -1 with `children[0]` already nulled, and clamping would
+			// walk that slot
+			final int childCount = this.peek + 1;
 			for (int i = 0; i < childCount; i++) {
 				size += this.children[i].getHeapSizeInBytes(elementSizer);
 			}

@@ -267,7 +267,9 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		// THIS instance's own count, deliberately not `keyCount()`: the accessor resolves the calling thread's
 		// transactional layer, and that layer is a separate node object with its OWN `children` array. Bounding the
 		// array measured above by another object's count walks slots this one never filled
-		final int childCount = Math.max(this.peek, 0) + 1;
+		// `peek` is the last occupied index, so the child count is peek+1 - and NOT clamped at zero: a node emptied
+		// by a merge carries peek == -1 with `children[0]` already nulled, and clamping would walk that slot
+		final int childCount = this.peek + 1;
 		for (int i = 0; i < childCount; i++) {
 			size += this.children[i].getHeapSizeInBytes(elementSizer);
 		}
