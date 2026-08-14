@@ -657,6 +657,14 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Submits a given server task to the internal queue for execution.
 	 *
+	 * The {@link Future} handed back by the executor is retained on the task (when it implements
+	 * {@link InterruptibleServerTask}) rather than discarded: it is the only handle that can interrupt the worker
+	 * thread, because the task's own {@link CompletableFuture} ignores `mayInterruptIfRunning`. Without it
+	 * {@link #cancelTask(UUID)} could mark a running task cancelled but never stop it.
+	 *
+	 * `@InternallyScheduledTask` tasks are deliberately left without a handle: they run inline on the submitter's
+	 * thread, where interrupting from another thread has no well-defined target.
+	 *
 	 * @param task The server task to be submitted. Must not be null.
 	 * @return A CompletableFuture representing the result of the submitted task.
 	 */
@@ -665,11 +673,18 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
 			// if the task is internally scheduled, we can execute it immediately
 			task.execute();
-		} else if (task instanceof Callable<?>) {
-			//noinspection unchecked
-			this.executorService.submit((Callable<T>)task);
 		} else {
-			this.executorService.submit(task::execute);
+			final Future<?> handle;
+			if (task instanceof Callable<?>) {
+				//noinspection unchecked
+				handle = this.executorService.submit((Callable<T>) task);
+			} else {
+				handle = this.executorService.submit(task::execute);
+			}
+			// the task may already be running - or finished - by the time this lands; cancel() tolerates both
+			if (task instanceof InterruptibleServerTask ist) {
+				ist.attachExecutionHandle(handle);
+			}
 		}
 		this.submittedTaskCount.increment();
 		return task.getFutureResult();

@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-14 | [Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future](2026-08-14-interruption-weaving-and-task-cancellation.md) | fix | accepted | #1416 |
 | 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339, PR #1418 |
 | 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
 | 2026-08-06 | [Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count](2026-08-06-time-travel-disk-budget.md) | feature | accepted | #761, PR #1402 |

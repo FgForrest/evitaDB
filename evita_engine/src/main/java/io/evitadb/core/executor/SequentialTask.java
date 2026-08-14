@@ -36,6 +36,7 @@ import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -47,12 +48,41 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class SequentialTask<T> implements ServerTask<Void, T> {
+public class SequentialTask<T> implements ServerTask<Void, T>, InterruptibleServerTask {
+	/**
+	 * The name of this task, as displayed to clients; exposed publicly via the Lombok-generated getter.
+	 */
 	@Getter private final String taskName;
+	/**
+	 * The current status of this task, updated atomically as the steps progress and as the task moves between
+	 * lifecycle states.
+	 */
 	private final AtomicReference<TaskStatus<Void, T>> status;
+	/**
+	 * The two steps executed in sequence by {@link #execute()}, in declaration order. The last step's result becomes
+	 * this task's result.
+	 */
 	private final ServerTask<?, ?>[] steps;
+	/**
+	 * The step currently being executed, set right before {@link Task#execute()} is invoked on it and cleared again
+	 * in {@link #execute()}'s `finally` block - only meaningful while {@link #execute()} is on the call stack.
+	 * Nothing in this class currently reads it back; it is written but never queried.
+	 */
 	private final AtomicReference<Task<?, ?>> currentStep;
+	/**
+	 * The result of this task, exposed via {@link #getFutureResult()}. A plain {@link CompletableFuture} - unlike
+	 * {@link AbstractServerTask}'s status-aware future, cancelling it does not by itself update {@link #status}:
+	 * {@link #cancel()} stamps the status directly, and {@link #execute()} reconciles it whenever it observes this
+	 * future already cancelled. A direct {@link CompletableFuture#cancel(boolean)} arriving after the sequence has
+	 * already finished is never reconciled, because {@link #execute()} does not run again.
+	 */
 	private final CompletableFuture<T> futureResult;
+	/**
+	 * The executor's handle for this task, attached by {@link Scheduler#submitTaskInQueue} after submission. The steps
+	 * run inline on this task's own worker thread, so interrupting it through this handle is what actually stops the
+	 * step currently in flight — see {@link InterruptibleServerTask}.
+	 */
+	@Nullable private volatile Future<?> executionHandle;
 
 	public SequentialTask(@Nullable String catalogName, @Nonnull String taskName, @Nonnull ServerTask<?, ?> step1, @Nonnull ServerTask<?, T> step2) {
 		this.taskName = taskName;
@@ -129,21 +159,53 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 				this.status.updateAndGet(TaskStatus::transitionToStarted);
 
 				for (ServerTask<?, ?> step : this.steps) {
+					// stop at the first step boundary after a cancellation instead of walking the remaining steps
+					if (this.futureResult.isCancelled()) {
+						break;
+					}
 					if (step.getStatus().simplifiedState() == TaskSimplifiedState.QUEUED) {
 						this.currentStep.set(step);
 						step.execute();
 					}
 				}
+				if (this.futureResult.isCancelled()) {
+					// a cancelled sequence must never reach the completion block below. Falling into it is harmless
+					// only while `getNow(null)` happens to raise CancellationException on an already-cancelled step;
+					// where it does not - a direct `getFutureResult().cancel(true)` leaves every step untouched - it
+					// hands back null and `transitionToFinished` records the sequence as FINISHED while this task's
+					// own future reports cancelled. Cancellation is stamped here rather than left to that exception,
+					// because the project does not route control flow through exceptions.
+					this.status.updateAndGet(
+						current -> current.simplifiedState() == TaskSimplifiedState.FAILED ?
+							current : current.transitionToFailed(new CancellationException("Task was canceled."))
+					);
+					return null;
+				}
 				//noinspection unchecked
 				final T theFinalResult = (T) this.steps[this.steps.length - 1]
 					.getFutureResult()
 					.getNow(null);
-				this.futureResult.complete(theFinalResult);
+				// `complete` is the arbiter of the one window the guard above cannot see - a cancel landing after
+				// that check has already passed. It returns false there, having lost to `cancel()`. The status
+				// transition must therefore follow the future instead of running unconditionally:
+				// `transitionToFinished` does not inspect the state it replaces, so a cancel arriving here used to be
+				// stamped back to FINISHED, reporting a real result on a task whose own future says cancelled - the
+				// same future/status mismatch this class's cancellation guard exists to rule out. `cancel()` has
+				// already recorded the CancellationException, so nothing needs stamping on this path.
+				// Covered by SequentialTaskTest#shouldNotReportFinishedWhenCancelLandedAfterLastStep
+				if (!this.futureResult.complete(theFinalResult)) {
+					return null;
+				}
 
 				this.status.updateAndGet(current -> current.transitionToFinished(theFinalResult));
 
 				return theFinalResult;
 			} catch (Exception ex) {
+				if (this.futureResult.isCancelled()) {
+					// cancellation unwound the sequence - the requested outcome, not a failure. The status already
+					// carries the CancellationException set by cancel(), so leave it alone.
+					return null;
+				}
 				fail(ex);
 				throw ex;
 			} finally {
@@ -151,6 +213,30 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 			}
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Attaches the executor handle that {@link #cancel()} uses to interrupt the worker thread currently executing
+	 * this task's steps.
+	 *
+	 * Called by {@link Scheduler#submitTaskInQueue} right after submission - which means the step loop in
+	 * {@link #execute()} may already be running, or even finished, by the time this arrives. {@link #cancel()}
+	 * cancels {@link #futureResult} first and only then reads the handle; this method publishes the handle first
+	 * and only then re-reads {@link #futureResult}, cancelling the handle if it finds the task already cancelled.
+	 * Touching the same two locations in opposite order means at least one side observes the other, so a cancel
+	 * racing this call is never lost.
+	 *
+	 * @param handle the executor's handle for the submitted task
+	 */
+	@Override
+	public void attachExecutionHandle(@Nonnull Future<?> handle) {
+		// publish the handle first, then re-read the result future - the mirror image of cancel(), which cancels the
+		// result future first and only then reads the handle. Both sides touch the same two volatile locations in
+		// opposite order, so at least one of them observes the other and a cancel racing the attachment cannot be lost
+		this.executionHandle = handle;
+		if (this.futureResult.isCancelled()) {
+			handle.cancel(true);
 		}
 	}
 
@@ -166,6 +252,12 @@ public class SequentialTask<T> implements ServerTask<Void, T> {
 				current -> current.transitionToFailed(new CancellationException("Task was canceled."))
 			);
 			this.futureResult.cancel(true);
+			// the steps run inline on this task's worker thread, so only the executor handle can interrupt the step
+			// currently in flight - the futures cancelled above cannot (see InterruptibleServerTask)
+			final Future<?> handle = this.executionHandle;
+			if (handle != null) {
+				handle.cancel(true);
+			}
 			return canceled;
 		} else {
 			return false;

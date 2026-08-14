@@ -189,6 +189,100 @@ class ObservableThreadExecutorCancellationTest {
 		fail("Executor backlog did not drain within " + AWAIT_SECONDS + " seconds — cancelled tombstone tasks were never reclaimed by a worker");
 	}
 
+	/**
+	 * An {@link ObservableRunnable} whose interrupt delivery the test can hold open: it signals the moment the cancel
+	 * has claimed the task and is about to interrupt, then waits for permission before the interrupt actually lands.
+	 *
+	 * This is the seam that turns the finishing-worker race into a deterministic test. Without it the window between
+	 * "the delegate returned" and "the interrupt arrives" can only be swept probabilistically, which belongs in the
+	 * long-running module rather than the fast loop.
+	 */
+	private static class HeldInterruptRunnable extends ObservableRunnable {
+		/** Counted down once the cancel has claimed the running task and reached the delivery point. */
+		private final CountDownLatch deliveryReached;
+		/** Awaited before the interrupt is delivered, so the test decides how long the delivery stays pending. */
+		private final CountDownLatch deliveryRelease;
+
+		private HeldInterruptRunnable(
+			@Nonnull Runnable delegate,
+			@Nonnull CountDownLatch deliveryReached,
+			@Nonnull CountDownLatch deliveryRelease
+		) {
+			super("test-held-interrupt", delegate, Functions.noOpRunnable());
+			this.deliveryReached = deliveryReached;
+			this.deliveryRelease = deliveryRelease;
+		}
+
+		@Override
+		protected void deliverInterrupt(@Nonnull Thread thread) {
+			this.deliveryReached.countDown();
+			try {
+				assertTrue(
+					this.deliveryRelease.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+					"interrupt delivery was never released"
+				);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			super.deliverInterrupt(thread);
+		}
+	}
+
+	/**
+	 * An {@link ObservableRunnable} that holds the worker *inside* `finishExecution()`, after the delegate has
+	 * returned and the result future has completed normally, but while the task is still `RUNNING`.
+	 *
+	 * That window is the one a late cancel slips into: `future.cancel(true)` fails against an already-completed
+	 * future, yet the `RUNNING -> CANCELLING` transition still succeeds and a real interrupt reaches this worker.
+	 * The seam turns that ordering into something deterministic rather than a probabilistic sweep.
+	 */
+	private static class HeldFinishRunnable extends ObservableRunnable {
+		/** Counted down once the delegate has returned and the worker has entered `finishExecution()`. */
+		private final CountDownLatch finishReached;
+		/** Awaited before `super.finishExecution()` runs, so the test decides when the worker proceeds. */
+		private final CountDownLatch finishRelease;
+		/** The worker's interrupt flag as observed immediately after `super.finishExecution()` returned. */
+		private final AtomicBoolean interruptedAfterFinish = new AtomicBoolean(false);
+
+		private HeldFinishRunnable(@Nonnull CountDownLatch finishReached, @Nonnull CountDownLatch finishRelease) {
+			super("test-held-finish", Functions.noOpRunnable(), Functions.noOpRunnable());
+			this.finishReached = finishReached;
+			this.finishRelease = finishRelease;
+		}
+
+		@Override
+		protected void finishExecution() {
+			this.finishReached.countDown();
+			awaitKeepingInterruptFlag(this.finishRelease);
+			super.finishExecution();
+			this.interruptedAfterFinish.set(Thread.currentThread().isInterrupted());
+		}
+
+		/**
+		 * Waits for the latch without consuming the interrupt flag this fixture exists to observe. The cancel under
+		 * test lands while the worker is parked here, and a bare {@link CountDownLatch#await(long, TimeUnit)} would
+		 * both throw and clear the flag, erasing the very state the assertion is about. The flag is restored before
+		 * returning, which is what a worker interrupted mid-window genuinely carries into `finishExecution()`.
+		 */
+		private static void awaitKeepingInterruptFlag(@Nonnull CountDownLatch latch) {
+			boolean interrupted = false;
+			while (true) {
+				try {
+					assertTrue(
+						latch.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+						"the worker was never released from finishExecution()"
+					);
+					break;
+				} catch (InterruptedException e) {
+					interrupted = true;
+				}
+			}
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
 	@Nested
 	@DisplayName("Completion propagation on pre-start cancellation")
 	class CompletionPropagation {
@@ -313,6 +407,151 @@ class ObservableThreadExecutorCancellationTest {
 			assertFalse(worker.isAlive(), "Worker thread should have finished");
 			assertTrue(wasInterrupted.get(), "Worker thread should have been interrupted");
 			assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
+		}
+	}
+
+	@Nested
+	@DisplayName("Interrupt delivery stays inside the cancelled task")
+	class InterruptDeliveryConfinement {
+
+		@Test
+		@DisplayName("holds a finishing worker until a concurrent cancel has delivered its interrupt")
+		void shouldHoldFinishingWorkerUntilConcurrentCancelDeliveredInterrupt() throws Exception {
+			// the failure this pins: a cancel reads the executing thread, gets preempted, and calls interrupt() only
+			// after the worker has finished this task and picked up the next one - so an unrelated piece of work dies
+			// at its first interrupt checkpoint. Nothing but the wait in finishExecution() rules that out.
+			final CountDownLatch bodyEntered = new CountDownLatch(1);
+			final CountDownLatch bodyRelease = new CountDownLatch(1);
+			final CountDownLatch deliveryReached = new CountDownLatch(1);
+			final CountDownLatch deliveryRelease = new CountDownLatch(1);
+			final CountDownLatch workerReturned = new CountDownLatch(1);
+			final AtomicBoolean flagLeaked = new AtomicBoolean(false);
+
+			final HeldInterruptRunnable task = new HeldInterruptRunnable(
+				() -> {
+					bodyEntered.countDown();
+					try {
+						// released only once the cancel has parked at the delivery point, so the delegate is
+						// guaranteed to finish while the task is still held open for an interrupt
+						assertTrue(bodyRelease.await(AWAIT_SECONDS, TimeUnit.SECONDS), "body was never released");
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				},
+				deliveryReached, deliveryRelease
+			);
+
+			final Thread worker = new Thread(
+				() -> {
+					task.run();
+					// read on the worker itself once run() has returned - this is the thread that would carry a
+					// leaked interrupt into whatever the pool hands it next
+					flagLeaked.set(Thread.currentThread().isInterrupted());
+					workerReturned.countDown();
+				},
+				"test-worker"
+			);
+			worker.setDaemon(true);
+			worker.start();
+			assertTrue(bodyEntered.await(AWAIT_SECONDS, TimeUnit.SECONDS), "task never started");
+
+			// cancel from its own thread: the delivery parks, so it cannot run on the test thread
+			final Thread canceller = new Thread(task::cancel, "test-canceller");
+			canceller.setDaemon(true);
+			canceller.start();
+			assertTrue(
+				deliveryReached.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"the cancel never claimed the running task, so it never had an interrupt to deliver"
+			);
+
+			// the interrupt is now claimed but undelivered - let the delegate finish underneath it
+			bodyRelease.countDown();
+
+			// negative wait - correct short, and it cannot fail spuriously: a loaded machine can only delay a worker
+			// that is already free to leave, never make a blocked one leave early
+			assertFalse(
+				workerReturned.await(250, TimeUnit.MILLISECONDS),
+				"the worker left the finished task while a cancellation interrupt was still in flight towards it"
+			);
+
+			deliveryRelease.countDown();
+			assertTrue(workerReturned.await(AWAIT_SECONDS, TimeUnit.SECONDS), "the worker never finished");
+			canceller.join(AWAIT_SECONDS * 1_000);
+			assertFalse(
+				flagLeaked.get(),
+				"the cancellation interrupt outlived its task and would abort the worker's next piece of work"
+			);
+		}
+
+		@Test
+		@DisplayName("does not interrupt a worker that already finished the cancelled task")
+		void shouldNotInterruptWorkerThatAlreadyFinishedCancelledTask() throws Exception {
+			// the counterfactual: once the task is over, a cancel must deliver nothing at all rather than deliver
+			// late. deliverInterrupt is never reached, so the seam's latch staying at one is the assertion.
+			final CountDownLatch deliveryReached = new CountDownLatch(1);
+			final AtomicBoolean bodyRan = new AtomicBoolean(false);
+
+			final HeldInterruptRunnable task = new HeldInterruptRunnable(
+				() -> bodyRan.set(true), deliveryReached, new CountDownLatch(0)
+			);
+
+			final Thread worker = new Thread(task, "test-worker");
+			worker.setDaemon(true);
+			worker.start();
+			worker.join(AWAIT_SECONDS * 1_000);
+			assertFalse(worker.isAlive(), "the worker never finished the task");
+			assertTrue(bodyRan.get(), "the delegate never ran");
+
+			task.cancel();
+
+			// negative wait against a latch the delivery point would have counted down - it stays at one because the
+			// task reached DONE before the cancel could claim it
+			assertFalse(
+				deliveryReached.await(250, TimeUnit.MILLISECONDS),
+				"a cancel arriving after the task finished still tried to interrupt the worker thread"
+			);
+			assertFalse(
+				Thread.currentThread().isInterrupted(),
+				"the late cancel interrupted the thread that happened to call it"
+			);
+		}
+
+		@Test
+		@DisplayName("clears a delivered interrupt even when the cancel lost the race to the completed future")
+		void shouldClearInterruptWhenCancelArrivedAfterFutureCompleted() throws Exception {
+			// the gap the executionState machine leaves open on its own: interrupt *delivery* is gated on the state,
+			// but flag *clearing* is gated on the future. A cancel arriving after the delegate completed normally
+			// cannot cancel the future, yet still wins RUNNING -> CANCELLING and really does interrupt the worker -
+			// so the two gates disagree and the flag rides out of finishExecution() into the next task.
+			// The sibling test above covers the other side of the same window, where the cancel arrives first.
+			final CountDownLatch finishReached = new CountDownLatch(1);
+			final CountDownLatch finishRelease = new CountDownLatch(1);
+			final HeldFinishRunnable task = new HeldFinishRunnable(finishReached, finishRelease);
+
+			final Thread worker = new Thread(task, "test-worker");
+			worker.setDaemon(true);
+			worker.start();
+
+			assertTrue(
+				finishReached.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"the worker never reached finishExecution()"
+			);
+
+			task.cancel();
+			assertFalse(
+				task.completionStage().isCancelled(),
+				"the delegate had already completed the future, so this cancel must not have cancelled it - without "
+					+ "that the test would be exercising the ordinary cancelled-future path instead of this window"
+			);
+
+			finishRelease.countDown();
+			worker.join(AWAIT_SECONDS * 1_000);
+			assertFalse(worker.isAlive(), "the worker never finished the task");
+
+			assertFalse(
+				task.interruptedAfterFinish.get(),
+				"the worker left finishExecution() still interrupted - the flag leaks onto whatever it runs next"
+			);
 		}
 	}
 
