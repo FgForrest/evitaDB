@@ -51,6 +51,7 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
+import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
@@ -410,9 +411,12 @@ public class CatalogStatisticsConverter {
 	/**
 	 * Reads the statuses of the requested components back from the wire.
 	 *
-	 * The statuses are reconstructed through the canonical constructor rather than the `delivered` / `unavailable`
-	 * factories: those enforce the invariant that binds a reason to a non-delivered outcome, which is a rule for the
-	 * side *producing* a status. A decoder's job is to report what the server actually said.
+	 * The availability is reported exactly as the server sent it - a decoder's job is to say what the peer said, not
+	 * to second-guess it. The **reason** is reconciled with it, because {@link ComponentStatus} guarantees that a
+	 * non-delivered status carries an explanation and a delivered one carries none, and the wire cannot be trusted to
+	 * honour that: a peer running an older or simply broken build can send an unavailability with no reason at all.
+	 * Rather than let that through and produce the silent "unavailable, no explanation" the component model exists to
+	 * prevent, a placeholder is substituted saying precisely that the peer omitted it.
 	 *
 	 * @param grpcStatuses the received statuses
 	 * @return an immutable map keyed by component, in enum order; empty when nothing was requested
@@ -425,13 +429,20 @@ public class CatalogStatisticsConverter {
 			new EnumMap<>(CatalogStatisticsComponent.class);
 		for (final GrpcComponentStatus grpcStatus : grpcStatuses) {
 			final CatalogStatisticsComponent component = toCatalogStatisticsComponent(grpcStatus.getComponent());
+			final ComponentAvailability availability = toComponentAvailability(grpcStatus.getAvailability());
+			final String receivedReason = grpcStatus.hasReason() ? grpcStatus.getReason().getValue() : null;
 			statuses.put(
 				component,
-				new ComponentStatus(
-					component,
-					toComponentAvailability(grpcStatus.getAvailability()),
-					grpcStatus.hasReason() ? grpcStatus.getReason().getValue() : null
-				)
+				availability == ComponentAvailability.DELIVERED ?
+					ComponentStatus.delivered(component) :
+					ComponentStatus.unavailable(
+						component,
+						availability,
+						receivedReason == null || receivedReason.isBlank() ?
+							"The server reported this component as " + availability +
+								" but sent no explanation with it." :
+							receivedReason
+					)
 			);
 		}
 		return Collections.unmodifiableMap(statuses);

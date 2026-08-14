@@ -50,6 +50,27 @@ public record ComponentStatus(
 ) {
 
 	/**
+	 * Enforces the binding between `availability` and `reason` that the record's contract promises, so that no route
+	 * into this type can produce the one status the component model exists to rule out: an unavailability with no
+	 * explanation. The factories below guard their own misuse, but they are not the only door - the gRPC decoder
+	 * builds statuses from whatever a peer sent, and a peer is not bound by this class's rules.
+	 */
+	public ComponentStatus {
+		if (availability == ComponentAvailability.DELIVERED) {
+			if (reason != null) {
+				throw new GenericEvitaInternalError(
+					"A delivered component carries no reason - `" + component + "` was given one."
+				);
+			}
+		} else if (reason == null) {
+			throw new GenericEvitaInternalError(
+				"An undelivered component must explain itself - `" + component + "` (" + availability +
+					") carries no reason."
+			);
+		}
+	}
+
+	/**
 	 * Creates a status for a component that was successfully computed.
 	 *
 	 * @param component the component that was delivered

@@ -567,6 +567,15 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			)
 		);
 
+		// an absent envelope is not an empty catalog. Unwrapping it would yield a statistics object with a blank name,
+		// version 0 and no component statuses at all - which reads as "everything you asked for, and it was all zero"
+		// rather than "the server sent nothing", and is precisely the silent success the component model exists to
+		// rule out at the level of the individual component
+		if (!response.hasCatalogStatistics()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no catalog statistics for catalog `" + catalogName + "`."
+			);
+		}
 		return CatalogStatisticsConverter.toCatalogStatistics(response.getCatalogStatistics());
 	}
 
@@ -613,6 +622,11 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			)
 		);
 
+		if (!response.hasEntityCollectionStatistics()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no statistics for collection `" + entityType + "` of catalog `" + catalogName + "`."
+			);
+		}
 		return CatalogStatisticsConverter.toEntityCollectionStatistics(
 			response.getEntityCollectionStatistics()
 		);
@@ -659,6 +673,11 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			evitaService -> evitaService.getIndexDetail(request)
 		);
 
+		if (!response.hasIndexDetail()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no detail for index `" + indexPrimaryKey + "` of catalog `" + catalogName + "`."
+			);
+		}
 		return CatalogStatisticsConverter.toIndexDetail(response.getIndexDetail());
 	}
 
