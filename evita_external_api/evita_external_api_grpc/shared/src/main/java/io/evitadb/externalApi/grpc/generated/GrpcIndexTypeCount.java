@@ -29,22 +29,22 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Number of indexes of one kind within one scope.
+ * Number of indexes of one type within one scope.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount}
  */
-public final class GrpcIndexKindCount extends
+public final class GrpcIndexTypeCount extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)
-    GrpcIndexKindCountOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)
+    GrpcIndexTypeCountOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcIndexKindCount.newBuilder() to construct.
-  private GrpcIndexKindCount(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcIndexTypeCount.newBuilder() to construct.
+  private GrpcIndexTypeCount(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcIndexKindCount() {
-    indexKind_ = 0;
+  private GrpcIndexTypeCount() {
+    indexType_ = 0;
     scope_ = 0;
   }
 
@@ -52,46 +52,46 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcIndexKindCount();
+    return new GrpcIndexTypeCount();
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexKindCount_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexTypeCount_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexKindCount_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexTypeCount_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.class, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.class, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder.class);
   }
 
-  public static final int INDEXKIND_FIELD_NUMBER = 1;
-  private int indexKind_ = 0;
+  public static final int INDEXTYPE_FIELD_NUMBER = 1;
+  private int indexType_ = 0;
   /**
    * <pre>
-   * Kind of the counted indexes.
+   * Type of the counted indexes.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The enum numeric value on the wire for indexKind.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The enum numeric value on the wire for indexType.
    */
-  @java.lang.Override public int getIndexKindValue() {
-    return indexKind_;
+  @java.lang.Override public int getIndexTypeValue() {
+    return indexType_;
   }
   /**
    * <pre>
-   * Kind of the counted indexes.
+   * Type of the counted indexes.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The indexKind.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The indexType.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
   }
 
   public static final int SCOPE_FIELD_NUMBER = 2;
@@ -149,8 +149,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
-      output.writeEnum(1, indexKind_);
+    if (indexType_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.INDEX_TYPE_UNSPECIFIED.getNumber()) {
+      output.writeEnum(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(2, scope_);
@@ -167,9 +167,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
+    if (indexType_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.INDEX_TYPE_UNSPECIFIED.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, indexKind_);
+        .computeEnumSize(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
@@ -189,12 +189,12 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount other = (io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount other = (io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount) obj;
 
-    if (indexKind_ != other.indexKind_) return false;
+    if (indexType_ != other.indexType_) return false;
     if (scope_ != other.scope_) return false;
     if (getCount()
         != other.getCount()) return false;
@@ -209,8 +209,8 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + INDEXKIND_FIELD_NUMBER;
-    hash = (53 * hash) + indexKind_;
+    hash = (37 * hash) + INDEXTYPE_FIELD_NUMBER;
+    hash = (53 * hash) + indexType_;
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
     hash = (37 * hash) + COUNT_FIELD_NUMBER;
@@ -220,44 +220,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -265,26 +265,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -297,7 +297,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -314,29 +314,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Number of indexes of one kind within one scope.
+   * Number of indexes of one type within one scope.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)
-      io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)
+      io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexKindCount_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexTypeCount_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexKindCount_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexTypeCount_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.class, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.class, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.newBuilder()
     private Builder() {
 
     }
@@ -350,7 +350,7 @@ private static final long serialVersionUID = 0L;
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      indexKind_ = 0;
+      indexType_ = 0;
       scope_ = 0;
       count_ = 0;
       return this;
@@ -359,17 +359,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexKindCount_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcStatistics.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexTypeCount_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount build() {
-      io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount build() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -377,17 +377,17 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount result = new io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount result = new io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount(this);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount result) {
+    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.indexKind_ = indexKind_;
+        result.indexType_ = indexType_;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.scope_ = scope_;
@@ -431,18 +431,18 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.getDefaultInstance()) return this;
-      if (other.indexKind_ != 0) {
-        setIndexKindValue(other.getIndexKindValue());
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.getDefaultInstance()) return this;
+      if (other.indexType_ != 0) {
+        setIndexTypeValue(other.getIndexTypeValue());
       }
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
@@ -477,7 +477,7 @@ private static final long serialVersionUID = 0L;
               done = true;
               break;
             case 8: {
-              indexKind_ = input.readEnum();
+              indexType_ = input.readEnum();
               bitField0_ |= 0x00000001;
               break;
             } // case 8
@@ -508,75 +508,75 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
-    private int indexKind_ = 0;
+    private int indexType_ = 0;
     /**
      * <pre>
-     * Kind of the counted indexes.
+     * Type of the counted indexes.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The enum numeric value on the wire for indexKind.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The enum numeric value on the wire for indexType.
      */
-    @java.lang.Override public int getIndexKindValue() {
-      return indexKind_;
+    @java.lang.Override public int getIndexTypeValue() {
+      return indexType_;
     }
     /**
      * <pre>
-     * Kind of the counted indexes.
+     * Type of the counted indexes.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The enum numeric value on the wire for indexKind to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The enum numeric value on the wire for indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKindValue(int value) {
-      indexKind_ = value;
+    public Builder setIndexTypeValue(int value) {
+      indexType_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of the counted indexes.
+     * Type of the counted indexes.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The indexKind.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The indexType.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
     }
     /**
      * <pre>
-     * Kind of the counted indexes.
+     * Type of the counted indexes.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The indexKind to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKind(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value) {
+    public Builder setIndexType(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value) {
       if (value == null) {
         throw new NullPointerException();
       }
       bitField0_ |= 0x00000001;
-      indexKind_ = value.getNumber();
+      indexType_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of the counted indexes.
+     * Type of the counted indexes.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearIndexKind() {
+    public Builder clearIndexType() {
       bitField0_ = (bitField0_ & ~0x00000001);
-      indexKind_ = 0;
+      indexType_ = 0;
       onChanged();
       return this;
     }
@@ -710,23 +710,23 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcIndexKindCount>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcIndexKindCount>() {
+  private static final com.google.protobuf.Parser<GrpcIndexTypeCount>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcIndexTypeCount>() {
     @java.lang.Override
-    public GrpcIndexKindCount parsePartialFrom(
+    public GrpcIndexTypeCount parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -745,17 +745,17 @@ private static final long serialVersionUID = 0L;
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcIndexKindCount> parser() {
+  public static com.google.protobuf.Parser<GrpcIndexTypeCount> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcIndexKindCount> getParserForType() {
+  public com.google.protobuf.Parser<GrpcIndexTypeCount> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

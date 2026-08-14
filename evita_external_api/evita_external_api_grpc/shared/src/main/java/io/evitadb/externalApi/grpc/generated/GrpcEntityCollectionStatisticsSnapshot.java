@@ -35,10 +35,16 @@ package io.evitadb.externalApi.grpc.generated;
  * one that gets polled, and nesting a row per collection would make its size grow with the number of collections and
  * would let the expensive per-collection components leak into a request that must stay cheap.
  *
- * Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, every other
- * field is present only when its component was requested and delivered, and `componentStatus` explains every
- * requested component that is missing. Requesting a catalog-only component here is an error, and so is naming a
- * collection the catalog does not hold.
+ * Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, and every other
+ * field is present only when its component was requested and delivered. Requesting a catalog-only component here is
+ * an error, and so is naming a collection the catalog does not hold.
+ *
+ * One rule is *stronger* here than at the catalog level: a collection-level component cannot be declined. Every
+ * component this server delivers reports `AVAILABILITY_DELIVERED`, so a requested component's field is always set.
+ * A catalog can be warming up, corrupted, or configured with a feature switched off and still owe the caller an
+ * answer; a collection of a catalog in any of those states cannot be reached to be asked at all. Clients should
+ * nonetheless keep reading `componentStatus` rather than assuming presence - it is what stays correct against a
+ * server that declines one.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot}
@@ -860,10 +866,16 @@ private static final long serialVersionUID = 0L;
    * one that gets polled, and nesting a row per collection would make its size grow with the number of collections and
    * would let the expensive per-collection components leak into a request that must stay cheap.
    *
-   * Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, every other
-   * field is present only when its component was requested and delivered, and `componentStatus` explains every
-   * requested component that is missing. Requesting a catalog-only component here is an error, and so is naming a
-   * collection the catalog does not hold.
+   * Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, and every other
+   * field is present only when its component was requested and delivered. Requesting a catalog-only component here is
+   * an error, and so is naming a collection the catalog does not hold.
+   *
+   * One rule is *stronger* here than at the catalog level: a collection-level component cannot be declined. Every
+   * component this server delivers reports `AVAILABILITY_DELIVERED`, so a requested component's field is always set.
+   * A catalog can be warming up, corrupted, or configured with a feature switched off and still owe the caller an
+   * answer; a collection of a catalog in any of those states cannot be reached to be asked at all. Clients should
+   * nonetheless keep reading `componentStatus` rather than assuming presence - it is what stays correct against a
+   * server that declines one.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot}

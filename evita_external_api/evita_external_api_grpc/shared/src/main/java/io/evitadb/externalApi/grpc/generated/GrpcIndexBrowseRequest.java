@@ -29,29 +29,28 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Request for one page of the entity indexes held by one collection.
+ * Request for one page of the indexes held by one entity collection, or of those the catalog holds itself.
  *
  * Filters are conjunctive across categories and disjunctive within one: an index must match every non-empty category,
  * and matches a category by being any one of its values. An empty repeated field means that category does not filter -
  * never that nothing matches.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest}
  */
-public final class GrpcEntityCollectionIndexBrowseRequest extends
+public final class GrpcIndexBrowseRequest extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)
-    GrpcEntityCollectionIndexBrowseRequestOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)
+    GrpcIndexBrowseRequestOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcEntityCollectionIndexBrowseRequest.newBuilder() to construct.
-  private GrpcEntityCollectionIndexBrowseRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcIndexBrowseRequest.newBuilder() to construct.
+  private GrpcIndexBrowseRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcEntityCollectionIndexBrowseRequest() {
+  private GrpcIndexBrowseRequest() {
     catalogName_ = "";
-    entityType_ = "";
     ordering_ = 0;
-    indexKinds_ = java.util.Collections.emptyList();
+    indexTypes_ = java.util.Collections.emptyList();
     scopes_ = java.util.Collections.emptyList();
     referenceNames_ =
         com.google.protobuf.LazyStringArrayList.emptyList();
@@ -61,28 +60,29 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcEntityCollectionIndexBrowseRequest();
+    return new GrpcIndexBrowseRequest();
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseRequest_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseRequest_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseRequest_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.Builder.class);
   }
 
+  private int bitField0_;
   public static final int CATALOGNAME_FIELD_NUMBER = 1;
   @SuppressWarnings("serial")
   private volatile java.lang.Object catalogName_ = "";
   /**
    * <pre>
-   * Name of the catalog holding the collection. A catalog the server does not know is an error.
+   * Name of the catalog holding the indexes. A catalog the server does not know is an error.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -103,7 +103,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Name of the catalog holding the collection. A catalog the server does not know is an error.
+   * Name of the catalog holding the indexes. A catalog the server does not know is an error.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -125,54 +125,59 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int ENTITYTYPE_FIELD_NUMBER = 2;
-  @SuppressWarnings("serial")
-  private volatile java.lang.Object entityType_ = "";
+  private com.google.protobuf.StringValue entityType_;
   /**
    * <pre>
    * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
    * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
    * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
    * </pre>
    *
-   * <code>string entityType = 2;</code>
-   * @return The entityType.
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   * @return Whether the entityType field is set.
    */
   @java.lang.Override
-  public java.lang.String getEntityType() {
-    java.lang.Object ref = entityType_;
-    if (ref instanceof java.lang.String) {
-      return (java.lang.String) ref;
-    } else {
-      com.google.protobuf.ByteString bs = 
-          (com.google.protobuf.ByteString) ref;
-      java.lang.String s = bs.toStringUtf8();
-      entityType_ = s;
-      return s;
-    }
+  public boolean hasEntityType() {
+    return ((bitField0_ & 0x00000001) != 0);
   }
   /**
    * <pre>
    * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
    * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
    * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
    * </pre>
    *
-   * <code>string entityType = 2;</code>
-   * @return The bytes for entityType.
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   * @return The entityType.
    */
   @java.lang.Override
-  public com.google.protobuf.ByteString
-      getEntityTypeBytes() {
-    java.lang.Object ref = entityType_;
-    if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
-          com.google.protobuf.ByteString.copyFromUtf8(
-              (java.lang.String) ref);
-      entityType_ = b;
-      return b;
-    } else {
-      return (com.google.protobuf.ByteString) ref;
-    }
+  public com.google.protobuf.StringValue getEntityType() {
+    return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
+  }
+  /**
+   * <pre>
+   * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+   * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+   * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder() {
+    return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
   }
 
   public static final int PAGENUMBER_FIELD_NUMBER = 3;
@@ -236,88 +241,88 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.UNRECOGNIZED : result;
   }
 
-  public static final int INDEXKINDS_FIELD_NUMBER = 6;
+  public static final int INDEXTYPES_FIELD_NUMBER = 6;
   @SuppressWarnings("serial")
-  private java.util.List<java.lang.Integer> indexKinds_;
+  private java.util.List<java.lang.Integer> indexTypes_;
   private static final com.google.protobuf.Internal.ListAdapter.Converter<
-      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind> indexKinds_converter_ =
+      java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType> indexTypes_converter_ =
           new com.google.protobuf.Internal.ListAdapter.Converter<
-              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind>() {
-            public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind convert(java.lang.Integer from) {
-              io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(from);
-              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+              java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType>() {
+            public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType convert(java.lang.Integer from) {
+              io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(from);
+              return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
             }
           };
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return A list containing the indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return A list containing the indexTypes.
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind> getIndexKindsList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType> getIndexTypesList() {
     return new com.google.protobuf.Internal.ListAdapter<
-        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind>(indexKinds_, indexKinds_converter_);
+        java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType>(indexTypes_, indexTypes_converter_);
   }
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return The count of indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return The count of indexTypes.
    */
   @java.lang.Override
-  public int getIndexKindsCount() {
-    return indexKinds_.size();
+  public int getIndexTypesCount() {
+    return indexTypes_.size();
   }
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
    * @param index The index of the element to return.
-   * @return The indexKinds at the given index.
+   * @return The indexTypes at the given index.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKinds(int index) {
-    return indexKinds_converter_.convert(indexKinds_.get(index));
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexTypes(int index) {
+    return indexTypes_converter_.convert(indexTypes_.get(index));
   }
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return A list containing the enum numeric values on the wire for indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return A list containing the enum numeric values on the wire for indexTypes.
    */
   @java.lang.Override
   public java.util.List<java.lang.Integer>
-  getIndexKindsValueList() {
-    return indexKinds_;
+  getIndexTypesValueList() {
+    return indexTypes_;
   }
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
    * @param index The index of the value to return.
-   * @return The enum numeric value on the wire of indexKinds at the given index.
+   * @return The enum numeric value on the wire of indexTypes at the given index.
    */
   @java.lang.Override
-  public int getIndexKindsValue(int index) {
-    return indexKinds_.get(index);
+  public int getIndexTypesValue(int index) {
+    return indexTypes_.get(index);
   }
-  private int indexKindsMemoizedSerializedSize;
+  private int indexTypesMemoizedSerializedSize;
 
   public static final int SCOPES_FIELD_NUMBER = 7;
   @SuppressWarnings("serial")
@@ -407,6 +412,10 @@ private static final long serialVersionUID = 0L;
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -422,6 +431,10 @@ private static final long serialVersionUID = 0L;
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -436,6 +449,10 @@ private static final long serialVersionUID = 0L;
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -451,6 +468,10 @@ private static final long serialVersionUID = 0L;
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -480,8 +501,8 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, catalogName_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 2, entityType_);
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(2, getEntityType());
     }
     if (pageNumber_ != 0) {
       output.writeInt32(3, pageNumber_);
@@ -492,12 +513,12 @@ private static final long serialVersionUID = 0L;
     if (ordering_ != io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UNSPECIFIED.getNumber()) {
       output.writeEnum(5, ordering_);
     }
-    if (getIndexKindsList().size() > 0) {
+    if (getIndexTypesList().size() > 0) {
       output.writeUInt32NoTag(50);
-      output.writeUInt32NoTag(indexKindsMemoizedSerializedSize);
+      output.writeUInt32NoTag(indexTypesMemoizedSerializedSize);
     }
-    for (int i = 0; i < indexKinds_.size(); i++) {
-      output.writeEnumNoTag(indexKinds_.get(i));
+    for (int i = 0; i < indexTypes_.size(); i++) {
+      output.writeEnumNoTag(indexTypes_.get(i));
     }
     if (getScopesList().size() > 0) {
       output.writeUInt32NoTag(58);
@@ -521,8 +542,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(catalogName_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, catalogName_);
     }
-    if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(entityType_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(2, entityType_);
+    if (((bitField0_ & 0x00000001) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(2, getEntityType());
     }
     if (pageNumber_ != 0) {
       size += com.google.protobuf.CodedOutputStream
@@ -538,15 +560,15 @@ private static final long serialVersionUID = 0L;
     }
     {
       int dataSize = 0;
-      for (int i = 0; i < indexKinds_.size(); i++) {
+      for (int i = 0; i < indexTypes_.size(); i++) {
         dataSize += com.google.protobuf.CodedOutputStream
-          .computeEnumSizeNoTag(indexKinds_.get(i));
+          .computeEnumSizeNoTag(indexTypes_.get(i));
       }
       size += dataSize;
-      if (!getIndexKindsList().isEmpty()) {  size += 1;
+      if (!getIndexTypesList().isEmpty()) {  size += 1;
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32SizeNoTag(dataSize);
-      }indexKindsMemoizedSerializedSize = dataSize;
+      }indexTypesMemoizedSerializedSize = dataSize;
     }
     {
       int dataSize = 0;
@@ -578,21 +600,24 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest other = (io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest other = (io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest) obj;
 
     if (!getCatalogName()
         .equals(other.getCatalogName())) return false;
-    if (!getEntityType()
-        .equals(other.getEntityType())) return false;
+    if (hasEntityType() != other.hasEntityType()) return false;
+    if (hasEntityType()) {
+      if (!getEntityType()
+          .equals(other.getEntityType())) return false;
+    }
     if (getPageNumber()
         != other.getPageNumber()) return false;
     if (getPageSize()
         != other.getPageSize()) return false;
     if (ordering_ != other.ordering_) return false;
-    if (!indexKinds_.equals(other.indexKinds_)) return false;
+    if (!indexTypes_.equals(other.indexTypes_)) return false;
     if (!scopes_.equals(other.scopes_)) return false;
     if (!getReferenceNamesList()
         .equals(other.getReferenceNamesList())) return false;
@@ -609,17 +634,19 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + CATALOGNAME_FIELD_NUMBER;
     hash = (53 * hash) + getCatalogName().hashCode();
-    hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
-    hash = (53 * hash) + getEntityType().hashCode();
+    if (hasEntityType()) {
+      hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
+      hash = (53 * hash) + getEntityType().hashCode();
+    }
     hash = (37 * hash) + PAGENUMBER_FIELD_NUMBER;
     hash = (53 * hash) + getPageNumber();
     hash = (37 * hash) + PAGESIZE_FIELD_NUMBER;
     hash = (53 * hash) + getPageSize();
     hash = (37 * hash) + ORDERING_FIELD_NUMBER;
     hash = (53 * hash) + ordering_;
-    if (getIndexKindsCount() > 0) {
-      hash = (37 * hash) + INDEXKINDS_FIELD_NUMBER;
-      hash = (53 * hash) + indexKinds_.hashCode();
+    if (getIndexTypesCount() > 0) {
+      hash = (37 * hash) + INDEXTYPES_FIELD_NUMBER;
+      hash = (53 * hash) + indexTypes_.hashCode();
     }
     if (getScopesCount() > 0) {
       hash = (37 * hash) + SCOPES_FIELD_NUMBER;
@@ -634,44 +661,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -679,26 +706,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -711,7 +738,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -728,52 +755,62 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Request for one page of the entity indexes held by one collection.
+   * Request for one page of the indexes held by one entity collection, or of those the catalog holds itself.
    *
    * Filters are conjunctive across categories and disjunctive within one: an index must match every non-empty category,
    * and matches a category by being any one of its values. An empty repeated field means that category does not filter -
    * never that nothing matches.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequestOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequestOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseRequest_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseRequest_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseRequest_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseRequest_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.newBuilder()
     private Builder() {
-
+      maybeForceBuilderInitialization();
     }
 
     private Builder(
         com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
       super(parent);
-
+      maybeForceBuilderInitialization();
+    }
+    private void maybeForceBuilderInitialization() {
+      if (com.google.protobuf.GeneratedMessageV3
+              .alwaysUseFieldBuilders) {
+        getEntityTypeFieldBuilder();
+      }
     }
     @java.lang.Override
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
       catalogName_ = "";
-      entityType_ = "";
+      entityType_ = null;
+      if (entityTypeBuilder_ != null) {
+        entityTypeBuilder_.dispose();
+        entityTypeBuilder_ = null;
+      }
       pageNumber_ = 0;
       pageSize_ = 0;
       ordering_ = 0;
-      indexKinds_ = java.util.Collections.emptyList();
+      indexTypes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000020);
       scopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000040);
@@ -785,17 +822,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseRequest_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseRequest_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest build() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest build() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -803,20 +840,20 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest result = new io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest result = new io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest(this);
       buildPartialRepeatedFields(result);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest result) {
+    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest result) {
       if (((bitField0_ & 0x00000020) != 0)) {
-        indexKinds_ = java.util.Collections.unmodifiableList(indexKinds_);
+        indexTypes_ = java.util.Collections.unmodifiableList(indexTypes_);
         bitField0_ = (bitField0_ & ~0x00000020);
       }
-      result.indexKinds_ = indexKinds_;
+      result.indexTypes_ = indexTypes_;
       if (((bitField0_ & 0x00000040) != 0)) {
         scopes_ = java.util.Collections.unmodifiableList(scopes_);
         bitField0_ = (bitField0_ & ~0x00000040);
@@ -824,13 +861,17 @@ private static final long serialVersionUID = 0L;
       result.scopes_ = scopes_;
     }
 
-    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest result) {
+    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.catalogName_ = catalogName_;
       }
+      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000002) != 0)) {
-        result.entityType_ = entityType_;
+        result.entityType_ = entityTypeBuilder_ == null
+            ? entityType_
+            : entityTypeBuilder_.build();
+        to_bitField0_ |= 0x00000001;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.pageNumber_ = pageNumber_;
@@ -845,6 +886,7 @@ private static final long serialVersionUID = 0L;
         referenceNames_.makeImmutable();
         result.referenceNames_ = referenceNames_;
       }
+      result.bitField0_ |= to_bitField0_;
     }
 
     @java.lang.Override
@@ -881,25 +923,23 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.getDefaultInstance()) return this;
       if (!other.getCatalogName().isEmpty()) {
         catalogName_ = other.catalogName_;
         bitField0_ |= 0x00000001;
         onChanged();
       }
-      if (!other.getEntityType().isEmpty()) {
-        entityType_ = other.entityType_;
-        bitField0_ |= 0x00000002;
-        onChanged();
+      if (other.hasEntityType()) {
+        mergeEntityType(other.getEntityType());
       }
       if (other.getPageNumber() != 0) {
         setPageNumber(other.getPageNumber());
@@ -910,13 +950,13 @@ private static final long serialVersionUID = 0L;
       if (other.ordering_ != 0) {
         setOrderingValue(other.getOrderingValue());
       }
-      if (!other.indexKinds_.isEmpty()) {
-        if (indexKinds_.isEmpty()) {
-          indexKinds_ = other.indexKinds_;
+      if (!other.indexTypes_.isEmpty()) {
+        if (indexTypes_.isEmpty()) {
+          indexTypes_ = other.indexTypes_;
           bitField0_ = (bitField0_ & ~0x00000020);
         } else {
-          ensureIndexKindsIsMutable();
-          indexKinds_.addAll(other.indexKinds_);
+          ensureIndexTypesIsMutable();
+          indexTypes_.addAll(other.indexTypes_);
         }
         onChanged();
       }
@@ -972,7 +1012,9 @@ private static final long serialVersionUID = 0L;
               break;
             } // case 10
             case 18: {
-              entityType_ = input.readStringRequireUtf8();
+              input.readMessage(
+                  getEntityTypeFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000002;
               break;
             } // case 18
@@ -993,8 +1035,8 @@ private static final long serialVersionUID = 0L;
             } // case 40
             case 48: {
               int tmpRaw = input.readEnum();
-              ensureIndexKindsIsMutable();
-              indexKinds_.add(tmpRaw);
+              ensureIndexTypesIsMutable();
+              indexTypes_.add(tmpRaw);
               break;
             } // case 48
             case 50: {
@@ -1002,8 +1044,8 @@ private static final long serialVersionUID = 0L;
               int oldLimit = input.pushLimit(length);
               while(input.getBytesUntilLimit() > 0) {
                 int tmpRaw = input.readEnum();
-                ensureIndexKindsIsMutable();
-                indexKinds_.add(tmpRaw);
+                ensureIndexTypesIsMutable();
+                indexTypes_.add(tmpRaw);
               }
               input.popLimit(oldLimit);
               break;
@@ -1051,7 +1093,7 @@ private static final long serialVersionUID = 0L;
     private java.lang.Object catalogName_ = "";
     /**
      * <pre>
-     * Name of the catalog holding the collection. A catalog the server does not know is an error.
+     * Name of the catalog holding the indexes. A catalog the server does not know is an error.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -1071,7 +1113,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog holding the collection. A catalog the server does not know is an error.
+     * Name of the catalog holding the indexes. A catalog the server does not know is an error.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -1092,7 +1134,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog holding the collection. A catalog the server does not know is an error.
+     * Name of the catalog holding the indexes. A catalog the server does not know is an error.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -1109,7 +1151,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog holding the collection. A catalog the server does not know is an error.
+     * Name of the catalog holding the indexes. A catalog the server does not know is an error.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -1123,7 +1165,7 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Name of the catalog holding the collection. A catalog the server does not know is an error.
+     * Name of the catalog holding the indexes. A catalog the server does not know is an error.
      * </pre>
      *
      * <code>string catalogName = 1;</code>
@@ -1140,27 +1182,45 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.lang.Object entityType_ = "";
+    private com.google.protobuf.StringValue entityType_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> entityTypeBuilder_;
     /**
      * <pre>
      * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
      * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
      * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
      * </pre>
      *
-     * <code>string entityType = 2;</code>
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
+     * @return Whether the entityType field is set.
+     */
+    public boolean hasEntityType() {
+      return ((bitField0_ & 0x00000002) != 0);
+    }
+    /**
+     * <pre>
+     * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+     * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+     * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
      * @return The entityType.
      */
-    public java.lang.String getEntityType() {
-      java.lang.Object ref = entityType_;
-      if (!(ref instanceof java.lang.String)) {
-        com.google.protobuf.ByteString bs =
-            (com.google.protobuf.ByteString) ref;
-        java.lang.String s = bs.toStringUtf8();
-        entityType_ = s;
-        return s;
+    public com.google.protobuf.StringValue getEntityType() {
+      if (entityTypeBuilder_ == null) {
+        return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
       } else {
-        return (java.lang.String) ref;
+        return entityTypeBuilder_.getMessage();
       }
     }
     /**
@@ -1168,39 +1228,47 @@ private static final long serialVersionUID = 0L;
      * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
      * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
      * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
      * </pre>
      *
-     * <code>string entityType = 2;</code>
-     * @return The bytes for entityType.
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
      */
-    public com.google.protobuf.ByteString
-        getEntityTypeBytes() {
-      java.lang.Object ref = entityType_;
-      if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
-            com.google.protobuf.ByteString.copyFromUtf8(
-                (java.lang.String) ref);
-        entityType_ = b;
-        return b;
+    public Builder setEntityType(com.google.protobuf.StringValue value) {
+      if (entityTypeBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        entityType_ = value;
       } else {
-        return (com.google.protobuf.ByteString) ref;
+        entityTypeBuilder_.setMessage(value);
       }
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
     }
     /**
      * <pre>
      * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
      * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
      * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
      * </pre>
      *
-     * <code>string entityType = 2;</code>
-     * @param value The entityType to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
      */
     public Builder setEntityType(
-        java.lang.String value) {
-      if (value == null) { throw new NullPointerException(); }
-      entityType_ = value;
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (entityTypeBuilder_ == null) {
+        entityType_ = builderForValue.build();
+      } else {
+        entityTypeBuilder_.setMessage(builderForValue.build());
+      }
       bitField0_ |= 0x00000002;
       onChanged();
       return this;
@@ -1210,14 +1278,52 @@ private static final long serialVersionUID = 0L;
      * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
      * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
      * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
      * </pre>
      *
-     * <code>string entityType = 2;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
+     */
+    public Builder mergeEntityType(com.google.protobuf.StringValue value) {
+      if (entityTypeBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0) &&
+          entityType_ != null &&
+          entityType_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getEntityTypeBuilder().mergeFrom(value);
+        } else {
+          entityType_ = value;
+        }
+      } else {
+        entityTypeBuilder_.mergeFrom(value);
+      }
+      if (entityType_ != null) {
+        bitField0_ |= 0x00000002;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+     * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+     * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
      */
     public Builder clearEntityType() {
-      entityType_ = getDefaultInstance().getEntityType();
       bitField0_ = (bitField0_ & ~0x00000002);
+      entityType_ = null;
+      if (entityTypeBuilder_ != null) {
+        entityTypeBuilder_.dispose();
+        entityTypeBuilder_ = null;
+      }
       onChanged();
       return this;
     }
@@ -1226,20 +1332,65 @@ private static final long serialVersionUID = 0L;
      * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
      * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
      * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
      * </pre>
      *
-     * <code>string entityType = 2;</code>
-     * @param value The bytes for entityType to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
      */
-    public Builder setEntityTypeBytes(
-        com.google.protobuf.ByteString value) {
-      if (value == null) { throw new NullPointerException(); }
-      checkByteStringIsUtf8(value);
-      entityType_ = value;
+    public com.google.protobuf.StringValue.Builder getEntityTypeBuilder() {
       bitField0_ |= 0x00000002;
       onChanged();
-      return this;
+      return getEntityTypeFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+     * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+     * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder() {
+      if (entityTypeBuilder_ != null) {
+        return entityTypeBuilder_.getMessageOrBuilder();
+      } else {
+        return entityType_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+     * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+     * indexes.
+     *
+     * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+     * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+     * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getEntityTypeFieldBuilder() {
+      if (entityTypeBuilder_ == null) {
+        entityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getEntityType(),
+                getParentForChildren(),
+                isClean());
+        entityType_ = null;
+      }
+      return entityTypeBuilder_;
     }
 
     private int pageNumber_ ;
@@ -1418,201 +1569,201 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.util.List<java.lang.Integer> indexKinds_ =
+    private java.util.List<java.lang.Integer> indexTypes_ =
       java.util.Collections.emptyList();
-    private void ensureIndexKindsIsMutable() {
+    private void ensureIndexTypesIsMutable() {
       if (!((bitField0_ & 0x00000020) != 0)) {
-        indexKinds_ = new java.util.ArrayList<java.lang.Integer>(indexKinds_);
+        indexTypes_ = new java.util.ArrayList<java.lang.Integer>(indexTypes_);
         bitField0_ |= 0x00000020;
       }
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @return A list containing the indexKinds.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @return A list containing the indexTypes.
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind> getIndexKindsList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType> getIndexTypesList() {
       return new com.google.protobuf.Internal.ListAdapter<
-          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind>(indexKinds_, indexKinds_converter_);
+          java.lang.Integer, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType>(indexTypes_, indexTypes_converter_);
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @return The count of indexKinds.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @return The count of indexTypes.
      */
-    public int getIndexKindsCount() {
-      return indexKinds_.size();
+    public int getIndexTypesCount() {
+      return indexTypes_.size();
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
      * @param index The index of the element to return.
-     * @return The indexKinds at the given index.
+     * @return The indexTypes at the given index.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKinds(int index) {
-      return indexKinds_converter_.convert(indexKinds_.get(index));
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexTypes(int index) {
+      return indexTypes_converter_.convert(indexTypes_.get(index));
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
      * @param index The index to set the value at.
-     * @param value The indexKinds to set.
+     * @param value The indexTypes to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKinds(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value) {
+    public Builder setIndexTypes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value) {
       if (value == null) {
         throw new NullPointerException();
       }
-      ensureIndexKindsIsMutable();
-      indexKinds_.set(index, value.getNumber());
+      ensureIndexTypesIsMutable();
+      indexTypes_.set(index, value.getNumber());
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @param value The indexKinds to add.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @param value The indexTypes to add.
      * @return This builder for chaining.
      */
-    public Builder addIndexKinds(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value) {
+    public Builder addIndexTypes(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value) {
       if (value == null) {
         throw new NullPointerException();
       }
-      ensureIndexKindsIsMutable();
-      indexKinds_.add(value.getNumber());
+      ensureIndexTypesIsMutable();
+      indexTypes_.add(value.getNumber());
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @param values The indexKinds to add.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @param values The indexTypes to add.
      * @return This builder for chaining.
      */
-    public Builder addAllIndexKinds(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind> values) {
-      ensureIndexKindsIsMutable();
-      for (io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value : values) {
-        indexKinds_.add(value.getNumber());
+    public Builder addAllIndexTypes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType> values) {
+      ensureIndexTypesIsMutable();
+      for (io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value : values) {
+        indexTypes_.add(value.getNumber());
       }
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
      * @return This builder for chaining.
      */
-    public Builder clearIndexKinds() {
-      indexKinds_ = java.util.Collections.emptyList();
+    public Builder clearIndexTypes() {
+      indexTypes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000020);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @return A list containing the enum numeric values on the wire for indexKinds.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @return A list containing the enum numeric values on the wire for indexTypes.
      */
     public java.util.List<java.lang.Integer>
-    getIndexKindsValueList() {
-      return java.util.Collections.unmodifiableList(indexKinds_);
+    getIndexTypesValueList() {
+      return java.util.Collections.unmodifiableList(indexTypes_);
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
      * @param index The index of the value to return.
-     * @return The enum numeric value on the wire of indexKinds at the given index.
+     * @return The enum numeric value on the wire of indexTypes at the given index.
      */
-    public int getIndexKindsValue(int index) {
-      return indexKinds_.get(index);
+    public int getIndexTypesValue(int index) {
+      return indexTypes_.get(index);
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
      * @param index The index to set the value at.
-     * @param value The enum numeric value on the wire for indexKinds to set.
+     * @param value The enum numeric value on the wire for indexTypes to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKindsValue(
+    public Builder setIndexTypesValue(
         int index, int value) {
-      ensureIndexKindsIsMutable();
-      indexKinds_.set(index, value);
+      ensureIndexTypesIsMutable();
+      indexTypes_.set(index, value);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @param value The enum numeric value on the wire for indexKinds to add.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @param value The enum numeric value on the wire for indexTypes to add.
      * @return This builder for chaining.
      */
-    public Builder addIndexKindsValue(int value) {
-      ensureIndexKindsIsMutable();
-      indexKinds_.add(value);
+    public Builder addIndexTypesValue(int value) {
+      ensureIndexTypesIsMutable();
+      indexTypes_.add(value);
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-     * kind.
+     * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+     * type.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-     * @param values The enum numeric values on the wire for indexKinds to add.
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+     * @param values The enum numeric values on the wire for indexTypes to add.
      * @return This builder for chaining.
      */
-    public Builder addAllIndexKindsValue(
+    public Builder addAllIndexTypesValue(
         java.lang.Iterable<java.lang.Integer> values) {
-      ensureIndexKindsIsMutable();
+      ensureIndexTypesIsMutable();
       for (int value : values) {
-        indexKinds_.add(value);
+        indexTypes_.add(value);
       }
       onChanged();
       return this;
@@ -1820,6 +1971,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1836,6 +1991,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1850,6 +2009,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1865,6 +2028,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1881,6 +2048,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1903,6 +2074,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1924,6 +2099,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1945,6 +2124,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1963,6 +2146,10 @@ private static final long serialVersionUID = 0L;
      * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
      * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
      * never satisfy this filter.
+     *
+     * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+     * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+     * there is no typo to be protected from.
      * </pre>
      *
      * <code>repeated string referenceNames = 8;</code>
@@ -1992,23 +2179,23 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseRequest>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcEntityCollectionIndexBrowseRequest>() {
+  private static final com.google.protobuf.Parser<GrpcIndexBrowseRequest>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcIndexBrowseRequest>() {
     @java.lang.Override
-    public GrpcEntityCollectionIndexBrowseRequest parsePartialFrom(
+    public GrpcIndexBrowseRequest parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -2027,17 +2214,17 @@ private static final long serialVersionUID = 0L;
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseRequest> parser() {
+  public static com.google.protobuf.Parser<GrpcIndexBrowseRequest> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseRequest> getParserForType() {
+  public com.google.protobuf.Parser<GrpcIndexBrowseRequest> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

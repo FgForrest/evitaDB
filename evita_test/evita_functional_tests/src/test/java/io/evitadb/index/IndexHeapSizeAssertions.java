@@ -239,18 +239,21 @@ public final class IndexHeapSizeAssertions {
 	/**
 	 * Prices the cached collection views a structure's maps are carrying — `count` of them, at one object each.
 	 *
-	 * # Why this is reported low, against rule 3
+	 * # What this is for, now that an entity index carries none
 	 *
 	 * `HashMap` allocates its `keySet` / `values` / `entrySet` view on first use and **caches it in the map**
-	 * (trap 6), and an entity index's constructor snapshots its persisted baseline by iterating its own maps that
-	 * way — so a freshly built one already carries fourteen of them before any caller has touched it. They are real
-	 * bytes and nothing else owns them, yet `MapHeapSize` cannot see one without calling the very accessor that
-	 * would create it, which would make measuring a map grow it.
+	 * (trap 6), so an accessor asked for on a construction or flush path leaves one more permanent object on that
+	 * map. They are real bytes and nothing else owns them, yet `MapHeapSize` cannot see one without calling the very
+	 * accessor that would create it, which would make measuring a map grow it.
 	 *
-	 * Rule 3 says report the higher figure where several are defensible. This is the deliberate exception: the
-	 * alternative is charging a phantom view to every map in the catalog, and the error here is a **flat**
-	 * per-index constant that does not move with the data — the shape the rules classify as a convention rather
-	 * than a defect. Charging it would trade a bounded 224 bytes per index for an unbounded over-report.
+	 * Rule 3 says report the higher figure where several are defensible, and this was the deliberate exception: a
+	 * **flat** per-index shortfall, the shape the rules classify as a convention rather than a defect, since charging
+	 * a phantom view to every map in the catalog would be an unbounded over-report instead.
+	 *
+	 * **No entity index needs it any more.** Every walk on those paths goes through `forEach`, so the empty-index
+	 * cases assert an exact match and a regression shows up as a plain shortfall rather than as a changed constant.
+	 * This helper stays for a structure that legitimately keeps one — a map an index reaches through an accessor
+	 * because something else genuinely needs the view — and to price the divergence when a test warms one on purpose.
 	 *
 	 * @param count how many cached views the structure's maps hold
 	 * @return the bytes the arithmetic knowingly leaves out

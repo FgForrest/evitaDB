@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -602,21 +603,46 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 	@Nonnull
 	@Override
-	public IndexBrowseResult browseEntityCollectionIndexes(
+	public IndexBrowseResult browseIndexes(
 		@Nonnull String catalogName,
-		@Nonnull String entityType,
+		@Nullable String entityType,
 		@Nonnull IndexBrowseCriteria criteria
 	) {
 		this.evitaClient.assertActive();
 
-		final GrpcEntityCollectionIndexBrowseRequest request = CatalogStatisticsConverter.toGrpcIndexBrowseRequest(
+		final GrpcIndexBrowseRequest request = CatalogStatisticsConverter.toGrpcIndexBrowseRequest(
 			catalogName, entityType, criteria
 		);
-		final GrpcEntityCollectionIndexBrowseResponse response = executeWithEvitaService(
-			evitaService -> evitaService.browseEntityCollectionIndexes(request)
+		final GrpcIndexBrowseResponse response = executeWithEvitaService(
+			evitaService -> evitaService.browseIndexes(request)
 		);
 
 		return CatalogStatisticsConverter.toIndexBrowseResult(response);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail getIndexDetail(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		int indexPrimaryKey
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcIndexDetailRequest.Builder requestBuilder = GrpcIndexDetailRequest.newBuilder()
+			.setCatalogName(catalogName)
+			.setIndexPrimaryKey(indexPrimaryKey);
+		// unset addresses the catalog's own index of that handle; an empty string would name a collection that cannot
+		// exist, which is why absence travels as an unset wrapper rather than as a sentinel
+		if (entityType != null) {
+			requestBuilder.setEntityType(StringValue.of(entityType));
+		}
+		final GrpcIndexDetailRequest request = requestBuilder.build();
+		final GrpcIndexDetailResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getIndexDetail(request)
+		);
+
+		return CatalogStatisticsConverter.toIndexDetail(response.getIndexDetail());
 	}
 
 	@Override

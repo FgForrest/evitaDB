@@ -127,7 +127,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	 *
 	 * {@link #scope} is an enum constant and contributes its slot alone.
 	 *
-	 * Walking every sub-index makes this `O(price ids)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and
+	 * Walking every sub-index makes this `O(price ids)` rather than `O(1)`, so it belongs to the index detail call and
 	 * must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

@@ -101,8 +101,15 @@ public record CatalogIndexCardinality(
 	 * @param locale             locale this index is bound to, or null when the attribute is unique globally across
 	 *                           every locale; a non-null locale means the catalog holds one such index per locale
 	 * @param scope              scope of the catalog index holding this global unique index
-	 * @param distinctValueCount how many distinct values the index holds - equivalently, how many records it covers,
-	 *                           since a globally-unique value identifies exactly one record
+	 * @param distinctValueCount how many distinct values the index holds.
+	 *
+	 *                           **Distinct values, not covered records.** The two agree for an ordinary
+	 *                           globally-unique attribute, where one value belongs to one record, and diverge for one
+	 *                           that is *localized as well*: that has a single locale-less key covering every locale,
+	 *                           so one record can own several values in it. Only this reading is carried here, because
+	 *                           it is the one an `O(1)` counter answers; the covered-record count is reported next to
+	 *                           it - as {@link CollectionIndexCardinality.AttributeCardinality#recordsCovered()} - by
+	 *                           the per-index detail call, which reaches one catalog index rather than all of them
 	 */
 	public record GlobalUniqueIndexCardinality(
 		@Nonnull String attributeName,

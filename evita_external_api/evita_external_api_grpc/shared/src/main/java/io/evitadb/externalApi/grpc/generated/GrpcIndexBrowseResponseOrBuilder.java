@@ -27,8 +27,8 @@
 // Protobuf Java Version: 3.25.8
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcEntityCollectionIndexBrowseResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)
+public interface GrpcIndexBrowseResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**

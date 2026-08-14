@@ -37,10 +37,10 @@ import java.util.Optional;
  *
  * Catalog-level statistics are the ones that get polled - a management screen refreshes them on a timer. Nesting a row
  * per collection inside every catalog-level component would make the size of that polled response grow with the number
- * of collections, and would force the expensive per-collection work
- * ({@link CatalogStatisticsComponent#INDEX_CARDINALITY}, {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT}) into a
- * request that must stay cheap. So {@link CatalogStatistics} reports **aggregates only**, and anything about one
- * collection is fetched by naming that collection.
+ * of collections, and would force the expensive per-collection work - the per-index walk of
+ * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} above all - into a request that must stay cheap. So
+ * {@link CatalogStatistics} reports **aggregates only**, and anything about one collection is fetched by naming that
+ * collection.
  *
  * **Consistency with {@link CatalogStatistics}**
  *
@@ -81,7 +81,11 @@ import java.util.Optional;
  * @param indexCardinality   {@link CatalogStatisticsComponent#INDEX_CARDINALITY}, null unless requested and delivered
  * @param volatileState      {@link CatalogStatisticsComponent#VOLATILE_STATE}, null unless requested and delivered
  * @param componentStatus    outcome of every *requested* component; components that were not requested are absent from
- *                           the map entirely
+ *                           the map entirely. Every entry the engine writes is
+ *                           {@link ComponentAvailability#DELIVERED} - see {@link Builder} for why a collection-level
+ *                           component cannot be refused - so at this level the map distinguishes *asked and answered*
+ *                           from *never asked*, and nothing else. It is not narrowed to that, because a response
+ *                           decoded from the wire carries whatever the server on the other end put there
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024-2026
  * @see CatalogStatistics
  */
@@ -205,6 +209,10 @@ public record EntityCollectionStatistics(
 	/**
 	 * Tells whether a component was requested *and* successfully computed.
 	 *
+	 * Against a server of this version the two halves coincide - nothing here is requested and then refused - so this
+	 * reads as "was it asked for". The check is still on the status rather than on the request, because that is what
+	 * keeps it correct against a server that refuses one.
+	 *
 	 * @param component the component to check
 	 * @return true only when the component has a {@link ComponentAvailability#DELIVERED} status
 	 */
@@ -217,8 +225,12 @@ public record EntityCollectionStatistics(
 	 * Collects the components of an {@link EntityCollectionStatistics} snapshot as they are computed.
 	 *
 	 * Each `with...` method records both the value and a {@link ComponentAvailability#DELIVERED} status, so the two can
-	 * never drift apart; {@link #withUnavailable} records the opposite case. The builder is not thread-safe - one
-	 * request builds one snapshot.
+	 * never drift apart. **There is deliberately no way to record a refusal here**: every collection-level component
+	 * either delivers or the whole request fails, so a builder that could produce one would be describing a state the
+	 * engine cannot reach. Its catalog-level counterpart *does* offer `withUnavailable`, and that asymmetry is the
+	 * point - a catalog can be warming up, corrupted, or configured with a feature switched off while still owing the
+	 * caller an answer, and a collection of a catalog in any of those states is not reachable to be asked. The builder
+	 * is not thread-safe - one request builds one snapshot.
 	 */
 	public static class Builder {
 		/**
@@ -344,24 +356,6 @@ public record EntityCollectionStatistics(
 		public Builder withVolatileState(@Nonnull DataStoreVolatileState value) {
 			this.volatileState = value;
 			return delivered(CatalogStatisticsComponent.VOLATILE_STATE);
-		}
-
-		/**
-		 * Records a component the caller requested but the engine could not compute.
-		 *
-		 * @param component    the component that could not be delivered
-		 * @param availability the class of reason
-		 * @param reason       human-readable explanation shown to the operator
-		 * @return this builder
-		 */
-		@Nonnull
-		public Builder withUnavailable(
-			@Nonnull CatalogStatisticsComponent component,
-			@Nonnull ComponentAvailability availability,
-			@Nonnull String reason
-		) {
-			this.componentStatus.put(component, ComponentStatus.unavailable(component, availability, reason));
-			return this;
 		}
 
 		/**

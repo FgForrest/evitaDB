@@ -46,7 +46,7 @@ import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;

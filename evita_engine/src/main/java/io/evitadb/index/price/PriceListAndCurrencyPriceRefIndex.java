@@ -311,7 +311,7 @@ public class PriceListAndCurrencyPriceRefIndex
 	 * {@link #scope} is an enum constant owned by the JVM for the lifetime of its class loader, so it contributes its
 	 * slot alone.
 	 *
-	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and must never
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
 	 * be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -123,6 +124,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * for all locale variants of each histogram definition.
 	 */
 	@Nonnull private final TransactionalMap<String, HistogramIndex> histogramIndexes;
+	/**
+	 * The {@link HistogramIndexMapComponent} wrapper registered over {@link #histogramIndexes}, held here **only** so
+	 * {@link #getHeapSizeInBytes()} can ask it what it weighs - see the identically-named field of
+	 * {@link ReferencedTypeEntityIndex} for why this one component is priced through itself.
+	 *
+	 * Assigned by {@link #registerSubclassComponents()} rather than in a constructor, so it cannot be `final`.
+	 */
+	@Nonnull private HistogramIndexMapComponent histogramComponent;
 
 	/**
 	 * Creates a new empty reduced group entity index.
@@ -377,7 +386,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 */
 	private void registerSubclassComponents() {
 		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
-		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		this.histogramComponent = new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey);
+		addComponent(this.histogramComponent);
 		addComponent(
 			new GroupCardinalityComponent(
 				this.cardinalityDirty,
@@ -797,8 +807,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// the reference name, attribute name and locale of an attribute key all belong to the schema
 		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
 		// the cardinalityDirty / pkCardinalities / referencedPrimaryKeysIndex / cardinalityIndexes
-		// / histogramIndexes slots
-		return getReducedBaseHeapSizeInBytes(5L * layout.referenceSize())
+		// / histogramIndexes / histogramComponent slots
+		return getReducedBaseHeapSizeInBytes(6L * layout.referenceSize())
 			+ this.cardinalityDirty.getHeapSizeInBytes()
 			+ this.pkCardinalities.getHeapSizeInBytes(key -> boxedInteger, cardinality -> boxedInteger)
 			+ this.referencedPrimaryKeysIndex.getHeapSizeInBytes(
@@ -810,13 +820,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			+ this.histogramIndexes.getHeapSizeInBytes(
 				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
 			)
-			// the three components this class registers: a cardinality map component holding its map plus the index
-			// key, a group cardinality one holding the dirty flag, both cardinality maps and the reference name, and
-			// a histogram map component whose leaf-page snapshot is charged for its slot alone - see
-			// `ReferencedTypeEntityIndex` for why
+			// two of the three components this class registers are pure adapters over fields charged above, so their
+			// shells are all they cost: a cardinality map component holding its map plus the index key, and a group
+			// cardinality one holding the dirty flag, both cardinality maps and the reference name
 			+ layout.sizeOfObject(2L * layout.referenceSize())
 			+ layout.sizeOfObject(4L * layout.referenceSize())
-			+ layout.sizeOfObject(3L * layout.referenceSize());
+			// the histogram map component prices itself, because alongside its map and the index key it holds the
+			// on-disk leaf-page baseline of the last flush - see `ReferencedTypeEntityIndex` for the same charge
+			+ this.histogramComponent.getHeapSizeInBytes();
 	}
 
 	@Override

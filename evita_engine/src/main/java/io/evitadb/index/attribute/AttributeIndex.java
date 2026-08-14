@@ -86,6 +86,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -441,17 +442,21 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	private static <V> Map<AttributeIndexKey, int[]> snapshotLeafPages(
 		@Nonnull Map<AttributeIndexKey, V> index, @Nonnull Function<V, int[]> pageAccessor
 	) {
-		Map<AttributeIndexKey, int[]> snapshot = null;
-		for (final Entry<AttributeIndexKey, V> entry : index.entrySet()) {
-			final int[] pages = pageAccessor.apply(entry.getValue());
-			if (pages.length > 0) {
-				if (snapshot == null) {
-					snapshot = CollectionUtils.createHashMap(index.size());
-				}
-				snapshot.put(entry.getKey(), pages);
-			}
+		if (index.isEmpty()) {
+			return Map.of();
 		}
-		return snapshot == null ? Map.of() : snapshot;
+		// `forEach` rather than `entrySet()`: this runs against the LIVE sub-index maps on every flush, and an entry
+		// set asked for here would stay cached in each of them - see `collectKeys`. The buffer is therefore allocated
+		// up front and discarded when nothing paged, rather than lazily on the first paged key; the returned value is
+		// identical either way, and mirrors what `HistogramIndexMapComponent` does for the histogram families
+		final Map<AttributeIndexKey, int[]> snapshot = CollectionUtils.createHashMap(index.size());
+		index.forEach((key, subIndex) -> {
+			final int[] pages = pageAccessor.apply(subIndex);
+			if (pages.length > 0) {
+				snapshot.put(key, pages);
+			}
+		});
+		return snapshot.isEmpty() ? Map.of() : snapshot;
 	}
 
 	/**
@@ -1144,6 +1149,34 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	@Override
+	public void forEachAttributeIndexKey(
+		@Nonnull AttributeIndexType type,
+		@Nonnull Consumer<AttributeIndexKey> consumer
+	) {
+		switch (type) {
+			case UNIQUE -> {
+				this.uniqueIndex.forEach((key, index) -> consumer.accept(key));
+				// only folded-unique views whose shared tree still exists are advertised, gated exactly as in
+				// `getUniqueIndexes()`; the `uniqueIndex` test is what keeps this walk duplicate-free where that
+				// method relied on the set it was building
+				this.uniqueViewIndex.forEach((key, index) -> {
+					if (this.sharedValueIndex.containsKey(key) && !this.uniqueIndex.containsKey(key)) {
+						consumer.accept(key);
+					}
+				});
+			}
+			// transactional truth for FILTER = the shared value index key set
+			case FILTER -> this.sharedValueIndex.forEach((key, tree) -> consumer.accept(key));
+			case SORT -> this.sortIndex.forEach((key, index) -> consumer.accept(key));
+			case CHAIN -> this.chainIndex.forEach((key, index) -> consumer.accept(key));
+			case CARDINALITY -> throw new GenericEvitaInternalError(
+				"An attribute index holds no CARDINALITY sub-indexes - those belong to `ReducedGroupEntityIndex` " +
+					"and `ReferencedTypeEntityIndex`, which own their own cardinality maps."
+			);
+		}
+	}
+
+	@Override
 	@Nonnull
 	public Set<AttributeIndexKey> getUniqueIndexes() {
 		// union of the standalone (owner) and folded (view) unique keys
@@ -1295,7 +1328,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * and {@link #referenceKey} belongs to the entity index enclosing this one, so both contribute their slot alone.
 	 *
 	 * This walks every sub-index and every value tree, so it is `O(indexed values)` — it belongs to
-	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 * the index detail call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
@@ -1343,30 +1376,37 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * **Every walk here is a `forEach`**, for the reason spelled out on {@link #collectKeys}: an accessor asked for on
+	 * this path leaves a view object cached in the map for the lifetime of the index, and this path runs from every
+	 * entity index constructor as well as from every flush.
+	 */
 	@Override
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
 		// UNIQUE parts: standalone (owner) indexes emit a SINGLE inline root or granular PAGED leaf pages + a PAGED root,
 		// folded (view) indexes emit a slim part — both go through appendStorageParts.
-		for (Entry<AttributeIndexKey, UniqueIndex> entry : this.uniqueIndex.entrySet()) {
-			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
-		for (Entry<AttributeIndexKey, UniqueIndex> entry : this.uniqueViewIndex.entrySet()) {
-			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
+		this.uniqueIndex.forEach(
+			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
+		this.uniqueViewIndex.forEach(
+			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
 		// FILTER parts are produced from the shared tree via the rebuilt filter views (which carry attributeType + range).
 		// A small (single-leaf) index emits one inline SINGLE part; a large (multi-leaf) index emits granular PAGED leaf
 		// pages + a PAGED root — both go through appendStorageParts.
-		for (final AttributeIndexKey key : this.sharedValueIndex.keySet()) {
+		this.sharedValueIndex.forEach((key, tree) -> {
 			final FilterIndex view = resolveFilterView(key);
 			if (view != null) {
 				view.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 			}
-		}
+		});
 		// SORT parts: owner mode emits its full part, view mode a slim part — both go through appendStorageParts,
 		// mirroring the UNIQUE/FILTER loops above.
-		for (Entry<AttributeIndexKey, SortIndex> entry : this.sortIndex.entrySet()) {
-			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
+		this.sortIndex.forEach(
+			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
 		// Empty-drop reclaim: a PAGED sub-index emptied and dropped from its map this commit still has its leaf pages on disk, but
 		// the dropped index's own appendStorageParts never runs again — so for each paged family diff the pre-commit
 		// on-disk snapshot against the surviving keys and emit a removal for every leaf page of a vanished key, or the
@@ -1395,9 +1435,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		);
 		// CHAIN parts: a small (single-leaf) chain index emits one inline SINGLE part; a large (multi-leaf) index emits
 		// granular PAGED leaf pages + a PAGED root - both go through appendStorageParts, mirroring the loops above.
-		for (Entry<AttributeIndexKey, ChainIndex> entry : this.chainIndex.entrySet()) {
-			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
+		this.chainIndex.forEach(
+			(key, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
 		// refresh the empty-drop-reclaim snapshots from the surviving sub-indexes now that each has staged this commit's page set:
 		// a reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
 		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same maps,
@@ -1480,6 +1520,12 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * into the parent index manifest without duplicating the loop. Subclass-specific attribute
 	 * types (e.g. CARDINALITY) are owned by the subclass and added separately.
 	 *
+	 * **Every walk here is a `forEach`, and that is deliberate**: this runs from every entity index constructor, and
+	 * asking a map for a `keySet` would leave a permanently cached view object on each of these five maps - see
+	 * {@link io.evitadb.index.map.TransactionalMap#forEach} for the arithmetic that makes sixteen bytes matter. The
+	 * lambdas capture, so each call allocates five short-lived objects instead; that is eden garbage traded for
+	 * retained bytes on every index in the catalog.
+	 *
 	 * @param indexKey the parent {@link EntityIndexKey} used as the storage-key
 	 *                 prefix
 	 * @param target   the set into which the synthesized storage keys are added
@@ -1490,44 +1536,45 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	) {
 		// UNIQUE keys: standalone (owner) keys, plus folded (view) keys that still have a live shared tree (a stale view
 		// key with no backing tree must not be announced, else the manifest would list a part that was never written)
-		for (final AttributeIndexKey key : this.uniqueIndex.keySet()) {
-			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key));
-		}
-		for (final AttributeIndexKey key : this.uniqueViewIndex.keySet()) {
+		this.uniqueIndex.forEach(
+			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key))
+		);
+		this.uniqueViewIndex.forEach((key, index) -> {
 			if (this.sharedValueIndex.containsKey(key)) {
 				target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key));
 			}
-		}
+		});
 		// FILTER keys: transactional truth = the shared value index key set
-		for (final AttributeIndexKey key : this.sharedValueIndex.keySet()) {
-			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, key));
-		}
-		for (final AttributeIndexKey key : this.sortIndex.keySet()) {
-			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, key));
-		}
-		for (final AttributeIndexKey key : this.chainIndex.keySet()) {
-			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, key));
-		}
+		this.sharedValueIndex.forEach(
+			(key, tree) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, key))
+		);
+		this.sortIndex.forEach(
+			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, key))
+		);
+		this.chainIndex.forEach(
+			(key, index) -> target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, key))
+		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * **Every walk here is a `forEach`**, for the reason spelled out on {@link #collectKeys}. This one is the trap of
+	 * the three: it runs on every flush but not from any constructor, so the cached views it used to leave behind were
+	 * invisible to a measurement taken on a freshly built index.
+	 */
 	@Override
 	public void resetDirty() {
-		for (UniqueIndex theUniqueIndex : this.uniqueIndex.values()) {
-			theUniqueIndex.resetDirty();
-		}
+		this.uniqueIndex.forEach((key, index) -> index.resetDirty());
 		// reset the shared trees' dirty flags through the resolved views (transactional truth)
-		for (final AttributeIndexKey key : this.sharedValueIndex.keySet()) {
+		this.sharedValueIndex.forEach((key, tree) -> {
 			final FilterIndex view = resolveFilterView(key);
 			if (view != null) {
 				view.resetDirty();
 			}
-		}
-		for (SortIndex theSortIndex : this.sortIndex.values()) {
-			theSortIndex.resetDirty();
-		}
-		for (ChainIndex theChainIndex : this.chainIndex.values()) {
-			theChainIndex.resetDirty();
-		}
+		});
+		this.sortIndex.forEach((key, index) -> index.resetDirty());
+		this.chainIndex.forEach((key, index) -> index.resetDirty());
 	}
 
 	@Nullable

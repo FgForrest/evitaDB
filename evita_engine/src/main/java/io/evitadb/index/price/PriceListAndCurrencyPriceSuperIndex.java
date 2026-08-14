@@ -559,7 +559,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 	 * {@link #pageStreamRegistry} contributes its **slot alone**: it is flush bookkeeping carried by reference across
 	 * commits rather than index content, and it is consulted only on the single-writer flush path.
 	 *
-	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and must never
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
 	 * be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

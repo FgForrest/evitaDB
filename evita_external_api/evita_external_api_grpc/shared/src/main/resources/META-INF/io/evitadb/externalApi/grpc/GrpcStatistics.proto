@@ -345,7 +345,7 @@ message GrpcHistoryStatistics {
 
 // The catalog-level `COMPONENT_INDEX_SUMMARY` component - how many indexes the catalog holds in total.
 //
-// Only a total here: the breakdown by index kind and scope requires a pass over the index keys of a collection, and
+// Only a total here: the breakdown by index type and scope requires a pass over the index keys of a collection, and
 // doing that for every collection on every polled refresh is exactly the cost this API is shaped to avoid. The
 // breakdown is fetched per collection instead.
 message GrpcIndexSummaryStatistics {
@@ -452,9 +452,14 @@ message GrpcGlobalUniqueIndexCardinality {
   GrpcLocale locale = 2;
   // Scope of the catalog index holding this global unique index.
   GrpcEntityScope scope = 3;
-  // How many distinct values the index holds - equivalently, how many records it covers, since a globally-unique
-  // value identifies exactly one record. Only one of the two is reported because their ratio is fixed at 1 by
-  // construction.
+  // How many distinct values the index holds (values).
+  //
+  // Distinct values, not covered records. The two agree for an ordinary globally-unique attribute, where one value
+  // belongs to one record, and diverge for one that is localized as well: that has a single locale-less key covering
+  // every locale, so one record can own several values in it. Only this reading is carried here, because it is the
+  // one an O(1) counter answers; the covered-record count is reported next to it, as
+  // `GrpcAttributeCardinality.recordsCovered`, by `GetIndexDetail` - which reaches one catalog index rather than all
+  // of them.
   int32 distinctValueCount = 4;
 
 }
@@ -618,11 +623,11 @@ message GrpcDataStoreFragmentation {
 
 }
 
-// Number of indexes of one kind within one scope.
-message GrpcIndexKindCount {
+// Number of indexes of one type within one scope.
+message GrpcIndexTypeCount {
 
-  // Kind of the counted indexes.
-  GrpcEntityIndexKind indexKind = 1;
+  // Type of the counted indexes.
+  GrpcEntityIndexType indexType = 1;
   // Scope the counted indexes belong to.
   GrpcEntityScope scope = 2;
   // How many such indexes exist (indexes).
@@ -631,7 +636,7 @@ message GrpcIndexKindCount {
 }
 
 // The collection-level `COMPONENT_INDEX_SUMMARY` component - how many indexes one collection holds, broken down by
-// kind and scope.
+// type and scope.
 //
 // This is what turns the historically opaque single index count into something a developer can act on: forty
 // thousand indexes of one referenced entity and forty global ones are very different situations that used to render
@@ -640,9 +645,9 @@ message GrpcCollectionIndexSummary {
 
   // Total number of indexes in this collection (indexes).
   int32 totalIndexCount = 1;
-  // One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+  // One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
   // reported as zero.
-  repeated GrpcIndexKindCount byKindAndScope = 2;
+  repeated GrpcIndexTypeCount byTypeAndScope = 2;
 
 }
 
@@ -668,19 +673,27 @@ message GrpcAttributeCardinality {
 
 }
 
-// The cardinality readings of one index of the collection.
+// The cardinality readings of one index.
 message GrpcIndexCardinality {
 
-  // Kind of this index.
-  GrpcEntityIndexKind indexKind = 1;
+  // Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+  // addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+  // `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+  // `GrpcIndexDetail` does whenever it describes a catalog index.
+  optional GrpcEntityIndexType indexType = 1;
   // Scope this index belongs to.
   GrpcEntityScope scope = 2;
-  // What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-  // Unset for the global index, which has no sibling within its scope.
+  // What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+  // renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+  // describes, and the full rendering including representative attribute values when a
+  // `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+  // no sibling within its scope.
   google.protobuf.StringValue discriminator = 3;
   // How many entities this index covers - the denominator every distinct-value count below should be read against
-  // (entities).
-  int32 entityCount = 4;
+  // (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+  // cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+  // holds is reported per attribute below instead.
+  google.protobuf.Int32Value entityCount = 4;
   // How many distinct referenced entities this index tracks (entities). Unset for an index that tracks none - only
   // the reference indexes maintain a reference cardinality, and reporting `0` for the global index would read as
   // "this collection references nothing", which is a different statement.
@@ -737,10 +750,16 @@ message GrpcDataStoreVolatileState {
 // one that gets polled, and nesting a row per collection would make its size grow with the number of collections and
 // would let the expensive per-collection components leak into a request that must stay cheap.
 //
-// Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, every other
-// field is present only when its component was requested and delivered, and `componentStatus` explains every
-// requested component that is missing. Requesting a catalog-only component here is an error, and so is naming a
-// collection the catalog does not hold.
+// Presence rules are the same as at the catalog level - `identity` and `entityType` are always set, and every other
+// field is present only when its component was requested and delivered. Requesting a catalog-only component here is
+// an error, and so is naming a collection the catalog does not hold.
+//
+// One rule is *stronger* here than at the catalog level: a collection-level component cannot be declined. Every
+// component this server delivers reports `AVAILABILITY_DELIVERED`, so a requested component's field is always set.
+// A catalog can be warming up, corrupted, or configured with a feature switched off and still owe the caller an
+// answer; a collection of a catalog in any of those states cannot be reached to be asked at all. Clients should
+// nonetheless keep reading `componentStatus` rather than assuming presence - it is what stays correct against a
+// server that declines one.
 message GrpcEntityCollectionStatisticsSnapshot {
 
   // The catalog this collection belongs to, and the version this snapshot was taken at; always present.
@@ -771,40 +790,113 @@ message GrpcEntityCollectionStatisticsSnapshot {
 
 }
 
-// One entity index, as described by an index browse.
+// One index, as described by an index browse.
 //
-// Where `GrpcCollectionIndexSummary` answers how many indexes of each kind a collection holds, this answers which
-// ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
+// Where `GrpcCollectionIndexSummary` answers how many indexes of each type a collection holds, this answers which
+// ones - one page at a time. A count of forty thousand indexes of one type tells an operator that something is wrong
 // but not which reference caused it; this is the drill-down that does.
 //
-// An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
-// `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
-// they do not identify an index between them: a reference whose targets are told apart by representative attribute
-// values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
-// `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
+// One message describes both an entity collection's indexes and the ones a catalog holds itself, so a client renders
+// one table and holds one code path. Which of the two a row is, is stated by `entityType`; what a catalog index does
+// not have is stated by leaving fields unset rather than by a stand-in value.
 //
+// An index is identified by `entityType` together with `indexPrimaryKey`, and by nothing else on this message - the
+// handle alone identifies an index only within its owner, so a catalog index and some collection's first index both
+// answer to `0`. Everything else is for a human to read: in particular `referenceName` and `discriminatorPrimaryKey`
+// do not identify an index between them, because a reference whose targets are told apart by representative attribute
+// values has one index per distinct value set, all sharing one reference name and one target primary key. Display
+// `discriminator`, but compare the identity pair.
+//
+// - a catalog index carries no type and no discriminator in any of its three renderings,
 // - global indexes carry no discriminator at all, and neither projection,
-// - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
-// - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
+// - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
+//   reference,
+// - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
 message GrpcBrowsedIndex {
 
-  // Kind of this index.
-  GrpcEntityIndexKind indexKind = 1;
+  // Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+  // for why no value of this enum describes one.
+  optional GrpcEntityIndexType indexType = 1;
   // Scope this index belongs to.
   GrpcEntityScope scope = 2;
   // Name of the reference this index is bound to. Unset for a global index, which is bound to no reference at all
   // rather than to an unnamed one. Not unique on its own - see the message comment.
   google.protobuf.StringValue referenceName = 3;
   // Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-  // rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+  // rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
   // its own - see the message comment.
   google.protobuf.Int32Value discriminatorPrimaryKey = 4;
   // How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
   // walk of its contents.
-  int32 entityCount = 5;
-  // Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+  //
+  // It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+  // attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+  // production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+  // entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+  // property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+  // direction, on every other dataset.
+  //
+  // Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+  google.protobuf.Int32Value entityCount = 5;
+  // Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
   // including the representative attribute values the two fields above omit. Unset for a global index, which has no
-  // siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+  // siblings to be told apart from. Treat it as opaque: display it, do not parse it.
   google.protobuf.StringValue discriminator = 6;
+  // Identity of this index within its owner, and the handle to pass back - together with `entityType` - when asking
+  // about one index in particular.
+  //
+  // Treat it as an opaque handle: it means nothing on its own, and the same value under another owner is another index
+  // entirely. The two owners derive it differently, which a client holding a handle across a removal can observe. A
+  // collection assigns it from a forward-only sequence whose high-water mark is persisted, so it is never reused and a
+  // row held across the index's removal can only fail to resolve, never resolve to a different index. The catalog
+  // derives it from the index's scope, so it denotes the same logical index whether or not that index exists right
+  // now - the archived catalog index is created lazily, so its handle can fail to resolve and later start resolving,
+  // always to the index it already denoted.
+  int32 indexPrimaryKey = 7;
+  // Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+  // collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+  // asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+  // half of each row's identity.
+  google.protobuf.StringValue entityType = 8;
+
+}
+
+// Everything worth knowing about one index: what it occupies, and whether it is earning it.
+//
+// The drill-down that follows an index browse. `GrpcBrowsedIndex` says which indexes exist and how many entities each
+// covers; this says what one of them costs and how well it discriminates.
+//
+// Why this describes one index and there is no collection-wide form: estimating an index's heap walks its contents,
+// and no cache can amortise it - a measured warm second pass came back slower than the cold one. On a production
+// catalog the largest single index took 151 ms while the median took about 4 microseconds, so naming one index is
+// affordable and sweeping a collection of a quarter of a million of them is not. A client that wants a collection
+// total issues these calls in parallel and sums them, which keeps the cost visible to whoever chose to pay it.
+message GrpcIndexDetail {
+
+  // Identity of the described index within its owner, echoed back so a response can be matched to the request that
+  // asked for it. The same opaque handle `GrpcBrowsedIndex.indexPrimaryKey` carries.
+  int32 indexPrimaryKey = 1;
+  // Best-effort estimate of the heap this index occupies (bytes).
+  //
+  // An estimate, computed rather than measured, and one that deliberately charges structure shared with a superseded
+  // version of an index in full - that predecessor is garbage waiting to be collected, and reporting it as free would
+  // understate what the server is holding. Validated end to end against a production catalog, where the indexes'
+  // reported total came to 11.55 GB against a 12.87 GB live heap.
+  int64 heapSizeInBytes = 2;
+  // How many distinct values this index holds and how many records they cover, per attribute index - the "is this
+  // index earning its keep, or is it three distinct values over two million records?" reading. Also carries the
+  // index's type, scope, discriminator and entity count, so a detail response describes itself without the browse
+  // row beside it.
+  //
+  // This is the only place a per-referenced-entity index is ever described.
+  // `GrpcCollectionIndexCardinality` counts those without describing them, because doing so would make its response
+  // grow with the catalog's data.
+  //
+  // A catalog index reaches the same fields by a different route: its attribute entries are its global unique indexes,
+  // one per globally-unique attribute per locale in use, and its `entityCount` is unset.
+  GrpcIndexCardinality cardinality = 3;
+  // Name of the entity collection holding the described index. Unset for an index the catalog holds itself. Echoed
+  // back with the handle above because the two together are the index's identity - see `GrpcBrowsedIndex.entityType`.
+  google.protobuf.StringValue entityType = 4;
 
 }

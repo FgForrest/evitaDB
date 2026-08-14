@@ -29,21 +29,28 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * One entity index, as described by an index browse.
+ * One index, as described by an index browse.
  *
- * Where `GrpcCollectionIndexSummary` answers how many indexes of each kind a collection holds, this answers which
- * ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
+ * Where `GrpcCollectionIndexSummary` answers how many indexes of each type a collection holds, this answers which
+ * ones - one page at a time. A count of forty thousand indexes of one type tells an operator that something is wrong
  * but not which reference caused it; this is the drill-down that does.
  *
- * An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
- * `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
- * they do not identify an index between them: a reference whose targets are told apart by representative attribute
- * values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
- * `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
+ * One message describes both an entity collection's indexes and the ones a catalog holds itself, so a client renders
+ * one table and holds one code path. Which of the two a row is, is stated by `entityType`; what a catalog index does
+ * not have is stated by leaving fields unset rather than by a stand-in value.
  *
+ * An index is identified by `entityType` together with `indexPrimaryKey`, and by nothing else on this message - the
+ * handle alone identifies an index only within its owner, so a catalog index and some collection's first index both
+ * answer to `0`. Everything else is for a human to read: in particular `referenceName` and `discriminatorPrimaryKey`
+ * do not identify an index between them, because a reference whose targets are told apart by representative attribute
+ * values has one index per distinct value set, all sharing one reference name and one target primary key. Display
+ * `discriminator`, but compare the identity pair.
+ *
+ * - a catalog index carries no type and no discriminator in any of its three renderings,
  * - global indexes carry no discriminator at all, and neither projection,
- * - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
- * - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
+ * - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
+ *   reference,
+ * - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}
@@ -58,7 +65,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcBrowsedIndex() {
-    indexKind_ = 0;
+    indexType_ = 0;
     scope_ = 0;
   }
 
@@ -83,30 +90,44 @@ private static final long serialVersionUID = 0L;
   }
 
   private int bitField0_;
-  public static final int INDEXKIND_FIELD_NUMBER = 1;
-  private int indexKind_ = 0;
+  public static final int INDEXTYPE_FIELD_NUMBER = 1;
+  private int indexType_ = 0;
   /**
    * <pre>
-   * Kind of this index.
+   * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+   * for why no value of this enum describes one.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The enum numeric value on the wire for indexKind.
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return Whether the indexType field is set.
    */
-  @java.lang.Override public int getIndexKindValue() {
-    return indexKind_;
+  @java.lang.Override public boolean hasIndexType() {
+    return ((bitField0_ & 0x00000001) != 0);
   }
   /**
    * <pre>
-   * Kind of this index.
+   * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+   * for why no value of this enum describes one.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The indexKind.
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The enum numeric value on the wire for indexType.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+  @java.lang.Override public int getIndexTypeValue() {
+    return indexType_;
+  }
+  /**
+   * <pre>
+   * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+   * for why no value of this enum describes one.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The indexType.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
   }
 
   public static final int SCOPE_FIELD_NUMBER = 2;
@@ -148,7 +169,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasReferenceName() {
-    return ((bitField0_ & 0x00000001) != 0);
+    return ((bitField0_ & 0x00000002) != 0);
   }
   /**
    * <pre>
@@ -181,7 +202,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
    * its own - see the message comment.
    * </pre>
    *
@@ -190,12 +211,12 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDiscriminatorPrimaryKey() {
-    return ((bitField0_ & 0x00000002) != 0);
+    return ((bitField0_ & 0x00000004) != 0);
   }
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
    * its own - see the message comment.
    * </pre>
    *
@@ -209,7 +230,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-   * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+   * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
    * its own - see the message comment.
    * </pre>
    *
@@ -221,28 +242,80 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int ENTITYCOUNT_FIELD_NUMBER = 5;
-  private int entityCount_ = 0;
+  private com.google.protobuf.Int32Value entityCount_;
   /**
    * <pre>
    * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
    * walk of its contents.
+   *
+   * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+   * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+   * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+   * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+   * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+   * direction, on every other dataset.
+   *
+   * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
    * </pre>
    *
-   * <code>int32 entityCount = 5;</code>
+   * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+   * @return Whether the entityCount field is set.
+   */
+  @java.lang.Override
+  public boolean hasEntityCount() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+   * walk of its contents.
+   *
+   * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+   * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+   * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+   * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+   * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+   * direction, on every other dataset.
+   *
+   * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityCount = 5;</code>
    * @return The entityCount.
    */
   @java.lang.Override
-  public int getEntityCount() {
-    return entityCount_;
+  public com.google.protobuf.Int32Value getEntityCount() {
+    return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+  }
+  /**
+   * <pre>
+   * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+   * walk of its contents.
+   *
+   * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+   * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+   * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+   * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+   * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+   * direction, on every other dataset.
+   *
+   * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getEntityCountOrBuilder() {
+    return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
   }
 
   public static final int DISCRIMINATOR_FIELD_NUMBER = 6;
   private com.google.protobuf.StringValue discriminator_;
   /**
    * <pre>
-   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
    * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -250,13 +323,13 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDiscriminator() {
-    return ((bitField0_ & 0x00000004) != 0);
+    return ((bitField0_ & 0x00000010) != 0);
   }
   /**
    * <pre>
-   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
    * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -268,9 +341,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+   * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
    * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-   * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+   * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -278,6 +351,77 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public com.google.protobuf.StringValueOrBuilder getDiscriminatorOrBuilder() {
     return discriminator_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : discriminator_;
+  }
+
+  public static final int INDEXPRIMARYKEY_FIELD_NUMBER = 7;
+  private int indexPrimaryKey_ = 0;
+  /**
+   * <pre>
+   * Identity of this index within its owner, and the handle to pass back - together with `entityType` - when asking
+   * about one index in particular.
+   *
+   * Treat it as an opaque handle: it means nothing on its own, and the same value under another owner is another index
+   * entirely. The two owners derive it differently, which a client holding a handle across a removal can observe. A
+   * collection assigns it from a forward-only sequence whose high-water mark is persisted, so it is never reused and a
+   * row held across the index's removal can only fail to resolve, never resolve to a different index. The catalog
+   * derives it from the index's scope, so it denotes the same logical index whether or not that index exists right
+   * now - the archived catalog index is created lazily, so its handle can fail to resolve and later start resolving,
+   * always to the index it already denoted.
+   * </pre>
+   *
+   * <code>int32 indexPrimaryKey = 7;</code>
+   * @return The indexPrimaryKey.
+   */
+  @java.lang.Override
+  public int getIndexPrimaryKey() {
+    return indexPrimaryKey_;
+  }
+
+  public static final int ENTITYTYPE_FIELD_NUMBER = 8;
+  private com.google.protobuf.StringValue entityType_;
+  /**
+   * <pre>
+   * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+   * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+   * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+   * half of each row's identity.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue entityType = 8;</code>
+   * @return Whether the entityType field is set.
+   */
+  @java.lang.Override
+  public boolean hasEntityType() {
+    return ((bitField0_ & 0x00000020) != 0);
+  }
+  /**
+   * <pre>
+   * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+   * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+   * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+   * half of each row's identity.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue entityType = 8;</code>
+   * @return The entityType.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getEntityType() {
+    return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
+  }
+  /**
+   * <pre>
+   * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+   * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+   * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+   * half of each row's identity.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue entityType = 8;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder() {
+    return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -294,23 +438,29 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
-      output.writeEnum(1, indexKind_);
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeEnum(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(2, scope_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000002) != 0)) {
       output.writeMessage(3, getReferenceName());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000004) != 0)) {
       output.writeMessage(4, getDiscriminatorPrimaryKey());
     }
-    if (entityCount_ != 0) {
-      output.writeInt32(5, entityCount_);
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(5, getEntityCount());
     }
-    if (((bitField0_ & 0x00000004) != 0)) {
+    if (((bitField0_ & 0x00000010) != 0)) {
       output.writeMessage(6, getDiscriminator());
+    }
+    if (indexPrimaryKey_ != 0) {
+      output.writeInt32(7, indexPrimaryKey_);
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      output.writeMessage(8, getEntityType());
     }
     getUnknownFields().writeTo(output);
   }
@@ -321,29 +471,37 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
+    if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, indexKind_);
+        .computeEnumSize(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, scope_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000002) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getReferenceName());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000004) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getDiscriminatorPrimaryKey());
     }
-    if (entityCount_ != 0) {
+    if (((bitField0_ & 0x00000008) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(5, entityCount_);
+        .computeMessageSize(5, getEntityCount());
     }
-    if (((bitField0_ & 0x00000004) != 0)) {
+    if (((bitField0_ & 0x00000010) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(6, getDiscriminator());
+    }
+    if (indexPrimaryKey_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(7, indexPrimaryKey_);
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getEntityType());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -360,7 +518,10 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex other = (io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex) obj;
 
-    if (indexKind_ != other.indexKind_) return false;
+    if (hasIndexType() != other.hasIndexType()) return false;
+    if (hasIndexType()) {
+      if (indexType_ != other.indexType_) return false;
+    }
     if (scope_ != other.scope_) return false;
     if (hasReferenceName() != other.hasReferenceName()) return false;
     if (hasReferenceName()) {
@@ -372,12 +533,22 @@ private static final long serialVersionUID = 0L;
       if (!getDiscriminatorPrimaryKey()
           .equals(other.getDiscriminatorPrimaryKey())) return false;
     }
-    if (getEntityCount()
-        != other.getEntityCount()) return false;
+    if (hasEntityCount() != other.hasEntityCount()) return false;
+    if (hasEntityCount()) {
+      if (!getEntityCount()
+          .equals(other.getEntityCount())) return false;
+    }
     if (hasDiscriminator() != other.hasDiscriminator()) return false;
     if (hasDiscriminator()) {
       if (!getDiscriminator()
           .equals(other.getDiscriminator())) return false;
+    }
+    if (getIndexPrimaryKey()
+        != other.getIndexPrimaryKey()) return false;
+    if (hasEntityType() != other.hasEntityType()) return false;
+    if (hasEntityType()) {
+      if (!getEntityType()
+          .equals(other.getEntityType())) return false;
     }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
@@ -390,8 +561,10 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + INDEXKIND_FIELD_NUMBER;
-    hash = (53 * hash) + indexKind_;
+    if (hasIndexType()) {
+      hash = (37 * hash) + INDEXTYPE_FIELD_NUMBER;
+      hash = (53 * hash) + indexType_;
+    }
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
     if (hasReferenceName()) {
@@ -402,11 +575,19 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + DISCRIMINATORPRIMARYKEY_FIELD_NUMBER;
       hash = (53 * hash) + getDiscriminatorPrimaryKey().hashCode();
     }
-    hash = (37 * hash) + ENTITYCOUNT_FIELD_NUMBER;
-    hash = (53 * hash) + getEntityCount();
+    if (hasEntityCount()) {
+      hash = (37 * hash) + ENTITYCOUNT_FIELD_NUMBER;
+      hash = (53 * hash) + getEntityCount().hashCode();
+    }
     if (hasDiscriminator()) {
       hash = (37 * hash) + DISCRIMINATOR_FIELD_NUMBER;
       hash = (53 * hash) + getDiscriminator().hashCode();
+    }
+    hash = (37 * hash) + INDEXPRIMARYKEY_FIELD_NUMBER;
+    hash = (53 * hash) + getIndexPrimaryKey();
+    if (hasEntityType()) {
+      hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
+      hash = (53 * hash) + getEntityType().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -507,21 +688,28 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * One entity index, as described by an index browse.
+   * One index, as described by an index browse.
    *
-   * Where `GrpcCollectionIndexSummary` answers how many indexes of each kind a collection holds, this answers which
-   * ones - one page at a time. A count of forty thousand indexes of one kind tells an operator that something is wrong
+   * Where `GrpcCollectionIndexSummary` answers how many indexes of each type a collection holds, this answers which
+   * ones - one page at a time. A count of forty thousand indexes of one type tells an operator that something is wrong
    * but not which reference caused it; this is the drill-down that does.
    *
-   * An index is identified by the triplet (kind, scope, discriminator) and only that triplet. `referenceName` and
-   * `discriminatorPrimaryKey` are readable projections of the discriminator, convenient for display and grouping, but
-   * they do not identify an index between them: a reference whose targets are told apart by representative attribute
-   * values has one index per distinct value set, all sharing one reference name and one target primary key. Compare
-   * `discriminator` to decide whether two rows describe the same index; keying on the pair would collapse them.
+   * One message describes both an entity collection's indexes and the ones a catalog holds itself, so a client renders
+   * one table and holds one code path. Which of the two a row is, is stated by `entityType`; what a catalog index does
+   * not have is stated by leaving fields unset rather than by a stand-in value.
    *
+   * An index is identified by `entityType` together with `indexPrimaryKey`, and by nothing else on this message - the
+   * handle alone identifies an index only within its owner, so a catalog index and some collection's first index both
+   * answer to `0`. Everything else is for a human to read: in particular `referenceName` and `discriminatorPrimaryKey`
+   * do not identify an index between them, because a reference whose targets are told apart by representative attribute
+   * values has one index per distinct value set, all sharing one reference name and one target primary key. Display
+   * `discriminator`, but compare the identity pair.
+   *
+   * - a catalog index carries no type and no discriminator in any of its three renderings,
    * - global indexes carry no discriminator at all, and neither projection,
-   * - the per-reference-type kinds carry a reference name and no primary key - one index covers the whole reference,
-   * - the per-referenced-entity kinds carry both, plus whatever else distinguishes the target.
+   * - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
+   *   reference,
+   * - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}
@@ -558,14 +746,16 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getReferenceNameFieldBuilder();
         getDiscriminatorPrimaryKeyFieldBuilder();
+        getEntityCountFieldBuilder();
         getDiscriminatorFieldBuilder();
+        getEntityTypeFieldBuilder();
       }
     }
     @java.lang.Override
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      indexKind_ = 0;
+      indexType_ = 0;
       scope_ = 0;
       referenceName_ = null;
       if (referenceNameBuilder_ != null) {
@@ -577,11 +767,21 @@ private static final long serialVersionUID = 0L;
         discriminatorPrimaryKeyBuilder_.dispose();
         discriminatorPrimaryKeyBuilder_ = null;
       }
-      entityCount_ = 0;
+      entityCount_ = null;
+      if (entityCountBuilder_ != null) {
+        entityCountBuilder_.dispose();
+        entityCountBuilder_ = null;
+      }
       discriminator_ = null;
       if (discriminatorBuilder_ != null) {
         discriminatorBuilder_.dispose();
         discriminatorBuilder_ = null;
+      }
+      indexPrimaryKey_ = 0;
+      entityType_ = null;
+      if (entityTypeBuilder_ != null) {
+        entityTypeBuilder_.dispose();
+        entityTypeBuilder_ = null;
       }
       return this;
     }
@@ -616,33 +816,46 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex result) {
       int from_bitField0_ = bitField0_;
+      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.indexKind_ = indexKind_;
+        result.indexType_ = indexType_;
+        to_bitField0_ |= 0x00000001;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.scope_ = scope_;
       }
-      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.referenceName_ = referenceNameBuilder_ == null
             ? referenceName_
             : referenceNameBuilder_.build();
-        to_bitField0_ |= 0x00000001;
+        to_bitField0_ |= 0x00000002;
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.discriminatorPrimaryKey_ = discriminatorPrimaryKeyBuilder_ == null
             ? discriminatorPrimaryKey_
             : discriminatorPrimaryKeyBuilder_.build();
-        to_bitField0_ |= 0x00000002;
+        to_bitField0_ |= 0x00000004;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
-        result.entityCount_ = entityCount_;
+        result.entityCount_ = entityCountBuilder_ == null
+            ? entityCount_
+            : entityCountBuilder_.build();
+        to_bitField0_ |= 0x00000008;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
         result.discriminator_ = discriminatorBuilder_ == null
             ? discriminator_
             : discriminatorBuilder_.build();
-        to_bitField0_ |= 0x00000004;
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.indexPrimaryKey_ = indexPrimaryKey_;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.entityType_ = entityTypeBuilder_ == null
+            ? entityType_
+            : entityTypeBuilder_.build();
+        to_bitField0_ |= 0x00000020;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -691,8 +904,8 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex.getDefaultInstance()) return this;
-      if (other.indexKind_ != 0) {
-        setIndexKindValue(other.getIndexKindValue());
+      if (other.hasIndexType()) {
+        setIndexType(other.getIndexType());
       }
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
@@ -703,11 +916,17 @@ private static final long serialVersionUID = 0L;
       if (other.hasDiscriminatorPrimaryKey()) {
         mergeDiscriminatorPrimaryKey(other.getDiscriminatorPrimaryKey());
       }
-      if (other.getEntityCount() != 0) {
-        setEntityCount(other.getEntityCount());
+      if (other.hasEntityCount()) {
+        mergeEntityCount(other.getEntityCount());
       }
       if (other.hasDiscriminator()) {
         mergeDiscriminator(other.getDiscriminator());
+      }
+      if (other.getIndexPrimaryKey() != 0) {
+        setIndexPrimaryKey(other.getIndexPrimaryKey());
+      }
+      if (other.hasEntityType()) {
+        mergeEntityType(other.getEntityType());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -736,7 +955,7 @@ private static final long serialVersionUID = 0L;
               done = true;
               break;
             case 8: {
-              indexKind_ = input.readEnum();
+              indexType_ = input.readEnum();
               bitField0_ |= 0x00000001;
               break;
             } // case 8
@@ -759,11 +978,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 34
-            case 40: {
-              entityCount_ = input.readInt32();
+            case 42: {
+              input.readMessage(
+                  getEntityCountFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000010;
               break;
-            } // case 40
+            } // case 42
             case 50: {
               input.readMessage(
                   getDiscriminatorFieldBuilder().getBuilder(),
@@ -771,6 +992,18 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000020;
               break;
             } // case 50
+            case 56: {
+              indexPrimaryKey_ = input.readInt32();
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 56
+            case 66: {
+              input.readMessage(
+                  getEntityTypeFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -788,75 +1021,92 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
-    private int indexKind_ = 0;
+    private int indexType_ = 0;
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The enum numeric value on the wire for indexKind.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return Whether the indexType field is set.
      */
-    @java.lang.Override public int getIndexKindValue() {
-      return indexKind_;
+    @java.lang.Override public boolean hasIndexType() {
+      return ((bitField0_ & 0x00000001) != 0);
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The enum numeric value on the wire for indexKind to set.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The enum numeric value on the wire for indexType.
+     */
+    @java.lang.Override public int getIndexTypeValue() {
+      return indexType_;
+    }
+    /**
+     * <pre>
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The enum numeric value on the wire for indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKindValue(int value) {
-      indexKind_ = value;
+    public Builder setIndexTypeValue(int value) {
+      indexType_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The indexKind.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The indexType.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The indexKind to set.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKind(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value) {
+    public Builder setIndexType(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value) {
       if (value == null) {
         throw new NullPointerException();
       }
       bitField0_ |= 0x00000001;
-      indexKind_ = value.getNumber();
+      indexType_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself - see `GrpcIndexCardinality.indexType`
+     * for why no value of this enum describes one.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearIndexKind() {
+    public Builder clearIndexType() {
       bitField0_ = (bitField0_ & ~0x00000001);
-      indexKind_ = 0;
+      indexType_ = 0;
       onChanged();
       return this;
     }
@@ -1106,7 +1356,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1119,7 +1369,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1136,7 +1386,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1158,7 +1408,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1178,7 +1428,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1205,7 +1455,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1224,7 +1474,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1238,7 +1488,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1255,7 +1505,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Primary key of the referenced entity this index is bound to. Unset when the index covers a whole reference type
-     * rather than one target entity - the two cases are distinguished by which of them `indexKind` names. Not unique on
+     * rather than one target entity - the two cases are distinguished by which of them `indexType` names. Not unique on
      * its own - see the message comment.
      * </pre>
      *
@@ -1275,33 +1525,81 @@ private static final long serialVersionUID = 0L;
       return discriminatorPrimaryKeyBuilder_;
     }
 
-    private int entityCount_ ;
+    private com.google.protobuf.Int32Value entityCount_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> entityCountBuilder_;
     /**
      * <pre>
      * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
      * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
      * </pre>
      *
-     * <code>int32 entityCount = 5;</code>
-     * @return The entityCount.
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     * @return Whether the entityCount field is set.
      */
-    @java.lang.Override
-    public int getEntityCount() {
-      return entityCount_;
+    public boolean hasEntityCount() {
+      return ((bitField0_ & 0x00000010) != 0);
     }
     /**
      * <pre>
      * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
      * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
      * </pre>
      *
-     * <code>int32 entityCount = 5;</code>
-     * @param value The entityCount to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     * @return The entityCount.
      */
-    public Builder setEntityCount(int value) {
-
-      entityCount_ = value;
+    public com.google.protobuf.Int32Value getEntityCount() {
+      if (entityCountBuilder_ == null) {
+        return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+      } else {
+        return entityCountBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    public Builder setEntityCount(com.google.protobuf.Int32Value value) {
+      if (entityCountBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        entityCount_ = value;
+      } else {
+        entityCountBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00000010;
       onChanged();
       return this;
@@ -1310,16 +1608,168 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
      * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
      * </pre>
      *
-     * <code>int32 entityCount = 5;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    public Builder setEntityCount(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (entityCountBuilder_ == null) {
+        entityCount_ = builderForValue.build();
+      } else {
+        entityCountBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    public Builder mergeEntityCount(com.google.protobuf.Int32Value value) {
+      if (entityCountBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          entityCount_ != null &&
+          entityCount_ != com.google.protobuf.Int32Value.getDefaultInstance()) {
+          getEntityCountBuilder().mergeFrom(value);
+        } else {
+          entityCount_ = value;
+        }
+      } else {
+        entityCountBuilder_.mergeFrom(value);
+      }
+      if (entityCount_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
      */
     public Builder clearEntityCount() {
       bitField0_ = (bitField0_ & ~0x00000010);
-      entityCount_ = 0;
+      entityCount_ = null;
+      if (entityCountBuilder_ != null) {
+        entityCountBuilder_.dispose();
+        entityCountBuilder_ = null;
+      }
       onChanged();
       return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getEntityCountBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getEntityCountFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getEntityCountOrBuilder() {
+      if (entityCountBuilder_ != null) {
+        return entityCountBuilder_.getMessageOrBuilder();
+      } else {
+        return entityCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+      }
+    }
+    /**
+     * <pre>
+     * How many entities this index covers (entities). A cardinality reading of the index's primary-key bitmap, never a
+     * walk of its contents.
+     *
+     * It counts entities, and is not a stand-in for how much memory the index occupies. Heap is driven by how many
+     * attributes are indexed and how many distinct values they hold, which no entity count can see: on a measured
+     * production catalog a global index ran about 8.7 KB per entity against about 2.4 KB for a large per-referenced-
+     * entity one. No memory figure is derived from this number anywhere in the API, deliberately - that ratio is a
+     * property of a catalog's own schema and data, so any coefficient applied to it would be wrong, in an unknown
+     * direction, on every other dataset.
+     *
+     * Unset for an index the catalog holds itself, which has no primary-key bitmap to read a cardinality off.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getEntityCountFieldBuilder() {
+      if (entityCountBuilder_ == null) {
+        entityCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getEntityCount(),
+                getParentForChildren(),
+                isClean());
+        entityCount_ = null;
+      }
+      return entityCountBuilder_;
     }
 
     private com.google.protobuf.StringValue discriminator_;
@@ -1327,9 +1777,9 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> discriminatorBuilder_;
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1340,9 +1790,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1357,9 +1807,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1379,9 +1829,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1399,9 +1849,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1426,9 +1876,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1445,9 +1895,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1459,9 +1909,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1476,9 +1926,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Stable rendering of everything that distinguishes this index from its siblings of the same kind and scope,
+     * Stable rendering of everything that distinguishes this index from its siblings of the same type and scope,
      * including the representative attribute values the two fields above omit. Unset for a global index, which has no
-     * siblings to be told apart from. Treat it as opaque: compare it for equality, do not parse it.
+     * siblings to be told apart from. Treat it as opaque: display it, do not parse it.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 6;</code>
@@ -1495,6 +1945,261 @@ private static final long serialVersionUID = 0L;
         discriminator_ = null;
       }
       return discriminatorBuilder_;
+    }
+
+    private int indexPrimaryKey_ ;
+    /**
+     * <pre>
+     * Identity of this index within its owner, and the handle to pass back - together with `entityType` - when asking
+     * about one index in particular.
+     *
+     * Treat it as an opaque handle: it means nothing on its own, and the same value under another owner is another index
+     * entirely. The two owners derive it differently, which a client holding a handle across a removal can observe. A
+     * collection assigns it from a forward-only sequence whose high-water mark is persisted, so it is never reused and a
+     * row held across the index's removal can only fail to resolve, never resolve to a different index. The catalog
+     * derives it from the index's scope, so it denotes the same logical index whether or not that index exists right
+     * now - the archived catalog index is created lazily, so its handle can fail to resolve and later start resolving,
+     * always to the index it already denoted.
+     * </pre>
+     *
+     * <code>int32 indexPrimaryKey = 7;</code>
+     * @return The indexPrimaryKey.
+     */
+    @java.lang.Override
+    public int getIndexPrimaryKey() {
+      return indexPrimaryKey_;
+    }
+    /**
+     * <pre>
+     * Identity of this index within its owner, and the handle to pass back - together with `entityType` - when asking
+     * about one index in particular.
+     *
+     * Treat it as an opaque handle: it means nothing on its own, and the same value under another owner is another index
+     * entirely. The two owners derive it differently, which a client holding a handle across a removal can observe. A
+     * collection assigns it from a forward-only sequence whose high-water mark is persisted, so it is never reused and a
+     * row held across the index's removal can only fail to resolve, never resolve to a different index. The catalog
+     * derives it from the index's scope, so it denotes the same logical index whether or not that index exists right
+     * now - the archived catalog index is created lazily, so its handle can fail to resolve and later start resolving,
+     * always to the index it already denoted.
+     * </pre>
+     *
+     * <code>int32 indexPrimaryKey = 7;</code>
+     * @param value The indexPrimaryKey to set.
+     * @return This builder for chaining.
+     */
+    public Builder setIndexPrimaryKey(int value) {
+
+      indexPrimaryKey_ = value;
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Identity of this index within its owner, and the handle to pass back - together with `entityType` - when asking
+     * about one index in particular.
+     *
+     * Treat it as an opaque handle: it means nothing on its own, and the same value under another owner is another index
+     * entirely. The two owners derive it differently, which a client holding a handle across a removal can observe. A
+     * collection assigns it from a forward-only sequence whose high-water mark is persisted, so it is never reused and a
+     * row held across the index's removal can only fail to resolve, never resolve to a different index. The catalog
+     * derives it from the index's scope, so it denotes the same logical index whether or not that index exists right
+     * now - the archived catalog index is created lazily, so its handle can fail to resolve and later start resolving,
+     * always to the index it already denoted.
+     * </pre>
+     *
+     * <code>int32 indexPrimaryKey = 7;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearIndexPrimaryKey() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      indexPrimaryKey_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.StringValue entityType_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> entityTypeBuilder_;
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     * @return Whether the entityType field is set.
+     */
+    public boolean hasEntityType() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     * @return The entityType.
+     */
+    public com.google.protobuf.StringValue getEntityType() {
+      if (entityTypeBuilder_ == null) {
+        return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
+      } else {
+        return entityTypeBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public Builder setEntityType(com.google.protobuf.StringValue value) {
+      if (entityTypeBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        entityType_ = value;
+      } else {
+        entityTypeBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public Builder setEntityType(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (entityTypeBuilder_ == null) {
+        entityType_ = builderForValue.build();
+      } else {
+        entityTypeBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public Builder mergeEntityType(com.google.protobuf.StringValue value) {
+      if (entityTypeBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          entityType_ != null &&
+          entityType_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getEntityTypeBuilder().mergeFrom(value);
+        } else {
+          entityType_ = value;
+        }
+      } else {
+        entityTypeBuilder_.mergeFrom(value);
+      }
+      if (entityType_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public Builder clearEntityType() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      entityType_ = null;
+      if (entityTypeBuilder_ != null) {
+        entityTypeBuilder_.dispose();
+        entityTypeBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getEntityTypeBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getEntityTypeFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder() {
+      if (entityTypeBuilder_ != null) {
+        return entityTypeBuilder_.getMessageOrBuilder();
+      } else {
+        return entityType_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
+      }
+    }
+    /**
+     * <pre>
+     * Name of the entity collection holding this index. Unset for an index the catalog holds itself, which belongs to no
+     * collection rather than to an unnamed one. Carried on the row rather than left to the client's memory of what it
+     * asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
+     * half of each row's identity.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue entityType = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getEntityTypeFieldBuilder() {
+      if (entityTypeBuilder_ == null) {
+        entityTypeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getEntityType(),
+                getParentForChildren(),
+                isClean());
+        entityType_ = null;
+      }
+      return entityTypeBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

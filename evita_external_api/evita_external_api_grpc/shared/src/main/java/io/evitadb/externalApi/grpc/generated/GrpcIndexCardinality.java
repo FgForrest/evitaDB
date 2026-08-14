@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * The cardinality readings of one index of the collection.
+ * The cardinality readings of one index.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality}
@@ -44,7 +44,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcIndexCardinality() {
-    indexKind_ = 0;
+    indexType_ = 0;
     scope_ = 0;
     attributes_ = java.util.Collections.emptyList();
   }
@@ -70,30 +70,50 @@ private static final long serialVersionUID = 0L;
   }
 
   private int bitField0_;
-  public static final int INDEXKIND_FIELD_NUMBER = 1;
-  private int indexKind_ = 0;
+  public static final int INDEXTYPE_FIELD_NUMBER = 1;
+  private int indexType_ = 0;
   /**
    * <pre>
-   * Kind of this index.
+   * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+   * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+   * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+   * `GrpcIndexDetail` does whenever it describes a catalog index.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The enum numeric value on the wire for indexKind.
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return Whether the indexType field is set.
    */
-  @java.lang.Override public int getIndexKindValue() {
-    return indexKind_;
+  @java.lang.Override public boolean hasIndexType() {
+    return ((bitField0_ & 0x00000001) != 0);
   }
   /**
    * <pre>
-   * Kind of this index.
+   * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+   * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+   * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+   * `GrpcIndexDetail` does whenever it describes a catalog index.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The indexKind.
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The enum numeric value on the wire for indexType.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+  @java.lang.Override public int getIndexTypeValue() {
+    return indexType_;
+  }
+  /**
+   * <pre>
+   * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+   * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+   * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+   * `GrpcIndexDetail` does whenever it describes a catalog index.
+   * </pre>
+   *
+   * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The indexType.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+    io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
   }
 
   public static final int SCOPE_FIELD_NUMBER = 2;
@@ -126,8 +146,11 @@ private static final long serialVersionUID = 0L;
   private com.google.protobuf.StringValue discriminator_;
   /**
    * <pre>
-   * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-   * Unset for the global index, which has no sibling within its scope.
+   * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+   * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+   * describes, and the full rendering including representative attribute values when a
+   * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+   * no sibling within its scope.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -135,12 +158,15 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasDiscriminator() {
-    return ((bitField0_ & 0x00000001) != 0);
+    return ((bitField0_ & 0x00000002) != 0);
   }
   /**
    * <pre>
-   * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-   * Unset for the global index, which has no sibling within its scope.
+   * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+   * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+   * describes, and the full rendering including representative attribute values when a
+   * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+   * no sibling within its scope.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -152,8 +178,11 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-   * Unset for the global index, which has no sibling within its scope.
+   * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+   * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+   * describes, and the full rendering including representative attribute values when a
+   * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+   * no sibling within its scope.
    * </pre>
    *
    * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -164,19 +193,50 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int ENTITYCOUNT_FIELD_NUMBER = 4;
-  private int entityCount_ = 0;
+  private com.google.protobuf.Int32Value entityCount_;
   /**
    * <pre>
    * How many entities this index covers - the denominator every distinct-value count below should be read against
-   * (entities).
+   * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+   * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+   * holds is reported per attribute below instead.
    * </pre>
    *
-   * <code>int32 entityCount = 4;</code>
+   * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+   * @return Whether the entityCount field is set.
+   */
+  @java.lang.Override
+  public boolean hasEntityCount() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * How many entities this index covers - the denominator every distinct-value count below should be read against
+   * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+   * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+   * holds is reported per attribute below instead.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityCount = 4;</code>
    * @return The entityCount.
    */
   @java.lang.Override
-  public int getEntityCount() {
-    return entityCount_;
+  public com.google.protobuf.Int32Value getEntityCount() {
+    return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+  }
+  /**
+   * <pre>
+   * How many entities this index covers - the denominator every distinct-value count below should be read against
+   * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+   * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+   * holds is reported per attribute below instead.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getEntityCountOrBuilder() {
+    return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
   }
 
   public static final int REFERENCEDENTITYCOUNT_FIELD_NUMBER = 5;
@@ -193,7 +253,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasReferencedEntityCount() {
-    return ((bitField0_ & 0x00000002) != 0);
+    return ((bitField0_ & 0x00000008) != 0);
   }
   /**
    * <pre>
@@ -298,19 +358,19 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
-      output.writeEnum(1, indexKind_);
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeEnum(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       output.writeEnum(2, scope_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000002) != 0)) {
       output.writeMessage(3, getDiscriminator());
     }
-    if (entityCount_ != 0) {
-      output.writeInt32(4, entityCount_);
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(4, getEntityCount());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000008) != 0)) {
       output.writeMessage(5, getReferencedEntityCount());
     }
     for (int i = 0; i < attributes_.size(); i++) {
@@ -325,23 +385,23 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (indexKind_ != io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.INDEX_KIND_UNSPECIFIED.getNumber()) {
+    if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(1, indexKind_);
+        .computeEnumSize(1, indexType_);
     }
     if (scope_ != io.evitadb.externalApi.grpc.generated.GrpcEntityScope.SCOPE_LIVE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, scope_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000002) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDiscriminator());
     }
-    if (entityCount_ != 0) {
+    if (((bitField0_ & 0x00000004) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, entityCount_);
+        .computeMessageSize(4, getEntityCount());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000008) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getReferencedEntityCount());
     }
@@ -364,15 +424,21 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality other = (io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality) obj;
 
-    if (indexKind_ != other.indexKind_) return false;
+    if (hasIndexType() != other.hasIndexType()) return false;
+    if (hasIndexType()) {
+      if (indexType_ != other.indexType_) return false;
+    }
     if (scope_ != other.scope_) return false;
     if (hasDiscriminator() != other.hasDiscriminator()) return false;
     if (hasDiscriminator()) {
       if (!getDiscriminator()
           .equals(other.getDiscriminator())) return false;
     }
-    if (getEntityCount()
-        != other.getEntityCount()) return false;
+    if (hasEntityCount() != other.hasEntityCount()) return false;
+    if (hasEntityCount()) {
+      if (!getEntityCount()
+          .equals(other.getEntityCount())) return false;
+    }
     if (hasReferencedEntityCount() != other.hasReferencedEntityCount()) return false;
     if (hasReferencedEntityCount()) {
       if (!getReferencedEntityCount()
@@ -391,16 +457,20 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + INDEXKIND_FIELD_NUMBER;
-    hash = (53 * hash) + indexKind_;
+    if (hasIndexType()) {
+      hash = (37 * hash) + INDEXTYPE_FIELD_NUMBER;
+      hash = (53 * hash) + indexType_;
+    }
     hash = (37 * hash) + SCOPE_FIELD_NUMBER;
     hash = (53 * hash) + scope_;
     if (hasDiscriminator()) {
       hash = (37 * hash) + DISCRIMINATOR_FIELD_NUMBER;
       hash = (53 * hash) + getDiscriminator().hashCode();
     }
-    hash = (37 * hash) + ENTITYCOUNT_FIELD_NUMBER;
-    hash = (53 * hash) + getEntityCount();
+    if (hasEntityCount()) {
+      hash = (37 * hash) + ENTITYCOUNT_FIELD_NUMBER;
+      hash = (53 * hash) + getEntityCount().hashCode();
+    }
     if (hasReferencedEntityCount()) {
       hash = (37 * hash) + REFERENCEDENTITYCOUNT_FIELD_NUMBER;
       hash = (53 * hash) + getReferencedEntityCount().hashCode();
@@ -508,7 +578,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The cardinality readings of one index of the collection.
+   * The cardinality readings of one index.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality}
@@ -544,6 +614,7 @@ private static final long serialVersionUID = 0L;
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
         getDiscriminatorFieldBuilder();
+        getEntityCountFieldBuilder();
         getReferencedEntityCountFieldBuilder();
         getAttributesFieldBuilder();
       }
@@ -552,14 +623,18 @@ private static final long serialVersionUID = 0L;
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      indexKind_ = 0;
+      indexType_ = 0;
       scope_ = 0;
       discriminator_ = null;
       if (discriminatorBuilder_ != null) {
         discriminatorBuilder_.dispose();
         discriminatorBuilder_ = null;
       }
-      entityCount_ = 0;
+      entityCount_ = null;
+      if (entityCountBuilder_ != null) {
+        entityCountBuilder_.dispose();
+        entityCountBuilder_ = null;
+      }
       referencedEntityCount_ = null;
       if (referencedEntityCountBuilder_ != null) {
         referencedEntityCountBuilder_.dispose();
@@ -618,27 +693,31 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality result) {
       int from_bitField0_ = bitField0_;
+      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.indexKind_ = indexKind_;
+        result.indexType_ = indexType_;
+        to_bitField0_ |= 0x00000001;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.scope_ = scope_;
       }
-      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.discriminator_ = discriminatorBuilder_ == null
             ? discriminator_
             : discriminatorBuilder_.build();
-        to_bitField0_ |= 0x00000001;
+        to_bitField0_ |= 0x00000002;
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
-        result.entityCount_ = entityCount_;
+        result.entityCount_ = entityCountBuilder_ == null
+            ? entityCount_
+            : entityCountBuilder_.build();
+        to_bitField0_ |= 0x00000004;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.referencedEntityCount_ = referencedEntityCountBuilder_ == null
             ? referencedEntityCount_
             : referencedEntityCountBuilder_.build();
-        to_bitField0_ |= 0x00000002;
+        to_bitField0_ |= 0x00000008;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -687,8 +766,8 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality.getDefaultInstance()) return this;
-      if (other.indexKind_ != 0) {
-        setIndexKindValue(other.getIndexKindValue());
+      if (other.hasIndexType()) {
+        setIndexType(other.getIndexType());
       }
       if (other.scope_ != 0) {
         setScopeValue(other.getScopeValue());
@@ -696,8 +775,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasDiscriminator()) {
         mergeDiscriminator(other.getDiscriminator());
       }
-      if (other.getEntityCount() != 0) {
-        setEntityCount(other.getEntityCount());
+      if (other.hasEntityCount()) {
+        mergeEntityCount(other.getEntityCount());
       }
       if (other.hasReferencedEntityCount()) {
         mergeReferencedEntityCount(other.getReferencedEntityCount());
@@ -755,7 +834,7 @@ private static final long serialVersionUID = 0L;
               done = true;
               break;
             case 8: {
-              indexKind_ = input.readEnum();
+              indexType_ = input.readEnum();
               bitField0_ |= 0x00000001;
               break;
             } // case 8
@@ -771,11 +850,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000004;
               break;
             } // case 26
-            case 32: {
-              entityCount_ = input.readInt32();
+            case 34: {
+              input.readMessage(
+                  getEntityCountFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000008;
               break;
-            } // case 32
+            } // case 34
             case 42: {
               input.readMessage(
                   getReferencedEntityCountFieldBuilder().getBuilder(),
@@ -813,75 +894,104 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
-    private int indexKind_ = 0;
+    private int indexType_ = 0;
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The enum numeric value on the wire for indexKind.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return Whether the indexType field is set.
      */
-    @java.lang.Override public int getIndexKindValue() {
-      return indexKind_;
+    @java.lang.Override public boolean hasIndexType() {
+      return ((bitField0_ & 0x00000001) != 0);
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The enum numeric value on the wire for indexKind to set.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The enum numeric value on the wire for indexType.
+     */
+    @java.lang.Override public int getIndexTypeValue() {
+      return indexType_;
+    }
+    /**
+     * <pre>
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
+     * </pre>
+     *
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The enum numeric value on the wire for indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKindValue(int value) {
-      indexKind_ = value;
+    public Builder setIndexTypeValue(int value) {
+      indexType_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @return The indexKind.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @return The indexType.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.forNumber(indexKind_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind.UNRECOGNIZED : result;
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType() {
+      io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType result = io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.forNumber(indexType_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType.UNRECOGNIZED : result;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-     * @param value The indexKind to set.
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+     * @param value The indexType to set.
      * @return This builder for chaining.
      */
-    public Builder setIndexKind(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind value) {
+    public Builder setIndexType(io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType value) {
       if (value == null) {
         throw new NullPointerException();
       }
       bitField0_ |= 0x00000001;
-      indexKind_ = value.getNumber();
+      indexType_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Kind of this index.
+     * Type of this index. Unset when the index is one the catalog holds itself rather than an entity index: those are
+     * addressed by scope alone, because there is exactly one of them per scope, and no value of this enum describes one.
+     * `GrpcCollectionIndexCardinality` never leaves it unset - it describes a single collection - whereas
+     * `GrpcIndexDetail` does whenever it describes a catalog index.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
+     * <code>optional .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearIndexKind() {
+    public Builder clearIndexType() {
       bitField0_ = (bitField0_ & ~0x00000001);
-      indexKind_ = 0;
+      indexType_ = 0;
       onChanged();
       return this;
     }
@@ -964,8 +1074,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> discriminatorBuilder_;
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -976,8 +1089,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -992,8 +1108,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1013,8 +1132,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1032,8 +1154,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1058,8 +1183,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1076,8 +1204,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1089,8 +1220,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1105,8 +1239,11 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * What distinguishes this index from its siblings of the same kind - the reference name for a reference index.
-     * Unset for the global index, which has no sibling within its scope.
+     * What distinguishes this index from its siblings of the same type, rendered exactly as `GrpcBrowsedIndex`
+     * renders it: the reference name for the schema-bounded reference indexes `GrpcCollectionIndexCardinality`
+     * describes, and the full rendering including representative attribute values when a
+     * `GrpcIndexDetail` describes a per-referenced-entity index. Unset for the global index, which has
+     * no sibling within its scope.
      * </pre>
      *
      * <code>.google.protobuf.StringValue discriminator = 3;</code>
@@ -1125,33 +1262,60 @@ private static final long serialVersionUID = 0L;
       return discriminatorBuilder_;
     }
 
-    private int entityCount_ ;
+    private com.google.protobuf.Int32Value entityCount_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> entityCountBuilder_;
     /**
      * <pre>
      * How many entities this index covers - the denominator every distinct-value count below should be read against
-     * (entities).
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
      * </pre>
      *
-     * <code>int32 entityCount = 4;</code>
-     * @return The entityCount.
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     * @return Whether the entityCount field is set.
      */
-    @java.lang.Override
-    public int getEntityCount() {
-      return entityCount_;
+    public boolean hasEntityCount() {
+      return ((bitField0_ & 0x00000008) != 0);
     }
     /**
      * <pre>
      * How many entities this index covers - the denominator every distinct-value count below should be read against
-     * (entities).
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
      * </pre>
      *
-     * <code>int32 entityCount = 4;</code>
-     * @param value The entityCount to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     * @return The entityCount.
      */
-    public Builder setEntityCount(int value) {
-
-      entityCount_ = value;
+    public com.google.protobuf.Int32Value getEntityCount() {
+      if (entityCountBuilder_ == null) {
+        return entityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+      } else {
+        return entityCountBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    public Builder setEntityCount(com.google.protobuf.Int32Value value) {
+      if (entityCountBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        entityCount_ = value;
+      } else {
+        entityCountBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00000008;
       onChanged();
       return this;
@@ -1159,17 +1323,127 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * How many entities this index covers - the denominator every distinct-value count below should be read against
-     * (entities).
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
      * </pre>
      *
-     * <code>int32 entityCount = 4;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    public Builder setEntityCount(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (entityCountBuilder_ == null) {
+        entityCount_ = builderForValue.build();
+      } else {
+        entityCountBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    public Builder mergeEntityCount(com.google.protobuf.Int32Value value) {
+      if (entityCountBuilder_ == null) {
+        if (((bitField0_ & 0x00000008) != 0) &&
+          entityCount_ != null &&
+          entityCount_ != com.google.protobuf.Int32Value.getDefaultInstance()) {
+          getEntityCountBuilder().mergeFrom(value);
+        } else {
+          entityCount_ = value;
+        }
+      } else {
+        entityCountBuilder_.mergeFrom(value);
+      }
+      if (entityCount_ != null) {
+        bitField0_ |= 0x00000008;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
      */
     public Builder clearEntityCount() {
       bitField0_ = (bitField0_ & ~0x00000008);
-      entityCount_ = 0;
+      entityCount_ = null;
+      if (entityCountBuilder_ != null) {
+        entityCountBuilder_.dispose();
+        entityCountBuilder_ = null;
+      }
       onChanged();
       return this;
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getEntityCountBuilder() {
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return getEntityCountFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getEntityCountOrBuilder() {
+      if (entityCountBuilder_ != null) {
+        return entityCountBuilder_.getMessageOrBuilder();
+      } else {
+        return entityCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : entityCount_;
+      }
+    }
+    /**
+     * <pre>
+     * How many entities this index covers - the denominator every distinct-value count below should be read against
+     * (entities). Unset for an index the catalog holds itself, which maintains no primary-key bitmap to take a
+     * cardinality of; `0` would read as "this index covers nothing", which is a different statement. What such an index
+     * holds is reported per attribute below instead.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value entityCount = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getEntityCountFieldBuilder() {
+      if (entityCountBuilder_ == null) {
+        entityCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getEntityCount(),
+                getParentForChildren(),
+                isClean());
+        entityCount_ = null;
+      }
+      return entityCountBuilder_;
     }
 
     private com.google.protobuf.Int32Value referencedEntityCount_;

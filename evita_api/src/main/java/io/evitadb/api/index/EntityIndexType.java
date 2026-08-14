@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2021-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index;
+package io.evitadb.api.index;
 
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
@@ -29,12 +29,27 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
 /**
- * EntityIndexType enumeration keeps constants for all types of {@link EntityIndex EntityIndexes} that are used to
- * find data about {@link Entity entities} quickly.
+ * EntityIndexType enumeration keeps constants for all types of entity indexes that are used to find data about
+ * {@link Entity entities} quickly.
+ *
+ * **This lives in the API module although the engine is its main consumer.** It is the vocabulary the engine keys its
+ * entity indexes by *and* the vocabulary the statistics API reports them in, and the API module must not depend on
+ * `evita_engine` - so the shared half lives here and the engine imports it, rather than the two being kept as mirror
+ * enums that have to be mapped and can drift apart. It sits in its own package rather than under
+ * `io.evitadb.api.statistics` because the engine's index hierarchy is built on it: reporting is one consumer among
+ * many, not what the enum is for.
+ *
+ * A catalog index deliberately has no constant here. The engine addresses those by `CatalogIndexKey`, which carries a
+ * scope and nothing else because there is exactly one kind of them; should catalog-level indexes ever diversify they
+ * get their own enum next to this one, rather than a value that every entity-index switch would have to reject.
+ *
+ * **These constant names are persisted.** An entity index storage part stores its type as {@link Enum#name()}, so
+ * renaming a constant changes the on-disk format and removing one makes catalogs that still name it unreadable -
+ * `REFERENCED_HIERARCHY_NODE`, retired in 2024.12, is folded on read by `EntityIndexTypeSerializer` rather than being
+ * resolvable here. Ordinals are not persisted and may move freely.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -47,7 +62,7 @@ public enum EntityIndexType {
 	GLOBAL,
 	/**
 	 * Index contains attribute indexes containing only data for reference attributes and as indexed values
-	 * are used {@link EntityIndex#primaryKey primary keys} of entity indexes of {@link #REFERENCED_ENTITY} type.
+	 * are used primary keys of entity indexes of {@link #REFERENCED_ENTITY} type.
 	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
 	 * contains indexed values of reference attributes only.
 	 *
@@ -55,7 +70,8 @@ public enum EntityIndexType {
 	 */
 	REFERENCED_ENTITY_TYPE,
 	/**
-	 * Index that contains record ids that are connected with certain referenced {@link Entity#getType()} and {@link Entity#getPrimaryKey()}.
+	 * Index that contains record ids that are connected with certain referenced {@link Entity#getType()} and
+	 * {@link Entity#getPrimaryKey()}.
 	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
 	 * contains copy of all indexed reference attributes and entity attributes of the indexed (source) entity.
 	 *
@@ -65,15 +81,6 @@ public enum EntityIndexType {
 	 * and the same target entity.
 	 */
 	REFERENCED_ENTITY,
-	/**
-	 * Index that contains the similar data as {@link #GLOBAL} index but only for those entities that are referencing
-	 * entity with {@link EntitySchemaContract#isWithHierarchy()} defined.
-	 *
-	 * @deprecated this index was merged to {@link #REFERENCED_ENTITY} - because it contains the same data and doesn't
-	 * bring any additional value.
-	 */
-	@Deprecated(since = "2024.12", forRemoval = true)
-	REFERENCED_HIERARCHY_NODE,
 	/**
 	 * Index contains attribute indexes containing only data for reference attributes indexed by the referenced
 	 * **group entity** primary key. Analogous to {@link #REFERENCED_ENTITY_TYPE} but for group-based indexing.

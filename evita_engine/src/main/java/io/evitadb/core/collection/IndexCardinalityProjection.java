@@ -29,13 +29,16 @@ import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.dataType.Scope;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+// the engine's own index-family discriminator, deliberately kept qualified: `AttributeIndexType` in this file is the
+// API-facing enum this projection reports, and the two are distinct types that must not be confused at a call site
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -135,7 +138,7 @@ final class IndexCardinalityProjection {
 	) {
 		final EntityIndex entityIndex = indexes.get(indexKey);
 		if (entityIndex != null) {
-			described.add(describeIndex(indexKey, entityIndex));
+			described.add(describeIndex(indexKey, describeDiscriminator(indexKey), entityIndex));
 		}
 	}
 
@@ -149,17 +152,27 @@ final class IndexCardinalityProjection {
 	 * present when the set was taken can be gone by the time it is resolved. Reporting it would mean inventing
 	 * readings for an index that does not exist; throwing would kill a statistics call over a benign race.
 	 *
-	 * @param indexKey    key identifying the index
-	 * @param entityIndex the index itself
+	 * The discriminator is handed in rather than derived here, because the two callers legitimately render it
+	 * differently: this component describes only the schema-bounded kinds, whose discriminator *is* a reference name
+	 * and whose premise {@link #describeDiscriminator} asserts, while {@link IndexDetailProjection} describes any
+	 * single index and needs the full rendering `BrowsedIndex` carries. Deriving it here would force one of the two
+	 * to be wrong.
+	 *
+	 * @param indexKey      key identifying the index
+	 * @param discriminator rendered discriminator of the index, or null for one that carries none
+	 * @param entityIndex   the index itself
 	 * @return the readings of this one index
 	 */
 	@Nonnull
-	private static IndexCardinality describeIndex(
+	static IndexCardinality describeIndex(
 		@Nonnull EntityIndexKey indexKey,
+		@Nullable String discriminator,
 		@Nonnull EntityIndex entityIndex
 	) {
 		final List<AttributeCardinality> attributes = new ArrayList<>(16);
-		for (final AttributeIndexKey key : entityIndex.getUniqueIndexes()) {
+		// `forEachAttributeIndexKey` rather than the set-returning accessors: those hand out a map view the backing
+		// map then keeps, and this call would leave one on every index it describes - see `TransactionalMap#forEach`
+		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.UNIQUE, key -> {
 			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(key);
 			if (uniqueIndex != null) {
 				// `size()` is the membership bitmap, which under-counts a record owning several values in one index -
@@ -173,8 +186,8 @@ final class IndexCardinalityProjection {
 					)
 				);
 			}
-		}
-		for (final AttributeIndexKey key : entityIndex.getFilterIndexes()) {
+		});
+		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.FILTER, key -> {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(key);
 			if (filterIndex != null) {
 				attributes.add(
@@ -183,8 +196,8 @@ final class IndexCardinalityProjection {
 					)
 				);
 			}
-		}
-		for (final AttributeIndexKey key : entityIndex.getSortIndexes()) {
+		});
+		entityIndex.forEachAttributeIndexKey(AttributeIndexStoragePart.AttributeIndexType.SORT, key -> {
 			final SortIndex sortIndex = entityIndex.getSortIndex(key);
 			if (sortIndex != null) {
 				attributes.add(
@@ -193,11 +206,11 @@ final class IndexCardinalityProjection {
 					)
 				);
 			}
-		}
+		});
 		return new IndexCardinality(
-			EntityCollection.toIndexKind(indexKey.type()),
+			indexKey.type(),
 			indexKey.scope(),
-			describeDiscriminator(indexKey),
+			discriminator,
 			entityIndex.getAllPrimaryKeys().size(),
 			entityIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
 				referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys().size() : null,

@@ -31,7 +31,7 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * The catalog-level `COMPONENT_INDEX_SUMMARY` component - how many indexes the catalog holds in total.
  *
- * Only a total here: the breakdown by index kind and scope requires a pass over the index keys of a collection, and
+ * Only a total here: the breakdown by index type and scope requires a pass over the index keys of a collection, and
  * doing that for every collection on every polled refresh is exactly the cost this API is shaped to avoid. The
  * breakdown is fetched per collection instead.
  * </pre>
@@ -247,7 +247,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * The catalog-level `COMPONENT_INDEX_SUMMARY` component - how many indexes the catalog holds in total.
    *
-   * Only a total here: the breakdown by index kind and scope requires a pass over the index keys of a collection, and
+   * Only a total here: the breakdown by index type and scope requires a pass over the index keys of a collection, and
    * doing that for every collection on every polled refresh is exactly the cost this API is shaped to avoid. The
    * breakdown is fetched per collection instead.
    * </pre>

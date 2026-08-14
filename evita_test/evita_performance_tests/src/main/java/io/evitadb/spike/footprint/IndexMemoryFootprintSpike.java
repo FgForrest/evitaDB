@@ -33,7 +33,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
@@ -44,7 +44,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Measures what the `MEMORY_FOOTPRINT` statistics component would cost on a real catalog, and what it would report.
+ * Measures what a per-index heap walk costs on a real catalog, and what it reports.
+ *
+ * **This is the measurement that shaped the surface.** A statistics component measuring a whole collection was the
+ * starting design; these readings are why there is none, and why a heap figure is reached one index at a time through
+ * `EvitaManagementContract#getIndexDetail` instead.
  *
  * # Why this exists as a spike rather than a test
  *
@@ -318,20 +322,20 @@ public class IndexMemoryFootprintSpike {
 			}
 			// per-kind breakdown: which index family the time and the bytes actually went into
 			for (final EntityIndexType type : EntityIndexType.values()) {
-				long kindBytes = 0L;
-				long kindNanos = 0L;
-				int kindCount = 0;
+				long typeBytes = 0L;
+				long typeNanos = 0L;
+				int typeCount = 0;
 				for (final IndexReading reading : this.measured) {
 					if (reading.indexKey().type() == type) {
-						kindBytes += reading.heapBytes();
-						kindNanos += reading.nanos();
-						kindCount++;
+						typeBytes += reading.heapBytes();
+						typeNanos += reading.nanos();
+						typeCount++;
 					}
 				}
-				if (kindCount > 0) {
+				if (typeCount > 0) {
 					System.out.printf(
 						"    %-28s %6d indexes  %10s  %12s%n",
-						type, kindCount, bytes(kindBytes), millis(kindNanos)
+						type, typeCount, bytes(typeBytes), millis(typeNanos)
 					);
 				}
 			}

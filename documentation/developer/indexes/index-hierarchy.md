@@ -9,7 +9,8 @@ For the overall architecture context, see the [Overview](overview.md#overview).
 
 ## EntityIndexType Enum
 
-`EntityIndexType` (in `io.evitadb.index`) defines all flavors of entity index. Each value maps
+`EntityIndexType` (in `io.evitadb.api.index`, so that the statistics API can report it without the
+API module depending on `evita_engine`) defines all flavors of entity index. Each value maps
 to a specific concrete class and discriminator type.
 
 ### GLOBAL
@@ -93,12 +94,13 @@ keyed to that entity, instantly narrowing the search space to a pre-filtered bit
 representative attribute values that distinguish multiple references of the same type to the same
 target.
 
-### REFERENCED_HIERARCHY_NODE (deprecated)
+### REFERENCED_HIERARCHY_NODE (removed)
 
-Previously a dedicated index for hierarchical references. Merged into `REFERENCED_ENTITY` as of
-version 2024.11 because it contained the same data without additional value.
-
-**Discriminator:** `RepresentativeReferenceKey` (same as `REFERENCED_ENTITY`)
+Previously a dedicated index for hierarchical references. Merged into `REFERENCED_ENTITY` in 2024.12
+because it contained the same data without additional value, and dropped from the enum once nothing
+produced it. It survives only as a **name on disk**: a catalog written before the merge still spells
+it, and `EntityIndexTypeSerializer` folds it into `REFERENCED_ENTITY` on read. Nothing in the engine
+can name it any more.
 
 ### REFERENCED_GROUP_ENTITY_TYPE
 
@@ -304,7 +306,6 @@ classDiagram
 | `REFERENCED_ENTITY` | `ReducedEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | No | Per-target partitioned view for fast lookups |
 | `REFERENCED_GROUP_ENTITY_TYPE` | `ReferencedTypeEntityIndex` | `String` | `VoidPriceIndex` | Yes | Group-level reference attribute filters |
 | `REFERENCED_GROUP_ENTITY` | `ReducedGroupEntityIndex` | `RepresentativeReferenceKey` | `PriceRefIndex` | Yes (PK + attribute) | Per-group partitioned view with cardinality tracking |
-| `REFERENCED_HIERARCHY_NODE` | *(deprecated)* | `RepresentativeReferenceKey` | -- | -- | Merged into `REFERENCED_ENTITY` |
 
 
 ## GlobalEntityIndex -- Deep Dive

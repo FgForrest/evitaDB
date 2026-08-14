@@ -28,14 +28,14 @@ import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CollectionHeaderInfo;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.DataStoreVolatileState;
-import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.EntityCollectionContract;
@@ -43,6 +43,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -1085,17 +1086,6 @@ public final class EntityCollection implements
 						this.indexes, getInternalSchema().getReferences().keySet()
 					)
 				);
-				// kept apart from the arms above because this is the remaining undelivered component, and what stops
-				// it is structural rather than unfinished work - see the reason, and the enum's own javadoc
-				case MEMORY_FOOTPRINT -> builder.withUnavailable(
-					component,
-					ComponentAvailability.NOT_SUPPORTED,
-					"Statistics component `" + component + "` is not delivered: an index's storage is spread across " +
-						"its own storage part and the independently-keyed sub-parts of its attribute, price, facet " +
-						"and histogram indexes, and nothing maps an index back to those parts outside the flush " +
-						"path. A figure covering only the part that is cheap to measure would omit exactly what " +
-						"this component is opened to find, so none is reported."
-				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
 				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
 					"Catalog-level component `" + component + "` passed the collection-level check!"
@@ -1127,8 +1117,21 @@ public final class EntityCollection implements
 		// thread is still writing would drop whatever landed during the iteration. A statistics call must not be able
 		// to lose an index
 		return IndexBrowseProjection.browse(
-			this.indexes.snapshot(), criteria, this.catalog.getIdentity().catalogVersion()
+			getEntityType(), this.indexes.snapshot(), criteria, this.catalog.getIdentity().catalogVersion()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException {
+		// resolved through the primary-key map the engine already maintains for its own reference-index lookups, so
+		// naming an index costs a hash lookup rather than the map walk a browse pays. No snapshot is taken: exactly
+		// one index is read, so there is no second reading for it to be inconsistent with
+		final EntityIndex index = getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+		if (index == null) {
+			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
+		}
+		return IndexDetailProjection.describe(getEntityType(), index);
 	}
 
 	/**
@@ -1295,73 +1298,43 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Counts this collection's indexes per (kind, scope) pair by walking the index keys. Pairs with no index are
-	 * omitted rather than reported as zero.
+	 * Counts this collection's indexes per (type, scope) pair. Pairs with no index are omitted rather than reported as
+	 * zero.
 	 *
 	 * @return the {@link CatalogStatisticsComponent#INDEX_SUMMARY} component of this collection
 	 */
 	@Nonnull
 	private CollectionIndexSummary summarizeIndexes() {
-		final EntityIndexKind[] kinds = EntityIndexKind.values();
+		// read out of the maintained per-(type, scope) counters rather than walked: a production collection holds
+		// hundreds of thousands of per-referenced-entity indexes and this component is polled, so the reading is over
+		// a dozen cells rather than over the index map
+		final EntityIndexType[] types = EntityIndexType.values();
 		final Scope[] scopes = Scope.values();
-		final int[][] countsByKindAndScope = new int[kinds.length][scopes.length];
+		final int[][] countsByTypeAndScope = new int[types.length][scopes.length];
 		int totalIndexCount = 0;
-		// folded out of the maintained per-(type, scope) counters rather than walked: a production collection holds
-		// hundreds of thousands of per-referenced-entity indexes and this component is polled. The fold is over a dozen
-		// cells and collapses the engine's legacy `REFERENCED_HIERARCHY_NODE` into the kind it was merged into, exactly
-		// as `toIndexKind` does for every other consumer
-		for (final EntityIndexType indexType : EntityIndexType.values()) {
-			final int kindOrdinal = toIndexKind(indexType).ordinal();
-			for (final Scope scope : scopes) {
-				final int count = this.indexPopulation.countOf(indexType, scope);
-				countsByKindAndScope[kindOrdinal][scope.ordinal()] += count;
-				totalIndexCount += count;
-			}
-		}
 		int occupiedPairCount = 0;
-		for (int kind = 0; kind < kinds.length; kind++) {
+		for (int type = 0; type < types.length; type++) {
 			for (int scope = 0; scope < scopes.length; scope++) {
-				if (countsByKindAndScope[kind][scope] > 0) {
+				final int count = this.indexPopulation.countOf(types[type], scopes[scope]);
+				countsByTypeAndScope[type][scope] = count;
+				totalIndexCount += count;
+				if (count > 0) {
 					occupiedPairCount++;
 				}
 			}
 		}
-		final IndexKindCount[] byKindAndScope = new IndexKindCount[occupiedPairCount];
+		final IndexTypeCount[] byTypeAndScope = new IndexTypeCount[occupiedPairCount];
 		int index = 0;
-		for (int kind = 0; kind < kinds.length; kind++) {
+		for (int type = 0; type < types.length; type++) {
 			for (int scope = 0; scope < scopes.length; scope++) {
-				if (countsByKindAndScope[kind][scope] > 0) {
-					byKindAndScope[index++] = new IndexKindCount(
-						kinds[kind], scopes[scope], countsByKindAndScope[kind][scope]
+				if (countsByTypeAndScope[type][scope] > 0) {
+					byTypeAndScope[index++] = new IndexTypeCount(
+						types[type], scopes[scope], countsByTypeAndScope[type][scope]
 					);
 				}
 			}
 		}
-		return new CollectionIndexSummary(totalIndexCount, byKindAndScope);
-	}
-
-	/**
-	 * Maps the engine's index type onto its API counterpart.
-	 *
-	 * `REFERENCED_HIERARCHY_NODE` has no API counterpart - it was merged into
-	 * {@link EntityIndexType#REFERENCED_ENTITY} in 2024.12 for holding the same data, and the new statistics API does
-	 * not carry deprecated values. It is folded into the kind it was merged into, which is exactly what the engine
-	 * itself does whenever it reads a legacy index part
-	 * (`EntityIndexStoragePartSerializer_2024_11` rewrites the type before building the key). Failing here instead
-	 * would kill a statistics call on the very catalog an operator is trying to inspect.
-	 *
-	 * @param indexType the engine-side index type
-	 * @return its API-side counterpart
-	 */
-	@Nonnull
-	static EntityIndexKind toIndexKind(@Nonnull EntityIndexType indexType) {
-		return switch (indexType) {
-			case GLOBAL -> EntityIndexKind.GLOBAL;
-			case REFERENCED_ENTITY_TYPE -> EntityIndexKind.REFERENCED_ENTITY_TYPE;
-			case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> EntityIndexKind.REFERENCED_ENTITY;
-			case REFERENCED_GROUP_ENTITY_TYPE -> EntityIndexKind.REFERENCED_GROUP_ENTITY_TYPE;
-			case REFERENCED_GROUP_ENTITY -> EntityIndexKind.REFERENCED_GROUP_ENTITY;
-		};
+		return new CollectionIndexSummary(totalIndexCount, byTypeAndScope);
 	}
 
 	/**

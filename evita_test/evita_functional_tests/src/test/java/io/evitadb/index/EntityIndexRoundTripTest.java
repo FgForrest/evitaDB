@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;

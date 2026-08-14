@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -482,22 +483,24 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 *
 	 * @param request          names the catalog and collection, and carries the selection, ordering and paging
 	 * @param responseObserver the observer for receiving the page
-	 * @see EvitaManagementContract#browseEntityCollectionIndexes(String, String, IndexBrowseCriteria)
+	 * @see EvitaManagementContract#browseIndexes(String, String, IndexBrowseCriteria)
 	 */
 	@Override
-	public void browseEntityCollectionIndexes(
-		GrpcEntityCollectionIndexBrowseRequest request,
-		StreamObserver<GrpcEntityCollectionIndexBrowseResponse> responseObserver
+	public void browseIndexes(
+		GrpcIndexBrowseRequest request,
+		StreamObserver<GrpcIndexBrowseResponse> responseObserver
 	) {
 		executeWithClientContext(
 			() -> {
-				final IndexBrowseResult result = this.management.browseEntityCollectionIndexes(
+				final IndexBrowseResult result = this.management.browseIndexes(
 					request.getCatalogName(),
-					request.getEntityType(),
+					// unset selects the catalog's own indexes rather than a collection's; the wrapper is what keeps that
+					// apart from a client that genuinely sent an empty collection name
+					request.hasEntityType() ? request.getEntityType().getValue() : null,
 					CatalogStatisticsConverter.toIndexBrowseCriteria(request)
 				);
-				final GrpcEntityCollectionIndexBrowseResponse.Builder builder =
-					GrpcEntityCollectionIndexBrowseResponse.newBuilder()
+				final GrpcIndexBrowseResponse.Builder builder =
+					GrpcIndexBrowseResponse.newBuilder()
 						.setCatalogVersion(result.catalogVersion())
 						.setPageNumber(result.pageNumber())
 						.setPageSize(result.pageSize())
@@ -506,6 +509,39 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					builder.addIndexes(CatalogStatisticsConverter.toGrpcBrowsedIndex(index));
 				}
 				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Describes one entity index in full - what it occupies on the heap, and how well it discriminates.
+	 *
+	 * @param request          names the catalog, the collection and the index to describe
+	 * @param responseObserver the observer for receiving the description
+	 * @see EvitaManagementContract#getIndexDetail(String, String, int)
+	 */
+	@Override
+	public void getIndexDetail(
+		GrpcIndexDetailRequest request,
+		StreamObserver<GrpcIndexDetailResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final IndexDetail detail = this.management.getIndexDetail(
+					request.getCatalogName(),
+					// see `browseIndexes` above - unset addresses the catalog's own index of that handle
+					request.hasEntityType() ? request.getEntityType().getValue() : null,
+					request.getIndexPrimaryKey()
+				);
+				responseObserver.onNext(
+					GrpcIndexDetailResponse.newBuilder()
+						.setIndexDetail(CatalogStatisticsConverter.toGrpcIndexDetail(detail))
+						.build()
+				);
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),

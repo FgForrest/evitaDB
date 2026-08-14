@@ -129,8 +129,8 @@ message GrpcEvitaCatalogStatisticsResponse {
 message GrpcCatalogStatisticsSnapshotRequest {
   // Name of the catalog to describe. A catalog the server does not know is an error, not an empty response.
   string catalogName = 1;
-  // The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-  // (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+  // The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+  // so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
   // `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
   // note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
   repeated GrpcCatalogStatisticsComponent components = 2;
@@ -146,9 +146,9 @@ message GrpcCatalogStatisticsSnapshotResponse {
 // Request for component-selected statistics snapshots of every catalog known to the server. Replaces the deprecated
 // `GetCatalogStatistics` procedure, which always computed everything for everyone.
 message GrpcAllCatalogStatisticsSnapshotRequest {
-  // The components to compute for each catalog. The same rules as for a single catalog apply, which means
-  // `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-  // catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+  // The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+  // catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+  // Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
   // well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
   // level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
   // `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -175,19 +175,23 @@ message GrpcEntityCollectionStatisticsSnapshotRequest {
   repeated GrpcCatalogStatisticsComponent components = 3;
 }
 
-// Request for one page of the entity indexes held by one collection.
+// Request for one page of the indexes held by one entity collection, or of those the catalog holds itself.
 //
 // Filters are conjunctive across categories and disjunctive within one: an index must match every non-empty category,
 // and matches a category by being any one of its values. An empty repeated field means that category does not filter -
 // never that nothing matches.
-message GrpcEntityCollectionIndexBrowseRequest {
+message GrpcIndexBrowseRequest {
 
-  // Name of the catalog holding the collection. A catalog the server does not know is an error.
+  // Name of the catalog holding the indexes. A catalog the server does not know is an error.
   string catalogName = 1;
   // Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
   // hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
   // indexes.
-  string entityType = 2;
+  //
+  // Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+  // scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+  // carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+  google.protobuf.StringValue entityType = 2;
   // Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
   // `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
   int32 pageNumber = 3;
@@ -199,21 +203,25 @@ message GrpcEntityCollectionIndexBrowseRequest {
   int32 pageSize = 4;
   // The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
   GrpcIndexBrowseOrdering ordering = 5;
-  // Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-  // kind.
-  repeated GrpcEntityIndexKind indexKinds = 6;
+  // Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+  // type.
+  repeated GrpcEntityIndexType indexTypes = 6;
   // Scopes to keep; an index matches if its scope is any of the listed values. Empty (the default) keeps both scopes.
   repeated GrpcEntityScope scopes = 7;
   // Names of the references whose indexes to keep. Empty (the default) keeps indexes regardless of reference.
   // Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
   // cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
   // never satisfy this filter.
+  //
+  // A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+  // non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+  // there is no typo to be protected from.
   repeated string referenceNames = 8;
 
 }
 
 // Response carrying one page of an index browse.
-message GrpcEntityCollectionIndexBrowseResponse {
+message GrpcIndexBrowseResponse {
 
   // Version of the catalog this page was read at. Compare it across the pages of one browse: the index set moves as
   // data is written, and two pages read at different versions do not describe one set. Unlike two disagreeing
@@ -234,6 +242,38 @@ message GrpcEntityCollectionIndexBrowseResponse {
   // The indexes on this page, in the requested order. Shorter than `pageSize` on the last page, and empty when
   // `pageNumber` addresses a page past the end.
   repeated GrpcBrowsedIndex indexes = 5;
+
+}
+
+// Request describing one index in full.
+//
+// The drill-down that follows `BrowseIndexes`: hand back the `entityType` and `indexPrimaryKey` of the row that looked
+// worth investigating - the two together are the index's identity, since the same handle under another owner is
+// another index. The caller naming one index is what bounds the cost of the heap estimate, so there is deliberately no
+// variant of this request that describes several indexes or a whole collection - a client that wants a total issues
+// these calls in parallel and sums the results itself.
+message GrpcIndexDetailRequest {
+
+  // Name of the catalog holding the index. A catalog the server does not know is an error.
+  string catalogName = 1;
+  // Name of the entity collection holding the index, i.e. its entity type. A collection the catalog does not hold is
+  // an error. Unset describes an index the catalog holds itself.
+  google.protobuf.StringValue entityType = 2;
+  // Identity of the index to describe, as reported by `GrpcBrowsedIndex.indexPrimaryKey`.
+  //
+  // An index the named owner no longer holds is an error rather than an empty response, which would be
+  // indistinguishable from an index that weighs nothing. It is an ordinary outcome rather than necessarily a mistake -
+  // a collection's index can be reclaimed between the browse and the drill-down, and a catalog's is created lazily per
+  // scope - but it can never mean the handle now denotes a different index.
+  int32 indexPrimaryKey = 3;
+
+}
+
+// Response carrying the full description of one index.
+message GrpcIndexDetailResponse {
+
+  // The described index.
+  GrpcIndexDetail indexDetail = 1;
 
 }
 
@@ -520,16 +560,26 @@ service EvitaManagementService {
   // collection.
   rpc GetEntityCollectionStatisticsSnapshot(GrpcEntityCollectionStatisticsSnapshotRequest)
     returns (GrpcEntityCollectionStatisticsSnapshotResponse);
-  // Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-  // by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-  // the drill-down that follows an alarming count.
+  // Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+  // time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+  // scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+  // is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
   //
-  // Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-  // the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-  // Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-  // behind it.
-  rpc BrowseEntityCollectionIndexes(GrpcEntityCollectionIndexBrowseRequest)
-    returns (GrpcEntityCollectionIndexBrowseResponse);
+  // Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+  // per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+  // pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+  // than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+  rpc BrowseIndexes(GrpcIndexBrowseRequest)
+    returns (GrpcIndexBrowseResponse);
+  // Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+  // drill-down that follows `BrowseIndexes`.
+  //
+  // The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+  // this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+  // deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+  // and sums the results.
+  rpc GetIndexDetail(GrpcIndexDetailRequest)
+    returns (GrpcIndexDetailResponse);
   // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
   // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);

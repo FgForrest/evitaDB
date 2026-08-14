@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -793,8 +794,9 @@ public abstract class EntityIndex implements
 	 * Returns the heap this index occupies, in bytes — its entity-id bitmaps, every sub-index it owns, and the
 	 * persisted-baseline manifest it keeps between flushes.
 	 *
-	 * This is the figure `MEMORY_FOOTPRINT` reports for one index. It walks the whole index tree, so it is
-	 * `O(contents)` and must never be called from a query path.
+	 * This is the figure `IndexDetail#heapSizeInBytes` reports, and the reason that call describes one
+	 * named index rather than a whole collection: it walks the whole index tree, so it is `O(contents)` and must never
+	 * be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

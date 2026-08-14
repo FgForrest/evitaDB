@@ -59,7 +59,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.AttributeIndexType;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
@@ -1659,7 +1659,6 @@ public class EvitaEnumConverter {
 			case COMPONENT_DURABILITY -> CatalogStatisticsComponent.DURABILITY;
 			case COMPONENT_INDEX_SUMMARY -> CatalogStatisticsComponent.INDEX_SUMMARY;
 			case COMPONENT_INDEX_CARDINALITY -> CatalogStatisticsComponent.INDEX_CARDINALITY;
-			case COMPONENT_MEMORY_FOOTPRINT -> CatalogStatisticsComponent.MEMORY_FOOTPRINT;
 			case COMPONENT_VOLATILE_STATE -> CatalogStatisticsComponent.VOLATILE_STATE;
 			case COMPONENT_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized statistics component: " + grpcComponent);
@@ -1690,7 +1689,6 @@ public class EvitaEnumConverter {
 			case DURABILITY -> GrpcCatalogStatisticsComponent.COMPONENT_DURABILITY;
 			case INDEX_SUMMARY -> GrpcCatalogStatisticsComponent.COMPONENT_INDEX_SUMMARY;
 			case INDEX_CARDINALITY -> GrpcCatalogStatisticsComponent.COMPONENT_INDEX_CARDINALITY;
-			case MEMORY_FOOTPRINT -> GrpcCatalogStatisticsComponent.COMPONENT_MEMORY_FOOTPRINT;
 			case VOLATILE_STATE -> GrpcCatalogStatisticsComponent.COMPONENT_VOLATILE_STATE;
 		};
 	}
@@ -1711,7 +1709,6 @@ public class EvitaEnumConverter {
 			case AVAILABILITY_DELIVERED -> ComponentAvailability.DELIVERED;
 			case AVAILABILITY_CATALOG_UNUSABLE -> ComponentAvailability.CATALOG_UNUSABLE;
 			case AVAILABILITY_FEATURE_DISABLED -> ComponentAvailability.FEATURE_DISABLED;
-			case AVAILABILITY_NOT_SUPPORTED -> ComponentAvailability.NOT_SUPPORTED;
 			case AVAILABILITY_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized component availability: " + grpcAvailability);
 		};
@@ -1729,44 +1726,43 @@ public class EvitaEnumConverter {
 			case DELIVERED -> GrpcComponentAvailability.AVAILABILITY_DELIVERED;
 			case CATALOG_UNUSABLE -> GrpcComponentAvailability.AVAILABILITY_CATALOG_UNUSABLE;
 			case FEATURE_DISABLED -> GrpcComponentAvailability.AVAILABILITY_FEATURE_DISABLED;
-			case NOT_SUPPORTED -> GrpcComponentAvailability.AVAILABILITY_NOT_SUPPORTED;
 		};
 	}
 
 	/**
-	 * Converts {@link GrpcEntityIndexKind} to {@link EntityIndexKind}.
+	 * Converts {@link GrpcEntityIndexType} to {@link EntityIndexType}.
 	 *
-	 * @param grpcIndexKind the index kind to convert
-	 * @return the corresponding entity index kind
+	 * @param grpcIndexType the index kind to convert
+	 * @return the corresponding entity index type
 	 * @throws EvitaInvalidUsageException when the kind is unspecified or unknown to this client
 	 */
 	@Nonnull
-	public static EntityIndexKind toEntityIndexKind(@Nonnull GrpcEntityIndexKind grpcIndexKind) {
-		return switch (grpcIndexKind) {
-			case INDEX_KIND_GLOBAL -> EntityIndexKind.GLOBAL;
-			case INDEX_KIND_REFERENCED_ENTITY_TYPE -> EntityIndexKind.REFERENCED_ENTITY_TYPE;
-			case INDEX_KIND_REFERENCED_ENTITY -> EntityIndexKind.REFERENCED_ENTITY;
-			case INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE -> EntityIndexKind.REFERENCED_GROUP_ENTITY_TYPE;
-			case INDEX_KIND_REFERENCED_GROUP_ENTITY -> EntityIndexKind.REFERENCED_GROUP_ENTITY;
-			case INDEX_KIND_UNSPECIFIED, UNRECOGNIZED ->
-				throw new EvitaInvalidUsageException("Unrecognized entity index kind: " + grpcIndexKind);
+	public static EntityIndexType toEntityIndexType(@Nonnull GrpcEntityIndexType grpcIndexType) {
+		return switch (grpcIndexType) {
+			case INDEX_TYPE_GLOBAL -> EntityIndexType.GLOBAL;
+			case INDEX_TYPE_REFERENCED_ENTITY_TYPE -> EntityIndexType.REFERENCED_ENTITY_TYPE;
+			case INDEX_TYPE_REFERENCED_ENTITY -> EntityIndexType.REFERENCED_ENTITY;
+			case INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE -> EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE;
+			case INDEX_TYPE_REFERENCED_GROUP_ENTITY -> EntityIndexType.REFERENCED_GROUP_ENTITY;
+			case INDEX_TYPE_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized entity index type: " + grpcIndexType);
 		};
 	}
 
 	/**
-	 * Converts {@link EntityIndexKind} to {@link GrpcEntityIndexKind}.
+	 * Converts {@link EntityIndexType} to {@link GrpcEntityIndexType}.
 	 *
-	 * @param indexKind the index kind to convert
-	 * @return the corresponding gRPC entity index kind
+	 * @param indexType the index kind to convert
+	 * @return the corresponding gRPC entity index type
 	 */
 	@Nonnull
-	public static GrpcEntityIndexKind toGrpcEntityIndexKind(@Nonnull EntityIndexKind indexKind) {
-		return switch (indexKind) {
-			case GLOBAL -> GrpcEntityIndexKind.INDEX_KIND_GLOBAL;
-			case REFERENCED_ENTITY_TYPE -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_ENTITY_TYPE;
-			case REFERENCED_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_ENTITY;
-			case REFERENCED_GROUP_ENTITY_TYPE -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE;
-			case REFERENCED_GROUP_ENTITY -> GrpcEntityIndexKind.INDEX_KIND_REFERENCED_GROUP_ENTITY;
+	public static GrpcEntityIndexType toGrpcEntityIndexType(@Nonnull EntityIndexType indexType) {
+		return switch (indexType) {
+			case GLOBAL -> GrpcEntityIndexType.INDEX_TYPE_GLOBAL;
+			case REFERENCED_ENTITY_TYPE -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_ENTITY_TYPE;
+			case REFERENCED_ENTITY -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY_TYPE -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE;
+			case REFERENCED_GROUP_ENTITY -> GrpcEntityIndexType.INDEX_TYPE_REFERENCED_GROUP_ENTITY;
 		};
 	}
 

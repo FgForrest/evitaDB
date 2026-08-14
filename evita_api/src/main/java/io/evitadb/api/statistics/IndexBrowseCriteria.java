@@ -23,6 +23,7 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 
@@ -44,7 +45,7 @@ import java.util.Set;
  * @param pageNumber     which page to return, 1-indexed - page 1 is the first page
  * @param pageSize       how many indexes the page holds, at most {@link #MAX_PAGE_SIZE}
  * @param ordering       the order to impose before the page is cut out of the result
- * @param indexKinds     kinds to keep, or an empty set to keep every kind
+ * @param indexTypes     kinds to keep, or an empty set to keep every kind
  * @param scopes         scopes to keep, or an empty set to keep every scope
  * @param referenceNames names of the references whose indexes to keep, or an empty set to keep them regardless of
  *                       reference; naming a reference the entity schema does not declare is an error rather than an
@@ -57,7 +58,7 @@ public record IndexBrowseCriteria(
 	int pageNumber,
 	int pageSize,
 	@Nonnull IndexBrowseOrdering ordering,
-	@Nonnull Set<EntityIndexKind> indexKinds,
+	@Nonnull Set<EntityIndexType> indexTypes,
 	@Nonnull Set<Scope> scopes,
 	@Nonnull Set<String> referenceNames
 ) {
@@ -96,7 +97,7 @@ public record IndexBrowseCriteria(
 
 	public IndexBrowseCriteria {
 		Objects.requireNonNull(ordering, "Ordering must not be null!");
-		Objects.requireNonNull(indexKinds, "Index kinds must not be null!");
+		Objects.requireNonNull(indexTypes, "Index kinds must not be null!");
 		Objects.requireNonNull(scopes, "Scopes must not be null!");
 		Objects.requireNonNull(referenceNames, "Reference names must not be null!");
 		Assert.isTrue(

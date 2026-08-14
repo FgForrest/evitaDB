@@ -510,6 +510,29 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
+	 * Counts the records this index covers, summed over the per-entity-type membership bitmaps.
+	 *
+	 * This is the global counterpart of {@link UniqueIndex#size()} - the membership set the engine itself queries the
+	 * index through - and it is what {@link #size()} is *not*: that counts distinct values. The two agree for an
+	 * ordinary globally-unique attribute, where one value belongs to one record, and diverge for one that is localized
+	 * as well: that has a single locale-less key covering every locale, so one record can own several values in it.
+	 *
+	 * A record id repeated under two entity types is counted twice, correctly - those are two different entities.
+	 *
+	 * The cost is `O(entity types present)`, each summand an `O(1)` bitmap cardinality, so it is bounded by the
+	 * catalog's collection count rather than by its data.
+	 *
+	 * @return number of records covered by this index across every entity type
+	 */
+	public int getRecordCount() {
+		// `forEach`, never `values()`: asking a map for a view parks it on the map for good - see
+		// `documentation/developer/heap-size-testing.md`, trap 6
+		final int[] total = new int[1];
+		this.entitiesPerType.forEach((entityType, records) -> total[0] += records.size());
+		return total[0];
+	}
+
+	/**
 	 * Returns true if index is empty.
 	 */
 	public boolean isEmpty() {
@@ -620,8 +643,8 @@ public class GlobalUniqueIndex implements
 	 * `Class` objects, and fixed scaffolding chosen by the attribute type. {@link #pageStreamRegistry} is excluded as
 	 * single-writer flush bookkeeping.
 	 *
-	 * Walking the value tree is `O(values / blockSize)` rather than `O(1)`, so this belongs to `MEMORY_FOOTPRINT` and
-	 * must never be called from a query path.
+	 * Walking the value tree is `O(values / blockSize)` rather than `O(1)`, so this belongs to the index detail call
+	 * and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

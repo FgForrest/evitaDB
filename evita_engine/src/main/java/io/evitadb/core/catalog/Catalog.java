@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.ObjectObjectIdentityHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
@@ -36,6 +37,9 @@ import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.HistoryStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.statistics.SessionStatistics;
@@ -134,7 +138,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
@@ -1443,7 +1447,7 @@ public final class Catalog
 	@Nonnull
 	@Override
 	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
-		CatalogStatisticsComponent.assertCatalogLevel(components);
+		CatalogStatisticsComponent.assertNotEmpty(components);
 		final CatalogStatistics.Builder builder = CatalogStatistics.builder(getIdentity());
 		// STORAGE_SIZE, HISTORY and FRAGMENTATION are three readings of one directory listing: the first attributes its
 		// bytes, the second reports how many files each of two of those classes holds and what is pinning them, the
@@ -1544,13 +1548,34 @@ public final class Catalog
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					CatalogIndexCardinalityProjection.describe(collectCatalogIndexes())
 				);
-				// unreachable - collection-level only, and the assertion above already rejected it
-				case MEMORY_FOOTPRINT -> throw new GenericEvitaInternalError(
-					"Collection-level component `" + component + "` passed the catalog-level check!"
-				);
 			}
 		}
 		return builder.build();
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		// no snapshot is taken where the collection-level browse takes one: the collection seals its index map so that
+		// the match count and the page cannot come from two different states, and a catalog has at most one index per
+		// scope - collected here in one pass, after which nothing is read from the catalog again
+		return CatalogIndexProjection.browse(
+			collectCatalogIndexes(), criteria, getVersion()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException {
+		final Scope scope = CatalogIndexProjection.toScope(indexPrimaryKey);
+		// two distinct misses answered alike, deliberately: a handle that addresses no scope at all, and one that
+		// addresses a scope whose index has not been created yet. Both mean "the catalog holds no such index right now",
+		// and the second can start resolving later without ever denoting a different index
+		final CatalogIndex catalogIndex = scope == null ? null : getCatalogIndexIfExits(scope).orElse(null);
+		if (catalogIndex == null) {
+			throw new IndexNotFoundException(null, indexPrimaryKey);
+		}
+		return CatalogIndexProjection.describe(catalogIndex);
 	}
 
 	/**

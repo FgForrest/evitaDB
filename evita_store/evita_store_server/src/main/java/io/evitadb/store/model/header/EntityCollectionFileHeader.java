@@ -25,7 +25,7 @@ package io.evitadb.store.model.header;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.store.shared.model.FileLocation;

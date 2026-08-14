@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Shared harness for the **memory-footprint spikes** — the measured ground truth behind every heap estimate
- * evitaDB reports through the `MEMORY_FOOTPRINT` statistics component.
+ * evitaDB reports through `IndexDetail`.
  *
  * An estimate is a formula that claims to predict a structure's heap cost without walking it. The only way to
  * know whether such a formula is *right* — rather than merely unchanged since someone wrote it down — is to

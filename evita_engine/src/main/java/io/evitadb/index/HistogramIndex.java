@@ -424,7 +424,7 @@ public abstract class HistogramIndex
 	 * Returns the heap this index occupies, in bytes — the filter and cardinality indexes it holds for every locale
 	 * variant, and the shell they hang off.
 	 *
-	 * Like every walk in this layer it is `O(contents)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and
+	 * Like every walk in this layer it is `O(contents)` rather than `O(1)`, so it belongs to the index detail call and
 	 * must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

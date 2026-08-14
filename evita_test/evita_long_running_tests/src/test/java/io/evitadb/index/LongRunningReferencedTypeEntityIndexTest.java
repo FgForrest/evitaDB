@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;

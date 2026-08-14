@@ -161,6 +161,19 @@ resolving each sub-index **by its schema** (`getFilterIndex(referenceSchema, att
 instead of iterating `getFilterIndexes()`. `MapHeapSize` walks a map with `forEach` for precisely this reason; a test
 has to obey the same rule.
 
+So does production, and for a larger version of the same reason: a view cached by a *flush* path is not a measurement
+artefact but sixteen retained bytes on every index in the catalog, forever. The attribute, facet, price, cardinality and
+histogram walks all go through `forEach`, and `TransactionalMap` / `PersistentTransactionalMap` override it so it
+delegates to the backing map rather than iterating the `entrySet()` the `Map` default would ask for. An entity index
+consequently carries **no** cached views at all, which is why its empty-index cases assert an exact match rather than
+subtracting a constant.
+
+A new walk that asks for an accessor instead shows up as a plain shortfall in those cases — and in
+`EntityIndexHeapSizeTest.shouldNotAccumulateCachedViewsOnFlush` if it sits on the flush path only, which is the one
+place nothing else can see, since every other assertion measures a freshly built index. Two accessors are deliberately
+left caching: `PriceIndexReadContract#getPriceListAndCurrencyIndexes` and `getPriceIndexesStream`, which the price query
+translators call repeatedly against the same index — the case the JDK's caching exists for.
+
 The same applies to anything else lazily built on first read. Measure cold, or warm deliberately and say so.
 
 ## Trap 5 — state every divergence with its magnitude and its slope

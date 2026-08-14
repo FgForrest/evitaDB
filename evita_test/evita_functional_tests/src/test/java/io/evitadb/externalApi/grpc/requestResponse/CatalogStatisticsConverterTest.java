@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.DataStoreFragmentation;
 import io.evitadb.api.statistics.CatalogIdentity;
@@ -39,7 +40,7 @@ import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
@@ -51,8 +52,9 @@ import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.DurabilityStatistics;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
@@ -67,8 +69,9 @@ import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardin
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
-import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest;
+import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcIndexDetail;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshot;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot;
 import org.junit.jupiter.api.DisplayName;
@@ -207,6 +210,51 @@ class CatalogStatisticsConverterTest {
 		);
 	}
 
+	/**
+	 * The second class of refusal, and a live one: a catalog that checkpoints inline has no deferred-durability fence
+	 * to describe, so `DURABILITY` is declined rather than answered with zeroes that would read as "durability is
+	 * instant and free" - the inverse of the truth. Built through the real builder, so what is asserted is the
+	 * encoding of a snapshot the engine actually produces rather than one assembled for the test.
+	 *
+	 * This is the only round-trip coverage of `FEATURE_DISABLED`, which is otherwise reachable at no other point in
+	 * this suite.
+	 */
+	@Test
+	@DisplayName("carry a refusal caused by a disabled feature, and no value with it")
+	void shouldCarryAFeatureDisabledRefusalWithoutItsValue() throws InvalidProtocolBufferException {
+		final String reason = "Catalog checkpoints at the end of every round, so there is no deferred-durability " +
+			"fence to describe - either no checkpoint interval is configured, or writes are not synced to the " +
+			"physical device.";
+		final CatalogStatistics original = CatalogStatistics.builder(identity())
+			.withUnavailable(CatalogStatisticsComponent.DURABILITY, ComponentAvailability.FEATURE_DISABLED, reason)
+			.build();
+
+		final CatalogStatistics roundTripped = roundTrip(original);
+
+		assertEquals(original, roundTripped);
+		assertNull(
+			roundTripped.durability(),
+			"A declined component must arrive without a value - an all-zero durability message would read as a " +
+				"catalog that syncs instantly"
+		);
+		assertFalse(roundTripped.isDelivered(CatalogStatisticsComponent.DURABILITY));
+		final ComponentStatus durabilityStatus =
+			roundTripped.statusOf(CatalogStatisticsComponent.DURABILITY).orElseThrow();
+		assertEquals(ComponentAvailability.FEATURE_DISABLED, durabilityStatus.availability());
+		assertEquals(reason, durabilityStatus.reason());
+	}
+
+	/**
+	 * The engine of this version cannot produce the middle state at the collection level - there is no way to record
+	 * a refusal on `EntityCollectionStatistics.Builder`, so a collection response either delivers a component or was
+	 * never asked for it. The *wire* still distinguishes all three, and that is what this asserts: the day a
+	 * collection-level component is introduced that can decline, the encoding it needs is already there and already
+	 * proven lossless, rather than being designed under the pressure of needing it.
+	 *
+	 * The pairing below is therefore deliberately one the engine will not emit. `FEATURE_DISABLED` has catalog-level
+	 * producers but no collection-level one, so pairing it with a collection component exercises the encoding without
+	 * relying on any availability that nothing produces.
+	 */
 	@Test
 	@DisplayName("tell an unrequested collection component from one that could not be computed")
 	void shouldKeepCollectionComponentTriStateDistinguishable() throws InvalidProtocolBufferException {
@@ -221,11 +269,11 @@ class CatalogStatisticsConverterTest {
 			ComponentStatus.delivered(CatalogStatisticsComponent.RECORD_COUNTS)
 		);
 		statuses.put(
-			CatalogStatisticsComponent.MEMORY_FOOTPRINT,
+			CatalogStatisticsComponent.INDEX_CARDINALITY,
 			ComponentStatus.unavailable(
-				CatalogStatisticsComponent.MEMORY_FOOTPRINT,
-				ComponentAvailability.NOT_SUPPORTED,
-				"Statistics component `MEMORY_FOOTPRINT` is not computed by this version yet."
+				CatalogStatisticsComponent.INDEX_CARDINALITY,
+				ComponentAvailability.FEATURE_DISABLED,
+				"Statistics component `INDEX_CARDINALITY` is not computed by this version yet."
 			)
 		);
 		final EntityCollectionStatistics original = new EntityCollectionStatistics(
@@ -243,12 +291,15 @@ class CatalogStatisticsConverterTest {
 		assertEquals(new CollectionRecordCounts(0, 0, 0), roundTripped.recordCounts());
 		assertTrue(roundTripped.isDelivered(CatalogStatisticsComponent.RECORD_COUNTS));
 
-		final ComponentStatus memoryStatus =
-			roundTripped.statusOf(CatalogStatisticsComponent.MEMORY_FOOTPRINT).orElseThrow();
-		assertEquals(ComponentAvailability.NOT_SUPPORTED, memoryStatus.availability());
+		// requested, refused, and carrying no value - the reading that must not decode into an all-zero component
+		final ComponentStatus declinedStatus =
+			roundTripped.statusOf(CatalogStatisticsComponent.INDEX_CARDINALITY).orElseThrow();
+		assertEquals(ComponentAvailability.FEATURE_DISABLED, declinedStatus.availability());
 		assertEquals(
-			"Statistics component `MEMORY_FOOTPRINT` is not computed by this version yet.", memoryStatus.reason()
+			"Statistics component `INDEX_CARDINALITY` is not computed by this version yet.", declinedStatus.reason()
 		);
+		assertNull(roundTripped.indexCardinality());
+		assertFalse(roundTripped.isDelivered(CatalogStatisticsComponent.INDEX_CARDINALITY));
 
 		assertNull(roundTripped.indexSummary());
 		assertTrue(roundTripped.statusOf(CatalogStatisticsComponent.INDEX_SUMMARY).isEmpty());
@@ -318,7 +369,7 @@ class CatalogStatisticsConverterTest {
 			CatalogStatisticsComponent.IDENTITY,
 			CatalogStatisticsComponent.RECORD_COUNTS,
 			CatalogStatisticsComponent.STORAGE_SIZE,
-			CatalogStatisticsComponent.MEMORY_FOOTPRINT
+			CatalogStatisticsComponent.VOLATILE_STATE
 		);
 		assertEquals(
 			components,
@@ -353,21 +404,29 @@ class CatalogStatisticsConverterTest {
 		// paired with the primary key of one target entity. Unset protobuf wrappers decode to an empty string and a
 		// zero when read without a presence check, so all three have to be asserted rather than just the populated one
 		final BrowsedIndex[] indexes = {
-			new BrowsedIndex(EntityIndexKind.GLOBAL, Scope.LIVE, null, null, null, 1_000),
+			new BrowsedIndex("product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000),
 			new BrowsedIndex(
-				EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", "categories", null, 400
+				"product", 2, EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE,
+				"categories", "categories", null, 400
 			),
 			// the case the two projections cannot express: same reference, same target, told apart only by the
 			// representative values the discriminator carries
 			new BrowsedIndex(
-				EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories/42/[red]", "categories", 42, 7
+				"product", 3, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
+				"categories/42/[red]", "categories", 42, 7
 			),
 			new BrowsedIndex(
-				EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, "categories/42/[blue]", "categories", 42, 7
-			)
+				"product", 4, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
+				"categories/42/[blue]", "categories", 42, 7
+			),
+			// a catalog index: no owning collection, and with it no kind and no entity count. All three travel as
+			// unset wrappers, and every one of them decodes to a non-null default when read without a presence check -
+			// `""`, `INDEX_TYPE_UNSPECIFIED` and `0` respectively - so this row is the one that catches a converter
+			// reading any of them straight
+			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null)
 		};
-		final GrpcEntityCollectionIndexBrowseResponse.Builder builder =
-			GrpcEntityCollectionIndexBrowseResponse.newBuilder()
+		final GrpcIndexBrowseResponse.Builder builder =
+			GrpcIndexBrowseResponse.newBuilder()
 				.setCatalogVersion(17L)
 				.setPageNumber(2)
 				.setPageSize(3)
@@ -377,7 +436,7 @@ class CatalogStatisticsConverterTest {
 		}
 
 		final IndexBrowseResult roundTripped = CatalogStatisticsConverter.toIndexBrowseResult(
-			GrpcEntityCollectionIndexBrowseResponse.parseFrom(builder.build().toByteArray())
+			GrpcIndexBrowseResponse.parseFrom(builder.build().toByteArray())
 		);
 
 		assertEquals(17L, roundTripped.catalogVersion());
@@ -389,9 +448,15 @@ class CatalogStatisticsConverterTest {
 		assertNull(roundTripped.indexes()[0].discriminatorPrimaryKey());
 		assertNull(roundTripped.indexes()[0].discriminator(), "A global index has no siblings to be told apart from");
 		assertNull(roundTripped.indexes()[1].discriminatorPrimaryKey());
-		// the identity guarantee: the last two agree on kind, scope, reference name and target primary key, so only
-		// the discriminator keeps them apart. If it were dropped on the wire they would arrive indistinguishable and
-		// a client deduplicating across pages would silently lose one
+		// the identity guarantee, which is the index primary key and nothing else: it is what a client compares and
+		// what it hands back to drill into one index, so a zero here - the value an unset int32 decodes to - would
+		// silently address the wrong index rather than fail
+		for (int i = 0; i < indexes.length; i++) {
+			assertEquals(indexes[i].indexPrimaryKey(), roundTripped.indexes()[i].indexPrimaryKey());
+		}
+		// the last two agree on kind, scope, reference name and target primary key, so only the discriminator keeps
+		// them apart on screen. If it were dropped on the wire an operator would face two rows differing in nothing
+		// but an opaque integer, with no way to see which is which
 		assertEquals(roundTripped.indexes()[2].referenceName(), roundTripped.indexes()[3].referenceName());
 		assertEquals(
 			roundTripped.indexes()[2].discriminatorPrimaryKey(), roundTripped.indexes()[3].discriminatorPrimaryKey()
@@ -401,17 +466,95 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@Test
+	@DisplayName("carry the full description of one index back unchanged, including a heap estimate beyond int range")
+	void shouldRoundTripAnIndexDetail() throws InvalidProtocolBufferException {
+		// the heap figure is the field a narrower wire type would silently corrupt: a real index can exceed two
+		// gigabytes - the largest one measured on a production catalog held 1.03 GB and nothing caps it - so a value
+		// past Integer.MAX_VALUE has to survive rather than wrap
+		final long heapSizeInBytes = 3_000_000_000L;
+		final IndexDetail detail = new IndexDetail(
+			"product",
+			42,
+			heapSizeInBytes,
+			new IndexCardinality(
+				EntityIndexType.REFERENCED_ENTITY,
+				Scope.ARCHIVED,
+				"categories/42/[red]",
+				7,
+				3,
+				new AttributeCardinality[]{
+					new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 5, 7),
+					new AttributeCardinality("name", "categories", Locale.ENGLISH, AttributeIndexType.SORT, 7, 7)
+				}
+			)
+		);
+
+		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
+			GrpcIndexDetail.parseFrom(
+				CatalogStatisticsConverter.toGrpcIndexDetail(detail).toByteArray()
+			)
+		);
+
+		assertEquals(42, roundTripped.indexPrimaryKey());
+		assertEquals(heapSizeInBytes, roundTripped.heapSizeInBytes(), "The heap estimate must not be narrowed");
+		assertEquals(detail.cardinality(), roundTripped.cardinality());
+		// the discriminator of a per-referenced-entity index is the one this surface newly carries - the collection
+		// level component never describes such an index, so nothing else would notice it being dropped
+		assertEquals("categories/42/[red]", roundTripped.cardinality().discriminator());
+	}
+
+	@Test
+	@DisplayName("carry a catalog index's description back with its three absences intact")
+	void shouldRoundTripACatalogIndexDetail() throws InvalidProtocolBufferException {
+		// `GrpcIndexCardinality` carries its own presence checks, so the populated round trip above proves nothing
+		// about this shape. Every one of the three fields a catalog index leaves unset has a non-null default that a
+		// converter reading it without a presence check would accept without complaint - `""`,
+		// `INDEX_TYPE_UNSPECIFIED` and `0` - so the failure would be a plausible number rather than an exception,
+		// which is the whole reason those fields travel as wrappers instead of as sentinels
+		final IndexDetail detail = new IndexDetail(
+			null,
+			0,
+			4_096L,
+			new IndexCardinality(
+				null,
+				Scope.LIVE,
+				null,
+				null,
+				null,
+				new AttributeCardinality[]{
+					// a catalog index's attribute entries are its global unique indexes: entity-level by definition, so
+					// never bound to a reference, and one per locale for an attribute unique within a locale
+					new AttributeCardinality("url", null, Locale.ENGLISH, AttributeIndexType.UNIQUE, 3, 3)
+				}
+			)
+		);
+
+		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
+			GrpcIndexDetail.parseFrom(
+				CatalogStatisticsConverter.toGrpcIndexDetail(detail).toByteArray()
+			)
+		);
+
+		assertNull(roundTripped.entityType(), "An unset entity type must not decode to the empty string");
+		assertNull(roundTripped.cardinality().indexType(), "An unset kind must not decode to INDEX_TYPE_UNSPECIFIED");
+		assertNull(roundTripped.cardinality().entityCount(), "An unset entity count must not decode to zero");
+		assertTrue(roundTripped.cardinality().entityCountIfKnown().isEmpty());
+		assertEquals(0, roundTripped.indexPrimaryKey(), "The live catalog index's handle is zero, and must survive");
+		assertEquals(detail, roundTripped);
+	}
+
+	@Test
 	@DisplayName("carry index browse criteria in both directions")
 	void shouldRoundTripIndexBrowseCriteria() throws InvalidProtocolBufferException {
 		final IndexBrowseCriteria criteria = new IndexBrowseCriteria(
 			3, 25, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
-			EnumSet.of(EntityIndexKind.REFERENCED_ENTITY, EntityIndexKind.GLOBAL),
+			EnumSet.of(EntityIndexType.REFERENCED_ENTITY, EntityIndexType.GLOBAL),
 			EnumSet.of(Scope.ARCHIVED),
 			Set.of("categories", "brands")
 		);
 
 		final IndexBrowseCriteria roundTripped = CatalogStatisticsConverter.toIndexBrowseCriteria(
-			GrpcEntityCollectionIndexBrowseRequest.parseFrom(
+			GrpcIndexBrowseRequest.parseFrom(
 				CatalogStatisticsConverter
 					.toGrpcIndexBrowseRequest("catalog", "product", criteria)
 					.toByteArray()
@@ -428,9 +571,9 @@ class CatalogStatisticsConverterTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> CatalogStatisticsConverter.toIndexBrowseCriteria(
-				GrpcEntityCollectionIndexBrowseRequest.newBuilder()
+				GrpcIndexBrowseRequest.newBuilder()
 					.setCatalogName("catalog")
-					.setEntityType("product")
+					.setEntityType(StringValue.of("product"))
 					.setPageNumber(1)
 					.setPageSize(10)
 					.build()
@@ -492,11 +635,14 @@ class CatalogStatisticsConverterTest {
 	}
 
 	/**
-	 * A catalog snapshot with every component that has a Java type populated, each field carrying a distinct value so
-	 * that a field written into the wrong slot changes the result.
+	 * A catalog snapshot with every component populated, each field carrying a distinct value so that a field written
+	 * into the wrong slot changes the result. Every component defined today has a Java type and a sub-message, so
+	 * "fully populated" and "every component" are now the same set.
 	 *
-	 * `MEMORY_FOOTPRINT` is present as a status without a value on purpose - it is a component with no sub-message, and
-	 * its status must still survive the trip.
+	 * The refused-component readings are deliberately *not* folded in here - they live in
+	 * `shouldKeepCatalogComponentTriStateDistinguishable` and
+	 * `shouldCarryAFeatureDisabledRefusalWithoutItsValue`, because nulling a field to make room for a status would
+	 * give up exactly the distinct-value-per-slot property this fixture exists for.
 	 *
 	 * @return the fixture
 	 */
@@ -522,17 +668,6 @@ class CatalogStatisticsConverterTest {
 		)) {
 			statuses.put(component, ComponentStatus.delivered(component));
 		}
-		// the status-without-a-value case, which is what stops the converter fabricating an all-zero component for
-		// one that was never delivered. It has to be a component with no catalog-level sub-message on the wire, and
-		// after DURABILITY started being delivered the expensive pair is what is left
-		statuses.put(
-			CatalogStatisticsComponent.MEMORY_FOOTPRINT,
-			ComponentStatus.unavailable(
-				CatalogStatisticsComponent.MEMORY_FOOTPRINT,
-				ComponentAvailability.NOT_SUPPORTED,
-				"Statistics component `MEMORY_FOOTPRINT` is not computed by this version yet."
-			)
-		);
 		return new CatalogStatistics(
 			identity(),
 			new RecordCounts(101L, 102L, 103L),
@@ -627,9 +762,9 @@ class CatalogStatisticsConverterTest {
 			new DataStoreFragmentation(0.6d, 51L, 52L, true, 53L, 54.5d, null),
 			new CollectionIndexSummary(
 				61,
-				new IndexKindCount[]{
-					new IndexKindCount(EntityIndexKind.GLOBAL, Scope.LIVE, 62),
-					new IndexKindCount(EntityIndexKind.REFERENCED_ENTITY, Scope.ARCHIVED, 63)
+				new IndexTypeCount[]{
+					new IndexTypeCount(EntityIndexType.GLOBAL, Scope.LIVE, 62),
+					new IndexTypeCount(EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED, 63)
 				}
 			),
 			// both halves of every nullable field appear exactly once: the global index has no discriminator and no
@@ -639,13 +774,13 @@ class CatalogStatisticsConverterTest {
 			new CollectionIndexCardinality(
 				new IndexCardinality[]{
 					new IndexCardinality(
-						EntityIndexKind.GLOBAL, Scope.LIVE, null, 81, null,
+						EntityIndexType.GLOBAL, Scope.LIVE, null, 81, null,
 						new AttributeCardinality[]{
 							new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 82, 83)
 						}
 					),
 					new IndexCardinality(
-						EntityIndexKind.REFERENCED_ENTITY_TYPE, Scope.ARCHIVED, "categories", 84, 85,
+						EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.ARCHIVED, "categories", 84, 85,
 						new AttributeCardinality[]{
 							new AttributeCardinality(
 								"label", "categories", Locale.GERMAN, AttributeIndexType.SORT, 86, 87

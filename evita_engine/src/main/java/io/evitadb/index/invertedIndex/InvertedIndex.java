@@ -953,7 +953,7 @@ public class InvertedIndex implements
 	 * {@link #pageStreamRegistry} is excluded: it is single-writer flush bookkeeping carried by reference across
 	 * commits, not index content.
 	 *
-	 * Like every tree walk this is `O(buckets / blockSize)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT`
+	 * Like every tree walk this is `O(buckets / blockSize)` rather than `O(1)`, so it belongs to the index detail call
 	 * and must never be called from a query path — see
 	 * {@link BucketBPlusTree#getHeapSizeInBytes(java.util.function.ToLongFunction)}.
 	 *

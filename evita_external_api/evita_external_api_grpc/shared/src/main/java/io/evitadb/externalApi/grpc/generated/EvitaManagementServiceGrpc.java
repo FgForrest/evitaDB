@@ -256,35 +256,66 @@ public final class EvitaManagementServiceGrpc {
     return getGetEntityCollectionStatisticsSnapshotMethod;
   }
 
-  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> getBrowseEntityCollectionIndexesMethod;
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod;
 
   @io.grpc.stub.annotations.RpcMethod(
-      fullMethodName = SERVICE_NAME + '/' + "BrowseEntityCollectionIndexes",
-      requestType = io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.class,
-      responseType = io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.class,
+      fullMethodName = SERVICE_NAME + '/' + "BrowseIndexes",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.class,
       methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
-  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest,
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> getBrowseEntityCollectionIndexesMethod() {
-    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> getBrowseEntityCollectionIndexesMethod;
-    if ((getBrowseEntityCollectionIndexesMethod = EvitaManagementServiceGrpc.getBrowseEntityCollectionIndexesMethod) == null) {
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod;
+    if ((getBrowseIndexesMethod = EvitaManagementServiceGrpc.getBrowseIndexesMethod) == null) {
       synchronized (EvitaManagementServiceGrpc.class) {
-        if ((getBrowseEntityCollectionIndexesMethod = EvitaManagementServiceGrpc.getBrowseEntityCollectionIndexesMethod) == null) {
-          EvitaManagementServiceGrpc.getBrowseEntityCollectionIndexesMethod = getBrowseEntityCollectionIndexesMethod =
-              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse>newBuilder()
+        if ((getBrowseIndexesMethod = EvitaManagementServiceGrpc.getBrowseIndexesMethod) == null) {
+          EvitaManagementServiceGrpc.getBrowseIndexesMethod = getBrowseIndexesMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>newBuilder()
               .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
-              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BrowseEntityCollectionIndexes"))
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BrowseIndexes"))
               .setSampledToLocalTracing(true)
               .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest.getDefaultInstance()))
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.getDefaultInstance()))
               .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
-                  io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.getDefaultInstance()))
-              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("BrowseEntityCollectionIndexes"))
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("BrowseIndexes"))
               .build();
         }
       }
     }
-    return getBrowseEntityCollectionIndexesMethod;
+    return getBrowseIndexesMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetIndexDetail",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod;
+    if ((getGetIndexDetailMethod = EvitaManagementServiceGrpc.getGetIndexDetailMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetIndexDetailMethod = EvitaManagementServiceGrpc.getGetIndexDetailMethod) == null) {
+          EvitaManagementServiceGrpc.getGetIndexDetailMethod = getGetIndexDetailMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetIndexDetail"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetIndexDetail"))
+              .build();
+        }
+      }
+    }
+    return getGetIndexDetailMethod;
   }
 
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
@@ -809,18 +840,34 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-     * by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-     * the drill-down that follows an alarming count.
-     * Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-     * the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-     * Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-     * behind it.
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
      * </pre>
      */
-    default void browseEntityCollectionIndexes(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> responseObserver) {
-      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBrowseEntityCollectionIndexesMethod(), responseObserver);
+    default void browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBrowseIndexesMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    default void getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetIndexDetailMethod(), responseObserver);
     }
 
     /**
@@ -1072,19 +1119,36 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-     * by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-     * the drill-down that follows an alarming count.
-     * Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-     * the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-     * Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-     * behind it.
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
      * </pre>
      */
-    public void browseEntityCollectionIndexes(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest request,
-        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> responseObserver) {
+    public void browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
-          getChannel().newCall(getBrowseEntityCollectionIndexesMethod(), getCallOptions()), request, responseObserver);
+          getChannel().newCall(getBrowseIndexesMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public void getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetIndexDetailMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1326,18 +1390,34 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-     * by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-     * the drill-down that follows an alarming count.
-     * Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-     * the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-     * Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-     * behind it.
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse browseEntityCollectionIndexes(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest request) throws io.grpc.StatusException {
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) throws io.grpc.StatusException {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
-          getChannel(), getBrowseEntityCollectionIndexesMethod(), getCallOptions(), request);
+          getChannel(), getBrowseIndexesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetIndexDetailMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1571,18 +1651,34 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-     * by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-     * the drill-down that follows an alarming count.
-     * Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-     * the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-     * Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-     * behind it.
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
      * </pre>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse browseEntityCollectionIndexes(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest request) {
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
-          getChannel(), getBrowseEntityCollectionIndexesMethod(), getCallOptions(), request);
+          getChannel(), getBrowseIndexesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetIndexDetailMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1809,19 +1905,36 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to list the entity indexes of one collection, a page at a time. Where the index summary reported
-     * by `GetEntityCollectionStatisticsSnapshot` counts indexes by kind and scope, this enumerates them individually -
-     * the drill-down that follows an alarming count.
-     * Never poll this. Every call walks the collection's whole index map, unavoidably: there is no per-kind index of
-     * the indexes to consult, and building one would duplicate every key while still costing a full pass to order.
-     * Filters and ordering change the constant, not the growth, and paging keeps the answer small rather than the work
-     * behind it.
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
      * </pre>
      */
-    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse> browseEntityCollectionIndexes(
-        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest request) {
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> browseIndexes(
+        io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
-          getChannel().newCall(getBrowseEntityCollectionIndexesMethod(), getCallOptions()), request);
+          getChannel().newCall(getBrowseIndexesMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getIndexDetail(
+        io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetIndexDetailMethod(), getCallOptions()), request);
     }
 
     /**
@@ -1944,19 +2057,20 @@ public final class EvitaManagementServiceGrpc {
   private static final int METHODID_GET_CATALOG_STATISTICS_SNAPSHOT = 4;
   private static final int METHODID_GET_ALL_CATALOG_STATISTICS_SNAPSHOTS = 5;
   private static final int METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT = 6;
-  private static final int METHODID_BROWSE_ENTITY_COLLECTION_INDEXES = 7;
-  private static final int METHODID_RESTORE_CATALOG_UNARY = 8;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 9;
-  private static final int METHODID_LIST_TASK_STATUSES = 10;
-  private static final int METHODID_GET_TASK_STATUS = 11;
-  private static final int METHODID_GET_TASK_STATUSES = 12;
-  private static final int METHODID_CANCEL_TASK = 13;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 14;
-  private static final int METHODID_GET_FILE_TO_FETCH = 15;
-  private static final int METHODID_FETCH_FILE = 16;
-  private static final int METHODID_DELETE_FILE = 17;
-  private static final int METHODID_LIST_RESERVED_KEYWORDS = 18;
-  private static final int METHODID_RESTORE_CATALOG = 19;
+  private static final int METHODID_BROWSE_INDEXES = 7;
+  private static final int METHODID_GET_INDEX_DETAIL = 8;
+  private static final int METHODID_RESTORE_CATALOG_UNARY = 9;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 10;
+  private static final int METHODID_LIST_TASK_STATUSES = 11;
+  private static final int METHODID_GET_TASK_STATUS = 12;
+  private static final int METHODID_GET_TASK_STATUSES = 13;
+  private static final int METHODID_CANCEL_TASK = 14;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 15;
+  private static final int METHODID_GET_FILE_TO_FETCH = 16;
+  private static final int METHODID_FETCH_FILE = 17;
+  private static final int METHODID_DELETE_FILE = 18;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 19;
+  private static final int METHODID_RESTORE_CATALOG = 20;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -2003,9 +2117,13 @@ public final class EvitaManagementServiceGrpc {
           serviceImpl.getEntityCollectionStatisticsSnapshot((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse>) responseObserver);
           break;
-        case METHODID_BROWSE_ENTITY_COLLECTION_INDEXES:
-          serviceImpl.browseEntityCollectionIndexes((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest) request,
-              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse>) responseObserver);
+        case METHODID_BROWSE_INDEXES:
+          serviceImpl.browseIndexes((io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>) responseObserver);
+          break;
+        case METHODID_GET_INDEX_DETAIL:
+          serviceImpl.getIndexDetail((io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_UNARY:
           serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
@@ -2122,12 +2240,19 @@ public final class EvitaManagementServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse>(
                 service, METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT)))
         .addMethod(
-          getBrowseEntityCollectionIndexesMethod(),
+          getBrowseIndexesMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
-              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest,
-              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse>(
-                service, METHODID_BROWSE_ENTITY_COLLECTION_INDEXES)))
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>(
+                service, METHODID_BROWSE_INDEXES)))
+        .addMethod(
+          getGetIndexDetailMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>(
+                service, METHODID_GET_INDEX_DETAIL)))
         .addMethod(
           getRestoreCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncClientStreamingCall(
@@ -2267,7 +2392,8 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetCatalogStatisticsSnapshotMethod())
               .addMethod(getGetAllCatalogStatisticsSnapshotsMethod())
               .addMethod(getGetEntityCollectionStatisticsSnapshotMethod())
-              .addMethod(getBrowseEntityCollectionIndexesMethod())
+              .addMethod(getBrowseIndexesMethod())
+              .addMethod(getGetIndexDetailMethod())
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogUnaryMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())

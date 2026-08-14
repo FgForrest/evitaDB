@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -51,6 +52,13 @@ public class VoidPriceIndex implements PriceIndexContract {
 	@Override
 	public Collection<? extends PriceListAndCurrencyPriceIndex> getPriceListAndCurrencyIndexes() {
 		return Collections.emptyList();
+	}
+
+	@Override
+	public void forEachPriceListAndCurrencyIndex(
+		@Nonnull Consumer<? super PriceListAndCurrencyPriceIndex> consumer
+	) {
+		// intentional no-op: this flavour maintains no price-list-and-currency index to hand over
 	}
 
 	@Nonnull

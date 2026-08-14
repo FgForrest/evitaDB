@@ -467,7 +467,7 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 	 * {@link #priceIndexKey} is **not** charged: the enclosing {@link AbstractPriceIndex}'s map is keyed by the very
 	 * instance handed to the constructor, so the container owns it and this index pays only for its reference slot.
 	 *
-	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT` and must never
+	 * Like every tree walk this is `O(nodes)` rather than `O(1)`, so it belongs to the index detail call and must never
 	 * be called from a query path.
 	 *
 	 * @param priceRecordSizer prices one stored price record; returns `0` for records this index does not own

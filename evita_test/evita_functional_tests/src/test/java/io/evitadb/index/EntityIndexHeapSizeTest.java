@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -34,10 +35,13 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.VMLayout;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +51,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -54,14 +59,15 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertExceedsMeasuredHeapBy;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
-import static io.evitadb.index.IndexHeapSizeAssertions.cachedMapViewBytes;
 import static io.evitadb.index.IndexHeapSizeAssertions.excluded;
 import static io.evitadb.index.IndexHeapSizeAssertions.measuredHeapOf;
+import static io.evitadb.index.IndexHeapSizeAssertions.readField;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -82,6 +88,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Depth makes an exact reading unattainable for a seeded index - see trap 4 in
  * `documentation/developer/heap-size-testing.md` - so those assertions pin **scale and slope** instead. An empty index
  * is asserted exactly, which is what actually pins the field arithmetic.
+ *
+ * That an empty index can be asserted **exactly at all** is itself a claim worth knowing. A `HashMap` keeps the
+ * `keySet`/`values`/`entrySet` view it hands out, so an accessor asked for on a construction or flush path is sixteen
+ * retained bytes on every index in the catalog - and one the arithmetic cannot see, since `MapHeapSize` would have to
+ * call the accessor that creates it. An entity index used to carry fourteen such views before any caller touched it,
+ * and seventeen once flushed, which is why these cases previously read low by a documented constant. Every walk on
+ * those paths now goes through `forEach`, which reaches the same entries and leaves nothing behind; a walk added later
+ * that asks for an accessor instead reappears here as a shortfall, and in
+ * {@link EntityIndexes#shouldNotAccumulateCachedViewsOnFlush} if it is on the flush path only.
  *
  * @author Claude (heap-size verification), FG Forrest a.s. (c) 2026
  */
@@ -429,11 +444,10 @@ class EntityIndexHeapSizeTest {
 		 * map carries - a lambda the map does not own and JOL cannot walk into.
 		 */
 		/**
-		 * How many `HashMap` view objects an entity index is already carrying when it is constructed - see
-		 * {@link IndexHeapSizeAssertions#cachedMapViewBytes} for why the arithmetic knowingly leaves them out.
-		 * Eleven belong to the attribute index's six maps, two to the facet index's and one to the price index's.
+		 * How many distinct values each seeded histogram carries - large enough that its bucket axis splits and the
+		 * on-disk baseline the flush captures actually holds page sequences.
 		 */
-		private static final int BASE_CACHED_VIEWS = 14;
+		private static final int HISTOGRAM_VALUES = 512;
 
 		private static final String[] SHARED_EXCLUSIONS = {
 			// the collection's index map is keyed by this very instance, so the map owns it
@@ -454,12 +468,10 @@ class EntityIndexHeapSizeTest {
 		};
 
 		@Test
-		@DisplayName("an empty global index is measured down to its cached map views")
+		@DisplayName("an empty global index is measured exactly")
 		void shouldMatchAnEmptyGlobalIndex() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			assertExceedsMeasuredHeapBy(
-				index.getHeapSizeInBytes(), -cachedMapViewBytes(BASE_CACHED_VIEWS), index, globalExclusions()
-			);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, globalExclusions());
 		}
 
 		@Test
@@ -473,31 +485,105 @@ class EntityIndexHeapSizeTest {
 					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, 1))
 				)
 			);
-			assertExceedsMeasuredHeapBy(
-				index.getHeapSizeInBytes(), -cachedMapViewBytes(BASE_CACHED_VIEWS), index, reducedExclusions()
-			);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, reducedExclusions());
 		}
 
 		@Test
-		@DisplayName("an empty reference-type index is measured down to its cached map views")
+		@DisplayName("an empty reference-type index is measured exactly")
 		void shouldMatchAnEmptyReferencedTypeIndex() {
 			final ReferencedTypeEntityIndex index = new ReferencedTypeEntityIndex(
 				INDEX_PK, ENTITY_TYPE,
 				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
 			);
-			final String[] exclusions = concat(
-				SHARED_EXCLUSIONS,
-				"cardinalityIndexes.transactionalLayerWrapper",
-				"histogramIndexes.transactionalLayerWrapper",
-				"indexPrimaryKeyCardinality.pageStreamRegistry",
-				"indexPrimaryKeyCardinality.cardinalities.valueColumnFactory",
-				"indexPrimaryKeyCardinality.cardinalities.recordColumnFactory",
-				"indexPrimaryKeyCardinality.referencedPrimaryKeysIndex.transactionalLayerWrapper"
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, referencedTypeExclusions());
+		}
+
+		@Test
+		@DisplayName("a flushed index carries no more cached map views than a fresh one")
+		void shouldNotAccumulateCachedViewsOnFlush() {
+			// the count below is a *fresh* index's, and the claim is that flushing adds none. A `HashMap` hands out its
+			// `keySet`/`values`/`entrySet` view once and keeps it, so a flush path reaching a map through an accessor
+			// the construction path did not use would quietly park one more permanent object on every index in the
+			// catalog - and nothing else in this suite would see it, because every other case measures a fresh index
+			final GlobalEntityIndex index = newGlobalIndex();
+			index.getModifiedStorageParts(new TrappedChanges());
+			index.resetDirty();
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, globalExclusions());
+		}
+
+		@Test
+		@DisplayName("an empty reduced-group index is measured exactly")
+		void shouldMatchAnEmptyReducedGroupIndex() {
+			final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(
+				INDEX_PK, ENTITY_TYPE,
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
+					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, 1))
+				)
 			);
-			assertExceedsMeasuredHeapBy(
-				// its cardinality and histogram maps have each been read through one view, and its price index is
-				// the void singleton, which holds no map and so contributes none of the base's fourteen
-				index.getHeapSizeInBytes(), -cachedMapViewBytes(BASE_CACHED_VIEWS - 1 + 2), index, exclusions
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, reducedGroupExclusions());
+		}
+
+		@Test
+		@DisplayName("the histogram component's on-disk leaf-page baseline is charged what it weighs")
+		void shouldChargeTheHistogramLeafPageBaseline() {
+			// this baseline is a field of the histogram-map COMPONENT rather than of the index, so no field of the
+			// index points at it and the ruling that a wrapper costs its shell alone would report it as free. It is
+			// populated only by a flush, and only an axis that actually paged contributes page sequences - so the
+			// fixture has to split at least one leaf, or the one term of the arithmetic that scales goes untested
+			final ReferencedTypeEntityIndex index = new ReferencedTypeEntityIndex(
+				INDEX_PK, ENTITY_TYPE,
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME)
+			);
+			for (int i = 0; i < HISTOGRAM_VALUES; i++) {
+				final int recordId = AUTOBOX_CACHE_CEILING + i;
+				index.insertPrimaryKeyIfMissing(recordId, recordId);
+				index.insertHistogramValue("price", null, recordId, recordId, Integer.class, 0);
+				index.insertHistogramValue("weight", Locale.ENGLISH, recordId, recordId, Integer.class, 0);
+			}
+			index.getModifiedStorageParts(new TrappedChanges());
+
+			final Object component = readField(index, "histogramComponent");
+			final Map<?, ?> baseline = (Map<?, ?>) readField(component, "persistedLeafPages");
+			// `forEach`, never `values()`: asking a `HashMap` for a view allocates and CACHES it in the map, which
+			// would grow the very baseline this test is about to measure and leave the walk sixteen bytes above the
+			// arithmetic for a reason that has nothing to do with the arithmetic
+			final int[] pagedAxes = new int[1];
+			baseline.forEach(
+				(key, pages) ->
+					pagedAxes[0] += ((PersistedHistogramLeafPages) pages).bucketPageSequences().length > 0 ? 1 : 0
+			);
+			assertEquals(2, baseline.size(), "both seeded histograms must reach the baseline");
+			assertTrue(
+				pagedAxes[0] > 0,
+				"the fixture must page at least one bucket axis, or the page sequences the baseline carries are " +
+					"never exercised"
+			);
+
+			// isolate the baseline from every divergence a seeded reference-type index inherits: read the figure with
+			// it and again with the field parked on the empty singleton. What the arithmetic drops must be what the
+			// walk stops finding
+			final long withBaseline = index.getHeapSizeInBytes();
+			final long measuredWithBaseline = measuredHeapOf(index, referencedTypeExclusions());
+			writeField(component, "persistedLeafPages", Map.of());
+			final long withoutBaseline = index.getHeapSizeInBytes();
+			final long measuredWithoutBaseline = measuredHeapOf(index, referencedTypeExclusions());
+
+			assertTrue(withBaseline > withoutBaseline, "the leaf-page baseline must show up as occupancy");
+			final long reportedDrop = withBaseline - withoutBaseline;
+			final long measuredDrop = measuredWithBaseline - measuredWithoutBaseline;
+			// the ONE thing the model cannot read is the bucket table: the baseline is pre-sized from the histogram
+			// map's size, so `createHashMap(2)` asks for room for three and lands on a four-slot table, while the
+			// reconstruction reports the larger of the shapes two entries could sit on and floors that at sixteen.
+			// Everything else - the map object, its nodes, the minted keys, the page records and their sequences -
+			// must agree to the byte, which is what makes a mis-sized record fail here instead of hiding in slack
+			final VMLayout layout = VMLayout.current();
+			final long tableOverReport = layout.sizeOfArray(16, layout.referenceSize())
+				- layout.sizeOfArray(4, layout.referenceSize());
+			assertEquals(
+				tableOverReport, reportedDrop - measuredDrop,
+				"the baseline must be charged what it weighs, over-reported by its bucket table alone - reported " +
+					reportedDrop + " against measured " + measuredDrop
 			);
 		}
 
@@ -566,6 +652,48 @@ class EntityIndexHeapSizeTest {
 				SHARED_EXCLUSIONS,
 				"priceIndex.priceIndexes.transactionalLayerWrapper"
 			);
+		}
+
+		@Nonnull
+		private String[] reducedGroupExclusions() {
+			return concat(
+				SHARED_EXCLUSIONS,
+				"priceIndex.priceIndexes.transactionalLayerWrapper",
+				"cardinalityIndexes.transactionalLayerWrapper",
+				"histogramIndexes.transactionalLayerWrapper",
+				"referencedPrimaryKeysIndex.transactionalLayerWrapper"
+			);
+		}
+
+		@Nonnull
+		private String[] referencedTypeExclusions() {
+			return concat(
+				SHARED_EXCLUSIONS,
+				"cardinalityIndexes.transactionalLayerWrapper",
+				"histogramIndexes.transactionalLayerWrapper",
+				"indexPrimaryKeyCardinality.pageStreamRegistry",
+				"indexPrimaryKeyCardinality.cardinalities.valueColumnFactory",
+				"indexPrimaryKeyCardinality.cardinalities.recordColumnFactory",
+				"indexPrimaryKeyCardinality.referencedPrimaryKeysIndex.transactionalLayerWrapper"
+			);
+		}
+
+		/**
+		 * Parks the histogram component's leaf-page baseline on the empty singleton, so the figure can be read with
+		 * and without it and the difference attributed to nothing else.
+		 *
+		 * @param component the histogram-map component to modify
+		 * @param field     the baseline field to clear
+		 * @param value     the value to write
+		 */
+		private static void writeField(@Nonnull Object component, @Nonnull String field, @Nonnull Object value) {
+			try {
+				final Field declaredField = HistogramIndexMapComponent.class.getDeclaredField(field);
+				declaredField.setAccessible(true);
+				declaredField.set(component, value);
+			} catch (NoSuchFieldException | IllegalAccessException e) {
+				throw new IllegalStateException("Cannot clear the leaf-page baseline `" + field + "`.", e);
+			}
 		}
 
 		/**

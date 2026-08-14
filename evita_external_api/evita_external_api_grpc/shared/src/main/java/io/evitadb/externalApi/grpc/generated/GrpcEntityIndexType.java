@@ -29,114 +29,114 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Kind of entity index, as reported by the per-collection index summary. Deliberately not a one-to-one mirror of the
- * engine's internal index types: the engine's legacy `REFERENCED_HIERARCHY_NODE` was merged into
- * `INDEX_KIND_REFERENCED_ENTITY` because it held the same data, and its counts are reported under that kind.
+ * Type of entity index, as reported by the per-collection index summary and by an index browse. This is the engine's
+ * own index type vocabulary rather than a mirror of it, so the values cannot drift apart. A catalog index has no value
+ * here: the engine addresses those by scope alone because there is exactly one kind of them.
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType}
  */
-public enum GrpcEntityIndexKind
+public enum GrpcEntityIndexType
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * Default value, never sent by the server. Every reported index count carries an explicit kind.
+   * Default value, never sent by the server. Every reported index carries an explicit type.
    * </pre>
    *
-   * <code>INDEX_KIND_UNSPECIFIED = 0;</code>
+   * <code>INDEX_TYPE_UNSPECIFIED = 0;</code>
    */
-  INDEX_KIND_UNSPECIFIED(0),
+  INDEX_TYPE_UNSPECIFIED(0),
   /**
    * <pre>
    * Index covering all entities of the collection.
    * </pre>
    *
-   * <code>INDEX_KIND_GLOBAL = 1;</code>
+   * <code>INDEX_TYPE_GLOBAL = 1;</code>
    */
-  INDEX_KIND_GLOBAL(1),
+  INDEX_TYPE_GLOBAL(1),
   /**
    * <pre>
    * Index covering entities that reference any entity of a particular referenced entity type.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_ENTITY_TYPE = 2;</code>
+   * <code>INDEX_TYPE_REFERENCED_ENTITY_TYPE = 2;</code>
    */
-  INDEX_KIND_REFERENCED_ENTITY_TYPE(2),
+  INDEX_TYPE_REFERENCED_ENTITY_TYPE(2),
   /**
    * <pre>
    * Index covering entities that reference one particular referenced entity.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_ENTITY = 3;</code>
+   * <code>INDEX_TYPE_REFERENCED_ENTITY = 3;</code>
    */
-  INDEX_KIND_REFERENCED_ENTITY(3),
+  INDEX_TYPE_REFERENCED_ENTITY(3),
   /**
    * <pre>
    * Index covering entities that reference any entity belonging to a particular group entity type.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE = 4;</code>
+   * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;</code>
    */
-  INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE(4),
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE(4),
   /**
    * <pre>
    * Index covering entities that reference one particular group entity.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_GROUP_ENTITY = 5;</code>
+   * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;</code>
    */
-  INDEX_KIND_REFERENCED_GROUP_ENTITY(5),
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY(5),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * Default value, never sent by the server. Every reported index count carries an explicit kind.
+   * Default value, never sent by the server. Every reported index carries an explicit type.
    * </pre>
    *
-   * <code>INDEX_KIND_UNSPECIFIED = 0;</code>
+   * <code>INDEX_TYPE_UNSPECIFIED = 0;</code>
    */
-  public static final int INDEX_KIND_UNSPECIFIED_VALUE = 0;
+  public static final int INDEX_TYPE_UNSPECIFIED_VALUE = 0;
   /**
    * <pre>
    * Index covering all entities of the collection.
    * </pre>
    *
-   * <code>INDEX_KIND_GLOBAL = 1;</code>
+   * <code>INDEX_TYPE_GLOBAL = 1;</code>
    */
-  public static final int INDEX_KIND_GLOBAL_VALUE = 1;
+  public static final int INDEX_TYPE_GLOBAL_VALUE = 1;
   /**
    * <pre>
    * Index covering entities that reference any entity of a particular referenced entity type.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_ENTITY_TYPE = 2;</code>
+   * <code>INDEX_TYPE_REFERENCED_ENTITY_TYPE = 2;</code>
    */
-  public static final int INDEX_KIND_REFERENCED_ENTITY_TYPE_VALUE = 2;
+  public static final int INDEX_TYPE_REFERENCED_ENTITY_TYPE_VALUE = 2;
   /**
    * <pre>
    * Index covering entities that reference one particular referenced entity.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_ENTITY = 3;</code>
+   * <code>INDEX_TYPE_REFERENCED_ENTITY = 3;</code>
    */
-  public static final int INDEX_KIND_REFERENCED_ENTITY_VALUE = 3;
+  public static final int INDEX_TYPE_REFERENCED_ENTITY_VALUE = 3;
   /**
    * <pre>
    * Index covering entities that reference any entity belonging to a particular group entity type.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE = 4;</code>
+   * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;</code>
    */
-  public static final int INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE_VALUE = 4;
+  public static final int INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE_VALUE = 4;
   /**
    * <pre>
    * Index covering entities that reference one particular group entity.
    * </pre>
    *
-   * <code>INDEX_KIND_REFERENCED_GROUP_ENTITY = 5;</code>
+   * <code>INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;</code>
    */
-  public static final int INDEX_KIND_REFERENCED_GROUP_ENTITY_VALUE = 5;
+  public static final int INDEX_TYPE_REFERENCED_GROUP_ENTITY_VALUE = 5;
 
 
   public final int getNumber() {
@@ -153,7 +153,7 @@ public enum GrpcEntityIndexKind
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcEntityIndexKind valueOf(int value) {
+  public static GrpcEntityIndexType valueOf(int value) {
     return forNumber(value);
   }
 
@@ -161,27 +161,27 @@ public enum GrpcEntityIndexKind
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcEntityIndexKind forNumber(int value) {
+  public static GrpcEntityIndexType forNumber(int value) {
     switch (value) {
-      case 0: return INDEX_KIND_UNSPECIFIED;
-      case 1: return INDEX_KIND_GLOBAL;
-      case 2: return INDEX_KIND_REFERENCED_ENTITY_TYPE;
-      case 3: return INDEX_KIND_REFERENCED_ENTITY;
-      case 4: return INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE;
-      case 5: return INDEX_KIND_REFERENCED_GROUP_ENTITY;
+      case 0: return INDEX_TYPE_UNSPECIFIED;
+      case 1: return INDEX_TYPE_GLOBAL;
+      case 2: return INDEX_TYPE_REFERENCED_ENTITY_TYPE;
+      case 3: return INDEX_TYPE_REFERENCED_ENTITY;
+      case 4: return INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE;
+      case 5: return INDEX_TYPE_REFERENCED_GROUP_ENTITY;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcEntityIndexKind>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcEntityIndexType>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcEntityIndexKind> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcEntityIndexKind>() {
-          public GrpcEntityIndexKind findValueByNumber(int number) {
-            return GrpcEntityIndexKind.forNumber(number);
+      GrpcEntityIndexType> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcEntityIndexType>() {
+          public GrpcEntityIndexType findValueByNumber(int number) {
+            return GrpcEntityIndexType.forNumber(number);
           }
         };
 
@@ -202,9 +202,9 @@ public enum GrpcEntityIndexKind
     return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(44);
   }
 
-  private static final GrpcEntityIndexKind[] VALUES = values();
+  private static final GrpcEntityIndexType[] VALUES = values();
 
-  public static GrpcEntityIndexKind valueOf(
+  public static GrpcEntityIndexType valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -218,10 +218,10 @@ public enum GrpcEntityIndexKind
 
   private final int value;
 
-  private GrpcEntityIndexKind(int value) {
+  private GrpcEntityIndexType(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType)
 }
 

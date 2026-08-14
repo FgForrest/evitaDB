@@ -40,9 +40,9 @@ import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.api.statistics.CollectionStorageSize;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.DataStoreVolatileState;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
 import io.evitadb.api.statistics.ComponentAvailability;
@@ -85,9 +85,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * than on disk.
  *
  * The first two tests are the ones that earn their keep beyond the individual numbers: they request *every*
- * level-appropriate component at once and assert the exact delivered / not-delivered partition. Implementing a
- * component and forgetting to move it out of the catch-all `NOT_SUPPORTED` arm of the dispatch switch compiles
- * cleanly and reports "not supported" forever, and nothing else in the suite would notice.
+ * level-appropriate component at once and assert what each one is required to answer. A component that is implemented
+ * but still reports a refusal - because the arm that declines it was never removed - compiles cleanly and goes on
+ * saying "unavailable" forever, and nothing else in the suite would notice.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -101,24 +101,6 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	private static final String ENTITY_CATEGORY = "category";
 	private static final String ENTITY_BRAND = "brand";
 
-	/**
-	 * The catalog-level components no build of this branch computes yet.
-	 *
-	 * **Empty since `DURABILITY` landed, and the assertion below is written so that this is a stronger statement
-	 * rather than a vacuous one.** With an empty set every catalog-level component must report `DELIVERED`, so a
-	 * component left behind in the catch-all arm of the dispatch switch fails here - which is the whole point of the
-	 * partition. Had the assertion been phrased as "every member of this set reports NOT_SUPPORTED" it would now
-	 * iterate nothing and pass whatever the engine did.
-	 */
-	private static final Set<CatalogStatisticsComponent> CATALOG_LEVEL_NOT_SUPPORTED =
-		EnumSet.noneOf(CatalogStatisticsComponent.class);
-	/**
-	 * The collection-level components no build of this branch computes yet - what remains of the expensive pair now
-	 * that `INDEX_CARDINALITY` landed, and the last thing keeping this partition discriminating at either level.
-	 */
-	private static final Set<CatalogStatisticsComponent> COLLECTION_LEVEL_NOT_SUPPORTED = EnumSet.of(
-		CatalogStatisticsComponent.MEMORY_FOOTPRINT
-	);
 	/**
 	 * The three values the indexed fixture's `availability` attribute cycles through - few enough that its filter
 	 * index cannot narrow anything down, which is exactly what `INDEX_CARDINALITY` has to make visible.
@@ -144,9 +126,16 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	/**
+	 * Every catalog-level component of this build answers on a healthy catalog - there is no partition into
+	 * implemented and not-yet-implemented, and this asserts exactly that. A component left behind in the catch-all arm
+	 * of the dispatch switch reports something other than `DELIVERED` and fails here, which is what the assertion is
+	 * for; the two non-delivered outcomes that do exist (`CATALOG_UNUSABLE`, `FEATURE_DISABLED`) both need a catalog
+	 * this fixture deliberately does not produce.
+	 */
 	@Test
-	@DisplayName("Every catalog-level component either answers or says why it cannot")
-	void shouldPartitionCatalogLevelComponentsIntoDeliveredAndNotSupported() {
+	@DisplayName("Every catalog-level component answers on a healthy catalog")
+	void shouldDeliverEveryCatalogLevelComponent() {
 		goLive();
 		final CatalogStatistics statistics = this.evita.management().getCatalogStatistics(
 			CATALOG, catalogLevelComponents()
@@ -155,24 +144,24 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		for (final CatalogStatisticsComponent component : catalogLevelComponents()) {
 			final ComponentStatus status = statistics.componentStatus().get(component);
 			assertNotNull(status, "Component `" + component + "` was requested but carries no status at all");
-			if (CATALOG_LEVEL_NOT_SUPPORTED.contains(component)) {
-				assertEquals(
-					ComponentAvailability.NOT_SUPPORTED, status.availability(),
-					"Component `" + component + "` is not implemented yet and must say so"
-				);
-			} else {
-				assertEquals(
-					ComponentAvailability.DELIVERED, status.availability(),
-					"Component `" + component + "` is implemented but reported `" + status.availability() +
-						"` - most likely it was never moved out of the catch-all arm of the dispatch switch"
-				);
-			}
+			assertEquals(
+				ComponentAvailability.DELIVERED, status.availability(),
+				"Component `" + component + "` is implemented but reported `" + status.availability() +
+					"` - most likely it was never moved out of the catch-all arm of the dispatch switch"
+			);
 		}
 	}
 
+	/**
+	 * A collection-level component has exactly one legal outcome: it delivers. There is no set of exceptions to
+	 * consult here, unlike at the catalog level, because `EntityCollectionStatistics.Builder` offers no way to record
+	 * a refusal - a catalog can be warming up, corrupted or configured with a feature switched off while still owing
+	 * an answer, and a collection of a catalog in any of those states cannot be reached to be asked in the first
+	 * place. This assertion is what holds that invariant: adding a component that declines at this level fails here.
+	 */
 	@Test
-	@DisplayName("Every collection-level component either answers or says why it cannot")
-	void shouldPartitionCollectionLevelComponentsIntoDeliveredAndNotSupported() {
+	@DisplayName("Every collection-level component answers")
+	void shouldDeliverEveryCollectionLevelComponent() {
 		final EntityCollectionStatistics statistics = this.evita.management().getEntityCollectionStatistics(
 			CATALOG, ENTITY_PRODUCT, collectionLevelComponents()
 		);
@@ -180,18 +169,11 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		for (final CatalogStatisticsComponent component : collectionLevelComponents()) {
 			final ComponentStatus status = statistics.componentStatus().get(component);
 			assertNotNull(status, "Component `" + component + "` was requested but carries no status at all");
-			if (COLLECTION_LEVEL_NOT_SUPPORTED.contains(component)) {
-				assertEquals(
-					ComponentAvailability.NOT_SUPPORTED, status.availability(),
-					"Component `" + component + "` is not implemented yet and must say so"
-				);
-			} else {
-				assertEquals(
-					ComponentAvailability.DELIVERED, status.availability(),
-					"Component `" + component + "` is implemented but reported `" + status.availability() +
-						"` - most likely it was never moved out of the catch-all arm of the dispatch switch"
-				);
-			}
+			assertEquals(
+				ComponentAvailability.DELIVERED, status.availability(),
+				"Component `" + component + "` reported `" + status.availability() + "` - no collection-level " +
+					"component may answer with anything but a value"
+			);
 		}
 	}
 
@@ -630,10 +612,10 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		// rather than a count keeps this pinned to the partition instead of to how many indexes the fixture makes
 		for (final IndexCardinality index : cardinality.indexes()) {
 			assertTrue(
-				index.indexKind() == EntityIndexKind.GLOBAL ||
-					index.indexKind() == EntityIndexKind.REFERENCED_ENTITY_TYPE ||
-					index.indexKind() == EntityIndexKind.REFERENCED_GROUP_ENTITY_TYPE,
-				"Index kind `" + index.indexKind() + "` grows with the data and must not be described one by one"
+				index.indexType() == EntityIndexType.GLOBAL ||
+					index.indexType() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
+					index.indexType() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
+				"Index kind `" + index.indexType() + "` grows with the data and must not be described one by one"
 			);
 		}
 		// ten categories referenced by the products produce ten `REFERENCED_ENTITY` indexes. Without the omission
@@ -656,12 +638,12 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		);
 		// the reference index is where the reference cardinality lives; the global index has no reference dimension
 		// at all, and reporting `0` for it would read as "this collection references nothing"
-		final IndexCardinality global = indexOfKind(cardinality, EntityIndexKind.GLOBAL);
+		final IndexCardinality global = indexOfKind(cardinality, EntityIndexType.GLOBAL);
 		assertTrue(
 			global.referencedEntityCountIfKnown().isEmpty(),
 			"The global index tracks no references, but it reported a reference cardinality: " + global
 		);
-		final IndexCardinality referenced = indexOfKind(cardinality, EntityIndexKind.REFERENCED_ENTITY_TYPE);
+		final IndexCardinality referenced = indexOfKind(cardinality, EntityIndexType.REFERENCED_ENTITY_TYPE);
 		assertEquals(
 			10, referenced.referencedEntityCountIfKnown().orElseThrow(),
 			"The reference index tracks the ten referenced categories"
@@ -1139,10 +1121,10 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 			.indexSummaryIfPresent()
 			.orElseThrow();
 		int dataBounded = 0;
-		for (final IndexKindCount kindCount : summary.byKindAndScope()) {
-			if (kindCount.indexKind() == EntityIndexKind.REFERENCED_ENTITY ||
-				kindCount.indexKind() == EntityIndexKind.REFERENCED_GROUP_ENTITY) {
-				dataBounded += kindCount.count();
+		for (final IndexTypeCount typeCount : summary.byTypeAndScope()) {
+			if (typeCount.indexType() == EntityIndexType.REFERENCED_ENTITY ||
+				typeCount.indexType() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
+				dataBounded += typeCount.count();
 			}
 		}
 		return dataBounded;
@@ -1177,7 +1159,7 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		@Nonnull CollectionIndexCardinality cardinality,
 		@Nonnull String attributeName
 	) {
-		final IndexCardinality global = indexOfKind(cardinality, EntityIndexKind.GLOBAL);
+		final IndexCardinality global = indexOfKind(cardinality, EntityIndexType.GLOBAL);
 		for (final AttributeCardinality attribute : global.attributes()) {
 			if (attribute.indexType() == AttributeIndexType.FILTER && attributeName.equals(attribute.attributeName())) {
 				return attribute;
@@ -1192,20 +1174,20 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	 * Picks the single described index of one kind.
 	 *
 	 * @param cardinality the delivered component
-	 * @param indexKind   kind to look for
+	 * @param indexType   kind to look for
 	 * @return the one index of that kind
 	 */
 	@Nonnull
 	private static IndexCardinality indexOfKind(
 		@Nonnull CollectionIndexCardinality cardinality,
-		@Nonnull EntityIndexKind indexKind
+		@Nonnull EntityIndexType indexType
 	) {
 		for (final IndexCardinality index : cardinality.indexes()) {
-			if (index.indexKind() == indexKind) {
+			if (index.indexType() == indexType) {
 				return index;
 			}
 		}
-		throw new AssertionError("No index of kind `" + indexKind + "` was described: " + cardinality);
+		throw new AssertionError("No index of kind `" + indexType + "` was described: " + cardinality);
 	}
 
 	/**
@@ -1217,19 +1199,14 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns every component that may be asked of a catalog, which is what the partition test requests at once.
+	 * Returns every component that may be asked of a catalog, which is what the partition test requests at once. Every
+	 * component has a catalog-level form, so this is the whole enum.
 	 *
 	 * @return all catalog-level components
 	 */
 	@Nonnull
 	private static Set<CatalogStatisticsComponent> catalogLevelComponents() {
-		final Set<CatalogStatisticsComponent> components = EnumSet.noneOf(CatalogStatisticsComponent.class);
-		for (final CatalogStatisticsComponent component : CatalogStatisticsComponent.values()) {
-			if (component.isCatalogLevel()) {
-				components.add(component);
-			}
-		}
-		return components;
+		return EnumSet.allOf(CatalogStatisticsComponent.class);
 	}
 
 	/**

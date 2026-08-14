@@ -55,12 +55,6 @@ public enum ComponentAvailability {
 	 * The component depends on an engine feature that is switched off in the current configuration - for example
 	 * time-travel history when WAL retention is disabled.
 	 */
-	FEATURE_DISABLED,
-
-	/**
-	 * This build cannot compute the component at all. Distinct from {@link #FEATURE_DISABLED}: no configuration change
-	 * makes it available.
-	 */
-	NOT_SUPPORTED
+	FEATURE_DISABLED
 
 }

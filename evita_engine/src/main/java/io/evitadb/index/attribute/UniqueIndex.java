@@ -228,7 +228,7 @@ public abstract sealed class UniqueIndex implements
 	 * {@code AttributeIndex}. Everything the two have in common is priced by {@link #getSharedHeapSizeInBytes}.
 	 *
 	 * Walking an owner's value tree is `O(values / blockSize)` rather than `O(1)`, so this belongs to
-	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 * the index detail call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

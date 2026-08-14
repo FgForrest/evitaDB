@@ -27,15 +27,17 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
@@ -49,16 +51,20 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -249,6 +255,138 @@ class IndexBrowseTest implements EvitaTestSupport {
 	}
 
 	@Nested
+	@DisplayName("Index identity")
+	class IndexIdentity {
+
+		@Test
+		@DisplayName("Every index of the collection reports its own primary key")
+		void shouldReportADistinctPrimaryKeyForEveryIndex() {
+			final IndexBrowseResult result = browse(
+				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
+			);
+
+			final Set<Integer> identities = new LinkedHashSet<>(result.indexes().length);
+			for (final BrowsedIndex index : result.indexes()) {
+				assertTrue(
+					index.indexPrimaryKey() > 0,
+					"Index " + index + " reported a non-positive primary key - the value an unset field decodes to, " +
+						"which would address nothing rather than fail"
+				);
+				assertTrue(
+					identities.add(index.indexPrimaryKey()),
+					"Two indexes reported the primary key " + index.indexPrimaryKey() + " - drilling into either " +
+						"would reach one of them and leave the other unreachable"
+				);
+			}
+			assertEquals(
+				result.totalRecordCount(), identities.size(),
+				"Every index the collection holds must be identifiable"
+			);
+		}
+
+		@Test
+		@DisplayName("A removed index never lends its primary key to a later one, even across a restart")
+		void shouldNotReuseThePrimaryKeyOfARemovedIndex() {
+			// the guarantee the whole handle rests on, and the restart is the half of it that can actually break.
+			// Within one running instance the assigning sequence is an AtomicInteger that only increments, so nothing
+			// could rewind it; across a restart it is re-seeded from the collection header, and it is safe only
+			// because the header's high-water mark is written from the sequence rather than recomputed from the keys
+			// that survived. Deriving it from the survivors instead would look like a harmless simplification and
+			// would silently start handing a removed index's key to the next one minted
+			final Set<Integer> before = identitiesOfEveryIndex();
+
+			// every product referencing the first category, which leaves that category's index covering nothing
+			IndexBrowseTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					for (int productKey = 1; productKey <= PRODUCT_COUNT; productKey += CATEGORY_COUNT) {
+						session.deleteEntity(ENTITY_PRODUCT, productKey);
+					}
+				}
+			);
+			final Set<Integer> afterRemoval = identitiesOfEveryIndex();
+			final Set<Integer> removed = new LinkedHashSet<>(before);
+			removed.removeAll(afterRemoval);
+			assertNotEquals(
+				0, removed.size(),
+				"Emptying a reference index left the collection's index set unchanged, so this test is not " +
+					"exercising removal at all and would pass for the wrong reason"
+			);
+
+			// the restart the guarantee has to survive: the sequence is rebuilt from what was persisted, so a header
+			// that forgot how far it had counted would start re-issuing keys the removed indexes once held
+			restart();
+			assertEquals(
+				afterRemoval, identitiesOfEveryIndex(),
+				"The reopened catalog describes a different index set than the one that was closed"
+			);
+
+			// a fresh category with a product referencing it, which is the smallest change that mints a new index
+			IndexBrowseTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, CATEGORY_COUNT + 1));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_PRODUCT, PRODUCT_COUNT + 1)
+							.setAttribute("code", "product-" + (PRODUCT_COUNT + 1))
+							.setReference("categories", CATEGORY_COUNT + 1)
+					);
+				}
+			);
+
+			final Set<Integer> minted = identitiesOfEveryIndex();
+			minted.removeAll(afterRemoval);
+			assertNotEquals(0, minted.size(), "Referencing a fresh category must mint at least one index");
+			for (final Integer identity : minted) {
+				assertFalse(
+					removed.contains(identity),
+					"Index primary key " + identity + " was handed to a new index after belonging to a removed one - " +
+						"a client holding the older row would silently drill into the wrong index"
+				);
+			}
+		}
+
+		/**
+		 * Closes the embedded instance and opens a new one over the same directories, so what follows reads state
+		 * that survived a restart rather than state still held in memory.
+		 *
+		 * A freshly constructed instance installs `UnusableCatalog` placeholders and loads catalogs on a background
+		 * pool, so anything touching the catalog before that finishes legitimately sees `BEING_ACTIVATED` - the wait
+		 * is part of restarting, not a flake being papered over.
+		 */
+		private void restart() {
+			IndexBrowseTest.this.evita.close();
+			IndexBrowseTest.this.evita = new Evita(getEvitaConfiguration());
+			await()
+				.atMost(30, TimeUnit.SECONDS)
+				.pollInterval(50, TimeUnit.MILLISECONDS)
+				.until(
+					() -> !IndexBrowseTest.this.evita.management()
+						.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.IDENTITY))
+						.identity()
+						.unusable()
+				);
+		}
+
+		/**
+		 * Reads the identity of every index the collection holds, through a single unfiltered page.
+		 *
+		 * @return the identities, in map order
+		 */
+		@Nonnull
+		private Set<Integer> identitiesOfEveryIndex() {
+			final IndexBrowseResult result = browse(
+				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
+			);
+			assertEquals(
+				result.totalRecordCount(), result.indexes().length,
+				"The fixture must fit on one page for this comparison to describe the whole index set"
+			);
+			return new LinkedHashSet<>(identitiesOf(result));
+		}
+	}
+
+	@Nested
 	@DisplayName("Ordering")
 	class Ordering {
 
@@ -282,7 +420,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			);
 			final List<Integer> tiedPrimaryKeys = new ArrayList<>(CATEGORY_COUNT);
 			for (final BrowsedIndex index : result.indexes()) {
-				if (index.indexKind() == EntityIndexKind.REFERENCED_ENTITY &&
+				if (index.indexType() == EntityIndexType.REFERENCED_ENTITY &&
 					index.entityCount() == PRODUCTS_PER_CATEGORY) {
 					tiedPrimaryKeys.add(index.discriminatorPrimaryKey());
 				}
@@ -314,7 +452,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final IndexBrowseResult result = browse(
 				new IndexBrowseCriteria(
 					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
-					EnumSet.of(EntityIndexKind.REFERENCED_ENTITY), Set.of(), Set.of()
+					EnumSet.of(EntityIndexType.REFERENCED_ENTITY), Set.of(), Set.of()
 				)
 			);
 			assertEquals(
@@ -323,7 +461,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 					"those"
 			);
 			for (final BrowsedIndex index : result.indexes()) {
-				assertEquals(EntityIndexKind.REFERENCED_ENTITY, index.indexKind());
+				assertEquals(EntityIndexType.REFERENCED_ENTITY, index.indexType());
 			}
 		}
 
@@ -353,7 +491,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final IndexBrowseResult archivedPage = browse(
 				new IndexBrowseCriteria(
 					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
-					EnumSet.noneOf(EntityIndexKind.class), EnumSet.of(Scope.ARCHIVED), Set.of()
+					EnumSet.noneOf(EntityIndexType.class), EnumSet.of(Scope.ARCHIVED), Set.of()
 				)
 			);
 			for (final BrowsedIndex index : archivedPage.indexes()) {
@@ -367,7 +505,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final IndexBrowseResult result = browse(
 				new IndexBrowseCriteria(
 					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
-					EnumSet.noneOf(EntityIndexKind.class), Set.of(), Set.of("categories")
+					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categories")
 				)
 			);
 			assertTrue(result.totalRecordCount() > 0, "The fixture indexes the `categories` reference");
@@ -377,7 +515,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 					"A reference-name filter must not admit an index bound to another reference, or to none"
 				);
 				assertNotEquals(
-					EntityIndexKind.GLOBAL, index.indexKind(),
+					EntityIndexType.GLOBAL, index.indexType(),
 					"A global index is bound to no reference at all and can never satisfy a reference filter"
 				);
 			}
@@ -386,7 +524,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 		@Nonnull
 		private IndexBrowseCriteria criteriaWithScopes(@Nonnull Set<Scope> scopes) {
 			return new IndexBrowseCriteria(
-				1, 1, IndexBrowseOrdering.MAP_ORDER, EnumSet.noneOf(EntityIndexKind.class), scopes, Set.of()
+				1, 1, IndexBrowseOrdering.MAP_ORDER, EnumSet.noneOf(EntityIndexType.class), scopes, Set.of()
 			);
 		}
 	}
@@ -397,15 +535,15 @@ class IndexBrowseTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("The discriminator parts are populated according to the index kind")
-		void shouldPopulateTheDiscriminatorPartsAccordingToTheIndexKind() {
+		void shouldPopulateTheDiscriminatorPartsAccordingToTheIndexType() {
 			final IndexBrowseResult result = browse(
 				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
 			);
 
-			final Set<EntityIndexKind> kindsSeen = EnumSet.noneOf(EntityIndexKind.class);
+			final Set<EntityIndexType> kindsSeen = EnumSet.noneOf(EntityIndexType.class);
 			for (final BrowsedIndex index : result.indexes()) {
-				kindsSeen.add(index.indexKind());
-				switch (index.indexKind()) {
+				kindsSeen.add(index.indexType());
+				switch (index.indexType()) {
 					case GLOBAL -> {
 						assertNull(index.discriminator(), "A global index has no discriminator: " + index);
 						assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
@@ -431,9 +569,9 @@ class IndexBrowseTest implements EvitaTestSupport {
 
 			// without this the loop above would pass vacuously on a fixture that happened to hold only one kind
 			assertTrue(
-				kindsSeen.contains(EntityIndexKind.GLOBAL) &&
-					kindsSeen.contains(EntityIndexKind.REFERENCED_ENTITY_TYPE) &&
-					kindsSeen.contains(EntityIndexKind.REFERENCED_ENTITY),
+				kindsSeen.contains(EntityIndexType.GLOBAL) &&
+					kindsSeen.contains(EntityIndexType.REFERENCED_ENTITY_TYPE) &&
+					kindsSeen.contains(EntityIndexType.REFERENCED_ENTITY),
 				"The fixture must produce all three kinds for this to assert anything, but saw only " + kindsSeen
 			);
 		}
@@ -453,7 +591,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 				() -> browse(
 					new IndexBrowseCriteria(
 						1, 10, IndexBrowseOrdering.MAP_ORDER,
-						EnumSet.noneOf(EntityIndexKind.class), Set.of(), Set.of("categoriez")
+						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categoriez")
 					)
 				)
 			);
@@ -464,7 +602,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 		void shouldRejectAnUnknownCollection() {
 			assertThrows(
 				CollectionNotFoundException.class,
-				() -> IndexBrowseTest.this.evita.management().browseEntityCollectionIndexes(
+				() -> IndexBrowseTest.this.evita.management().browseIndexes(
 					CATALOG, "noSuchCollection", criteria(1, 10, IndexBrowseOrdering.MAP_ORDER)
 				)
 			);
@@ -533,7 +671,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 	private void assertPagingCoversEveryIndexExactlyOnce(@Nonnull IndexBrowseOrdering ordering, int pageSize) {
 		final IndexBrowseResult first = browse(criteria(1, pageSize, ordering));
 		final int total = first.totalRecordCount();
-		final Set<String> seen = new LinkedHashSet<>(total);
+		final Set<Integer> seen = new LinkedHashSet<>(total);
 		int collected = 0;
 
 		final int pageCount = (total + pageSize - 1) / pageSize;
@@ -561,28 +699,28 @@ class IndexBrowseTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Renders an index's identity - the triplet that distinguishes it from every other index of the collection.
+	 * Reads an index's identity - the primary key that distinguishes it from every other index of the collection.
+	 *
+	 * Deliberately not the kind, the scope, the reference name or the target primary key. None of those identifies an
+	 * index on its own or between them, so keying on any of them would let this helper report two genuinely distinct
+	 * indexes as one duplicate - and the paging tests exist precisely to detect duplicates.
 	 *
 	 * @param index the index to identify
-	 * @return a stable textual identity
+	 * @return its identity
 	 */
-	@Nonnull
-	private static String identityOf(@Nonnull BrowsedIndex index) {
-		// deliberately the discriminator rather than the reference name and target primary key: those two are
-		// projections and are not unique between them, so keying on them would let this helper report two genuinely
-		// distinct indexes as one duplicate - and the paging tests below exist precisely to detect duplicates
-		return index.indexKind() + "/" + index.scope() + "/" + index.discriminator();
+	private static int identityOf(@Nonnull BrowsedIndex index) {
+		return index.indexPrimaryKey();
 	}
 
 	/**
-	 * Renders the identities of a whole page, in the order the page returned them.
+	 * Reads the identities of a whole page, in the order the page returned them.
 	 *
 	 * @param result the page to render
 	 * @return the page's identities, order preserved
 	 */
 	@Nonnull
-	private static List<String> identitiesOf(@Nonnull IndexBrowseResult result) {
-		final List<String> identities = new ArrayList<>(result.indexes().length);
+	private static List<Integer> identitiesOf(@Nonnull IndexBrowseResult result) {
+		final List<Integer> identities = new ArrayList<>(result.indexes().length);
 		for (final BrowsedIndex index : result.indexes()) {
 			identities.add(identityOf(index));
 		}
@@ -597,10 +735,104 @@ class IndexBrowseTest implements EvitaTestSupport {
 	 * @param ordering   the order to impose
 	 * @return the criteria
 	 */
+	@Nested
+	@DisplayName("Catalog-level indexes")
+	class CatalogLevelIndexes {
+
+		@Test
+		@DisplayName("Passing no entity type browses the catalog's own indexes through the very same call")
+		void shouldBrowseTheCatalogsOwnIndexesThroughTheSameCall() {
+			final IndexBrowseResult result = browseCatalog();
+
+			// the live catalog index exists from the moment the catalog does, whether or not anything globally unique
+			// has been written into it
+			assertTrue(result.totalRecordCount() >= 1, "A catalog always holds its live index: " + result);
+			for (final BrowsedIndex index : result.indexes()) {
+				assertNull(index.entityType(), "A catalog index belongs to no collection: " + index);
+				assertNull(index.indexType(), "A catalog index has no entity-index kind: " + index);
+				assertNull(index.entityCount(), "A catalog index has no primary-key bitmap: " + index);
+				assertNull(index.referenceName(), "A catalog index is bound to no reference: " + index);
+				assertNotNull(index.scope(), "A catalog index is addressed by its scope: " + index);
+			}
+		}
+
+		@Test
+		@DisplayName("The handle a catalog browse hands out resolves through the very same drill-down")
+		void shouldDrillDownIntoACatalogIndexThroughTheSameCall() {
+			final BrowsedIndex row = browseCatalog().indexes()[0];
+
+			final IndexDetail detail = IndexBrowseTest.this.evita.management()
+				.getIndexDetail(CATALOG, null, row.indexPrimaryKey());
+
+			assertNull(detail.entityType(), "The drill-down echoes the owner back, and there is none");
+			assertEquals(row.indexPrimaryKey(), detail.indexPrimaryKey());
+			assertEquals(row.scope(), detail.cardinality().scope());
+			assertNull(detail.cardinality().indexType());
+			assertNull(detail.cardinality().entityCount());
+			assertTrue(detail.heapSizeInBytes() > 0, "Even an empty index occupies its own object graph");
+		}
+
+		@Test
+		@DisplayName("A collection's handle does not resolve against the catalog")
+		void shouldNotLetOneOwnersHandleResolveAgainstTheOther() {
+			// this is what makes the identity a *pair*: an index primary key is unique within its owner and means
+			// something else - or nothing - under another. A collection's handles run well past the scope count, so
+			// handing one to the catalog must fail rather than quietly describe its live index
+			final int collectionHandle = Arrays.stream(
+					browse(criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)).indexes()
+				)
+				.mapToInt(BrowsedIndex::indexPrimaryKey)
+				.max()
+				.orElseThrow();
+
+			assertThrows(
+				IndexNotFoundException.class,
+				() -> IndexBrowseTest.this.evita.management().getIndexDetail(CATALOG, null, collectionHandle)
+			);
+		}
+
+		@Test
+		@DisplayName("Filters that address a dimension catalog indexes lack select nothing, and are not rejected")
+		void shouldAnswerInapplicableFiltersWithAnEmptyPage() {
+			// a collection browse rejects a reference its schema does not declare; a catalog browse has no entity
+			// schema, and no reference dimension either, so the honest answer is an empty page rather than an error
+			final IndexBrowseResult byReference = IndexBrowseTest.this.evita.management().browseIndexes(
+				CATALOG, null,
+				new IndexBrowseCriteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categories")
+				)
+			);
+			assertEquals(0, byReference.totalRecordCount());
+
+			final IndexBrowseResult byKind = IndexBrowseTest.this.evita.management().browseIndexes(
+				CATALOG, null,
+				new IndexBrowseCriteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					EnumSet.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
+				)
+			);
+			assertEquals(0, byKind.totalRecordCount());
+		}
+
+		/**
+		 * Browses the catalog's own indexes, unfiltered.
+		 *
+		 * @return the resulting page
+		 */
+		@Nonnull
+		private IndexBrowseResult browseCatalog() {
+			return IndexBrowseTest.this.evita.management().browseIndexes(
+				CATALOG, null, criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER)
+			);
+		}
+
+	}
+
 	@Nonnull
 	private static IndexBrowseCriteria criteria(int pageNumber, int pageSize, @Nonnull IndexBrowseOrdering ordering) {
 		return new IndexBrowseCriteria(
-			pageNumber, pageSize, ordering, EnumSet.noneOf(EntityIndexKind.class), Set.of(), Set.of()
+			pageNumber, pageSize, ordering, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 		);
 	}
 
@@ -612,7 +844,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private IndexBrowseResult browse(@Nonnull IndexBrowseCriteria criteria) {
-		return this.evita.management().browseEntityCollectionIndexes(CATALOG, ENTITY_PRODUCT, criteria);
+		return this.evita.management().browseIndexes(CATALOG, ENTITY_PRODUCT, criteria);
 	}
 
 	/**

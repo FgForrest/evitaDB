@@ -32,18 +32,18 @@ package io.evitadb.externalApi.grpc.generated;
  * Response carrying one page of an index browse.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse}
  */
-public final class GrpcEntityCollectionIndexBrowseResponse extends
+public final class GrpcIndexBrowseResponse extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)
-    GrpcEntityCollectionIndexBrowseResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)
+    GrpcIndexBrowseResponseOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcEntityCollectionIndexBrowseResponse.newBuilder() to construct.
-  private GrpcEntityCollectionIndexBrowseResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcIndexBrowseResponse.newBuilder() to construct.
+  private GrpcIndexBrowseResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcEntityCollectionIndexBrowseResponse() {
+  private GrpcIndexBrowseResponse() {
     indexes_ = java.util.Collections.emptyList();
   }
 
@@ -51,20 +51,20 @@ private static final long serialVersionUID = 0L;
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcEntityCollectionIndexBrowseResponse();
+    return new GrpcIndexBrowseResponse();
   }
 
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.Builder.class);
   }
 
   public static final int CATALOGVERSION_FIELD_NUMBER = 1;
@@ -269,10 +269,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse other = (io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse other = (io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse) obj;
 
     if (getCatalogVersion()
         != other.getCatalogVersion()) return false;
@@ -313,44 +313,44 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -358,26 +358,26 @@ private static final long serialVersionUID = 0L;
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -390,7 +390,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -410,26 +410,26 @@ private static final long serialVersionUID = 0L;
    * Response carrying one page of an index browse.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponseOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.newBuilder()
     private Builder() {
 
     }
@@ -460,17 +460,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcEntityCollectionIndexBrowseResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaManagementAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexBrowseResponse_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse build() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -478,15 +478,15 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse(this);
       buildPartialRepeatedFields(result);
       if (bitField0_ != 0) { buildPartial0(result); }
       onBuilt();
       return result;
     }
 
-    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse result) {
+    private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse result) {
       if (indexesBuilder_ == null) {
         if (((bitField0_ & 0x00000010) != 0)) {
           indexes_ = java.util.Collections.unmodifiableList(indexes_);
@@ -498,7 +498,7 @@ private static final long serialVersionUID = 0L;
       }
     }
 
-    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse result) {
+    private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
         result.catalogVersion_ = catalogVersion_;
@@ -548,16 +548,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.getDefaultInstance()) return this;
       if (other.getCatalogVersion() != 0L) {
         setCatalogVersion(other.getCatalogVersion());
       }
@@ -1214,23 +1214,23 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcEntityCollectionIndexBrowseResponse>() {
+  private static final com.google.protobuf.Parser<GrpcIndexBrowseResponse>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcIndexBrowseResponse>() {
     @java.lang.Override
-    public GrpcEntityCollectionIndexBrowseResponse parsePartialFrom(
+    public GrpcIndexBrowseResponse parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -1249,17 +1249,17 @@ private static final long serialVersionUID = 0L;
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcIndexBrowseResponse> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcEntityCollectionIndexBrowseResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcIndexBrowseResponse> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

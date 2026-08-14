@@ -47,7 +47,7 @@ import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.core.expression.trigger.DependencyType;

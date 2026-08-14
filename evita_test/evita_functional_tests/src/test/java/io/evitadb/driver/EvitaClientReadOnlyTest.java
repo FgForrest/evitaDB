@@ -43,8 +43,9 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.ComponentStatus;
 import io.evitadb.api.statistics.DurabilityStatistics;
 import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -2230,12 +2231,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 *
 	 * This is the end-to-end counterpart of `CatalogStatisticsConverterTest`: that one proves the translation is
 	 * lossless in isolation, this one proves the same distinctions survive a real server, a real gRPC call and a real
-	 * driver. The end-to-end proof that a *declined* component arrives as a status rather than as a silently absent
-	 * field now lives in `shouldRetrieveComponentSelectedEntityCollectionStatistics`: delivering `DURABILITY` emptied
-	 * the set of catalog-level components that can still be declined, and `MEMORY_FOOTPRINT` - the only one left with
-	 * no catalog-level form at all - is *rejected* at this level rather than declined, so the request throws instead
-	 * of answering. `INDEX_CARDINALITY` is accepted here, but what it delivers is the catalog index's schema-bounded
-	 * global unique indexes, never the far more expensive per-collection form.
+	 * driver. `INDEX_CARDINALITY` is accepted here, but what it delivers is the catalog index's schema-bounded global
+	 * unique indexes, never the far more expensive per-collection form.
+	 *
+	 * **A *declined* component is no longer proven over the wire anywhere, and that is a knowing loss.** Every
+	 * refusal this engine can produce needs a catalog in a state this dataset's catalog is not in - warming up,
+	 * corrupted, or checkpointing inline - and no collection-level component can be refused at all. Reaching one
+	 * would take a second, differently-configured server or a deliberately corrupted catalog in the driver dataset,
+	 * neither of which belongs to the statistics feature. What is left: `CheapScalarStatisticsTest` proves the engine
+	 * produces a refusal, `CatalogStatisticsConverterTest` proves the converter carries one, and the single function
+	 * joining them is shared by every component's status - so a break there fails broadly rather than hides.
 	 */
 	@Test
 	@DisplayName("retrieve component-selected catalog statistics")
@@ -2357,9 +2362,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 				CatalogStatisticsComponent.STORAGE_COMPOSITION,
 				CatalogStatisticsComponent.COLLECTIONS,
 				CatalogStatisticsComponent.VOLATILE_STATE,
-				CatalogStatisticsComponent.FRAGMENTATION,
-				// requested precisely because no build computes it yet - see the assertion at the end of this method
-				CatalogStatisticsComponent.MEMORY_FOOTPRINT
+				CatalogStatisticsComponent.FRAGMENTATION
 			)
 		);
 
@@ -2370,7 +2373,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final CollectionIndexSummary indexSummary = statistics.indexSummaryIfPresent().orElseThrow();
 		assertTrue(indexSummary.totalIndexCount() > 0);
 		assertTrue(
-			indexSummary.byKindAndScope().length > 0,
+			indexSummary.byTypeAndScope().length > 0,
 			"The kind and scope breakdown is the reason this component exists at the collection level"
 		);
 
@@ -2417,16 +2420,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			"An absent compaction projection must decode back to absent, never to an epoch-zero instant"
 		);
 
-		// requested but this build cannot compute it - the client must be told why, not left guessing. This is the
-		// only end-to-end proof that a component the engine declined arrives as a *status* rather than as a silently
-		// missing field, and it lives at the collection level because no catalog-level component can be declined any
-		// more: `SESSIONS` held the place until it was delivered, then `FRAGMENTATION`, then `DURABILITY`. Whichever
-		// component stands here must still be declined *and* must be legal to request at this level - the expensive
-		// pair is rejected outright at the catalog level, which is a thrown exception rather than a status
-		final ComponentStatus declinedStatus = statistics.statusOf(CatalogStatisticsComponent.MEMORY_FOOTPRINT)
-			.orElseThrow();
-		assertEquals(ComponentAvailability.NOT_SUPPORTED, declinedStatus.availability());
-		assertNotNull(declinedStatus.reason());
+		// every collection-level component either delivers or the whole request fails - there is no way to record a
+		// refusal on a collection response - so what a status map can say here is "asked and answered", nothing else
+		for (final CatalogStatisticsComponent requested : statistics.componentStatus().keySet()) {
+			assertTrue(
+				statistics.isDelivered(requested),
+				"Component `" + requested + "` came back over the wire without having been delivered, which no " +
+					"collection-level component may do"
+			);
+		}
 
 		// never requested - absent, and with no status entry to be mistaken for one
 		assertTrue(statistics.statusOf(CatalogStatisticsComponent.STORAGE_SIZE).isEmpty());
@@ -2443,13 +2445,13 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@DisplayName("browse the indexes of an entity collection")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldBrowseEntityCollectionIndexes(EvitaClient evitaClient) {
-		final IndexBrowseResult firstPage = evitaClient.management().browseEntityCollectionIndexes(
+	void shouldBrowseIndexes(EvitaClient evitaClient) {
+		final IndexBrowseResult firstPage = evitaClient.management().browseIndexes(
 			TEST_CATALOG,
 			Entities.PRODUCT,
 			new IndexBrowseCriteria(
 				1, 5, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
-				EnumSet.noneOf(EntityIndexKind.class), Set.of(), Set.of()
+				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);
 
@@ -2461,14 +2463,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 		int previous = Integer.MAX_VALUE;
 		for (final BrowsedIndex index : firstPage.indexes()) {
-			assertNotNull(index.indexKind());
+			assertNotNull(index.indexType());
 			assertNotNull(index.scope());
+			// the identity a client hands back to drill into one index. A zero is what an unset int32 decodes to, so
+			// it would address nothing rather than fail - the one wire mistake this field can make
+			assertTrue(index.indexPrimaryKey() > 0, "The index identity did not survive the wire: " + index);
 			assertTrue(index.entityCount() >= 0, index.toString());
 			assertTrue(index.entityCount() <= previous, "The requested order did not survive the wire: " + index);
 			previous = index.entityCount();
 			// the presence check the wire format makes easy to get wrong: an index bound to no reference must decode
 			// back to null, never to the empty string an unset `StringValue` yields when read without `hasX()`
-			if (index.indexKind() == EntityIndexKind.GLOBAL) {
+			if (index.indexType() == EntityIndexType.GLOBAL) {
 				assertNull(index.referenceName(), "A global index is bound to no reference: " + index);
 				assertNull(index.discriminatorPrimaryKey(), "A global index has no discriminator: " + index);
 				assertNull(index.discriminator(), "A global index has no siblings to be told apart from: " + index);
@@ -2480,12 +2485,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 
 		// a filter that reaches the server and comes back narrowed, rather than being applied client-side
-		final IndexBrowseResult globalOnly = evitaClient.management().browseEntityCollectionIndexes(
+		final IndexBrowseResult globalOnly = evitaClient.management().browseIndexes(
 			TEST_CATALOG,
 			Entities.PRODUCT,
 			new IndexBrowseCriteria(
 				1, 5, IndexBrowseOrdering.MAP_ORDER,
-				EnumSet.of(EntityIndexKind.GLOBAL), Set.of(), Set.of()
+				EnumSet.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
 			)
 		);
 		assertTrue(globalOnly.totalRecordCount() > 0, "The collection holds at least one global index");
@@ -2494,8 +2499,108 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			"The kind filter must narrow the result; it came back matching everything, so it was dropped on the way"
 		);
 		for (final BrowsedIndex index : globalOnly.indexes()) {
-			assertEquals(EntityIndexKind.GLOBAL, index.indexKind());
+			assertEquals(EntityIndexType.GLOBAL, index.indexType());
 		}
+
+		// the drill-down the browse exists to lead into: the row's identity is handed straight back, and what comes
+		// home must describe that same index. This is the only place a per-referenced-entity index is ever described
+		final BrowsedIndex drilledInto = firstPage.indexes()[0];
+		final IndexDetail detail = evitaClient.management().getIndexDetail(
+			TEST_CATALOG, Entities.PRODUCT, drilledInto.indexPrimaryKey()
+		);
+		assertEquals(drilledInto.indexPrimaryKey(), detail.indexPrimaryKey());
+		assertEquals(drilledInto.indexType(), detail.cardinality().indexType());
+		assertEquals(drilledInto.scope(), detail.cardinality().scope());
+		assertEquals(
+			drilledInto.discriminator(), detail.cardinality().discriminator(),
+			"The two surfaces rendered one index's discriminator differently across the wire"
+		);
+		assertEquals(drilledInto.entityCount(), detail.cardinality().entityCount());
+		assertTrue(
+			detail.heapSizeInBytes() > 0,
+			"A populated index cannot occupy nothing - a zero here is what an unset int64 decodes to"
+		);
+
+		// an index the collection does not hold must fail rather than come back empty, which would be
+		// indistinguishable from an index that weighs nothing.
+		//
+		// Asserted as the base type rather than as `IndexNotFoundException`, and that is the honest remote contract:
+		// the driver rebuilds every business failure as a plain `EvitaInvalidUsageException` carrying the server's
+		// error code, so no concrete subclass survives the wire - `CollectionNotFoundException` and
+		// `CatalogNotFoundException`, declared on the same interface, arrive equally flattened. What has to survive
+		// is the message, since that is all a remote caller has to tell this apart from any other rejection
+		final EvitaInvalidUsageException notFound = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> evitaClient.management().getIndexDetail(
+				TEST_CATALOG, Entities.PRODUCT, Integer.MAX_VALUE
+			)
+		);
+		assertTrue(
+			notFound.getMessage().contains("holds no index with primary key"),
+			"The rejection reason did not survive the wire: " + notFound.getMessage()
+		);
+	}
+
+	/**
+	 * Verifies that passing no entity type reaches the catalog's own indexes through the very same two procedures.
+	 *
+	 * The engine-side behaviour is covered by `IndexBrowseTest`; what only this test can prove is that an *absent*
+	 * entity type survives the wire in the request direction - the driver leaves the wrapper unset and the server has
+	 * to read its presence rather than its value, because an empty string decodes identically and would be looked up
+	 * as a collection of that name. It also proves the three absences a catalog row carries survive in the response
+	 * direction, where an unset wrapper read without a presence check decodes to `""`, `INDEX_TYPE_UNSPECIFIED` and
+	 * `0` - a plausible answer rather than a failure.
+	 */
+	@Test
+	@DisplayName("browse and describe the catalog's own indexes")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldBrowseCatalogIndexes(EvitaClient evitaClient) {
+		final IndexBrowseResult page = evitaClient.management().browseIndexes(
+			TEST_CATALOG,
+			null,
+			new IndexBrowseCriteria(
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+			)
+		);
+
+		// the live catalog index exists from the moment the catalog does, so this can never be an empty page - and an
+		// empty one would be exactly what a server that read the unset entity type as `""` could not produce, since
+		// that would have failed as an unknown collection instead
+		assertTrue(page.totalRecordCount() >= 1, "A catalog always holds its live index: " + page);
+		for (final BrowsedIndex index : page.indexes()) {
+			assertNull(index.entityType(), "A catalog index belongs to no collection: " + index);
+			assertNull(index.indexType(), "An unset kind must not decode to a real enum value: " + index);
+			assertNull(index.entityCount(), "An unset entity count must not decode to zero: " + index);
+			assertNull(index.referenceName(), "A catalog index is bound to no reference: " + index);
+			assertNotNull(index.scope(), "A catalog index is addressed by its scope: " + index);
+		}
+
+		final BrowsedIndex row = page.indexes()[0];
+		final IndexDetail detail = evitaClient.management().getIndexDetail(
+			TEST_CATALOG, null, row.indexPrimaryKey()
+		);
+		assertNull(detail.entityType());
+		assertEquals(row.indexPrimaryKey(), detail.indexPrimaryKey());
+		assertEquals(row.scope(), detail.cardinality().scope());
+		assertNull(detail.cardinality().indexType());
+		assertNull(detail.cardinality().entityCount());
+		assertTrue(
+			detail.heapSizeInBytes() > 0,
+			"Even an empty index occupies its own object graph - a zero is what an unset int64 decodes to"
+		);
+
+		// the identity is the pair, so a handle that addresses no catalog index must fail rather than quietly describe
+		// the live one. Asserted as the base type for the reason `shouldBrowseIndexes` spells out: the driver flattens
+		// every business failure, so `IndexNotFoundException` does not survive the wire
+		final EvitaInvalidUsageException notFound = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> evitaClient.management().getIndexDetail(TEST_CATALOG, null, Integer.MAX_VALUE)
+		);
+		assertTrue(
+			notFound.getMessage().contains("The catalog holds no index with primary key"),
+			"The rejection reason did not survive the wire: " + notFound.getMessage()
+		);
 	}
 
 	/**
@@ -2504,9 +2609,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 *
 	 * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} is requested alongside the cheap counter deliberately: it is
 	 * the component that was weighed hardest before being admitted here, since this call multiplies every listing it
-	 * returns by the number of catalogs. The gate consults only
-	 * {@link CatalogStatisticsComponent#isCatalogLevel()}, so nothing but this assertion distinguishes "allowed and
-	 * answered here" from "allowed and quietly broken here".
+	 * returns by the number of catalogs. Nothing rejects it on the way in - every component is admitted at the catalog
+	 * level - so nothing but this assertion distinguishes "allowed and answered here" from "allowed and quietly broken
+	 * here".
 	 */
 	@Test
 	@DisplayName("retrieve statistics of every catalog at once")
@@ -2532,8 +2637,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
-	 * Verifies that the four ways to ask a malformed statistics question are all refused rather than answered with
-	 * something plausible-looking.
+	 * Verifies that every way to ask a malformed statistics question is refused rather than answered with something
+	 * plausible-looking.
+	 *
+	 * Requesting a component with no catalog-level form used to be one of these cases. Every component defined today
+	 * has one, so the gate that rejects it can no longer be tripped from here - what remains testable is its
+	 * mirror image, a catalog-only component asked of a collection.
 	 *
 	 * Note the expected type: everything the server rejects arrives back as a plain
 	 * {@link EvitaInvalidUsageException}, because the driver reconstructs `INVALID_ARGUMENT` responses from the error
@@ -2546,19 +2655,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	void shouldRejectMalformedStatisticsRequests(EvitaClient evitaClient) {
 		final EvitaManagementContract management = evitaClient.management();
 
-		// a component with no catalog-level form at all
+		// nothing at all, asked of every catalog at once. Worth its own assertion alongside the single-catalog case
+		// below: that call isolates a failing catalog by catching every runtime exception, so without an up-front
+		// check it would report the caller's mistake as "every catalog is unusable" instead of refusing it
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> management.getCatalogStatistics(
-				TEST_CATALOG, EnumSet.of(CatalogStatisticsComponent.MEMORY_FOOTPRINT)
-			)
-		);
-		// the same, asked of every catalog at once. Worth its own assertion: that call isolates a failing catalog by
-		// catching every runtime exception, so without an up-front check it would report the caller's mistake as
-		// "every catalog is unusable" instead of refusing it
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> management.getAllCatalogStatistics(EnumSet.of(CatalogStatisticsComponent.MEMORY_FOOTPRINT))
+			() -> management.getAllCatalogStatistics(EnumSet.noneOf(CatalogStatisticsComponent.class))
 		);
 		// a catalog-only component asked of a collection
 		assertThrows(

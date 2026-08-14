@@ -28,7 +28,7 @@ import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.statistics.ActivityStatistics;
 import io.evitadb.api.statistics.BrowsedIndex;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.DataStoreFragmentation;
@@ -42,11 +42,12 @@ import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionIndexSummary.IndexKindCount;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.api.statistics.CollectionRecordCounts;
 import io.evitadb.api.statistics.CollectionStorageComposition;
 import io.evitadb.api.statistics.CollectionStorageSize;
 import io.evitadb.api.statistics.DataStoreVolatileState;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.CollectionsInfo;
 import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
 import io.evitadb.api.statistics.CommitPipelineStatistics;
@@ -80,11 +81,11 @@ import java.util.Set;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toAttributeIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toComponentAvailability;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toEntityIndexKind;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toEntityIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexKind;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toIndexBrowseOrdering;
@@ -1171,12 +1172,12 @@ public class CatalogStatisticsConverter {
 	) {
 		final GrpcCollectionIndexSummary.Builder builder = GrpcCollectionIndexSummary.newBuilder()
 			.setTotalIndexCount(indexSummary.totalIndexCount());
-		for (final IndexKindCount kindCount : indexSummary.byKindAndScope()) {
-			builder.addByKindAndScope(
-				GrpcIndexKindCount.newBuilder()
-					.setIndexKind(toGrpcEntityIndexKind(kindCount.indexKind()))
-					.setScope(toGrpcScope(kindCount.scope()))
-					.setCount(kindCount.count())
+		for (final IndexTypeCount typeCount : indexSummary.byTypeAndScope()) {
+			builder.addByTypeAndScope(
+				GrpcIndexTypeCount.newBuilder()
+					.setIndexType(toGrpcEntityIndexType(typeCount.indexType()))
+					.setScope(toGrpcScope(typeCount.scope()))
+					.setCount(typeCount.count())
 					.build()
 			);
 		}
@@ -1193,17 +1194,17 @@ public class CatalogStatisticsConverter {
 	private static CollectionIndexSummary toCollectionIndexSummary(
 		@Nonnull GrpcCollectionIndexSummary grpcIndexSummary
 	) {
-		final List<GrpcIndexKindCount> grpcKindCounts = grpcIndexSummary.getByKindAndScopeList();
-		final IndexKindCount[] kindCounts = new IndexKindCount[grpcKindCounts.size()];
-		for (int i = 0; i < kindCounts.length; i++) {
-			final GrpcIndexKindCount grpcKindCount = grpcKindCounts.get(i);
-			kindCounts[i] = new IndexKindCount(
-				toEntityIndexKind(grpcKindCount.getIndexKind()),
+		final List<GrpcIndexTypeCount> grpcKindCounts = grpcIndexSummary.getByTypeAndScopeList();
+		final IndexTypeCount[] typeCounts = new IndexTypeCount[grpcKindCounts.size()];
+		for (int i = 0; i < typeCounts.length; i++) {
+			final GrpcIndexTypeCount grpcKindCount = grpcKindCounts.get(i);
+			typeCounts[i] = new IndexTypeCount(
+				toEntityIndexType(grpcKindCount.getIndexType()),
 				toScope(grpcKindCount.getScope()),
 				grpcKindCount.getCount()
 			);
 		}
-		return new CollectionIndexSummary(grpcIndexSummary.getTotalIndexCount(), kindCounts);
+		return new CollectionIndexSummary(grpcIndexSummary.getTotalIndexCount(), typeCounts);
 	}
 
 	/**
@@ -1268,22 +1269,81 @@ public class CatalogStatisticsConverter {
 		final GrpcCollectionIndexCardinality.Builder builder = GrpcCollectionIndexCardinality.newBuilder()
 			.setOmittedIndexCount(indexCardinality.omittedIndexCount());
 		for (final IndexCardinality index : indexCardinality.indexes()) {
-			final GrpcIndexCardinality.Builder indexBuilder = GrpcIndexCardinality.newBuilder()
-				.setIndexKind(toGrpcEntityIndexKind(index.indexKind()))
-				.setScope(toGrpcScope(index.scope()))
-				.setEntityCount(index.entityCount());
-			if (index.discriminator() != null) {
-				indexBuilder.setDiscriminator(StringValue.of(index.discriminator()));
-			}
-			if (index.referencedEntityCount() != null) {
-				indexBuilder.setReferencedEntityCount(Int32Value.of(index.referencedEntityCount()));
-			}
-			for (final AttributeCardinality attribute : index.attributes()) {
-				indexBuilder.addAttributes(toGrpcAttributeCardinality(attribute));
-			}
-			builder.addIndexes(indexBuilder.build());
+			builder.addIndexes(toGrpcIndexCardinality(index));
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Converts the cardinality readings of one index to their gRPC form.
+	 *
+	 * Shared by the collection-level component and by the single-index detail, so a client reading the same index
+	 * through either route is told the same thing in the same shape.
+	 *
+	 * @param index the readings to convert
+	 * @return their gRPC form, with the discriminator left unset for the global index and the reference cardinality
+	 * left unset for an index that tracks no references
+	 */
+	@Nonnull
+	public static GrpcIndexCardinality toGrpcIndexCardinality(@Nonnull IndexCardinality index) {
+		final GrpcIndexCardinality.Builder indexBuilder = GrpcIndexCardinality.newBuilder()
+			.setScope(toGrpcScope(index.scope()));
+		// left unset rather than defaulted for a catalog index, which has neither a kind nor a primary-key bitmap -
+		// `INDEX_TYPE_UNSPECIFIED` and `0` are the readings of a default-constructed message, not of such an index
+		if (index.indexType() != null) {
+			indexBuilder.setIndexType(toGrpcEntityIndexType(index.indexType()));
+		}
+		if (index.entityCount() != null) {
+			indexBuilder.setEntityCount(Int32Value.of(index.entityCount()));
+		}
+		if (index.discriminator() != null) {
+			indexBuilder.setDiscriminator(StringValue.of(index.discriminator()));
+		}
+		if (index.referencedEntityCount() != null) {
+			indexBuilder.setReferencedEntityCount(Int32Value.of(index.referencedEntityCount()));
+		}
+		for (final AttributeCardinality attribute : index.attributes()) {
+			indexBuilder.addAttributes(toGrpcAttributeCardinality(attribute));
+		}
+		return indexBuilder.build();
+	}
+
+	/**
+	 * Converts the full description of one index to its gRPC form.
+	 *
+	 * @param detail the description to convert
+	 * @return its gRPC form, with the entity type left unset for an index the catalog holds itself
+	 */
+	@Nonnull
+	public static GrpcIndexDetail toGrpcIndexDetail(
+		@Nonnull IndexDetail detail
+	) {
+		final GrpcIndexDetail.Builder builder = GrpcIndexDetail.newBuilder()
+			.setIndexPrimaryKey(detail.indexPrimaryKey())
+			.setHeapSizeInBytes(detail.heapSizeInBytes())
+			.setCardinality(toGrpcIndexCardinality(detail.cardinality()));
+		if (detail.entityType() != null) {
+			builder.setEntityType(StringValue.of(detail.entityType()));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads the full description of one index back from the wire.
+	 *
+	 * @param grpcDetail the received description
+	 * @return its Java form, with every unset optional field left null
+	 */
+	@Nonnull
+	public static IndexDetail toIndexDetail(
+		@Nonnull GrpcIndexDetail grpcDetail
+	) {
+		return new IndexDetail(
+			grpcDetail.hasEntityType() ? grpcDetail.getEntityType().getValue() : null,
+			grpcDetail.getIndexPrimaryKey(),
+			grpcDetail.getHeapSizeInBytes(),
+			toIndexCardinality(grpcDetail.getCardinality())
+		);
 	}
 
 	/**
@@ -1322,22 +1382,32 @@ public class CatalogStatisticsConverter {
 		final List<GrpcIndexCardinality> grpcIndexes = grpcIndexCardinality.getIndexesList();
 		final IndexCardinality[] indexes = new IndexCardinality[grpcIndexes.size()];
 		for (int i = 0; i < indexes.length; i++) {
-			final GrpcIndexCardinality grpcIndex = grpcIndexes.get(i);
-			final List<GrpcAttributeCardinality> grpcAttributes = grpcIndex.getAttributesList();
-			final AttributeCardinality[] attributes = new AttributeCardinality[grpcAttributes.size()];
-			for (int j = 0; j < attributes.length; j++) {
-				attributes[j] = toAttributeCardinality(grpcAttributes.get(j));
-			}
-			indexes[i] = new IndexCardinality(
-				toEntityIndexKind(grpcIndex.getIndexKind()),
-				toScope(grpcIndex.getScope()),
-				grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
-				grpcIndex.getEntityCount(),
-				grpcIndex.hasReferencedEntityCount() ? grpcIndex.getReferencedEntityCount().getValue() : null,
-				attributes
-			);
+			indexes[i] = toIndexCardinality(grpcIndexes.get(i));
 		}
 		return new CollectionIndexCardinality(indexes, grpcIndexCardinality.getOmittedIndexCount());
+	}
+
+	/**
+	 * Reads the cardinality readings of one index back from the wire.
+	 *
+	 * @param grpcIndex the received readings
+	 * @return their Java form, with every unset optional field left null
+	 */
+	@Nonnull
+	public static IndexCardinality toIndexCardinality(@Nonnull GrpcIndexCardinality grpcIndex) {
+		final List<GrpcAttributeCardinality> grpcAttributes = grpcIndex.getAttributesList();
+		final AttributeCardinality[] attributes = new AttributeCardinality[grpcAttributes.size()];
+		for (int j = 0; j < attributes.length; j++) {
+			attributes[j] = toAttributeCardinality(grpcAttributes.get(j));
+		}
+		return new IndexCardinality(
+			grpcIndex.hasIndexType() ? toEntityIndexType(grpcIndex.getIndexType()) : null,
+			toScope(grpcIndex.getScope()),
+			grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
+			grpcIndex.hasEntityCount() ? grpcIndex.getEntityCount().getValue() : null,
+			grpcIndex.hasReferencedEntityCount() ? grpcIndex.getReferencedEntityCount().getValue() : null,
+			attributes
+		);
 	}
 
 	/**
@@ -1403,15 +1473,26 @@ public class CatalogStatisticsConverter {
 	 * Converts one browsed index descriptor to its gRPC form.
 	 *
 	 * @param index the descriptor to convert
-	 * @return its gRPC form, with the reference name left unset for a global index and the discriminator primary key
-	 * left unset for an index covering a whole reference type
+	 * @return its gRPC form, with the reference name left unset for a global index, the discriminator primary key
+	 * left unset for an index covering a whole reference type, and the entity type, kind and entity count all left
+	 * unset for an index the catalog holds itself
 	 */
 	@Nonnull
 	public static GrpcBrowsedIndex toGrpcBrowsedIndex(@Nonnull BrowsedIndex index) {
 		final GrpcBrowsedIndex.Builder builder = GrpcBrowsedIndex.newBuilder()
-			.setIndexKind(toGrpcEntityIndexKind(index.indexKind()))
-			.setScope(toGrpcScope(index.scope()))
-			.setEntityCount(index.entityCount());
+			.setIndexPrimaryKey(index.indexPrimaryKey())
+			.setScope(toGrpcScope(index.scope()));
+		if (index.entityType() != null) {
+			builder.setEntityType(StringValue.of(index.entityType()));
+		}
+		// see `toGrpcIndexCardinality` - a catalog index leaves both unset rather than carrying a default that would be
+		// indistinguishable from one
+		if (index.indexType() != null) {
+			builder.setIndexType(toGrpcEntityIndexType(index.indexType()));
+		}
+		if (index.entityCount() != null) {
+			builder.setEntityCount(Int32Value.of(index.entityCount()));
+		}
 		if (index.discriminator() != null) {
 			builder.setDiscriminator(StringValue.of(index.discriminator()));
 		}
@@ -1433,12 +1514,14 @@ public class CatalogStatisticsConverter {
 	@Nonnull
 	public static BrowsedIndex toBrowsedIndex(@Nonnull GrpcBrowsedIndex grpcIndex) {
 		return new BrowsedIndex(
-			toEntityIndexKind(grpcIndex.getIndexKind()),
+			grpcIndex.hasEntityType() ? grpcIndex.getEntityType().getValue() : null,
+			grpcIndex.getIndexPrimaryKey(),
+			grpcIndex.hasIndexType() ? toEntityIndexType(grpcIndex.getIndexType()) : null,
 			toScope(grpcIndex.getScope()),
 			grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
 			grpcIndex.hasReferenceName() ? grpcIndex.getReferenceName().getValue() : null,
 			grpcIndex.hasDiscriminatorPrimaryKey() ? grpcIndex.getDiscriminatorPrimaryKey().getValue() : null,
-			grpcIndex.getEntityCount()
+			grpcIndex.hasEntityCount() ? grpcIndex.getEntityCount().getValue() : null
 		);
 	}
 
@@ -1450,7 +1533,7 @@ public class CatalogStatisticsConverter {
 	 */
 	@Nonnull
 	public static IndexBrowseResult toIndexBrowseResult(
-		@Nonnull GrpcEntityCollectionIndexBrowseResponse grpcResponse
+		@Nonnull GrpcIndexBrowseResponse grpcResponse
 	) {
 		final List<GrpcBrowsedIndex> grpcIndexes = grpcResponse.getIndexesList();
 		final BrowsedIndex[] indexes = new BrowsedIndex[grpcIndexes.size()];
@@ -1469,30 +1552,35 @@ public class CatalogStatisticsConverter {
 	/**
 	 * Converts an index browse request to its gRPC form.
 	 *
-	 * @param catalogName name of the catalog holding the collection
-	 * @param entityType  name of the entity collection whose indexes to browse
+	 * @param catalogName name of the catalog holding the indexes
+	 * @param entityType  name of the entity collection whose indexes to browse, or null to browse the indexes the
+	 *                    catalog holds itself
 	 * @param criteria    the selection, ordering and paging to send
 	 * @return the request as it goes on the wire
 	 */
 	@Nonnull
-	public static GrpcEntityCollectionIndexBrowseRequest toGrpcIndexBrowseRequest(
+	public static GrpcIndexBrowseRequest toGrpcIndexBrowseRequest(
 		@Nonnull String catalogName,
-		@Nonnull String entityType,
+		@Nullable String entityType,
 		@Nonnull IndexBrowseCriteria criteria
 	) {
-		final GrpcEntityCollectionIndexBrowseRequest.Builder builder =
-			GrpcEntityCollectionIndexBrowseRequest.newBuilder()
+		final GrpcIndexBrowseRequest.Builder builder =
+			GrpcIndexBrowseRequest.newBuilder()
 				.setCatalogName(catalogName)
-				.setEntityType(entityType)
 				.setPageNumber(criteria.pageNumber())
 				.setPageSize(criteria.pageSize())
 				.setOrdering(toGrpcIndexBrowseOrdering(criteria.ordering()))
 				.addAllReferenceNames(criteria.referenceNames());
-		for (final EntityIndexKind indexKind : criteria.indexKinds()) {
-			builder.addIndexKinds(toGrpcEntityIndexKind(indexKind));
+		for (final EntityIndexType indexType : criteria.indexTypes()) {
+			builder.addIndexTypes(toGrpcEntityIndexType(indexType));
 		}
 		for (final Scope scope : criteria.scopes()) {
 			builder.addScopes(toGrpcScope(scope));
+		}
+		// unset selects the catalog's own indexes; an empty string would be a collection name that cannot exist, which
+		// is why absence is carried by a wrapper rather than by a sentinel value
+		if (entityType != null) {
+			builder.setEntityType(StringValue.of(entityType));
 		}
 		return builder.build();
 	}
@@ -1509,11 +1597,11 @@ public class CatalogStatisticsConverter {
 	 */
 	@Nonnull
 	public static IndexBrowseCriteria toIndexBrowseCriteria(
-		@Nonnull GrpcEntityCollectionIndexBrowseRequest grpcRequest
+		@Nonnull GrpcIndexBrowseRequest grpcRequest
 	) {
-		final Set<EntityIndexKind> indexKinds = EnumSet.noneOf(EntityIndexKind.class);
-		for (final GrpcEntityIndexKind grpcIndexKind : grpcRequest.getIndexKindsList()) {
-			indexKinds.add(toEntityIndexKind(grpcIndexKind));
+		final Set<EntityIndexType> indexTypes = EnumSet.noneOf(EntityIndexType.class);
+		for (final GrpcEntityIndexType grpcIndexType : grpcRequest.getIndexTypesList()) {
+			indexTypes.add(toEntityIndexType(grpcIndexType));
 		}
 		final Set<Scope> scopes = EnumSet.noneOf(Scope.class);
 		for (final GrpcEntityScope grpcScope : grpcRequest.getScopesList()) {
@@ -1523,7 +1611,7 @@ public class CatalogStatisticsConverter {
 			grpcRequest.getPageNumber(),
 			grpcRequest.getPageSize(),
 			toIndexBrowseOrdering(grpcRequest.getOrdering()),
-			indexKinds,
+			indexTypes,
 			scopes,
 			new HashSet<>(grpcRequest.getReferenceNamesList())
 		);

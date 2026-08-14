@@ -27,28 +27,28 @@
 // Protobuf Java Version: 3.25.8
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcIndexKindCountOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount)
+public interface GrpcIndexTypeCountOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * Kind of the counted indexes.
+   * Type of the counted indexes.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The enum numeric value on the wire for indexKind.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The enum numeric value on the wire for indexType.
    */
-  int getIndexKindValue();
+  int getIndexTypeValue();
   /**
    * <pre>
-   * Kind of the counted indexes.
+   * Type of the counted indexes.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKind = 1;</code>
-   * @return The indexKind.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexType = 1;</code>
+   * @return The indexType.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKind();
+  io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexType();
 
   /**
    * <pre>

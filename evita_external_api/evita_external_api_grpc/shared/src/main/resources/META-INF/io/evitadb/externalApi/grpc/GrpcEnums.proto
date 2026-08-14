@@ -961,19 +961,18 @@ enum GrpcCatalogStatisticsComponent {
   // Distinct values and records covered per index. Expensive - never part of a polled refresh. Collection level only,
   // because a catalog-wide form would mean paying that cost for every collection of the catalog at once.
   COMPONENT_INDEX_CARDINALITY = 13;
-  // Best-effort heap estimates per collection and index. Collection level only, for the same reason as
-  // `COMPONENT_INDEX_CARDINALITY`.
-  //
-  // NOT DELIVERED by any build, and the obstacle is structural rather than unfinished work - requesting it returns
-  // `AVAILABILITY_NOT_SUPPORTED` with that reason. An index's storage is not one record: the entity-id bitmaps live
-  // in its own storage part, while its attribute, price, facet and histogram sub-indexes are separate parts under
-  // independent keys, and nothing maps an index back to the parts it owns outside the flush path. A figure covering
-  // only the part that is cheap to measure would omit exactly what this component is opened to find, so none is
-  // reported rather than one that is wrong in an unknown direction.
-  COMPONENT_MEMORY_FOOTPRINT = 14;
   // Pending (not yet flushed) state, and the in-memory history retained for sessions that started long ago.
   // Available at both levels.
   COMPONENT_VOLATILE_STATE = 15;
+
+  // 14 held `COMPONENT_MEMORY_FOOTPRINT`, a component that reported a per-index heap estimate. It never shipped in a
+  // release and was withdrawn before one: a heap measurement is per *index* rather than per collection, so it is
+  // reached through `GetIndexDetail` - which names one index and measures only that - instead of
+  // through a component that would have had to measure every index of a collection to answer. Kept reserved rather
+  // than reused so a client built against a pre-release proto is answered with an unrecognized-value error rather
+  // than being quietly given a different component.
+  reserved 14;
+  reserved "COMPONENT_MEMORY_FOOTPRINT";
 
 }
 
@@ -993,29 +992,36 @@ enum GrpcComponentAvailability {
   // The component depends on an engine feature switched off in the current configuration, for example time-travel
   // history when write-ahead log retention is disabled. A configuration change makes it available.
   AVAILABILITY_FEATURE_DISABLED = 3;
-  // This server build cannot compute the component at all. Distinct from `AVAILABILITY_FEATURE_DISABLED`: no
-  // configuration change makes it available.
-  AVAILABILITY_NOT_SUPPORTED = 4;
+
+  // 4 held `AVAILABILITY_NOT_SUPPORTED`, for a component this server build cannot compute at all. It never shipped in
+  // a release and no component ever produced it - every component of this build either answers or is unavailable for
+  // one of the two reasons above. It was dropped rather than kept for a hypothetical future producer because adding
+  // an enum value is the wire-compatible direction: the day a component genuinely cannot be computed, the value comes
+  // back without breaking any client, whereas keeping it forces every client to branch on an outcome no server sends.
+  // Kept reserved rather than reused so a client built against a pre-release proto is answered with an
+  // unrecognized-value error rather than being quietly given a different availability.
+  reserved 4;
+  reserved "AVAILABILITY_NOT_SUPPORTED";
 
 }
 
-// Kind of entity index, as reported by the per-collection index summary. Deliberately not a one-to-one mirror of the
-// engine's internal index types: the engine's legacy `REFERENCED_HIERARCHY_NODE` was merged into
-// `INDEX_KIND_REFERENCED_ENTITY` because it held the same data, and its counts are reported under that kind.
-enum GrpcEntityIndexKind {
+// Type of entity index, as reported by the per-collection index summary and by an index browse. This is the engine's
+// own index type vocabulary rather than a mirror of it, so the values cannot drift apart. A catalog index has no value
+// here: the engine addresses those by scope alone because there is exactly one kind of them.
+enum GrpcEntityIndexType {
 
-  // Default value, never sent by the server. Every reported index count carries an explicit kind.
-  INDEX_KIND_UNSPECIFIED = 0;
+  // Default value, never sent by the server. Every reported index carries an explicit type.
+  INDEX_TYPE_UNSPECIFIED = 0;
   // Index covering all entities of the collection.
-  INDEX_KIND_GLOBAL = 1;
+  INDEX_TYPE_GLOBAL = 1;
   // Index covering entities that reference any entity of a particular referenced entity type.
-  INDEX_KIND_REFERENCED_ENTITY_TYPE = 2;
+  INDEX_TYPE_REFERENCED_ENTITY_TYPE = 2;
   // Index covering entities that reference one particular referenced entity.
-  INDEX_KIND_REFERENCED_ENTITY = 3;
+  INDEX_TYPE_REFERENCED_ENTITY = 3;
   // Index covering entities that reference any entity belonging to a particular group entity type.
-  INDEX_KIND_REFERENCED_GROUP_ENTITY_TYPE = 4;
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;
   // Index covering entities that reference one particular group entity.
-  INDEX_KIND_REFERENCED_GROUP_ENTITY = 5;
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;
 
 }
 

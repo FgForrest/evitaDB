@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.attribute.OwnerSortIndex;

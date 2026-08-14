@@ -44,7 +44,7 @@ import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Answers one question: **what does `MEMORY_FOOTPRINT` cost on a realistically large index?**
+ * Answers one question: **what does a heap measurement cost on a realistically large index?**
  *
  * `TransactionalBucketBPlusTree#getHeapSizeInBytes` is the first figure in the statistics work that is not `O(1)`.
  * Every other component reads a counter; this one walks the tree, so its cost is `O(entries / blockSize)` — every
@@ -81,7 +81,7 @@ import java.util.concurrent.TimeUnit;
 public class BucketBPlusTreeHeapSizeBenchmark {
 
 	/**
-	 * The full tree walk — what an operator asking for `MEMORY_FOOTPRINT` would pay.
+	 * The full tree walk — what an operator asking for one index's detail would pay.
 	 *
 	 * @param state     the pre-built tree
 	 * @param blackhole consumes the result so the walk cannot be optimized away

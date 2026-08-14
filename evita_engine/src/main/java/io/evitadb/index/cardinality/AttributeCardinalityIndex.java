@@ -213,7 +213,7 @@ public class AttributeCardinalityIndex
 	 *
 	 * {@link #valueType} addresses a {@link Class}, which the JVM owns for the lifetime of its class loader.
 	 *
-	 * Walking the map is `O(entries)` rather than `O(1)`, so this belongs to `MEMORY_FOOTPRINT` and must never be
+	 * Walking the map is `O(entries)` rather than `O(1)`, so this belongs to the index detail call and must never be
 	 * called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

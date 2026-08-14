@@ -190,7 +190,7 @@ rather than the entity's PK. The stack is always popped in a `finally` block.
 
 ### Index Taxonomy Recap
 
-References are maintained across six `EntityIndexType` variants (see
+References are maintained across five `EntityIndexType` variants (see
 [index-hierarchy.md](index-hierarchy.md#entityindexkey) for details):
 
 | Index Type                     | Discriminator                | Java Class                  |

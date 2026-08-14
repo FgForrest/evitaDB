@@ -42,6 +42,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -442,6 +443,38 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			return this.mapDelegate.entrySet();
 		} else {
 			return new TransactionalMemoryEntrySet<>(layer, this);
+		}
+	}
+
+	/**
+	 * Walks every entry of the map, handing each to `action`.
+	 *
+	 * **Overridden to stay allocation-free outside a transaction**, which the {@link Map} default is not. That default
+	 * iterates {@link #entrySet()}, and a {@link java.util.HashMap} allocates its `keySet` / `values` / `entrySet` view
+	 * on first request and then **caches it in the map** - so every accessor a flush path happens to reach a map
+	 * through parks one more permanent object on that map, for the lifetime of the index holding it. Sixteen bytes is
+	 * nothing until it is multiplied by the half-million indexes a large catalog carries. Delegating straight to the
+	 * backing map's own `forEach`, which walks its table, allocates nothing and reaches exactly the same entries in
+	 * exactly the same order.
+	 *
+	 * Inside a transaction the diff layer is the source of truth and there is no such walk to delegate to, so the
+	 * transactional entry set is iterated exactly as the default would - a view built fresh per call and owned by
+	 * nobody. That branch is equivalent to enumerating this map any other way, and not merely similar:
+	 * {@link TransactionalMemoryKeySet} and {@link TransactionalMemoryValues} both build a
+	 * {@link TransactionalMemoryEntrySet} iterator internally and project one side out of it, so all three
+	 * enumerations are the same walk over the same {@link MapChanges}.
+	 *
+	 * @param action invoked once per entry with its key and value
+	 */
+	@Override
+	public void forEach(@Nonnull BiConsumer<? super K, ? super V> action) {
+		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			this.mapDelegate.forEach(action);
+		} else {
+			for (final Entry<K, V> entry : new TransactionalMemoryEntrySet<>(layer, this)) {
+				action.accept(entry.getKey(), entry.getValue());
+			}
 		}
 	}
 

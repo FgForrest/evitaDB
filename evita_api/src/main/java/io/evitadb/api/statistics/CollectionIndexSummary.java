@@ -23,6 +23,7 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -43,13 +44,13 @@ import java.util.Arrays;
  * and lives in a separate component ({@link CatalogStatisticsComponent#INDEX_CARDINALITY}).
  *
  * @param totalIndexCount total number of indexes in this collection
- * @param byKindAndScope  one entry per (kind, scope) pair that has at least one index; pairs with no index are omitted
+ * @param byTypeAndScope  one entry per (kind, scope) pair that has at least one index; pairs with no index are omitted
  *                        rather than reported as zero
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record CollectionIndexSummary(
 	int totalIndexCount,
-	@Nonnull IndexKindCount[] byKindAndScope
+	@Nonnull IndexTypeCount[] byTypeAndScope
 ) {
 
 	@Override
@@ -58,30 +59,30 @@ public record CollectionIndexSummary(
 		if (o == null || getClass() != o.getClass()) return false;
 		final CollectionIndexSummary that = (CollectionIndexSummary) o;
 		return this.totalIndexCount == that.totalIndexCount &&
-			Arrays.equals(this.byKindAndScope, that.byKindAndScope);
+			Arrays.equals(this.byTypeAndScope, that.byTypeAndScope);
 	}
 
 	@Override
 	public int hashCode() {
-		return 31 * this.totalIndexCount + Arrays.hashCode(this.byKindAndScope);
+		return 31 * this.totalIndexCount + Arrays.hashCode(this.byTypeAndScope);
 	}
 
 	@Nonnull
 	@Override
 	public String toString() {
 		return "CollectionIndexSummary{totalIndexCount=" + this.totalIndexCount +
-			", byKindAndScope=" + Arrays.toString(this.byKindAndScope) + '}';
+			", byTypeAndScope=" + Arrays.toString(this.byTypeAndScope) + '}';
 	}
 
 	/**
 	 * Number of indexes of one kind within one scope.
 	 *
-	 * @param indexKind kind of the index
+	 * @param indexType kind of the index
 	 * @param scope     scope the indexes belong to
 	 * @param count     how many such indexes exist
 	 */
-	public record IndexKindCount(
-		@Nonnull EntityIndexKind indexKind,
+	public record IndexTypeCount(
+		@Nonnull EntityIndexType indexType,
 		@Nonnull Scope scope,
 		int count
 	) {

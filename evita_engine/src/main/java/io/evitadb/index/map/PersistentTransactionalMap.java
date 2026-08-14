@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
@@ -391,6 +392,29 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		return layer == null ?
 			this.state.entrySet() :
 			new TransactionalMemoryEntrySet<>(layer, this);
+	}
+
+	/**
+	 * Walks every entry of the map, handing each to `action`.
+	 *
+	 * **Overridden to stay allocation-free outside a transaction**, which the {@link Map} default is not - see
+	 * {@link TransactionalMap#forEach} for why an accessor a flush path reaches a map through costs sixteen retained
+	 * bytes per index rather than nothing. The gain applies while the state is a thawed {@link HashMap}, which is what
+	 * a cold-loaded catalog holds; a sealed {@link ChampMap} builds a throwaway entry-set view either way, and that
+	 * one is garbage rather than a permanent tenant of the map.
+	 *
+	 * @param action invoked once per entry with its key and value
+	 */
+	@Override
+	public void forEach(@Nonnull BiConsumer<? super K, ? super V> action) {
+		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			this.state.forEach(action);
+		} else {
+			for (final Entry<K, V> entry : new TransactionalMemoryEntrySet<>(layer, this)) {
+				action.accept(entry.getKey(), entry.getValue());
+			}
+		}
 	}
 
 	/* ===========================================================================================

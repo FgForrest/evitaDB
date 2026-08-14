@@ -25,7 +25,7 @@ package io.evitadb.core.collection;
 
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;

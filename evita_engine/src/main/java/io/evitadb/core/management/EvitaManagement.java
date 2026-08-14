@@ -31,6 +31,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
@@ -41,6 +42,7 @@ import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.ServerTask;
@@ -460,7 +462,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		// validated once, up front, because the per-catalog isolation below deliberately swallows every runtime
 		// exception - without this, a malformed request would come back as "every catalog is unusable" instead of as
 		// the caller's error it is
-		CatalogStatisticsComponent.assertCatalogLevel(components);
+		CatalogStatisticsComponent.assertNotEmpty(components);
 		final Collection<CatalogContract> catalogs = this.evita.getCatalogs();
 		final List<CatalogStatistics> statistics = new ArrayList<>(catalogs.size());
 		for (final CatalogContract catalog : catalogs) {
@@ -485,14 +487,30 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 
 	@Nonnull
 	@Override
-	public IndexBrowseResult browseEntityCollectionIndexes(
+	public IndexBrowseResult browseIndexes(
 		@Nonnull String catalogName,
-		@Nonnull String entityType,
+		@Nullable String entityType,
 		@Nonnull IndexBrowseCriteria criteria
 	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException {
-		return this.evita.getCatalogInstanceOrThrowException(catalogName)
-			.getCollectionForEntityOrThrowException(entityType)
-			.browseIndexes(criteria);
+		// the owner is the only thing the entity type selects - both branches answer with the same rows, under the same
+		// criteria, so the dispatch ends here rather than propagating into two parallel surfaces
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		return entityType == null ?
+			catalog.browseIndexes(criteria) :
+			catalog.getCollectionForEntityOrThrowException(entityType).browseIndexes(criteria);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail getIndexDetail(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		int indexPrimaryKey
+	) throws CatalogNotFoundException, CollectionNotFoundException, IndexNotFoundException {
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		return entityType == null ?
+			catalog.describeIndex(indexPrimaryKey) :
+			catalog.getCollectionForEntityOrThrowException(entityType).describeIndex(indexPrimaryKey);
 	}
 
 	@Override

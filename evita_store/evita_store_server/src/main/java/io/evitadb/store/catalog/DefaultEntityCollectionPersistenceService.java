@@ -58,7 +58,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -928,8 +928,10 @@ public class DefaultEntityCollectionPersistenceService
 	/**
 	 * Picks the read-side reload plan for the given {@link EntityIndexType}: `GLOBAL` resolves
 	 * to `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
-	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` (plus
-	 * `REFERENCED_HIERARCHY_NODE`, which lacks a dedicated subclass) to `ReducedEntityIndex`.
+	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` to
+	 * `ReducedEntityIndex`. A manifest written before 2024.12 under the retired
+	 * `REFERENCED_HIERARCHY_NODE` type arrives here already folded into `REFERENCED_ENTITY` by
+	 * `EntityIndexTypeSerializer`, which is the subclass it had always been reloaded as.
 	 *
 	 * @param type the `EntityIndexType` of the manifest being reloaded
 	 * @return the immutable reload plan for the matching subclass
@@ -941,7 +943,7 @@ public class DefaultEntityCollectionPersistenceService
 			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE ->
 				ReferencedTypeEntityIndex.reloadPlan();
 			case REFERENCED_GROUP_ENTITY -> ReducedGroupEntityIndex.reloadPlan();
-			case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> ReducedEntityIndex.reloadPlan();
+			case REFERENCED_ENTITY -> ReducedEntityIndex.reloadPlan();
 		};
 	}
 

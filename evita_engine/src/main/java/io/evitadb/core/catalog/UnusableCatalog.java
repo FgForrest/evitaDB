@@ -29,6 +29,9 @@ import io.evitadb.api.statistics.CatalogIdentity;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -283,7 +286,7 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
-		CatalogStatisticsComponent.assertCatalogLevel(components);
+		CatalogStatisticsComponent.assertNotEmpty(components);
 		final CatalogStatistics.Builder builder = CatalogStatistics.builder(
 			new CatalogIdentity(
 				null,
@@ -339,6 +342,22 @@ public final class UnusableCatalog implements CatalogContract {
 		return StorageSizeProjection.toStorageSizeStatistics(
 			CatalogStorageFootprint.measure(this.catalogName, this.catalogStoragePath, null)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		// no empty page here, where `getStatistics` answers per component with `CATALOG_UNUSABLE`: that response has a
+		// slot to carry the reason in, and a browse result has none - an empty page would read as "this catalog holds no
+		// indexes", which is precisely the reading an operator must not be given about a catalog that would not load
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) {
+		// not `IndexNotFoundException`, which would claim the catalog was read and found to hold no such index
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
 	@Override

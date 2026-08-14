@@ -102,9 +102,14 @@ public interface GrpcGlobalUniqueIndexCardinalityOrBuilder extends
 
   /**
    * <pre>
-   * How many distinct values the index holds - equivalently, how many records it covers, since a globally-unique
-   * value identifies exactly one record. Only one of the two is reported because their ratio is fixed at 1 by
-   * construction.
+   * How many distinct values the index holds (values).
+   *
+   * Distinct values, not covered records. The two agree for an ordinary globally-unique attribute, where one value
+   * belongs to one record, and diverge for one that is localized as well: that has a single locale-less key covering
+   * every locale, so one record can own several values in it. Only this reading is carried here, because it is the
+   * one an O(1) counter answers; the covered-record count is reported next to it, as
+   * `GrpcAttributeCardinality.recordsCovered`, by `GetIndexDetail` - which reaches one catalog index rather than all
+   * of them.
    * </pre>
    *
    * <code>int32 distinctValueCount = 4;</code>

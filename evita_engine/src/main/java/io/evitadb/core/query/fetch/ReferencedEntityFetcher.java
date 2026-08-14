@@ -109,7 +109,7 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;

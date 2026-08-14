@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;

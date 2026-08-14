@@ -23,6 +23,7 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -43,10 +44,10 @@ import java.util.OptionalInt;
  *
  * **Only the schema-bounded indexes are described, and that is the whole design**
  *
- * A collection holds one {@link EntityIndexKind#GLOBAL} index per scope, one
- * {@link EntityIndexKind#REFERENCED_ENTITY_TYPE} / {@link EntityIndexKind#REFERENCED_GROUP_ENTITY_TYPE} index per
- * reference schema per scope - and one {@link EntityIndexKind#REFERENCED_ENTITY} /
- * {@link EntityIndexKind#REFERENCED_GROUP_ENTITY} index per *referenced entity*, of which there can be tens of
+ * A collection holds one {@link EntityIndexType#GLOBAL} index per scope, one
+ * {@link EntityIndexType#REFERENCED_ENTITY_TYPE} / {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} index per
+ * reference schema per scope - and one {@link EntityIndexType#REFERENCED_ENTITY} /
+ * {@link EntityIndexType#REFERENCED_GROUP_ENTITY} index per *referenced entity*, of which there can be tens of
  * thousands. The first group is bounded by the schema; the second grows with the data.
  *
  * Describing the second group would make this response's size grow with the catalog's data volume, multiplied again by
@@ -57,13 +58,17 @@ import java.util.OptionalInt;
  *
  * **Cost**
  *
- * Every reading here is an `O(1)` counter read except the number of records **covered** by a filter or unique index,
- * which sums the record counts of the index's buckets and is therefore `O(distinct values)`.
+ * Every reading here is an `O(1)` counter read except the number of records **covered** by a *filter* index, which
+ * sums the record counts of the index's buckets and is therefore `O(distinct values)`. A unique index is not the
+ * expensive one, despite the intuition: its covered-record count is a bitmap cardinality and its distinct-value count
+ * a cached bucket counter, neither of which walks anything.
  *
- * How much that costs depends on the attribute, and the two ends are far apart. For a low-cardinality filterable
- * attribute it is a handful of steps - cheap precisely in the pathological case this component exists to find. For a
- * *unique* attribute it is one step per record, because uniqueness makes distinct values and records the same number:
- * on a collection of two million entities, reading a unique index's covered-record count is a two-million-step walk.
+ * How much the filter index costs depends on the attribute, and the two ends are far apart. For a low-cardinality
+ * filterable attribute it is a handful of steps - cheap precisely in the pathological case this component exists to
+ * find. For a near-unique one it approaches one step per record, because there is a bucket per distinct value: a
+ * filterable SKU or e-mail on a collection of two million entities makes reading its covered-record count a
+ * two-million-step walk. An attribute declared unique reaches that cost through the filter index it also carries,
+ * never through its unique index.
  *
  * That is the reason this component is classified as expensive and must never join a polled refresh - together with
  * the response size, which is what keeps the data-bounded indexes undescribed above.
@@ -104,31 +109,52 @@ public record CollectionIndexCardinality(
 	/**
 	 * The cardinality readings of one index of the collection.
 	 *
-	 * @param indexKind             kind of this index
+	 * @param indexType             kind of this index, or `null` when it is a catalog index rather than an entity
+	 *                              index - see {@link BrowsedIndex#indexType()}. This component never produces one,
+	 *                              since it describes a single collection; an {@link IndexDetail} does
 	 * @param scope                 scope this index belongs to
-	 * @param discriminator         what distinguishes this index from its siblings of the same kind - the reference
-	 *                              name for a reference index, `null` for the {@link EntityIndexKind#GLOBAL} index,
-	 *                              which has no sibling within its scope
+	 * @param discriminator         what distinguishes this index from its siblings of the same kind, rendered exactly
+	 *                              as {@link BrowsedIndex#discriminator()} renders it - the reference name for the
+	 *                              schema-bounded reference indexes this component describes, the full rendering
+	 *                              including representative attribute values when an {@link IndexDetail} describes a
+	 *                              per-referenced-entity index, and `null` for the {@link EntityIndexType#GLOBAL}
+	 *                              index, which has no sibling within its scope, or for a catalog index, of which
+	 *                              there is one per scope
 	 * @param entityCount           how many entities this index covers - the denominator every distinct-value count
-	 *                              below should be read against
+	 *                              below should be read against - or `null` for a catalog index, which maintains no
+	 *                              primary-key bitmap to read one off; see {@link #entityCountIfKnown()}
 	 * @param referencedEntityCount how many distinct referenced entities this index tracks, or `null` for an index
 	 *                              that tracks none; see {@link #referencedEntityCountIfKnown()}
 	 * @param attributes            one entry per attribute index held by this index, in no guaranteed order
 	 */
 	public record IndexCardinality(
-		@Nonnull EntityIndexKind indexKind,
+		@Nullable EntityIndexType indexType,
 		@Nonnull Scope scope,
 		@Nullable String discriminator,
-		int entityCount,
+		@Nullable Integer entityCount,
 		@Nullable Integer referencedEntityCount,
 		@Nonnull AttributeCardinality[] attributes
 	) {
 
 		/**
+		 * The number of entities this index covers, when it covers entities at all.
+		 *
+		 * **Empty is a statement about the owner, not a missing measurement** - the same one
+		 * {@link BrowsedIndex#entityCountIfKnown()} makes, and for the same reason: a catalog index has no
+		 * primary-key bitmap, and `0` would read as "this index covers nothing".
+		 *
+		 * @return how many entities the index covers, empty for a catalog index
+		 */
+		@Nonnull
+		public OptionalInt entityCountIfKnown() {
+			return this.entityCount == null ? OptionalInt.empty() : OptionalInt.of(this.entityCount);
+		}
+
+		/**
 		 * The number of distinct referenced entities this index tracks, when it tracks any.
 		 *
 		 * **Empty is a statement about the index kind, not a missing measurement.** Only the reference indexes
-		 * maintain a reference cardinality; the {@link EntityIndexKind#GLOBAL} index has no reference dimension, and
+		 * maintain a reference cardinality; the {@link EntityIndexType#GLOBAL} index has no reference dimension, and
 		 * reporting `0` for it would read as "this collection references nothing".
 		 *
 		 * @return the tracked referenced entity count, empty for an index that tracks no references
@@ -144,8 +170,8 @@ public record CollectionIndexCardinality(
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			final IndexCardinality that = (IndexCardinality) o;
-			return this.entityCount == that.entityCount &&
-				this.indexKind == that.indexKind &&
+			return Objects.equals(this.entityCount, that.entityCount) &&
+				this.indexType == that.indexType &&
 				this.scope == that.scope &&
 				Objects.equals(this.discriminator, that.discriminator) &&
 				Objects.equals(this.referencedEntityCount, that.referencedEntityCount) &&
@@ -154,10 +180,10 @@ public record CollectionIndexCardinality(
 
 		@Override
 		public int hashCode() {
-			int result = this.indexKind.hashCode();
+			int result = this.indexType == null ? 0 : this.indexType.hashCode();
 			result = 31 * result + this.scope.hashCode();
 			result = 31 * result + (this.discriminator == null ? 0 : this.discriminator.hashCode());
-			result = 31 * result + this.entityCount;
+			result = 31 * result + (this.entityCount == null ? 0 : this.entityCount.hashCode());
 			result = 31 * result + (this.referencedEntityCount == null ? 0 : this.referencedEntityCount.hashCode());
 			return 31 * result + Arrays.hashCode(this.attributes);
 		}
@@ -165,7 +191,7 @@ public record CollectionIndexCardinality(
 		@Nonnull
 		@Override
 		public String toString() {
-			return "IndexCardinality{indexKind=" + this.indexKind +
+			return "IndexCardinality{indexType=" + this.indexType +
 				", scope=" + this.scope +
 				", discriminator=" + this.discriminator +
 				", entityCount=" + this.entityCount +

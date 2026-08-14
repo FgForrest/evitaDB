@@ -26,7 +26,7 @@ package io.evitadb.core.collection;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.statistics.BrowsedIndex;
-import io.evitadb.api.statistics.EntityIndexKind;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -85,6 +85,8 @@ final class IndexBrowseProjection {
 	/**
 	 * Selects, orders and pages the collection's indexes.
 	 *
+	 * @param entityType     name of the collection whose indexes these are, carried onto every row so that a client
+	 *                       merging this page with a catalog-level one still has the other half of each row's identity
 	 * @param indexes        the collection's index map, sealed by the caller so that the count and the page contents
 	 *                       cannot come from two different states
 	 * @param criteria       which indexes to select, in what order, and which page to return
@@ -94,6 +96,7 @@ final class IndexBrowseProjection {
 	 */
 	@Nonnull
 	static IndexBrowseResult browse(
+		@Nonnull String entityType,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull IndexBrowseCriteria criteria,
 		long catalogVersion
@@ -105,13 +108,13 @@ final class IndexBrowseProjection {
 		return switch (criteria.ordering()) {
 			case MAP_ORDER -> {
 				final List<BrowsedIndex> page = new ArrayList<>(criteria.pageSize());
-				final int matchCount = collectInMapOrder(indexes, criteria, offset, page);
+				final int matchCount = collectInMapOrder(entityType, indexes, criteria, offset, page);
 				yield toResult(criteria, catalogVersion, matchCount, page);
 			}
 			case BY_ENTITY_COUNT_DESC -> {
 				final PriorityQueue<BrowseCandidate> heap = new PriorityQueue<>(ENTITY_COUNT_ORDER.reversed());
 				final int matchCount = collectByEntityCount(indexes, criteria, offset, heap);
-				yield toResult(criteria, catalogVersion, matchCount, cutPage(heap, criteria, offset));
+				yield toResult(criteria, catalogVersion, matchCount, cutPage(entityType, heap, criteria, offset));
 			}
 		};
 	}
@@ -119,6 +122,7 @@ final class IndexBrowseProjection {
 	/**
 	 * Walks the map in its own order, counting every match and materialising a descriptor only inside the window.
 	 *
+	 * @param entityType name of the collection whose indexes these are
 	 * @param indexes  the sealed index map to walk
 	 * @param criteria the selection to apply
 	 * @param offset   how many matches precede the requested page
@@ -126,6 +130,7 @@ final class IndexBrowseProjection {
 	 * @return how many indexes matched in total
 	 */
 	private static int collectInMapOrder(
+		@Nonnull String entityType,
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull IndexBrowseCriteria criteria,
 		long offset,
@@ -138,7 +143,9 @@ final class IndexBrowseProjection {
 				continue;
 			}
 			if (matched >= offset && matched < end) {
-				page.add(describe(key, indexOf(indexes, key).getAllPrimaryKeys().size()));
+				// one fetch serves both readings - the identity the row is addressed by and the count it reports
+				final EntityIndex index = indexOf(indexes, key);
+				page.add(describe(entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size()));
 			}
 			matched++;
 		}
@@ -174,9 +181,11 @@ final class IndexBrowseProjection {
 			}
 			matched++;
 			// the count is read here rather than in the page cut, because ordering needs it for every match - it is
-			// an O(1) cardinality of the index's primary-key bitmap, never a walk of the index contents
+			// an O(1) cardinality of the index's primary-key bitmap, never a walk of the index contents. The identity
+			// comes off the same fetch, so retaining it costs a comparison-free int rather than a second lookup
+			final EntityIndex index = indexOf(indexes, key);
 			final BrowseCandidate candidate = new BrowseCandidate(
-				key, indexOf(indexes, key).getAllPrimaryKeys().size()
+				key, index.getPrimaryKey(), index.getAllPrimaryKeys().size()
 			);
 			if (heap.size() < retained) {
 				heap.offer(candidate);
@@ -191,6 +200,7 @@ final class IndexBrowseProjection {
 	/**
 	 * Drains the heap into the requested order and cuts the page out of it.
 	 *
+	 * @param entityType name of the collection whose indexes these are
 	 * @param heap     the retained candidates, in no useful order of their own
 	 * @param criteria the page to cut
 	 * @param offset   how many matches precede the requested page
@@ -198,6 +208,7 @@ final class IndexBrowseProjection {
 	 */
 	@Nonnull
 	private static List<BrowsedIndex> cutPage(
+		@Nonnull String entityType,
 		@Nonnull PriorityQueue<BrowseCandidate> heap,
 		@Nonnull IndexBrowseCriteria criteria,
 		long offset
@@ -215,7 +226,7 @@ final class IndexBrowseProjection {
 			// index mutated between the walk and here would otherwise be reported with a count that contradicts its
 			// own position in the page
 			final BrowseCandidate candidate = ordered.get(i);
-			page.add(describe(candidate.key(), candidate.entityCount()));
+			page.add(describe(entityType, candidate.key(), candidate.indexPrimaryKey(), candidate.entityCount()));
 		}
 		return page;
 	}
@@ -256,8 +267,8 @@ final class IndexBrowseProjection {
 	 * @return true when the index belongs in the answer
 	 */
 	private static boolean matches(@Nonnull EntityIndexKey key, @Nonnull IndexBrowseCriteria criteria) {
-		final Set<EntityIndexKind> kinds = criteria.indexKinds();
-		if (!kinds.isEmpty() && !kinds.contains(EntityCollection.toIndexKind(key.type()))) {
+		final Set<EntityIndexType> types = criteria.indexTypes();
+		if (!types.isEmpty() && !types.contains(key.type())) {
 			return false;
 		}
 		final Set<Scope> scopes = criteria.scopes();
@@ -279,14 +290,23 @@ final class IndexBrowseProjection {
 	/**
 	 * Renders one index into its descriptor.
 	 *
-	 * @param key   key identifying the index
-	 * @param index the index itself, for its entity count
+	 * @param entityType      name of the collection whose index this is
+	 * @param key             key identifying the index
+	 * @param indexPrimaryKey identity of the index, which is what the descriptor is addressed by
+	 * @param entityCount     how many entities the index covers
 	 * @return the descriptor
 	 */
 	@Nonnull
-	private static BrowsedIndex describe(@Nonnull EntityIndexKey key, int entityCount) {
+	private static BrowsedIndex describe(
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey key,
+		int indexPrimaryKey,
+		int entityCount
+	) {
 		return new BrowsedIndex(
-			EntityCollection.toIndexKind(key.type()),
+			entityType,
+			indexPrimaryKey,
+			key.type(),
 			key.scope(),
 			renderDiscriminator(key),
 			key.referenceName(),
@@ -300,22 +320,26 @@ final class IndexBrowseProjection {
 	 *
 	 * A {@link RepresentativeReferenceKey} also carries the representative attribute values that tell two indexes of
 	 * one reference and one target apart, and those participate in its equality and ordering. Rendering only the
-	 * reference name and the primary key would make such a pair indistinguishable, so a client could not tell one
-	 * index from another across pages.
+	 * reference name and the primary key would make such a pair read identically, leaving an operator two rows that
+	 * differ only in an opaque integer and no way to see what distinguishes them.
 	 *
-	 * **Why this does not delegate to `toString`.** Being value-based is necessary for an identity but not
-	 * sufficient - it also has to be injective, and `RepresentativeReferenceKey`'s rendering is not: it joins the
-	 * representative values with an unescaped `", "` and prints a null one as the literal `NULL`, so
-	 * `["a", "b, c"]` and `["a, b", "c"]` collapse to the same text, as do `[null]` and `["NULL"]`. Two genuinely
-	 * distinct indexes would then report one identity and a client deduplicating per the documented contract would
-	 * silently drop one. Each part is therefore length-prefixed here, which no value can forge, and `toString` keeps
-	 * its readable shape for logging.
+	 * **Why this does not delegate to `toString`, even though the row's identity is its index primary key.** The
+	 * discriminator is what a human reads to tell one row from another, and `RepresentativeReferenceKey`'s own
+	 * rendering is not injective: it joins the representative values with an unescaped `", "` and prints a null one as
+	 * the literal `NULL`, so `["a", "b, c"]` and `["a, b", "c"]` collapse to the same text, as do `[null]` and
+	 * `["NULL"]`. Two genuinely distinct indexes would then be indistinguishable on screen - a weaker failure than the
+	 * silent deduplication this guarded against when the triplet was the identity, but the operator still cannot act on
+	 * a page whose rows read alike. Each part is therefore length-prefixed here, which no value can forge, and
+	 * `toString` keeps its readable shape for logging.
+	 *
+	 * Shared with {@link IndexDetailProjection}, so the discriminator an operator reads on a browse row and the one a
+	 * drill-down echoes back are produced by one renderer rather than two that could drift apart.
 	 *
 	 * @param key key of the index
 	 * @return the rendered discriminator, or null for an index that carries none
 	 */
 	@Nullable
-	private static String renderDiscriminator(@Nonnull EntityIndexKey key) {
+	static String renderDiscriminator(@Nonnull EntityIndexKey key) {
 		final Serializable discriminator = key.discriminator();
 		if (discriminator == null) {
 			return null;
@@ -402,14 +426,17 @@ final class IndexBrowseProjection {
 	/**
 	 * One index that survived filtering, paired with the reading the ordering is computed from.
 	 *
-	 * Only the key and the count are retained while the walk runs - never the {@link EntityIndex} itself - so the heap
-	 * holds no reference to index contents and cannot keep a dropped index alive.
+	 * Only the key and two ints are retained while the walk runs - never the {@link EntityIndex} itself - so the heap
+	 * holds no reference to index contents and cannot keep a dropped index alive. The identity is carried as its
+	 * primary key for exactly that reason: an int keeps nothing alive.
 	 *
-	 * @param key         key identifying the index
-	 * @param entityCount how many entities the index covers
+	 * @param key             key identifying the index
+	 * @param indexPrimaryKey identity of the index, carried through to the descriptor
+	 * @param entityCount     how many entities the index covers
 	 */
 	private record BrowseCandidate(
 		@Nonnull EntityIndexKey key,
+		int indexPrimaryKey,
 		int entityCount
 	) {
 	}

@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.EntityScope;
@@ -39,7 +40,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -495,7 +498,7 @@ public interface EntityCollectionContract {
 	 * individually - the drill-down that follows an alarming count.
 	 *
 	 * Every call walks the whole index map, so this is an explicitly-requested diagnostic and never something to
-	 * poll; see {@link EvitaManagementContract#browseEntityCollectionIndexes(String, String, IndexBrowseCriteria)}
+	 * poll; see {@link EvitaManagementContract#browseIndexes(String, String, IndexBrowseCriteria)}
 	 * for why the walk cannot be avoided.
 	 *
 	 * @param criteria which indexes to select, in what order, and which page of them to return
@@ -506,6 +509,23 @@ public interface EntityCollectionContract {
 	IndexBrowseResult browseIndexes(
 		@Nonnull IndexBrowseCriteria criteria
 	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Describes one index of this collection in full - what it occupies and how well it discriminates.
+	 *
+	 * The drill-down that follows {@link #browseIndexes(IndexBrowseCriteria)}: that lists indexes cheaply, this
+	 * measures one of them. The heap estimate walks the index's contents, so the caller naming the index is what
+	 * bounds the cost - see {@link IndexDetail} for the measured figures and for the invariant this
+	 * response must keep.
+	 *
+	 * @param indexPrimaryKey identity of the index to describe, as reported by {@link BrowsedIndex#indexPrimaryKey()}
+	 * @return the full description of that index
+	 * @throws IndexNotFoundException when this collection holds no index under that primary key - which is an
+	 *                                ordinary race rather than necessarily a mistake, since an index can be reclaimed
+	 *                                between the browse and the drill-down
+	 */
+	@Nonnull
+	IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException;
 
 	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to

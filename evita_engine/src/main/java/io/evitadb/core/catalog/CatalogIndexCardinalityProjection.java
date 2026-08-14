@@ -23,18 +23,14 @@
 
 package io.evitadb.core.catalog;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.statistics.CatalogIndexCardinality;
 import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.attribute.GlobalUniqueIndex;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * Projects the catalog's per-scope {@link CatalogIndex} instances into the catalog-level half of the
@@ -79,20 +75,22 @@ final class CatalogIndexCardinalityProjection {
 		final List<GlobalUniqueIndexCardinality> described = new ArrayList<>(16);
 		for (final CatalogIndex catalogIndex : catalogIndexes) {
 			final Scope scope = catalogIndex.getIndexKey().scope();
-			final Map<AttributeKey, GlobalUniqueIndex> globalUniqueIndexes = catalogIndex.getGlobalUniqueIndexes();
-			for (final Entry<AttributeKey, GlobalUniqueIndex> entry : globalUniqueIndexes.entrySet()) {
-				final AttributeKey attributeKey = entry.getKey();
+			// `forEach`, never `entrySet()`: asking a map for a view parks it on the map for the lifetime of the index -
+			// see `documentation/developer/heap-size-testing.md`, trap 6
+			catalogIndex.getGlobalUniqueIndexes().forEach((attributeKey, globalUniqueIndex) ->
 				described.add(
 					new GlobalUniqueIndexCardinality(
 						attributeKey.attributeName(),
 						attributeKey.locale(),
 						scope,
-						// distinct values and covered records are the same number for a globally-unique attribute, so
-						// only one is reported - see CatalogIndexCardinality
-						entry.getValue().size()
+						// distinct values, which is not always the covered-record count - a localized globally-unique
+						// attribute has one locale-less key covering every locale, so one record can own several values
+						// in it. The covered-record count comes from `GlobalUniqueIndex#getRecordCount` and is reported
+						// by the per-index detail call, which reaches one catalog index rather than all of them
+						globalUniqueIndex.size()
 					)
-				);
-			}
+				)
+			);
 		}
 		return new CatalogIndexCardinality(described.toArray(GlobalUniqueIndexCardinality[]::new));
 	}

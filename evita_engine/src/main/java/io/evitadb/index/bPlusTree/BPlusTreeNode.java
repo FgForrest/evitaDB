@@ -145,7 +145,7 @@ public interface BPlusTreeNode<N extends BPlusTreeNode<N>>
 	 *
 	 * # Cost
 	 *
-	 * `O(nodes)` beneath this one — not `O(1)`. This belongs to `MEMORY_FOOTPRINT`, which is opt-in and documented
+	 * `O(nodes)` beneath this one — not `O(1)`. This belongs to the index detail call, which is opt-in and documented
 	 * expensive, and must never be reached from a query path.
 	 *
 	 * @param elementSizer prices one stored element; must return `0` for elements this node does not own

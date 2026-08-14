@@ -82,9 +82,9 @@ private static final long serialVersionUID = 0L;
           };
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+   * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+   * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
    * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
    * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
    * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -100,9 +100,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+   * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+   * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
    * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
    * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
    * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -117,9 +117,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+   * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+   * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
    * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
    * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
    * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -135,9 +135,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+   * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+   * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
    * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
    * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
    * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -153,9 +153,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-   * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-   * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+   * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+   * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+   * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
    * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
    * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
    * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -551,9 +551,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -568,9 +568,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -584,9 +584,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -601,9 +601,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -626,9 +626,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -649,9 +649,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -672,9 +672,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -691,9 +691,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -708,9 +708,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -725,9 +725,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -747,9 +747,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.
@@ -767,9 +767,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The components to compute for each catalog. The same rules as for a single catalog apply, which means
-     * `COMPONENT_MEMORY_FOOTPRINT` cannot be requested here and its cost can never be multiplied by the number of
-     * catalogs. Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
+     * The components to compute for each catalog. The same rules as for a single catalog apply: a component with no
+     * catalog-level form cannot be requested here, and so its cost can never be multiplied by the number of catalogs.
+     * Everything returned here *is* multiplied by the catalog count, so components are weighed on payload as
      * well as on compute time; `COMPONENT_INDEX_CARDINALITY` is allowed because the listing it reports at the catalog
      * level is a handful of `O(1)` counter readings, staying in the same size class as the collection inventory of
      * `COMPONENT_COLLECTIONS`. Selection is opt-in - a client that cannot afford a component simply does not name it.

@@ -773,7 +773,7 @@ public class HierarchyIndex
 	 * scaffolding, priced by {@link IndexHeapSize#memoizedFormulaSizeInBytes}; an empty hierarchy memoizes
 	 * {@link EmptyFormula#INSTANCE} and charges nothing at all.
 	 *
-	 * This walks every node, so it is `O(nodes)` — it belongs to `MEMORY_FOOTPRINT` and must never be called from a
+	 * This walks every node, so it is `O(nodes)` — it belongs to the index detail call and must never be called from a
 	 * query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

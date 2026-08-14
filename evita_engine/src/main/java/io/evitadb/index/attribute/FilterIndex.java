@@ -545,7 +545,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * filterable attribute pointing at them.
 	 *
 	 * Like every walk over a value tree this is `O(distinct values)` rather than `O(1)`, so it belongs to
-	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 * the index detail call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

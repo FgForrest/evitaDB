@@ -73,15 +73,6 @@ public enum GrpcComponentAvailability
    * <code>AVAILABILITY_FEATURE_DISABLED = 3;</code>
    */
   AVAILABILITY_FEATURE_DISABLED(3),
-  /**
-   * <pre>
-   * This server build cannot compute the component at all. Distinct from `AVAILABILITY_FEATURE_DISABLED`: no
-   * configuration change makes it available.
-   * </pre>
-   *
-   * <code>AVAILABILITY_NOT_SUPPORTED = 4;</code>
-   */
-  AVAILABILITY_NOT_SUPPORTED(4),
   UNRECOGNIZED(-1),
   ;
 
@@ -120,15 +111,6 @@ public enum GrpcComponentAvailability
    * <code>AVAILABILITY_FEATURE_DISABLED = 3;</code>
    */
   public static final int AVAILABILITY_FEATURE_DISABLED_VALUE = 3;
-  /**
-   * <pre>
-   * This server build cannot compute the component at all. Distinct from `AVAILABILITY_FEATURE_DISABLED`: no
-   * configuration change makes it available.
-   * </pre>
-   *
-   * <code>AVAILABILITY_NOT_SUPPORTED = 4;</code>
-   */
-  public static final int AVAILABILITY_NOT_SUPPORTED_VALUE = 4;
 
 
   public final int getNumber() {
@@ -159,7 +141,6 @@ public enum GrpcComponentAvailability
       case 1: return AVAILABILITY_DELIVERED;
       case 2: return AVAILABILITY_CATALOG_UNUSABLE;
       case 3: return AVAILABILITY_FEATURE_DISABLED;
-      case 4: return AVAILABILITY_NOT_SUPPORTED;
       default: return null;
     }
   }

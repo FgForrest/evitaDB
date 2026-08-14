@@ -43,50 +43,50 @@ public interface GrpcCollectionIndexSummaryOrBuilder extends
 
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> 
-      getByKindAndScopeList();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> 
+      getByTypeAndScopeList();
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getByKindAndScope(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getByTypeAndScope(int index);
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
-  int getByKindAndScopeCount();
+  int getByTypeAndScopeCount();
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder> 
-      getByKindAndScopeOrBuilderList();
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder> 
+      getByTypeAndScopeOrBuilderList();
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder getByKindAndScopeOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder getByTypeAndScopeOrBuilder(
       int index);
 }

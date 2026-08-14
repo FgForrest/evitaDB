@@ -100,7 +100,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;

@@ -27,13 +27,13 @@
 // Protobuf Java Version: 3.25.8
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionIndexBrowseRequest)
+public interface GrpcIndexBrowseRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * Name of the catalog holding the collection. A catalog the server does not know is an error.
+   * Name of the catalog holding the indexes. A catalog the server does not know is an error.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -42,7 +42,7 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
   java.lang.String getCatalogName();
   /**
    * <pre>
-   * Name of the catalog holding the collection. A catalog the server does not know is an error.
+   * Name of the catalog holding the indexes. A catalog the server does not know is an error.
    * </pre>
    *
    * <code>string catalogName = 1;</code>
@@ -56,24 +56,45 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
    * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
    * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
    * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
    * </pre>
    *
-   * <code>string entityType = 2;</code>
-   * @return The entityType.
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   * @return Whether the entityType field is set.
    */
-  java.lang.String getEntityType();
+  boolean hasEntityType();
   /**
    * <pre>
    * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
    * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
    * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
    * </pre>
    *
-   * <code>string entityType = 2;</code>
-   * @return The bytes for entityType.
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   * @return The entityType.
    */
-  com.google.protobuf.ByteString
-      getEntityTypeBytes();
+  com.google.protobuf.StringValue getEntityType();
+  /**
+   * <pre>
+   * Name of the entity collection whose indexes to browse, i.e. its entity type. A collection the catalog does not
+   * hold is an error, not an empty page - an empty page would be indistinguishable from a collection holding no
+   * indexes.
+   *
+   * Unset browses the indexes the catalog holds itself - the globally-unique attribute index there is one of per
+   * scope - rather than any collection's. Both forms answer with the same rows under the same filters; a catalog index
+   * carries no type and no reference, so `indexTypes` and `referenceNames` below select none of them.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue entityType = 2;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder();
 
   /**
    * <pre>
@@ -121,57 +142,57 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
 
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return A list containing the indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return A list containing the indexTypes.
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind> getIndexKindsList();
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType> getIndexTypesList();
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return The count of indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return The count of indexTypes.
    */
-  int getIndexKindsCount();
+  int getIndexTypesCount();
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
    * @param index The index of the element to return.
-   * @return The indexKinds at the given index.
+   * @return The indexTypes at the given index.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind getIndexKinds(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType getIndexTypes(int index);
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
-   * @return A list containing the enum numeric values on the wire for indexKinds.
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
+   * @return A list containing the enum numeric values on the wire for indexTypes.
    */
   java.util.List<java.lang.Integer>
-  getIndexKindsValueList();
+  getIndexTypesValueList();
   /**
    * <pre>
-   * Index kinds to keep; an index matches if its kind is any of the listed values. Empty (the default) keeps every
-   * kind.
+   * Index types to keep; an index matches if its type is any of the listed values. Empty (the default) keeps every
+   * type.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexKind indexKinds = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityIndexType indexTypes = 6;</code>
    * @param index The index of the value to return.
-   * @return The enum numeric value on the wire of indexKinds at the given index.
+   * @return The enum numeric value on the wire of indexTypes at the given index.
    */
-  int getIndexKindsValue(int index);
+  int getIndexTypesValue(int index);
 
   /**
    * <pre>
@@ -228,6 +249,10 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -241,6 +266,10 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -253,6 +282,10 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>
@@ -266,6 +299,10 @@ public interface GrpcEntityCollectionIndexBrowseRequestOrBuilder extends
    * Naming a reference the entity schema does not declare is an error rather than an empty page, so that a typo
    * cannot read as "this reference has no indexes". Note that global indexes are bound to no reference and therefore
    * never satisfy this filter.
+   *
+   * A catalog browse - one with `entityType` unset - has no entity schema to validate these against, and answers any
+   * non-empty list with an empty page rather than an error: catalog indexes have no reference dimension at all, so
+   * there is no typo to be protected from.
    * </pre>
    *
    * <code>repeated string referenceNames = 8;</code>

@@ -56,17 +56,22 @@ public enum IndexBrowseOrdering {
 	 * handful of entities each - so ordering on the count alone would let page 2 re-walk into a different permutation
 	 * of the same tie block, silently showing the client duplicates while hiding other indexes entirely.
 	 *
+	 * **A catalog browse has nothing to order by.** A catalog index reports no entity count - it maintains no
+	 * primary-key bitmap - so this ordering degenerates there to the same total order {@link #MAP_ORDER} yields, over
+	 * the one index per scope a catalog holds. It is accepted rather than rejected so that a client can send the same
+	 * criteria to either owner.
+	 *
 	 * A page is built through a bounded heap of `pageNumber * pageSize` entries rather than a full sort, so a shallow
 	 * page over a large collection costs `O(indexes * log(pageNumber * pageSize))` in time and only
 	 * `O(pageNumber * pageSize)` in space. That advantage degrades with *depth*: this is a top-N access pattern, and
 	 * paging deep into it is the wrong question to ask of it.
 	 *
-	 * There is deliberately no ordering by estimated memory. Entity count is a single `O(1)` bitmap cardinality, while
-	 * a memory estimate has to traverse an index's contents - ordering by it would mean estimating *every* index in
-	 * the collection on every call, which is exactly the cost this surface is shaped to avoid. Should a per-index
-	 * memory reading ever be added to {@link BrowsedIndex}, it would belong to the page that was already selected and
-	 * still could not be used to select it; none is reported today - see
-	 * {@link CatalogStatisticsComponent#MEMORY_FOOTPRINT} for why.
+	 * There is deliberately no ordering by measured memory. Entity count is a single `O(1)` bitmap cardinality, while
+	 * a heap measurement has to traverse an index's whole contents - ordering by it would mean measuring *every* index
+	 * in the collection on every call, which is exactly the cost this surface is shaped to avoid. That measurement
+	 * does exist, one index at a time, on {@link IndexDetail}: a client browses to find the candidates
+	 * and measures the few it chose. Were the same reading ever added to {@link BrowsedIndex} it would belong to the
+	 * page already selected and still could not be used to select it.
 	 */
 	BY_ENTITY_COUNT_DESC
 

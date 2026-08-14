@@ -1158,7 +1158,7 @@ public class ChainIndex implements
 	 *   not index content.
 	 *
 	 * Like every walk over the element tree and the maps this is `O(elements)` rather than `O(1)`, so it belongs to
-	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 * the index detail call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

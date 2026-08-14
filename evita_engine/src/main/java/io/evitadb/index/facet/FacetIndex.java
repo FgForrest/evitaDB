@@ -240,20 +240,24 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	/**
 	 * Returns collection of {@link FacetIndexStoragePart} that were modified and need persistence to the persistent
 	 * storage.
+	 *
+	 * Walks with `forEach` rather than `entrySet()`: a {@link java.util.HashMap} keeps the view object it hands out,
+	 * so an accessor asked for on this path would stay on {@link #facetingEntities} for the lifetime of the owning
+	 * index - see {@link io.evitadb.index.map.TransactionalMap#forEach}.
 	 */
 	public void getModifiedStorageParts(int entityIndexPK, @Nonnull TrappedChanges trappedChanges) {
-		this.facetingEntities.entrySet()
-			.stream()
-			.filter(it -> this.dirtyIndexes.contains(it.getKey()))
-			.map(
-				it -> new FacetIndexStoragePart(
-					entityIndexPK,
-					it.getKey(),
-					it.getValue().getNotGroupedFacetsAsMap().orElse(null),
-					it.getValue().getGroupsAsMap()
-				)
-			)
-			.forEach(trappedChanges::addChangeToStore);
+		this.facetingEntities.forEach((referenceName, facetReferenceIndex) -> {
+			if (this.dirtyIndexes.contains(referenceName)) {
+				trappedChanges.addChangeToStore(
+					new FacetIndexStoragePart(
+						entityIndexPK,
+						referenceName,
+						facetReferenceIndex.getNotGroupedFacetsAsMap().orElse(null),
+						facetReferenceIndex.getGroupsAsMap()
+					)
+				);
+			}
+		});
 	}
 
 	/**
@@ -273,9 +277,10 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		@Nonnull TrappedChanges trappedChanges
 	) {
 		getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
-		for (final String referencedEntityType : this.facetingEntities.keySet()) {
-			manifest.addFacetReferencedEntity(referencedEntityType);
-		}
+		// `forEach` rather than `keySet()`, for the reason given on `getModifiedStorageParts` above
+		this.facetingEntities.forEach(
+			(referencedEntityType, facetReferenceIndex) -> manifest.addFacetReferencedEntity(referencedEntityType)
+		);
 	}
 
 	/**
@@ -297,8 +302,8 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	 * mutation, cleared at every commit and thrown away by the merge-copy, so it is empty for the whole lifetime of a
 	 * read-only catalog — which is when a footprint reading is taken.
 	 *
-	 * This walks every facet and its entity bitmap, so it is `O(facet relations)` — it belongs to `MEMORY_FOOTPRINT`
-	 * and must never be called from a query path.
+	 * This walks every facet and its entity bitmap, so it is `O(facet relations)` — it belongs to the index detail
+	 * call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

@@ -841,7 +841,7 @@ public abstract sealed class SortIndex
 	 * have in common is priced by {@link #getSharedHeapSizeInBytes}.
 	 *
 	 * Like every walk over a tree or an ordered array this is `O(records)` rather than `O(1)`, so it belongs to
-	 * `MEMORY_FOOTPRINT` and must never be called from a query path.
+	 * the index detail call and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */

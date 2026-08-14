@@ -30,7 +30,7 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * The collection-level `COMPONENT_INDEX_SUMMARY` component - how many indexes one collection holds, broken down by
- * kind and scope.
+ * type and scope.
  *
  * This is what turns the historically opaque single index count into something a developer can act on: forty
  * thousand indexes of one referenced entity and forty global ones are very different situations that used to render
@@ -49,7 +49,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcCollectionIndexSummary() {
-    byKindAndScope_ = java.util.Collections.emptyList();
+    byTypeAndScope_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -87,70 +87,70 @@ private static final long serialVersionUID = 0L;
     return totalIndexCount_;
   }
 
-  public static final int BYKINDANDSCOPE_FIELD_NUMBER = 2;
+  public static final int BYTYPEANDSCOPE_FIELD_NUMBER = 2;
   @SuppressWarnings("serial")
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> byKindAndScope_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> byTypeAndScope_;
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> getByKindAndScopeList() {
-    return byKindAndScope_;
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> getByTypeAndScopeList() {
+    return byTypeAndScope_;
   }
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder> 
-      getByKindAndScopeOrBuilderList() {
-    return byKindAndScope_;
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder> 
+      getByTypeAndScopeOrBuilderList() {
+    return byTypeAndScope_;
   }
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
   @java.lang.Override
-  public int getByKindAndScopeCount() {
-    return byKindAndScope_.size();
+  public int getByTypeAndScopeCount() {
+    return byTypeAndScope_.size();
   }
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getByKindAndScope(int index) {
-    return byKindAndScope_.get(index);
+  public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getByTypeAndScope(int index) {
+    return byTypeAndScope_.get(index);
   }
   /**
    * <pre>
-   * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+   * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
    * reported as zero.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder getByKindAndScopeOrBuilder(
+  public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder getByTypeAndScopeOrBuilder(
       int index) {
-    return byKindAndScope_.get(index);
+    return byTypeAndScope_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -170,8 +170,8 @@ private static final long serialVersionUID = 0L;
     if (totalIndexCount_ != 0) {
       output.writeInt32(1, totalIndexCount_);
     }
-    for (int i = 0; i < byKindAndScope_.size(); i++) {
-      output.writeMessage(2, byKindAndScope_.get(i));
+    for (int i = 0; i < byTypeAndScope_.size(); i++) {
+      output.writeMessage(2, byTypeAndScope_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -186,9 +186,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(1, totalIndexCount_);
     }
-    for (int i = 0; i < byKindAndScope_.size(); i++) {
+    for (int i = 0; i < byTypeAndScope_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, byKindAndScope_.get(i));
+        .computeMessageSize(2, byTypeAndScope_.get(i));
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -207,8 +207,8 @@ private static final long serialVersionUID = 0L;
 
     if (getTotalIndexCount()
         != other.getTotalIndexCount()) return false;
-    if (!getByKindAndScopeList()
-        .equals(other.getByKindAndScopeList())) return false;
+    if (!getByTypeAndScopeList()
+        .equals(other.getByTypeAndScopeList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -222,9 +222,9 @@ private static final long serialVersionUID = 0L;
     hash = (19 * hash) + getDescriptor().hashCode();
     hash = (37 * hash) + TOTALINDEXCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getTotalIndexCount();
-    if (getByKindAndScopeCount() > 0) {
-      hash = (37 * hash) + BYKINDANDSCOPE_FIELD_NUMBER;
-      hash = (53 * hash) + getByKindAndScopeList().hashCode();
+    if (getByTypeAndScopeCount() > 0) {
+      hash = (37 * hash) + BYTYPEANDSCOPE_FIELD_NUMBER;
+      hash = (53 * hash) + getByTypeAndScopeList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -326,7 +326,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * The collection-level `COMPONENT_INDEX_SUMMARY` component - how many indexes one collection holds, broken down by
-   * kind and scope.
+   * type and scope.
    *
    * This is what turns the historically opaque single index count into something a developer can act on: forty
    * thousand indexes of one referenced entity and forty global ones are very different situations that used to render
@@ -367,11 +367,11 @@ private static final long serialVersionUID = 0L;
       super.clear();
       bitField0_ = 0;
       totalIndexCount_ = 0;
-      if (byKindAndScopeBuilder_ == null) {
-        byKindAndScope_ = java.util.Collections.emptyList();
+      if (byTypeAndScopeBuilder_ == null) {
+        byTypeAndScope_ = java.util.Collections.emptyList();
       } else {
-        byKindAndScope_ = null;
-        byKindAndScopeBuilder_.clear();
+        byTypeAndScope_ = null;
+        byTypeAndScopeBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000002);
       return this;
@@ -407,14 +407,14 @@ private static final long serialVersionUID = 0L;
     }
 
     private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexSummary result) {
-      if (byKindAndScopeBuilder_ == null) {
+      if (byTypeAndScopeBuilder_ == null) {
         if (((bitField0_ & 0x00000002) != 0)) {
-          byKindAndScope_ = java.util.Collections.unmodifiableList(byKindAndScope_);
+          byTypeAndScope_ = java.util.Collections.unmodifiableList(byTypeAndScope_);
           bitField0_ = (bitField0_ & ~0x00000002);
         }
-        result.byKindAndScope_ = byKindAndScope_;
+        result.byTypeAndScope_ = byTypeAndScope_;
       } else {
-        result.byKindAndScope_ = byKindAndScopeBuilder_.build();
+        result.byTypeAndScope_ = byTypeAndScopeBuilder_.build();
       }
     }
 
@@ -472,29 +472,29 @@ private static final long serialVersionUID = 0L;
       if (other.getTotalIndexCount() != 0) {
         setTotalIndexCount(other.getTotalIndexCount());
       }
-      if (byKindAndScopeBuilder_ == null) {
-        if (!other.byKindAndScope_.isEmpty()) {
-          if (byKindAndScope_.isEmpty()) {
-            byKindAndScope_ = other.byKindAndScope_;
+      if (byTypeAndScopeBuilder_ == null) {
+        if (!other.byTypeAndScope_.isEmpty()) {
+          if (byTypeAndScope_.isEmpty()) {
+            byTypeAndScope_ = other.byTypeAndScope_;
             bitField0_ = (bitField0_ & ~0x00000002);
           } else {
-            ensureByKindAndScopeIsMutable();
-            byKindAndScope_.addAll(other.byKindAndScope_);
+            ensureByTypeAndScopeIsMutable();
+            byTypeAndScope_.addAll(other.byTypeAndScope_);
           }
           onChanged();
         }
       } else {
-        if (!other.byKindAndScope_.isEmpty()) {
-          if (byKindAndScopeBuilder_.isEmpty()) {
-            byKindAndScopeBuilder_.dispose();
-            byKindAndScopeBuilder_ = null;
-            byKindAndScope_ = other.byKindAndScope_;
+        if (!other.byTypeAndScope_.isEmpty()) {
+          if (byTypeAndScopeBuilder_.isEmpty()) {
+            byTypeAndScopeBuilder_.dispose();
+            byTypeAndScopeBuilder_ = null;
+            byTypeAndScope_ = other.byTypeAndScope_;
             bitField0_ = (bitField0_ & ~0x00000002);
-            byKindAndScopeBuilder_ = 
+            byTypeAndScopeBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getByKindAndScopeFieldBuilder() : null;
+                 getByTypeAndScopeFieldBuilder() : null;
           } else {
-            byKindAndScopeBuilder_.addAllMessages(other.byKindAndScope_);
+            byTypeAndScopeBuilder_.addAllMessages(other.byTypeAndScope_);
           }
         }
       }
@@ -530,15 +530,15 @@ private static final long serialVersionUID = 0L;
               break;
             } // case 8
             case 18: {
-              io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount m =
+              io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount m =
                   input.readMessage(
-                      io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.parser(),
+                      io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.parser(),
                       extensionRegistry);
-              if (byKindAndScopeBuilder_ == null) {
-                ensureByKindAndScopeIsMutable();
-                byKindAndScope_.add(m);
+              if (byTypeAndScopeBuilder_ == null) {
+                ensureByTypeAndScopeIsMutable();
+                byTypeAndScope_.add(m);
               } else {
-                byKindAndScopeBuilder_.addMessage(m);
+                byTypeAndScopeBuilder_.addMessage(m);
               }
               break;
             } // case 18
@@ -603,334 +603,334 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> byKindAndScope_ =
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> byTypeAndScope_ =
       java.util.Collections.emptyList();
-    private void ensureByKindAndScopeIsMutable() {
+    private void ensureByTypeAndScopeIsMutable() {
       if (!((bitField0_ & 0x00000002) != 0)) {
-        byKindAndScope_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount>(byKindAndScope_);
+        byTypeAndScope_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount>(byTypeAndScope_);
         bitField0_ |= 0x00000002;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder> byKindAndScopeBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder> byTypeAndScopeBuilder_;
 
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> getByKindAndScopeList() {
-      if (byKindAndScopeBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(byKindAndScope_);
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> getByTypeAndScopeList() {
+      if (byTypeAndScopeBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(byTypeAndScope_);
       } else {
-        return byKindAndScopeBuilder_.getMessageList();
+        return byTypeAndScopeBuilder_.getMessageList();
       }
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public int getByKindAndScopeCount() {
-      if (byKindAndScopeBuilder_ == null) {
-        return byKindAndScope_.size();
+    public int getByTypeAndScopeCount() {
+      if (byTypeAndScopeBuilder_ == null) {
+        return byTypeAndScope_.size();
       } else {
-        return byKindAndScopeBuilder_.getCount();
+        return byTypeAndScopeBuilder_.getCount();
       }
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount getByKindAndScope(int index) {
-      if (byKindAndScopeBuilder_ == null) {
-        return byKindAndScope_.get(index);
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount getByTypeAndScope(int index) {
+      if (byTypeAndScopeBuilder_ == null) {
+        return byTypeAndScope_.get(index);
       } else {
-        return byKindAndScopeBuilder_.getMessage(index);
+        return byTypeAndScopeBuilder_.getMessage(index);
       }
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder setByKindAndScope(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount value) {
-      if (byKindAndScopeBuilder_ == null) {
+    public Builder setByTypeAndScope(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount value) {
+      if (byTypeAndScopeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.set(index, value);
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.set(index, value);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.setMessage(index, value);
+        byTypeAndScopeBuilder_.setMessage(index, value);
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder setByKindAndScope(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder builderForValue) {
-      if (byKindAndScopeBuilder_ == null) {
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.set(index, builderForValue.build());
+    public Builder setByTypeAndScope(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder builderForValue) {
+      if (byTypeAndScopeBuilder_ == null) {
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.set(index, builderForValue.build());
         onChanged();
       } else {
-        byKindAndScopeBuilder_.setMessage(index, builderForValue.build());
+        byTypeAndScopeBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder addByKindAndScope(io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount value) {
-      if (byKindAndScopeBuilder_ == null) {
+    public Builder addByTypeAndScope(io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount value) {
+      if (byTypeAndScopeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.add(value);
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.add(value);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.addMessage(value);
+        byTypeAndScopeBuilder_.addMessage(value);
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder addByKindAndScope(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount value) {
-      if (byKindAndScopeBuilder_ == null) {
+    public Builder addByTypeAndScope(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount value) {
+      if (byTypeAndScopeBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.add(index, value);
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.add(index, value);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.addMessage(index, value);
+        byTypeAndScopeBuilder_.addMessage(index, value);
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder addByKindAndScope(
-        io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder builderForValue) {
-      if (byKindAndScopeBuilder_ == null) {
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.add(builderForValue.build());
+    public Builder addByTypeAndScope(
+        io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder builderForValue) {
+      if (byTypeAndScopeBuilder_ == null) {
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.add(builderForValue.build());
         onChanged();
       } else {
-        byKindAndScopeBuilder_.addMessage(builderForValue.build());
+        byTypeAndScopeBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder addByKindAndScope(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder builderForValue) {
-      if (byKindAndScopeBuilder_ == null) {
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.add(index, builderForValue.build());
+    public Builder addByTypeAndScope(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder builderForValue) {
+      if (byTypeAndScopeBuilder_ == null) {
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.add(index, builderForValue.build());
         onChanged();
       } else {
-        byKindAndScopeBuilder_.addMessage(index, builderForValue.build());
+        byTypeAndScopeBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder addAllByKindAndScope(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount> values) {
-      if (byKindAndScopeBuilder_ == null) {
-        ensureByKindAndScopeIsMutable();
+    public Builder addAllByTypeAndScope(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount> values) {
+      if (byTypeAndScopeBuilder_ == null) {
+        ensureByTypeAndScopeIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, byKindAndScope_);
+            values, byTypeAndScope_);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.addAllMessages(values);
+        byTypeAndScopeBuilder_.addAllMessages(values);
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder clearByKindAndScope() {
-      if (byKindAndScopeBuilder_ == null) {
-        byKindAndScope_ = java.util.Collections.emptyList();
+    public Builder clearByTypeAndScope() {
+      if (byTypeAndScopeBuilder_ == null) {
+        byTypeAndScope_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000002);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.clear();
+        byTypeAndScopeBuilder_.clear();
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public Builder removeByKindAndScope(int index) {
-      if (byKindAndScopeBuilder_ == null) {
-        ensureByKindAndScopeIsMutable();
-        byKindAndScope_.remove(index);
+    public Builder removeByTypeAndScope(int index) {
+      if (byTypeAndScopeBuilder_ == null) {
+        ensureByTypeAndScopeIsMutable();
+        byTypeAndScope_.remove(index);
         onChanged();
       } else {
-        byKindAndScopeBuilder_.remove(index);
+        byTypeAndScopeBuilder_.remove(index);
       }
       return this;
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder getByKindAndScopeBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder getByTypeAndScopeBuilder(
         int index) {
-      return getByKindAndScopeFieldBuilder().getBuilder(index);
+      return getByTypeAndScopeFieldBuilder().getBuilder(index);
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder getByKindAndScopeOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder getByTypeAndScopeOrBuilder(
         int index) {
-      if (byKindAndScopeBuilder_ == null) {
-        return byKindAndScope_.get(index);  } else {
-        return byKindAndScopeBuilder_.getMessageOrBuilder(index);
+      if (byTypeAndScopeBuilder_ == null) {
+        return byTypeAndScope_.get(index);  } else {
+        return byTypeAndScopeBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder> 
-         getByKindAndScopeOrBuilderList() {
-      if (byKindAndScopeBuilder_ != null) {
-        return byKindAndScopeBuilder_.getMessageOrBuilderList();
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder> 
+         getByTypeAndScopeOrBuilderList() {
+      if (byTypeAndScopeBuilder_ != null) {
+        return byTypeAndScopeBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(byKindAndScope_);
+        return java.util.Collections.unmodifiableList(byTypeAndScope_);
       }
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder addByKindAndScopeBuilder() {
-      return getByKindAndScopeFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.getDefaultInstance());
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder addByTypeAndScopeBuilder() {
+      return getByTypeAndScopeFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.getDefaultInstance());
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder addByKindAndScopeBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder addByTypeAndScopeBuilder(
         int index) {
-      return getByKindAndScopeFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.getDefaultInstance());
+      return getByTypeAndScopeFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.getDefaultInstance());
     }
     /**
      * <pre>
-     * One entry per (kind, scope) pair that has at least one index. Pairs with no index are omitted rather than
+     * One entry per (type, scope) pair that has at least one index. Pairs with no index are omitted rather than
      * reported as zero.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount byKindAndScope = 2;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount byTypeAndScope = 2;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder> 
-         getByKindAndScopeBuilderList() {
-      return getByKindAndScopeFieldBuilder().getBuilderList();
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder> 
+         getByTypeAndScopeBuilderList() {
+      return getByTypeAndScopeFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder> 
-        getByKindAndScopeFieldBuilder() {
-      if (byKindAndScopeBuilder_ == null) {
-        byKindAndScopeBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexKindCountOrBuilder>(
-                byKindAndScope_,
+        io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder> 
+        getByTypeAndScopeFieldBuilder() {
+      if (byTypeAndScopeBuilder_ == null) {
+        byTypeAndScopeBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCount.Builder, io.evitadb.externalApi.grpc.generated.GrpcIndexTypeCountOrBuilder>(
+                byTypeAndScope_,
                 ((bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
-        byKindAndScope_ = null;
+        byTypeAndScope_ = null;
       }
-      return byKindAndScopeBuilder_;
+      return byTypeAndScopeBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

@@ -878,7 +878,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * {@link #pageStreamRegistry} is excluded: single-writer flush bookkeeping carried by reference across commits,
 	 * not index content.
 	 *
-	 * Like every tree walk this is `O(points / blockSize)` rather than `O(1)`, so it belongs to `MEMORY_FOOTPRINT`
+	 * Like every tree walk this is `O(points / blockSize)` rather than `O(1)`, so it belongs to the index detail call
 	 * and must never be called from a query path.
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding

@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.CatalogNotAliveException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
@@ -48,8 +49,12 @@ import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 // shadows the legacy same-package `io.evitadb.api.CatalogStatistics`, which survives only to feed the deprecated
 // instance-wide RPC and is not what this contract speaks in any more
+import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -404,15 +409,49 @@ public interface CatalogContract {
 	 * entity collection are obtained from {@link EntityCollectionContract#getStatistics(Set)}, and the two are
 	 * independent snapshots that may observe different catalog versions.
 	 *
-	 * @param components the components to compute; every one of them must satisfy
-	 *                   {@link CatalogStatisticsComponent#isCatalogLevel()}
+	 * @param components the components to compute; at least one must be named
 	 * @return the snapshot, carrying the requested components and the status of each
-	 * @throws EvitaInvalidUsageException when a component that has no catalog-level form is requested
+	 * @throws EvitaInvalidUsageException when no component is requested
 	 */
 	@Nonnull
 	CatalogStatistics getStatistics(
 		@Nonnull Set<CatalogStatisticsComponent> components
 	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Returns one page of the indexes this catalog holds itself, filtered and ordered as asked.
+	 *
+	 * The catalog-level counterpart of {@link EntityCollectionContract#browseIndexes(IndexBrowseCriteria)}, answering
+	 * with the same rows under the same criteria so that a client browsing both runs one code path. What it enumerates
+	 * is the globally-unique attribute index there is one of per {@link io.evitadb.dataType.Scope} - never a
+	 * collection's indexes, which stay behind the collection's own call.
+	 *
+	 * **This one is cheap, where the collection's is not.** A catalog holds at most one index per scope, so the walk is
+	 * over a constant rather than over the data; the criteria's paging and ordering exist to keep the two surfaces
+	 * identical rather than because anything here needs bounding.
+	 *
+	 * @param criteria which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
+	 */
+	@Nonnull
+	IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria);
+
+	/**
+	 * Describes one index this catalog holds itself - what it occupies on the heap, and how well it discriminates.
+	 *
+	 * The drill-down that follows {@link #browseIndexes(IndexBrowseCriteria)}, and the catalog-level counterpart of
+	 * {@link EntityCollectionContract#describeIndex(int)}. Hand back the {@link BrowsedIndex#indexPrimaryKey()} of the
+	 * row that looked worth investigating.
+	 *
+	 * @param indexPrimaryKey identity of the index to describe, as reported by {@link BrowsedIndex#indexPrimaryKey()}
+	 * @return the full description of that one index
+	 * @throws IndexNotFoundException when the catalog holds no index under that handle. A catalog index is created
+	 *                                lazily per scope, so this ordinarily means nothing globally unique has been written
+	 *                                into that scope yet - and unlike a collection's, the handle can start resolving
+	 *                                later, to the same logical index it always denoted
+	 */
+	@Nonnull
+	IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException;
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.

@@ -43,6 +43,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
@@ -86,6 +87,13 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	@Override
 	public Collection<? extends PriceListAndCurrencyPriceIndex> getPriceListAndCurrencyIndexes() {
 		return getPriceIndexes().values();
+	}
+
+	@Override
+	public void forEachPriceListAndCurrencyIndex(
+		@Nonnull Consumer<? super PriceListAndCurrencyPriceIndex> consumer
+	) {
+		getPriceIndexes().forEach((priceIndexKey, priceIndex) -> consumer.accept(priceIndex));
 	}
 
 	@Nonnull
@@ -188,21 +196,36 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
+	 *
+	 * # Why this walks with `forEach` while the read surface above does not
+	 *
+	 * A {@link java.util.HashMap} keeps the `values` view it hands out, so asking for one costs sixteen retained bytes
+	 * on the map for the lifetime of the owning index - see
+	 * {@link io.evitadb.index.map.TransactionalMap#forEach}. This path runs from every entity index constructor and
+	 * every flush, on every index in the catalog, and asks once; keeping a view for that is pure loss.
+	 *
+	 * {@link #getPriceListAndCurrencyIndexes()} and {@link #getPriceIndexesStream} are the **opposite** case and are
+	 * deliberately left alone: the price query translators call them repeatedly against the same index, which is
+	 * exactly what the JDK's caching exists for. Converting them would trade one retained view for a fresh walk on
+	 * every query - the wrong direction, and a regression that would not show up in a footprint measurement.
 	 */
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
-		for (T index : this.getPriceIndexes().values()) {
-			// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
-			// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
-			// multiple leaves
-			index.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
+		// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
+		// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
+		// multiple leaves
+		this.getPriceIndexes().forEach(
+			(priceIndexKey, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Walks with `forEach` for the reason given on {@link #getModifiedStorageParts}.
+	 */
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex<?> priceIndex : getPriceIndexes().values()) {
-			priceIndex.resetDirty();
-		}
+		getPriceIndexes().forEach((priceIndexKey, priceIndex) -> priceIndex.resetDirty());
 	}
 
 	/*

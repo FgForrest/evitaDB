@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -114,7 +114,9 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
+		// deliberately not the generic `EnumNameSerializer` - catalogs written before 2024.12 carry a type name the
+		// enum no longer declares, and this reader folds it rather than failing the load; see the class javadoc
+		kryo.register(EntityIndexType.class, new EntityIndexTypeSerializer(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(
 			GlobalUniqueIndexStoragePart.class,

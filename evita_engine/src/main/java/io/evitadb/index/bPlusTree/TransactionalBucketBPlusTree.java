@@ -1164,8 +1164,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * # Cost
 	 *
 	 * This is the first figure in the statistics work that is **not** `O(1)`: answering it walks every node, so the
-	 * cost is `O(entries / blockSize)` rather than a counter read. It is therefore a `MEMORY_FOOTPRINT` operation -
-	 * opt-in and documented expensive - never something a query path may call. `BucketBPlusTreeHeapSizeBenchmark`
+	 * cost is `O(entries / blockSize)` rather than a counter read. It is therefore an index-detail operation - opt-in
+	 * and documented expensive - never something a query path may call. `BucketBPlusTreeHeapSizeBenchmark`
 	 * measures the real number at production block sizes.
 	 *
 	 * # What is counted

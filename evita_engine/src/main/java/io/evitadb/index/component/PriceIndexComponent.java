@@ -84,14 +84,11 @@ public final class PriceIndexComponent implements IndexComponent {
 				"Unexpected PriceIndexContract impl: " + this.priceIndex.getClass()
 			);
 		}
-		// announce every live price-list-and-currency key into the manifest; for the void
-		// flavour `getPriceListAndCurrencyIndexes()` returns the empty collection so this
-		// loop is a no-op without an explicit branch
-		final Collection<? extends PriceListAndCurrencyPriceIndex> indexes =
-			this.priceIndex.getPriceListAndCurrencyIndexes();
-		for (final PriceListAndCurrencyPriceIndex pli : indexes) {
-			manifest.addPriceKey(pli.getPriceIndexKey());
-		}
+		// announce every live price-list-and-currency key into the manifest; for the void flavour this hands over
+		// nothing, so the walk is a no-op without an explicit branch. `forEach` rather than the collection accessor:
+		// this runs from every entity index constructor and every flush, and the collection that accessor returns is
+		// a map view the backing map would then keep for the lifetime of the index
+		this.priceIndex.forEachPriceListAndCurrencyIndex(pli -> manifest.addPriceKey(pli.getPriceIndexKey()));
 	}
 
 	@Override

@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;

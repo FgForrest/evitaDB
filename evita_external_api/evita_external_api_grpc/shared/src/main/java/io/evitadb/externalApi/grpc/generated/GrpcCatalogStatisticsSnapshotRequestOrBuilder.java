@@ -53,8 +53,8 @@ public interface GrpcCatalogStatisticsSnapshotRequestOrBuilder extends
 
   /**
    * <pre>
-   * The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-   * (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+   * The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+   * so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
    * `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
    * note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
    * </pre>
@@ -65,8 +65,8 @@ public interface GrpcCatalogStatisticsSnapshotRequestOrBuilder extends
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent> getComponentsList();
   /**
    * <pre>
-   * The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-   * (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+   * The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+   * so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
    * `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
    * note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
    * </pre>
@@ -77,8 +77,8 @@ public interface GrpcCatalogStatisticsSnapshotRequestOrBuilder extends
   int getComponentsCount();
   /**
    * <pre>
-   * The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-   * (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+   * The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+   * so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
    * `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
    * note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
    * </pre>
@@ -90,8 +90,8 @@ public interface GrpcCatalogStatisticsSnapshotRequestOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent getComponents(int index);
   /**
    * <pre>
-   * The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-   * (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+   * The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+   * so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
    * `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
    * note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
    * </pre>
@@ -103,8 +103,8 @@ public interface GrpcCatalogStatisticsSnapshotRequestOrBuilder extends
   getComponentsValueList();
   /**
    * <pre>
-   * The components to compute. Every one of them must have a catalog-level form - naming the collection-only component
-   * (`COMPONENT_MEMORY_FOOTPRINT`) is rejected, as is `COMPONENT_UNSPECIFIED` and an empty list.
+   * The components to compute. Every one of them must have a catalog-level form; every component defined today does,
+   * so what this rejects in practice is `COMPONENT_UNSPECIFIED` and an empty list.
    * `COMPONENT_IDENTITY` is delivered whether or not it appears here. `COMPONENT_INDEX_CARDINALITY` is accepted, but
    * note it describes the catalog index's global unique indexes here, not the collections' own entity indexes.
    * </pre>

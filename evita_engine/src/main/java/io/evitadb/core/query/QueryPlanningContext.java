@@ -26,6 +26,7 @@ package io.evitadb.core.query;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
