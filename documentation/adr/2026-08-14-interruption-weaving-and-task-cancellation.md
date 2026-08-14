@@ -1,11 +1,11 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 17:20
+updated: 2026-08-14 18:35
 status: accepted
 kind: fix
 issues: [1416]
-prs: []
+prs: [1419]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/executor
   - evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/async
@@ -156,7 +156,8 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   This belongs to the same pre-cancellation-fix build as the woven-site counts above: it proves the matcher fix
   does not destabilise the suite, and nothing about the four cancellation defects, whose tests did not exist
   yet. It has not been reproduced since — the full suite OOMs on this machine at the standard heap — and it was
-  **not** re-run against the seven cancellation fixes before merge. See the note on CI timing below.
+  **not** re-run *locally* against the seven cancellation fixes. CI ran the suite against them instead; see the
+  note on CI below.
 - `InterruptionTransformerMatcherTest` (new) asserts each of the **seven** engine matcher branches individually
   plus the GraphQL branch, and asserts that the abstract declarations and an unrelated method do **not** match.
   It needs no build artifacts and would have caught the `anyOf` defect in milliseconds. `InterruptionAdviceWovenTest`
@@ -210,14 +211,19 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   → **123 tests, 0 failures**, and zero `InterruptedException` occurrences in the log, which is the signal that
   matters — the woven checkpoints are live throughout that path, so a stray interrupt would abort queries rather
   than pass silently.
-- **The full suite never ran against these fixes before merge, and CI cannot have run it.** The only
-  `pull_request`-triggered workflows are `pr-review.yml` and CodeQL; neither executes a test. The Maven
-  invocation that runs the suite (`-P unitAndFunctional,full … -Dmaven.test.skip=false`) lives in `ci-dev.yml`,
-  which triggers on **push to `dev`** — so in this repository a pull request is validated *after* it merges, not
-  before. Recorded because "CI will catch it" is the natural assumption and it is wrong here: on a PR branch the
-  green checks are a code scan, not a test run. Local full-suite verification is the only pre-merge option and it
-  OOMs on a developer workstation at the project's standard `-Xmx8g`; raising the local heap would hide that
-  divergence rather than explain it, so the gap was left open knowingly rather than papered over.
+- **CI ran the full suite against these fixes before merge, and it passed.** `.github/workflows/pr-review.yml`
+  triggers on `pull_request` into `dev` for `evita*/**/*.java`, `**/pom.xml` and `.github/**`, and its Build step
+  runs `mvn -T 1C -B package -P unitAndFunctional,full … -Dmaven.test.skip=false`, then publishes a JUnit report.
+  On this record's own PR (#1419, head `7123e1be9`) that job ran 13 minutes and reported **21616 tests run, 21577
+  passed, 39 skipped, 0 failed**, 37 seconds before the merge.
+  What remains true is only the *local* limitation: the full suite OOMs on a developer workstation at the
+  project's standard `-Xmx8g`, so it was not re-run locally after the seven cancellation fixes. Raising the local
+  heap would hide that divergence rather than explain it, so it was left open knowingly.
+  **This bullet previously asserted the opposite** — that no `pull_request` workflow executes a test and that a PR
+  is validated only after it merges — as did the message of commit `7123e1be9`. Both were wrong, and wrong in the
+  dangerous direction: they tell a reader that a green PR proves nothing. The test step was already present in
+  `pr-review.yml` in that very commit (`git show 7123e1be9:.github/workflows/pr-review.yml`). Corrected while
+  verifying the same question for `2026-08-14-waiting-task-idle-timeout`.
 
 ## Consequences & open follow-ups
 

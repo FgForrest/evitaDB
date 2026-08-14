@@ -1,11 +1,11 @@
 ---
 title: Make the scheduler's waiting interval an idle timeout renewed by lookup, linearized on the buffer lock
 date: 2026-08-14
-updated: 2026-08-14 17:20
+updated: 2026-08-14 18:35
 status: accepted
 kind: fix
 issues: [1415]
-prs: []
+prs: [1420]
 areas:
   - evita_engine/src/main/java/io/evitadb/core/executor
   - evita_external_api/evita_external_api_grpc/server/src/main/java/io/evitadb/externalApi/grpc/services
