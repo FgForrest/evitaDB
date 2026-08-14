@@ -24,6 +24,7 @@
 package io.evitadb.core.executor;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.exception.TaskTimedOutException;
 import io.evitadb.api.task.InfiniteTask;
 import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
@@ -710,6 +711,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Nonnull
 	private <T extends ServerTask<?, ?>> T addTaskToQueue(@Nonnull T task) {
 		final boolean added;
+		final List<ServerTask<?, ?>> timedOutTasks;
 		// hold the buffer lock around the whole add so that registry writes never interleave with a concurrent
 		// purge: this prevents the purge's drain/refill window from racing an offer, which could otherwise overflow
 		// the re-add and silently drop live tasks. The purge re-enters this lock reentrantly on the full-queue path.
@@ -719,12 +721,15 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			if (this.queue.offer(task)) {
 				return task;
 			}
-			// the queue is full, so we need to remove some tasks and try again
-			this.purgeFinishedAndLongWaitingTasks();
+			// the queue is full, so we need to remove some tasks and try again - the purge removes the timed-out
+			// waiting tasks here, which is what frees the slot this retry needs
+			timedOutTasks = purgeAndCollectTimedOutTasks();
 			added = this.queue.offer(task);
 		} finally {
 			this.bufferLock.unlock();
 		}
+		// only now, with this method's own hold released, is it safe to run the tasks' completion callbacks
+		failTimedOutTasks(timedOutTasks);
 		if (!added) {
 			// this should never happen since the queue was cleared of finished and timed out tasks and its
 			// physical size is double the configured size
@@ -745,7 +750,8 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Iterates over all tasks in {@link #queue} in a batch manner and prunes it according to the following policy:
 	 *
-	 * - tasks still waiting for a precondition longer than {@link #WAITING_TASKS_KEEP_INTERVAL_MILLIS} are dropped,
+	 * - tasks still waiting for a precondition longer than {@link #WAITING_TASKS_KEEP_INTERVAL_MILLIS} are removed
+	 *   from the queue and failed with a {@link TaskTimedOutException}, rather than dropped silently,
 	 * - finished or failed tasks are removed, but those whose completion falls within the defense period are
 	 *   re-queued up to a fill threshold that keeps roughly one third of {@link #physicalQueueCapacity} empty as
 	 *   breathing room for newly submitted tasks,
@@ -760,6 +766,26 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @return always {@code 0L}, signalling the scheduling framework to re-plan the purge at its standard interval
 	 */
 	long purgeFinishedAndLongWaitingTasks() {
+		failTimedOutTasks(purgeAndCollectTimedOutTasks());
+		// plan to next standard time
+		return 0L;
+	}
+
+	/**
+	 * Performs the purge itself and hands back the waiting tasks it removed for exceeding
+	 * {@link #WAITING_TASKS_KEEP_INTERVAL_MILLIS}, leaving them uncompleted.
+	 *
+	 * They are returned rather than failed in place because a task's {@link Task#getFutureResult()} is public: a
+	 * completion callback is arbitrary client code that may re-enter the scheduler. Completing a task while
+	 * {@link #bufferLock} is still held would let such a callback offer into the queue mid-purge - and on the
+	 * {@link #addTaskToQueue(ServerTask)} overflow path the caller holds that lock reentrantly, so this method's own
+	 * `finally` releases nothing.
+	 *
+	 * @return the tasks removed for waiting too long, in removal order; empty when nothing timed out
+	 */
+	@Nonnull
+	private List<ServerTask<?, ?>> purgeAndCollectTimedOutTasks() {
+		List<ServerTask<?, ?>> timedOutTasks = null;
 		if (this.bufferLock.tryLock()) {
 			try {
 				// go through the entire queue, but only once
@@ -782,14 +808,21 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					// now go through all of them
 					final Iterator<ServerTask<?, ?>> it = this.buffer.iterator();
 					while (it.hasNext()) {
-						final Task<?, ?> task = it.next();
+						final ServerTask<?, ?> task = it.next();
 						final TaskStatus<?, ?> status = task.getStatus();
 						final TaskSimplifiedState taskState = status.simplifiedState();
 						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
 							// a task still waiting for its precondition past the waiting interval is dropped; the clock
 							// runs from creation (a waiting task is never issued), so this is a whole-life budget
 							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
+							// the task really is removed - it must not stay discoverable through #findTask, or a
+							// chunked restore would keep feeding an abandoned task and then resubmit a failed one -
+							// but it is failed only once the lock is released, see #purgeAndCollectTimedOutTasks
 							it.remove();
+							if (timedOutTasks == null) {
+								timedOutTasks = new ArrayList<>(16);
+							}
+							timedOutTasks.add(task);
 						} else if (taskState == TaskSimplifiedState.FINISHED || taskState == TaskSimplifiedState.FAILED) {
 							it.remove();
 							// if its defense period hasn't perished add it to list, that might end up in the queue again
@@ -827,8 +860,23 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			this.bufferLock.lock();
 			this.bufferLock.unlock();
 		}
-		// plan to next standard time
-		return 0L;
+		return timedOutTasks == null ? List.of() : timedOutTasks;
+	}
+
+	/**
+	 * Completes each of the given tasks exceptionally with a {@link TaskTimedOutException}, so that whatever joins
+	 * their futures observes the timeout instead of waiting forever.
+	 *
+	 * Must be called only once every {@link #bufferLock} hold has been released - see
+	 * {@link #purgeAndCollectTimedOutTasks()} for why.
+	 *
+	 * @param timedOutTasks the tasks removed by a purge for waiting too long
+	 */
+	private static void failTimedOutTasks(@Nonnull List<ServerTask<?, ?>> timedOutTasks) {
+		for (int i = 0; i < timedOutTasks.size(); i++) {
+			final ServerTask<?, ?> timedOutTask = timedOutTasks.get(i);
+			timedOutTask.fail(new TaskTimedOutException(timedOutTask.getStatus().taskId()));
+		}
 	}
 
 	/**

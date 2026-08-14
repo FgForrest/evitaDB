@@ -27,6 +27,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.exception.TaskTimedOutException;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
@@ -63,6 +64,10 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TASK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -629,6 +634,72 @@ class SchedulerTest {
 			assertTrue(
 				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isEmpty(),
 				"A finished task past its defense period must be dropped."
+			);
+		}
+
+		@Test
+		@DisplayName("fails a timed-out waiting task instead of dropping it silently")
+		void shouldFailWaitingTaskWhenWaitingThresholdHasElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			backdateCreated(task, Duration.ofMinutes(11));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			// the future must complete - a bare it.remove() leaves it dangling forever, so anything joining it hangs
+			final CompletableFuture<Void> future = task.getFutureResult();
+			assertTrue(future.isDone(), "A dropped waiting task must complete its future.");
+			final ExecutionException exception = assertThrows(
+				ExecutionException.class,
+				() -> future.get(30, TimeUnit.SECONDS)
+			);
+			assertInstanceOf(TaskTimedOutException.class, exception.getCause());
+
+			// the failure must carry a usable public message rather than the "unknown reasons" fallback
+			final TaskStatus<?, ?> status = task.getStatus();
+			assertEquals(TaskSimplifiedState.FAILED, status.simplifiedState());
+			assertNotNull(status.publicExceptionMessage());
+			assertNotEquals("Task failed for unknown reasons.", status.publicExceptionMessage());
+		}
+
+		@Test
+		@DisplayName("stops a timed-out waiting task from being found or resubmitted")
+		void shouldNotFindTimedOutWaitingTaskAfterPurge() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			final UUID taskId = taskIdOf(task);
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			backdateCreated(task, Duration.ofMinutes(11));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			// a timed-out task that stayed discoverable would let the restore handler keep appending chunks to it and
+			// then resubmit an already-failed task - SequentialTask#transitionToIssued does not refuse that
+			assertTrue(
+				SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isEmpty(),
+				"A timed-out waiting task must not remain findable."
+			);
+		}
+
+		@Test
+		@DisplayName("reclaims queue capacity taken by timed-out waiting tasks")
+		void shouldReclaimQueueCapacityWhenExpiredWaitingTasksArePurged() {
+			// the purge is also the queue's capacity-reclaim path: addTaskToQueue calls it only once offer() reports
+			// full, then retries. Timed-out tasks that are failed but left queued would reclaim no slot at all.
+			// mirrors Scheduler's own `physicalQueueCapacity = queueSize << 1`, so no production accessor is needed
+			final int physicalCapacity = ThreadPoolOptions.serviceThreadPoolBuilder().build().queueSize() << 1;
+			for (int i = 0; i < physicalCapacity; i++) {
+				final ClientRunnableTask<Void> filler = waitingTask();
+				SchedulerTest.this.scheduler.registerWaitingTask(filler);
+				backdateCreated(filler, Duration.ofMinutes(11));
+			}
+
+			// the queue is now full of expired waiting tasks - registering one more must succeed rather than be rejected
+			final ClientRunnableTask<Void> newcomer = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(newcomer);
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(newcomer)).isPresent(),
+				"Purging expired waiting tasks must free room for a newly registered task."
 			);
 		}
 
