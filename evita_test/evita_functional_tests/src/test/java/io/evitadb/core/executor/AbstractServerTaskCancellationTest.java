@@ -127,6 +127,42 @@ class AbstractServerTaskCancellationTest {
 				"the status does not carry the exception the body threw"
 			);
 		}
+
+		@Test
+		@DisplayName("keeps the real exception when the body failed for a reason unrelated to the cancellation")
+		void shouldKeepRealExceptionWhenUnrelatedFailureRacedCancellation() {
+			// the race from the two tests above compressed into one deterministic body: the result future is
+			// cancelled AND the body then fails for a reason that has nothing to do with the cancellation. Deciding
+			// on `future.isCancelled()` alone files a genuine production failure away as a routine cancellation and
+			// discards it at debug level, where nobody reading the task status will ever find it.
+			final AtomicBoolean handlerInvoked = new AtomicBoolean(false);
+			final ClientCallableTask<Void, Integer> task = new ClientCallableTask<Void, Integer>(
+				"task", "Cancelled task that failed on its own", null,
+				theTask -> {
+					theTask.cancel();
+					throw new IllegalStateException("boom");
+				},
+				throwable -> {
+					handlerInvoked.set(true);
+					return -1;
+				}
+			);
+			task.transitionToIssued();
+
+			assertNull(task.execute(), "a cancelled task must still report no result");
+			assertTrue(task.getFutureResult().isCancelled(), "the result future was not cancelled");
+			assertFalse(
+				handlerInvoked.get(),
+				"the exception handler ran for a cancelled task, whose future can no longer accept a default result"
+			);
+
+			final TaskStatus<Void, Integer> status = task.getStatus();
+			assertEquals(TaskSimplifiedState.FAILED, status.simplifiedState());
+			assertTrue(
+				status.exceptionWithStackTrace().startsWith(IllegalStateException.class.getName()),
+				"the genuine failure was reported as a routine cancellation and lost"
+			);
+		}
 	}
 
 	@Nested

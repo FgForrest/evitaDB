@@ -858,8 +858,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		/**
 		 * Post-execution cleanup invoked from the {@code finally} block of the subclass's run/call method: fires
 		 * the completion callback exactly once, closes the task to further interrupt delivery, clears the
-		 * executing-thread reference, and clears the worker thread's interrupt flag when the task was cancelled so
-		 * the interrupt does not leak into the next task picked up by the same worker thread.
+		 * executing-thread reference, and clears the worker thread's interrupt flag when an interrupt was or could
+		 * have been delivered, so it does not leak into the next task picked up by the same worker thread.
 		 *
 		 * When a concurrent {@link #cancel()} has already claimed the task, this method parks until that cancel has
 		 * finished delivering — clearing the flag while an interrupt is still in flight would let it arrive after the
@@ -876,8 +876,16 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				}
 			}
 			this.executingThread = null;
-			// clear interrupt flag to prevent leaking to the next task on this worker thread
-			if (this.future.isCancelled()) {
+			// clear the interrupt flag so it cannot leak into the next task this worker picks up. The condition has to
+			// track *delivery*, which is what `executionState` governs - not the future's outcome. A cancel arriving
+			// after the delegate already completed the future normally fails `future.cancel(true)`, yet still wins
+			// `RUNNING -> CANCELLING` and genuinely interrupts this thread; gating on `isCancelled()` alone left that
+			// flag set, which is the exact leak this state machine exists to prevent. `isCancelled()` is still needed
+			// for the mirror case, where the task was cancelled before it ever reached RUNNING and no interrupt was
+			// ever delivered - clearing there is harmless and keeps the pre-start path unchanged.
+			// Covered by ObservableThreadExecutorCancellationTest
+			// #shouldClearInterruptWhenCancelArrivedAfterFutureCompleted
+			if (this.future.isCancelled() || this.executionState.get() == ExecutionState.INTERRUPTED) {
 				//noinspection ResultOfMethodCallIgnored
 				Thread.interrupted();
 			}

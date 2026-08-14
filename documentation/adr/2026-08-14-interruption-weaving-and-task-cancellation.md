@@ -1,7 +1,7 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 14:35
+updated: 2026-08-14 14:50
 status: accepted
 kind: fix
 issues: [1416]
@@ -162,8 +162,10 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   It needs no build artifacts and would have caught the `anyOf` defect in milliseconds. `InterruptionAdviceWovenTest`
   keeps exactly one assertion per module, owning the orthogonal claim that the plugin ran against the shipped
   classes; the two are deliberately not merged.
-- Four further defects were found in the cancellation chain and fixed here, each calibrated by reverting the fix
-  and confirming its test fails with the predicted symptom:
+- Six further defects were found in the cancellation chain and fixed here, each calibrated by confirming its test
+  fails with the predicted symptom before the fix goes in. The last two were written test-first, which is the
+  preferable order for the reason recorded under *Consequences*: a test written red needs no revert step, so
+  there is nothing to forget to undo.
   - `AbstractServerTask#attachExecutionHandle` — a cancel arriving between `submit(...)` and the attach found no
     handle and never interrupted, silently reinstating the defect this record exists to fix.
     `SchedulerTest#shouldInterruptTaskCancelledBeforeHandleAttached`.
@@ -181,7 +183,22 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
     Worth revisiting only if a caller is found that needs to tell the two apart.
   - `SequentialTask#execute` — the completion block ran on a cancelled sequence.
     `SequentialTaskTest#shouldStopAtStepBoundaryWhenResultFutureCancelledDirectly`.
-- Tag-scoped regression run after all fixes: `-Dgroups="task & engine"` → **97 tests, 0 failures**.
+  - `ObservableThreadExecutor#finishExecution` — the state machine above closed only half the window. Interrupt
+    *delivery* is gated on `executionState`, but flag *clearing* was gated on `future.isCancelled()`, and the two
+    disagree in a real ordering: once the delegate completes the future normally, a cancel can no longer cancel it
+    yet still wins `RUNNING -> CANCELLING` and genuinely interrupts the worker — which then left
+    `finishExecution()` with the flag set, leaking it onto the next task. Precisely the failure this record exists
+    to close, in the code added to close it. Clearing is now keyed on delivery
+    (`isCancelled() || state == INTERRUPTED`).
+    `ObservableThreadExecutorCancellationTest#shouldClearInterruptWhenCancelArrivedAfterFutureCompleted`.
+  - `AbstractServerTask#execute` — a body failing for its own reason while a cancel won the race was reported as a
+    routine cancellation: the real exception was discarded at `debug` and the status kept the
+    `CancellationException`, so a genuine production bug read as deliberate cancellation. `isCancelled()` answers
+    "was a cancel requested", never "is this why the body threw"; the branch now also requires the throwable to be
+    (or wrap) a `CancellationException`/`InterruptedException`.
+    `AbstractServerTaskCancellationTest#shouldKeepRealExceptionWhenUnrelatedFailureRacedCancellation`.
+- Tag-scoped regression run after all fixes: `-Dgroups="task & engine"` → **99 tests, 0 failures**; targeted
+  classes → **77 tests, 0 failures**. Both on a `mvn clean` rebuild of the woven modules.
 - Request-path run, because the `ObservableThreadExecutor` fix executes on every task completion in the Armeria
   request path and the tag scoping above is orthogonal to it: five GraphQL and REST end-to-end functional classes
   → **123 tests, 0 failures**, and zero `InterruptedException` occurrences in the log, which is the signal that
@@ -216,6 +233,16 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   a revert used as a measuring instrument must be restored and then re-verified against a freshly built
   artifact, and a comment is not evidence that the code beneath it exists. `mvn clean` on the woven module is
   what makes the verification mean anything, because the ByteBuddy `transform` goal is incremental.
+  The two fixes that followed were written test-first instead, which removes the hazard rather than managing it:
+  a red produced by a new test leaves nothing to restore.
+- **A cancelled task that fails for an unrelated reason keeps its exception but not its exception handler.** The
+  review that found this suggested falling through to the ordinary failure path. That path also invokes
+  `exceptionHandler`, whose sole purpose is to supply a default result — and the result future is already
+  cancelled, so it can never accept one; the handler would run for its side effects alone, against the documented
+  contract asserted by `shouldNotInvokeExceptionHandlerWhenTaskWasCancelled`. The narrower fix records the real
+  exception in the status and returns the cancelled outcome. Revisit if a caller ever needs the handler's side
+  effects on a cancelled task, which would make the two contracts genuinely incompatible rather than merely
+  adjacent.
 - **The thread-tracking pattern this record rejects for new code was still live in the request path**, and is
   now fixed rather than merely noted. `AbstractObservableTask#cancel()` reads a `volatile Thread` and interrupts
   it directly; nothing ordered that interrupt against the worker clearing its flag and taking the next task, so
