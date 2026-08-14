@@ -307,6 +307,17 @@ public class OffsetIndex {
 	 * be safely read.
 	 */
 	private long lastSyncedPosition;
+	/**
+	 * End position of the data file as of the last growth sample, which is what the next sample subtracts from to
+	 * learn how many bytes the file actually gained.
+	 *
+	 * Deliberately separate from {@link #lastSyncedPosition}: a soft flush advances that one without promoting
+	 * anything, so reusing it as the baseline would drop every soft-flushed byte from the growth series instead of
+	 * folding it into the sample that promotes those records. Only written by the flush thread inside
+	 * {@link #promoteNonFlushedValuesToSharedState(long, Collection)}, under the same write handle serialization as
+	 * every other field it touches.
+	 */
+	private long lastSampledFilePosition;
 
 	/**
 	 * Reads particular storage part from the target file path. This method will take `location` as leading pointer
@@ -396,6 +407,9 @@ public class OffsetIndex {
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		try {
 			final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
 			if (this.lastSyncedPosition == 0 || fileOffsetDescriptor.fileLocation().equals(FileLocation.EMPTY)) {
@@ -468,6 +482,9 @@ public class OffsetIndex {
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
 				"Cannot create OffsetIndex from empty file: `" + filePath + "`!",
@@ -554,6 +571,9 @@ public class OffsetIndex {
 		);
 
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
 				"Cannot create OffsetIndex from empty file: `" + filePath + "`!",
@@ -1637,10 +1657,6 @@ public class OffsetIndex {
 		// bytes this flush strands in the data file. Deliberately *not* `recordLengthDelta`: a rewrite that shrinks
 		// a record has a negative length delta while still leaving the whole superseded record behind as waste
 		long wasteBytesGenerated = 0;
-		// bytes this flush appends to the data file, which is a third quantity again: `recordLengthDelta` is the
-		// change in *live* size and goes negative on removals, while the file only ever gets longer. A removal
-		// appends nothing and strands everything; a record replaced by a larger one appends more than it strands
-		long appendedBytes = 0;
 		int batchIndex = 0;
 
 		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
@@ -1675,7 +1691,6 @@ public class OffsetIndex {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
 					final int currentRecordLength = recordLocation.recordLength();
 					recordLengthDelta += currentRecordLength;
-					appendedBytes += currentRecordLength;
 					if (currentRecordLength > workingMaxRecordSize) {
 						workingMaxRecordSize = currentRecordLength;
 					}
@@ -1695,7 +1710,6 @@ public class OffsetIndex {
 						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
 					root = root.updated(recordKey, newRecordLocation);
 					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
-					appendedBytes += newRecordLocation.recordLength();
 					// the superseded version stays in the file behind the new one
 					wasteBytesGenerated += existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
@@ -1728,6 +1742,20 @@ public class OffsetIndex {
 		// update global statistics
 		this.totalSizeBytes.addAndGet(recordLengthDelta);
 		this.maxRecordSizeBytes.set(workingMaxRecordSize);
+		// Growth is read off the file itself rather than summed from the record bodies above, because the bodies are
+		// not all the flush appends: every flush also writes an offset index fragment, and a removal writes only
+		// its tombstone into that fragment and no body at all. Reconstructing the number from bodies therefore
+		// reported growth 0 for a delete-only store - a file that genuinely lengthens by a fragment per flush - and
+		// the forecast then projected no compaction for it. Taking the end-position delta makes this figure agree
+		// with `getFileSize()` by construction, which is the quantity the compaction threshold compares against.
+		// Safe to read here: the post-action this runs from is downstream of both the write and the sync.
+		// the clamp guards an unreachable state rather than a real one - the position is monotonic on a given handle,
+		// and a compaction builds a fresh instance whose baseline starts at the new file's length. It is a clamp and
+		// not a thrown premise on purpose: this runs on the flush path, and a statistics counter must not be able to
+		// fail a flush
+		final long fileSizeAfterFlush = this.writeHandle.getLastWrittenPosition();
+		final long appendedBytes = Math.max(0L, fileSizeAfterFlush - this.lastSampledFilePosition);
+		this.lastSampledFilePosition = fileSizeAfterFlush;
 		// sample the waste and growth rates here rather than per write: a flush is where the stranded bytes actually
 		// become part of the file, and it is the same moment the compaction trigger itself evaluates
 		this.wasteAccumulation = this.wasteAccumulation.sampled(wasteBytesGenerated, appendedBytes, promotedAt);

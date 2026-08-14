@@ -24,6 +24,7 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint.DataStoreGenerations;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -36,6 +37,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -81,6 +84,37 @@ class CatalogStorageFootprintPrefixTest {
 		// the log was always attributed, because it is matched by suffix rather than by prefix - which is what made
 		// the defect look like a partial answer rather than an obviously broken one
 		assertEquals(walBytes, footprint.walBytes());
+		assertEquals(0L, footprint.unaccountedBytes());
+	}
+
+	@Test
+	@DisplayName("A renamed catalog's own data store is split into live and waste, not left unaccounted")
+	void shouldSplitTheDataStoreOfARenamedCatalog(@TempDir Path folder) throws IOException {
+		// same folder as above, now with the catalog's own data store present and a header describing it. This is the
+		// path the first cut of the prefix fix missed: discovering the prefix is only half of it, and the *consumers*
+		// of the discovery have to use it too
+		final long bootstrapBytes = write(folder, "old.boot", 128);
+		final long dataStoreBytes = write(folder, "old_3.catalog", 512);
+		final long activeBytes = 300L;
+
+		final CatalogStorageFootprint footprint = CatalogStorageFootprintMeasurer.measure(
+			"new",
+			listing(folder),
+			new DataStoreGenerations(
+				3,
+				Set.of("old_3.catalog"),
+				Map.of("old_3.catalog", activeBytes),
+				Map.of(),
+				Map.of(),
+				0L
+			)
+		);
+
+		assertEquals(bootstrapBytes + dataStoreBytes, footprint.totalBytes());
+		// both read `0` while the name drove the derivation, with the whole data store falling into the remainder
+		assertEquals(activeBytes, footprint.catalogDataStoreLiveBytes());
+		assertEquals(dataStoreBytes - activeBytes, footprint.catalogDataStoreWasteBytes());
+		assertEquals(bootstrapBytes, footprint.bootstrapBytes());
 		assertEquals(0L, footprint.unaccountedBytes());
 	}
 

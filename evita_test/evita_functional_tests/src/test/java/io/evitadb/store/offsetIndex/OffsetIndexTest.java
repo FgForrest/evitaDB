@@ -986,6 +986,61 @@ class OffsetIndexTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * The growth half of the compaction forecast's input. Growth is deliberately read off the data file's own end
+	 * position rather than summed from the record bodies a flush promotes, and this pins the case that distinguishes
+	 * the two.
+	 */
+	@Nested
+	@DisplayName("Growth sampling")
+	class GrowthSampling {
+
+		@DisplayName("A flush that only removes records still registers the bytes the file gained")
+		@Test
+		void shouldRegisterGrowthOfARemovalOnlyFlush() {
+			final StorageSettings storageSettings = new StorageSettings(
+				StorageOptions.temporary(),
+				DEFAULT_TRANSACTION_OPTIONS
+			);
+			try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndex offsetIndex = createNewOffsetIndex(
+					0L,
+					storageSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+				try {
+					offsetIndex.put(1L, new EntityBodyStoragePart(1));
+					offsetIndex.put(1L, new EntityBodyStoragePart(2));
+					offsetIndex.flush(1L);
+					final long sizeAfterWrites = offsetIndex.getFileSize();
+					final long appendedAfterWrites = offsetIndex.getWasteAccumulation().fileBytesAppended();
+
+					// a removal appends no record body at all - it writes a tombstone into the offset index fragment
+					// that every flush appends anyway. Summing the promoted bodies therefore scored this flush as
+					// zero growth, which made a delete-only store look like a file that never lengthens and left its
+					// compaction unforecast
+					offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+					offsetIndex.remove(2L, 2, EntityBodyStoragePart.class);
+					offsetIndex.flush(2L);
+
+					final long sizeAfterRemovals = offsetIndex.getFileSize();
+					assertTrue(
+						sizeAfterRemovals > sizeAfterWrites,
+						"a removal-only flush still lengthens the file"
+					);
+					assertEquals(
+						sizeAfterRemovals - sizeAfterWrites,
+						offsetIndex.getWasteAccumulation().fileBytesAppended() - appendedAfterWrites,
+						"growth must account for exactly what the file gained"
+					);
+				} finally {
+					offsetIndex.close();
+				}
+			}
+		}
+	}
+
+	/**
 	 * Black-box characterization of {@link OffsetIndex} multi-version concurrency control. Every assertion
 	 * is expressed solely through the public read/write surface (`put`, `remove`, `flush`, `get`,
 	 * `getBinary`, `contains`, `count`, `getEntries`, the loading constructor). No internal version-tracking

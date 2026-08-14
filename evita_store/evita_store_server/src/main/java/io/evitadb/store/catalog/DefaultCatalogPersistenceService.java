@@ -3579,7 +3579,7 @@ public class DefaultCatalogPersistenceService
 		final long nowMillis = getNowEpochMillis();
 		final CompactionForecast catalogDataStoreForecast = forecastCompaction(
 			getStoragePartPersistenceService(catalogVersion).getOffsetIndex(),
-			currentFileLengths.get(getCatalogDataStoreFileName(this.catalogName, bootstrap.catalogFileIndex())),
+			currentFileLengths.get(getCatalogDataStoreFileName(this.storagePrefix, bootstrap.catalogFileIndex())),
 			this.storageSettings,
 			this.lastCatalogCompactionAtMillis,
 			nowMillis
@@ -3651,7 +3651,7 @@ public class DefaultCatalogPersistenceService
 			collectionReferences.size()
 		);
 
-		final String currentCatalogFile = getCatalogDataStoreFileName(this.catalogName, currentCatalogFileIndex);
+		final String currentCatalogFile = getCatalogDataStoreFileName(this.storagePrefix, currentCatalogFileIndex);
 		currentDataStoreFiles.add(currentCatalogFile);
 		activeSizeByCurrentFile.put(
 			currentCatalogFile,
@@ -4657,7 +4657,7 @@ public class DefaultCatalogPersistenceService
 			}
 
 			final Path bootstrapFilePath = this.catalogStoragePath.resolve(
-				getCatalogBootstrapFileName(this.catalogName));
+				getCatalogBootstrapFileName(this.storagePrefix));
 			final int recordCount = CatalogBootstrap.getRecordCount(bootstrapFilePath.toFile().length());
 			if (recordCount < 2) {
 				// a single record pins the active data set only - there is no history left to give up
@@ -4779,7 +4779,7 @@ public class DefaultCatalogPersistenceService
 		this.historyHorizonLock.lock();
 		try {
 			final Path bootstrapFilePath = this.catalogStoragePath.resolve(
-				getCatalogBootstrapFileName(this.catalogName));
+				getCatalogBootstrapFileName(this.storagePrefix));
 			final int recordCount = CatalogBootstrap.getRecordCount(bootstrapFilePath.toFile().length());
 			if (recordCount < 2) {
 				return 0L;
