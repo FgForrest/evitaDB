@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -74,6 +75,24 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Lock synchronizing access to the buffer and purge operation.
 	 */
 	private final ReentrantLock bufferLock = new ReentrantLock();
+	/**
+	 * Time source for the scheduler's own timestamps. Real time in production; tests substitute a controllable
+	 * clock so that an interval measured in minutes can be exercised without waiting one out.
+	 */
+	private final Clock clock;
+	/**
+	 * Last time each waiting task was looked up through {@link #findTask(Predicate)}, keyed by task id.
+	 *
+	 * This is what turns the waiting interval from a budget on a task's whole life into an idle timeout: a task
+	 * that is still being used is still being looked up, and the purge measures from the later of creation and
+	 * this timestamp. Absent entry means "never looked up", which correctly falls back to the creation time.
+	 *
+	 * A plain {@link HashMap} rather than a concurrent one on purpose - every read and write happens under
+	 * {@link #bufferLock}, together with the queue operation it belongs to. A concurrent map would make the
+	 * individual operations safe while leaving the compound lookup-and-renew, and renew-versus-timeout, races
+	 * wide open; the lock is what actually makes those atomic.
+	 */
+	private final Map<UUID, OffsetDateTime> waitingTaskLastActivity = new HashMap<>(16);
 	/**
 	 * Java based scheduled executor service.
 	 */
@@ -143,6 +162,20 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	public Scheduler(@Nonnull ThreadPoolOptions options) {
+		this(options, Clock.systemDefaultZone());
+	}
+
+	/**
+	 * Creates a scheduler reading time from the supplied clock instead of the system one.
+	 *
+	 * Package-private: it exists so that `SchedulerTest` can advance time deterministically across the waiting
+	 * interval, which is the only way to exercise a last-activity timestamp the scheduler owns itself.
+	 *
+	 * @param options thread pool configuration
+	 * @param clock   time source for the purge thresholds and the waiting-task activity stamps
+	 */
+	Scheduler(@Nonnull ThreadPoolOptions options, @Nonnull Clock clock) {
+		this.clock = clock;
 		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::increment);
 		// note: a ScheduledThreadPoolExecutor uses an unbounded DelayedWorkQueue, so this handler is effectively only
 		// triggered for tasks submitted after shutdown - back-pressure for the bounded task registry is enforced
@@ -177,6 +210,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * @param executorService to be used for scheduling tasks
 	 */
 	public Scheduler(@Nonnull ScheduledThreadPoolExecutor executorService) {
+		this.clock = Clock.systemDefaultZone();
 		this.executorService = executorService;
 		this.queueCapacity = 64;
 		this.physicalQueueCapacity = 64;
@@ -603,11 +637,47 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Retrieves a task from the waiting queue based on the provided registration identifier.
 	 *
+	 * **Looking a waiting task up keeps it alive.** A successful lookup of a task that is still waiting for its
+	 * precondition renews that task's activity timestamp, so the purge's waiting interval behaves as an idle
+	 * timeout rather than a ceiling on the task's total lifetime. This is what lets a chunked upload run longer
+	 * than the interval: every chunk locates its task through this method, and thereby renews it.
+	 *
+	 * A caller that wants to inspect a waiting task *without* extending its life must not use this method.
+	 *
+	 * The whole lookup runs under {@link #bufferLock} so that it linearizes against the purge: without it the
+	 * lookup could miss a live task held in the purge's drain window, or renew a task the purge had already
+	 * selected for timeout.
+	 *
 	 * @param taskPredicate predicate to filter the task
 	 * @return An {@link Optional} containing the {@link ServerTask} if found, otherwise an empty {@link Optional}.
 	 */
 	public Optional<ServerTask<?, ?>> findTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
-		return this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst();
+		this.bufferLock.lock();
+		try {
+			final Optional<ServerTask<?, ?>> foundTask = this.queue.stream()
+				.filter(task -> task.matches(taskPredicate))
+				.findFirst();
+			foundTask.ifPresent(this::renewWaitingTaskActivity);
+			return foundTask;
+		} finally {
+			this.bufferLock.unlock();
+		}
+	}
+
+	/**
+	 * Records that the given task has just been used, provided it is still waiting for its precondition. Tasks in
+	 * any other state are ignored - a queued, running or finished task is not subject to the waiting interval, and
+	 * stamping one would only leave an entry behind.
+	 *
+	 * Must be called while holding {@link #bufferLock}.
+	 *
+	 * @param task the task that has just been looked up
+	 */
+	private void renewWaitingTaskActivity(@Nonnull ServerTask<?, ?> task) {
+		final TaskStatus<?, ?> status = task.getStatus();
+		if (status.simplifiedState() == TaskSimplifiedState.WAITING_FOR_PRECONDITION) {
+			this.waitingTaskLastActivity.put(status.taskId(), OffsetDateTime.now(this.clock));
+		}
 	}
 
 	/**
@@ -617,8 +687,27 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	public void submitWaitingTask(@Nonnull Predicate<ServerTask<?, ?>> taskPredicate) {
 		if (!this.executorService.isShutdown()) {
-			this.queue.stream().filter(task -> task.matches(taskPredicate)).findFirst()
-				.ifPresent(this::submitTaskInQueue);
+			final ServerTask<?, ?> taskToSubmit;
+			// the lookup, the transition out of the waiting state and the activity drop happen as one step under
+			// the lock, so a concurrent purge sees the task either still waiting or already issued - never both.
+			// Handing it to the executor is deliberately left outside: an @InternallyScheduledTask runs inline on
+			// this thread, and running a task body under the registry lock would invite a deadlock.
+			this.bufferLock.lock();
+			try {
+				taskToSubmit = this.queue.stream()
+					.filter(task -> task.matches(taskPredicate))
+					.findFirst()
+					.orElse(null);
+				if (taskToSubmit != null) {
+					taskToSubmit.transitionToIssued();
+					this.waitingTaskLastActivity.remove(taskToSubmit.getStatus().taskId());
+				}
+			} finally {
+				this.bufferLock.unlock();
+			}
+			if (taskToSubmit != null) {
+				executeIssuedTask(taskToSubmit);
+			}
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
@@ -671,6 +760,20 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	private <T> @Nonnull CompletableFuture<T> submitTaskInQueue(@Nonnull ServerTask<?, T> task) {
 		task.transitionToIssued();
+		return executeIssuedTask(task);
+	}
+
+	/**
+	 * Hands a task that has **already** been transitioned to issued over to the executor.
+	 *
+	 * Split out of {@link #submitTaskInQueue(ServerTask)} so that {@link #submitWaitingTask(Predicate)} can perform
+	 * the state transition under {@link #bufferLock} - closing the window in which a purge could time the task out
+	 * between the lookup and the submission - while still running the task itself outside that lock.
+	 *
+	 * @param task the task, already in the issued state
+	 * @return A CompletableFuture representing the result of the submitted task.
+	 */
+	private <T> @Nonnull CompletableFuture<T> executeIssuedTask(@Nonnull ServerTask<?, T> task) {
 		if (task.getClass().isAnnotationPresent(InternallyScheduledTask.class)) {
 			// if the task is internally scheduled, we can execute it immediately
 			task.execute();
@@ -794,7 +897,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				CompositeObjectArray<Task> finishedTaskInDefensePeriod = null;
 				// a single `now` for both thresholds - two separate reads could disagree about the current time, and
 				// the names are spelled out so that a future edit cannot silently cross them again (see #1415)
-				final OffsetDateTime now = OffsetDateTime.now();
+				final OffsetDateTime now = OffsetDateTime.now(this.clock);
 				final OffsetDateTime waitingThreshold = now.minus(
 					WAITING_TASKS_KEEP_INTERVAL_MILLIS, ChronoUnit.MILLIS
 				);
@@ -811,14 +914,22 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 						final ServerTask<?, ?> task = it.next();
 						final TaskStatus<?, ?> status = task.getStatus();
 						final TaskSimplifiedState taskState = status.simplifiedState();
-						if (taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION && status.created().isBefore(waitingThreshold)) {
-							// a task still waiting for its precondition past the waiting interval is dropped; the clock
-							// runs from creation (a waiting task is never issued), so this is a whole-life budget
+						final boolean waitingForPrecondition =
+							taskState == TaskSimplifiedState.WAITING_FOR_PRECONDITION;
+						if (!waitingForPrecondition) {
+							// the task has left the waiting state for good, so its activity entry can never matter
+							// again - dropping it here is what keeps the map bounded, no separate sweep needed
+							this.waitingTaskLastActivity.remove(status.taskId());
+						}
+						if (waitingForPrecondition && lastWaitingActivityOf(status).isBefore(waitingThreshold)) {
+							// the task has been idle - neither created nor looked up recently - for longer than the
+							// waiting interval allows
 							log.info("Task {} is waiting for precondition for too long, removing it from the queue.", status.taskId());
 							// the task really is removed - it must not stay discoverable through #findTask, or a
 							// chunked restore would keep feeding an abandoned task and then resubmit a failed one -
 							// but it is failed only once the lock is released, see #purgeAndCollectTimedOutTasks
 							it.remove();
+							this.waitingTaskLastActivity.remove(status.taskId());
 							if (timedOutTasks == null) {
 								timedOutTasks = new ArrayList<>(16);
 							}
@@ -861,6 +972,24 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 			this.bufferLock.unlock();
 		}
 		return timedOutTasks == null ? List.of() : timedOutTasks;
+	}
+
+	/**
+	 * Returns the moment from which the given waiting task's idle time is measured: the later of its creation and
+	 * the last time it was looked up through {@link #findTask(Predicate)}.
+	 *
+	 * A task that was never looked up has no activity entry and is measured from creation, which is what keeps a
+	 * genuinely abandoned task collectable.
+	 *
+	 * Must be called while holding {@link #bufferLock}.
+	 *
+	 * @param status status of the waiting task
+	 * @return the later of the task's creation timestamp and its last lookup
+	 */
+	@Nonnull
+	private OffsetDateTime lastWaitingActivityOf(@Nonnull TaskStatus<?, ?> status) {
+		final OffsetDateTime lastActivity = this.waitingTaskLastActivity.get(status.taskId());
+		return lastActivity == null || lastActivity.isBefore(status.created()) ? status.created() : lastActivity;
 	}
 
 	/**

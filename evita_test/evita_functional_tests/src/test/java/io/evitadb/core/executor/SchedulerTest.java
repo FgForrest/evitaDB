@@ -44,6 +44,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
+import java.time.ZoneId;
+import java.time.Instant;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -681,6 +684,102 @@ class SchedulerTest {
 		}
 
 		@Test
+		@DisplayName("keeps a waiting task whose lookup refreshed its activity")
+		void shouldKeepWaitingTaskWhenLookupRefreshedItsActivity() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			final UUID taskId = taskIdOf(task);
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// far past any fixed budget measured from creation - a large backup over a slow link looks like this
+			backdateCreated(task, Duration.ofMinutes(30));
+
+			// a chunked upload announces its interest by looking the task up on every chunk
+			assertTrue(
+				SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent(),
+				"The task must still be findable before the purge runs."
+			);
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			final Optional<TaskStatus<?, ?>> status = SchedulerTest.this.scheduler.getTaskStatus(taskId);
+			assertTrue(status.isPresent(), "A waiting task whose lookup refreshed it must survive the purge.");
+			assertEquals(TaskSimplifiedState.WAITING_FOR_PRECONDITION, status.get().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("drops a waiting task whose last lookup has itself gone stale")
+		void shouldDropWaitingTaskWhenLookupWentStale() {
+			final MutableClock clock = new MutableClock();
+			final Scheduler clockedScheduler = new Scheduler(
+				ThreadPoolOptions.serviceThreadPoolBuilder().build(), clock
+			);
+			try {
+				final ClientRunnableTask<Void> task = waitingTask();
+				final UUID taskId = taskIdOf(task);
+				clockedScheduler.registerWaitingTask(task);
+				assertTrue(clockedScheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent());
+
+				// the upload stopped sending chunks - nothing looks the task up again, and the renewal itself ages out
+				clock.advance(Duration.ofMinutes(11));
+				clockedScheduler.purgeFinishedAndLongWaitingTasks();
+
+				assertTrue(
+					clockedScheduler.getTaskStatus(taskId).isEmpty(),
+					"A renewal only postpones the timeout - it must not make the task immortal."
+				);
+			} finally {
+				clockedScheduler.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("survives repeated lookups spanning far more than the waiting interval")
+		void shouldKeepWaitingTaskAcrossRepeatedLookups() {
+			final MutableClock clock = new MutableClock();
+			final Scheduler clockedScheduler = new Scheduler(
+				ThreadPoolOptions.serviceThreadPoolBuilder().build(), clock
+			);
+			try {
+				final ClientRunnableTask<Void> task = waitingTask();
+				final UUID taskId = taskIdOf(task);
+				clockedScheduler.registerWaitingTask(task);
+
+				// six chunks, nine minutes apart - fifty-four minutes in total, far past any fixed budget
+				for (int i = 0; i < 6; i++) {
+					clock.advance(Duration.ofMinutes(9));
+					assertTrue(
+						clockedScheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent(),
+						"The task must still be findable on chunk " + i + "."
+					);
+					clockedScheduler.purgeFinishedAndLongWaitingTasks();
+				}
+
+				assertTrue(
+					clockedScheduler.getTaskStatus(taskId).isPresent(),
+					"An upload that keeps sending chunks must keep its task alive indefinitely."
+				);
+			} finally {
+				clockedScheduler.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("does not renew a task that is no longer waiting")
+		void shouldNotRenewActivityOfTaskThatLeftWaitingState() throws Exception {
+			// a finished task must keep ageing out of its defense period on schedule - looking it up must not revive it
+			final ClientRunnableTask<Void> task = finishedTask();
+			final UUID taskId = taskIdOf(task);
+			assertTrue(SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent());
+			backdateFinished(task, Duration.ofMinutes(5).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskId).isEmpty(),
+				"Looking up a finished task must not extend its defense period."
+			);
+		}
+
+		@Test
 		@DisplayName("reclaims queue capacity taken by timed-out waiting tasks")
 		void shouldReclaimQueueCapacityWhenExpiredWaitingTasksArePurged() {
 			// the purge is also the queue's capacity-reclaim path: addTaskToQueue calls it only once offer() reports
@@ -703,6 +802,45 @@ class SchedulerTest {
 			);
 		}
 
+	}
+
+
+	/**
+	 * A {@link Clock} the test can move forward at will, so an interval measured in minutes can be crossed in a
+	 * test that runs in milliseconds. Only the scheduler's own timestamps follow it; task timestamps are moved with
+	 * the backdating helpers instead.
+	 */
+	private static class MutableClock extends Clock {
+		private final ZoneId zone;
+		private Instant instant;
+
+		MutableClock() {
+			this(ZoneId.systemDefault(), Instant.now());
+		}
+
+		private MutableClock(@Nonnull ZoneId zone, @Nonnull Instant instant) {
+			this.zone = zone;
+			this.instant = instant;
+		}
+
+		void advance(@Nonnull Duration duration) {
+			this.instant = this.instant.plus(duration);
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return this.zone;
+		}
+
+		@Override
+		public Clock withZone(ZoneId newZone) {
+			return new MutableClock(newZone, this.instant);
+		}
+
+		@Override
+		public Instant instant() {
+			return this.instant;
+		}
 	}
 
 	/**
