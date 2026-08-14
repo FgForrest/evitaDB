@@ -1,7 +1,7 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 14:55
+updated: 2026-08-14 15:05
 status: accepted
 kind: fix
 issues: [1416]
@@ -155,8 +155,8 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   (`ExportS3ServiceTest`, "Could not find a valid Docker environment" — environmental, no Docker available).
   This belongs to the same pre-cancellation-fix build as the woven-site counts above: it proves the matcher fix
   does not destabilise the suite, and nothing about the four cancellation defects, whose tests did not exist
-  yet. It has not been reproduced since — the full suite OOMs on this machine at the standard heap — so
-  post-fix full-suite green is CI's claim, not this record's.
+  yet. It has not been reproduced since — the full suite OOMs on this machine at the standard heap — and it was
+  **not** re-run against the seven cancellation fixes before merge. See the note on CI timing below.
 - `InterruptionTransformerMatcherTest` (new) asserts each of the **seven** engine matcher branches individually
   plus the GraphQL branch, and asserts that the abstract declarations and an unrelated method do **not** match.
   It needs no build artifacts and would have caught the `anyOf` defect in milliseconds. `InterruptionAdviceWovenTest`
@@ -210,8 +210,14 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   → **123 tests, 0 failures**, and zero `InterruptedException` occurrences in the log, which is the signal that
   matters — the woven checkpoints are live throughout that path, so a stray interrupt would abort queries rather
   than pass silently.
-- The full suite is left to CI, which is green at the project's standard `-Xmx8g`; it OOMs on a developer
-  workstation, and raising the local heap would hide that divergence rather than explain it.
+- **The full suite never ran against these fixes before merge, and CI cannot have run it.** The only
+  `pull_request`-triggered workflows are `pr-review.yml` and CodeQL; neither executes a test. The Maven
+  invocation that runs the suite (`-P unitAndFunctional,full … -Dmaven.test.skip=false`) lives in `ci-dev.yml`,
+  which triggers on **push to `dev`** — so in this repository a pull request is validated *after* it merges, not
+  before. Recorded because "CI will catch it" is the natural assumption and it is wrong here: on a PR branch the
+  green checks are a code scan, not a test run. Local full-suite verification is the only pre-merge option and it
+  OOMs on a developer workstation at the project's standard `-Xmx8g`; raising the local heap would hide that
+  divergence rather than explain it, so the gap was left open knowingly rather than papered over.
 
 ## Consequences & open follow-ups
 
