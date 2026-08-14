@@ -34,6 +34,7 @@ import io.evitadb.index.map.TransactionalMap.TransactionalMemoryEntrySet;
 import io.evitadb.index.map.TransactionalMap.TransactionalMemoryKeySet;
 import io.evitadb.index.map.TransactionalMap.TransactionalMemoryValues;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -49,6 +50,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
@@ -163,6 +166,35 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	}
 
 	/**
+	 * Returns an immutable {@link ChampMap} view of the current state **without publishing it**, for a reader that
+	 * wants a stable snapshot and must not disturb the map it is reading.
+	 *
+	 * This is the read-path counterpart of {@link #sealed()}, and the difference matters only while the state is
+	 * still thawed. `sealed()` writes the frozen map back into `state`, which is right on the commit path - the next
+	 * transactional touch then finds it already sealed - but wrong for a reader:
+	 *
+	 * - it would make the **next** non-transactional write thaw the map again, an `O(N)` copy, so a reader alternating
+	 *   with warm-up writes turns each of them into a full rebuild;
+	 * - and publishing a snapshot built by iterating a `HashMap` that another thread is still writing to would
+	 *   overwrite `state` with a map missing whatever landed during the iteration, losing committed entries.
+	 *
+	 * Callers on the commit path must keep using {@link #sealed()} - a reader's snapshot is deliberately not
+	 * memoized, so relying on this to make later seals cheap would silently rebuild every time.
+	 *
+	 * A snapshot taken while another thread performs a non-transactional write may still fail loudly with
+	 * {@link java.util.ConcurrentModificationException} rather than silently, which is the intended trade: the
+	 * failure is confined to the reader instead of corrupting the map every other caller shares.
+	 *
+	 * @return an immutable view of the current state
+	 */
+	@Nonnull
+	public ChampMap<K, V> snapshot() {
+		final Map<K, V> current = this.state;
+		return current instanceof ChampMap ?
+			(ChampMap<K, V>) current : ChampMap.from(current);
+	}
+
+	/**
 	 * Returns the state as a mutable {@link HashMap}, thawing a sealed {@link ChampMap} once (`O(N)` copy)
 	 * if necessary. Used by the non-transactional write path so warm-up keeps `HashMap` throughput.
 	 *
@@ -177,6 +209,59 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 			return mutable;
 		}
 		return current;
+	}
+
+	/* ===========================================================================================
+	 * Heap accounting.
+	 * =========================================================================================== */
+
+	/**
+	 * Returns the heap this map occupies, in bytes — this decorator plus the committed state beneath it, priced by
+	 * the two supplied sizers.
+	 *
+	 * The figure covers the **committed** structure only. A diff layer is owned by the transaction that opened it,
+	 * lives in transactional memory rather than here, and disappears at commit or rollback, so charging it to the map
+	 * would report a footprint that vanishes without the map changing.
+	 *
+	 * What the state costs depends on which of the two modes it is in, and the difference is real rather than an
+	 * artefact: a thawed {@link HashMap} buffer owns a bucket table and a node per entry, while a sealed
+	 * {@link ChampMap} owns a trie whose untouched sub-tries are shared with the previous version — and an *empty*
+	 * sealed map costs nothing at all, because sealing an empty map yields the JVM-wide {@link ChampMap#empty()}
+	 * singleton that no caller owns.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		final VMLayout layout = VMLayout.current();
+		// id + the state slot
+		return layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ getStateHeapSizeInBytes(keySizer, valueSizer);
+	}
+
+	/**
+	 * Returns the heap of the backing state alone — everything {@link #getHeapSizeInBytes} counts except this
+	 * decorator's own object. Split out because {@link PersistentTransactionalProducerMap} carries a lambda that a
+	 * JOL walk cannot enter, so its own object has to be asserted by a separate, shallow measurement.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the heap footprint of the backing state in bytes
+	 */
+	long getStateHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		// `this.state` directly, and deliberately neither `sealed()` nor `snapshot()`. `sealed()` writes the frozen
+		// map back into the field, so measuring a warm-up buffer would turn the next write into an O(N) thaw - a
+		// monitoring call that silently degrades the write path it is watching. `snapshot()` publishes nothing but
+		// still builds a whole throw-away trie per call. One volatile read, then dispatch on the concrete type,
+		// which IS the mode
+		return MapHeapSize.sizeOf(this.state, keySizer, valueSizer);
 	}
 
 	/* ===========================================================================================
@@ -307,6 +392,29 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 		return layer == null ?
 			this.state.entrySet() :
 			new TransactionalMemoryEntrySet<>(layer, this);
+	}
+
+	/**
+	 * Walks every entry of the map, handing each to `action`.
+	 *
+	 * **Overridden to stay allocation-free outside a transaction**, which the {@link Map} default is not - see
+	 * {@link TransactionalMap#forEach} for why an accessor a flush path reaches a map through costs sixteen retained
+	 * bytes per index rather than nothing. The gain applies while the state is a thawed {@link HashMap}, which is what
+	 * a cold-loaded catalog holds; a sealed {@link ChampMap} builds a throwaway entry-set view either way, and that
+	 * one is garbage rather than a permanent tenant of the map.
+	 *
+	 * @param action invoked once per entry with its key and value
+	 */
+	@Override
+	public void forEach(@Nonnull BiConsumer<? super K, ? super V> action) {
+		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			this.state.forEach(action);
+		} else {
+			for (final Entry<K, V> entry : new TransactionalMemoryEntrySet<>(layer, this)) {
+				action.accept(entry.getKey(), entry.getValue());
+			}
+		}
 	}
 
 	/* ===========================================================================================

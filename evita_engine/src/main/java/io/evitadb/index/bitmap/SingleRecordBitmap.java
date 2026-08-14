@@ -23,6 +23,8 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.utils.VMLayout;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
@@ -137,6 +139,16 @@ public class SingleRecordBitmap implements Bitmap {
 	@Override
 	public int[] getArray() {
 		return new int[]{this.recordId};
+	}
+
+	/**
+	 * Just this object: one `int` field and no backing structure at all. That is the whole reason this
+	 * implementation exists — a roaring-backed bitmap holding the same single record costs an order of
+	 * magnitude more, almost all of it fixed overhead.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return VMLayout.current().sizeOfObject(Integer.BYTES);
 	}
 
 	@Nonnull

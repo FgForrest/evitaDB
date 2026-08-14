@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Data;
 import lombok.Getter;
 
@@ -166,6 +167,25 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 			.stream()
 			.mapToInt(FacetIdIndex::size)
 			.sum();
+	}
+
+	/**
+	 * Returns the heap this group's facets occupy, in bytes — this object, the per-facet map with its boxed facet ids
+	 * and every {@link FacetIdIndex} in it.
+	 *
+	 * {@link #groupId} contributes its **slot alone**: the enclosing {@link FacetReferenceIndex} files this index
+	 * under that very box, so the map charges it and this index would otherwise charge it a second time. A
+	 * non-grouped index holds `null` there and has nothing to charge either way. The map's own keys are a different
+	 * matter — each is boxed where the facet is registered and reaches nothing but that map.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// id, then the groupId / facetIdIndexes slots
+		return layout.sizeOfObject(Long.BYTES + 2L * layout.referenceSize())
+			+ this.facetIdIndexes.getHeapSizeInBytes(key -> boxedInteger, FacetIdIndex::getHeapSizeInBytes);
 	}
 
 	/**

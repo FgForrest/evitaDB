@@ -55,6 +55,11 @@ import static io.evitadb.utils.MemoryMeasuringConstants.*;
 public class CompositeIntArray implements Serializable {
 	@Serial private static final long serialVersionUID = -2841590944033782494L;
 	private static final int CHUNK_SIZE = 50;
+	/**
+	 * Capacity an {@link ArrayList} allocates on its first append. Mirrors `ArrayList.DEFAULT_CAPACITY`,
+	 * which is private — restated here so {@link #getSizeInBytes()} can replay the list's growth exactly.
+	 */
+	private static final int ARRAY_LIST_DEFAULT_CAPACITY = 10;
 
 	/**
 	 * List of all chunks used in this instance.
@@ -373,12 +378,56 @@ public class CompositeIntArray implements Serializable {
 	}
 
 	/**
-	 * Returns estimated memory size of this object in Bytes. Returned size si only rough estimate - not a precise number.
+	 * Returns the heap this instance occupies, in bytes.
+	 *
+	 * The figure is exact rather than an estimate, and covers the whole graph this object owns: itself, the
+	 * `chunks` list *and its backing array at capacity*, and every `int[]` chunk. All chunks are exactly
+	 * {@link #CHUNK_SIZE} long — this structure never resizes one, which is its entire point — so no chunk
+	 * carries hidden slack. The only capacity that is not simply the element count is the list's own backing
+	 * array, and that is reconstructed below from the growth policy rather than guessed at.
+	 *
+	 * {@link #currentChunk} is deliberately **not** added: it always aliases the last element of
+	 * {@link #chunks}, so charging it would count one array twice.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	public int getSizeInBytes() {
-		return OBJECT_HEADER_SIZE + 2 * REFERENCE_SIZE + BYTE_SIZE + INT_SIZE +
-			this.chunks.size() * ARRAY_BASE_SIZE +
-			this.chunks.size() * CHUNK_SIZE * INT_SIZE;
+		final int chunkCount = this.chunks.size();
+		return (int) (
+			// this object: the `chunks` and `currentChunk` references, `monotonic` and `chunkPeek`
+			align(OBJECT_HEADER_SIZE + 2L * REFERENCE_SIZE + BYTE_SIZE + INT_SIZE)
+				// the ArrayList itself: its `elementData` reference, `size`, and `modCount` inherited from
+				// AbstractList - the last of which is easy to overlook and is a whole alignment step wide
+				+ align(OBJECT_HEADER_SIZE + REFERENCE_SIZE + 2L * INT_SIZE)
+				// its backing Object[] at the capacity it actually grew to, not at the element count
+				+ align(ARRAY_BASE_SIZE + (long) arrayListCapacityFor(chunkCount) * REFERENCE_SIZE)
+				// every chunk, each exactly CHUNK_SIZE ints wide
+				+ chunkCount * align(ARRAY_BASE_SIZE + (long) CHUNK_SIZE * INT_SIZE)
+		);
+	}
+
+	/**
+	 * Reconstructs the capacity an {@link ArrayList} holds once `size` elements have been appended to it.
+	 *
+	 * `chunks` is only ever grown by `add`, so its capacity follows the documented growth policy exactly:
+	 * the first add jumps from empty to the default capacity, and every subsequent overflow grows by half.
+	 * Replaying that is cheap (`O(log size)`) and gives the real number, which matters because the array is
+	 * up to 50% slack and the alternative — assuming capacity equals size — under-reports.
+	 *
+	 * @param size number of elements the list holds
+	 * @return the list's backing-array length
+	 */
+	private static int arrayListCapacityFor(int size) {
+		if (size == 0) {
+			// an empty ArrayList still points at a shared, JVM-wide empty array constant, which belongs to
+			// the class rather than to this instance
+			return 0;
+		}
+		int capacity = ARRAY_LIST_DEFAULT_CAPACITY;
+		while (capacity < size) {
+			capacity = capacity + (capacity >> 1);
+		}
+		return capacity;
 	}
 
 	@Override

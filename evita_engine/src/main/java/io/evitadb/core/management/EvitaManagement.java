@@ -24,17 +24,27 @@
 package io.evitadb.core.management;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.DefaultExportOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -48,6 +58,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
@@ -71,8 +82,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -197,16 +210,6 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	@Nonnull
 	public FileManagementService fileManagementService() {
 		return this.fileManagementService;
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics[] getCatalogStatistics() {
-		return this.evita.getCatalogs()
-			.stream()
-			.map(EvitaManagement::getCatalogStatisticsSafely)
-			.sorted(Comparator.comparing(CatalogStatistics::catalogName))
-			.toArray(CatalogStatistics[]::new);
 	}
 
 	@Nonnull
@@ -512,6 +515,74 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		);
 	}
 
+	@Nonnull
+	@Override
+	public CatalogStatistics getCatalogStatistics(
+		@Nonnull String catalogName,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, EvitaInvalidUsageException {
+		return this.evita.getCatalogInstanceOrThrowException(catalogName).getStatistics(components);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<CatalogStatistics> getAllCatalogStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException {
+		// validated once, up front, because the per-catalog isolation below deliberately swallows every runtime
+		// exception - without this, a malformed request would come back as "every catalog is unusable" instead of as
+		// the caller's error it is
+		CatalogStatisticsComponent.assertNotEmpty(components);
+		final Collection<CatalogContract> catalogs = this.evita.getCatalogs();
+		final List<CatalogStatistics> statistics = new ArrayList<>(catalogs.size());
+		for (final CatalogContract catalog : catalogs) {
+			statistics.add(getCatalogStatisticsSafely(catalog, components));
+		}
+		// ordered by catalog name so that a client rendering a list does not see it reshuffle between two polls
+		statistics.sort(Comparator.comparing(it -> it.identity().catalogName()));
+		return statistics;
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionStatistics getEntityCollectionStatistics(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException {
+		return this.evita.getCatalogInstanceOrThrowException(catalogName)
+			.getCollectionForEntityOrThrowException(entityType)
+			.getStatistics(components);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException {
+		// the owner is the only thing the entity type selects - both branches answer with the same rows, under the same
+		// criteria, so the dispatch ends here rather than propagating into two parallel surfaces
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		return entityType == null ?
+			catalog.browseIndexes(criteria) :
+			catalog.getCollectionForEntityOrThrowException(entityType).browseIndexes(criteria);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail getIndexDetail(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		int indexPrimaryKey
+	) throws CatalogNotFoundException, CollectionNotFoundException, IndexNotFoundException {
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		return entityType == null ?
+			catalog.describeIndex(indexPrimaryKey) :
+			catalog.getCollectionForEntityOrThrowException(entityType).describeIndex(indexPrimaryKey);
+	}
+
 	@Override
 	public void close() {
 		IOUtils.closeQuietly(
@@ -521,38 +592,46 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	}
 
 	/**
-	 * Collects statistics of a single catalog, degrading to a minimal placeholder record when the catalog fails to
-	 * provide them.
+	 * Computes one catalog's statistics without letting a failure take the whole instance-wide answer down.
 	 *
-	 * Statistics of all catalogs are aggregated into a single response, so an exception raised by one catalog would
-	 * otherwise abort the entire listing and hide every healthy catalog from the client as well. A catalog that cannot
-	 * report its statistics is still a catalog the client needs to see - it is reported as `unusable` with unknown
-	 * (`-1`) figures instead of taking the whole response down with it.
+	 * A corrupted catalog needs no protection here - it answers for itself through `UnusableCatalog`, reporting
+	 * {@link ComponentAvailability#CATALOG_UNUSABLE} per component. What this guards is the narrower race in which a
+	 * catalog is being deactivated or replaced *while the loop walks it*: it was in the collection a moment ago and
+	 * throws by the time it is asked. Reporting that catalog as unusable, with the exception named in the reason, is
+	 * strictly better than failing a call that describes every other catalog correctly.
 	 *
-	 * @param catalog the catalog to collect the statistics for
-	 * @return statistics of the catalog, or an `unusable` placeholder when they cannot be collected
+	 * There is deliberately no {@link ComponentAvailability} value meaning "the call blew up" - adding one would
+	 * spend a permanent wire number on a case that may never occur in practice, and `CATALOG_UNUSABLE` is already
+	 * true of a catalog that cannot answer.
+	 *
+	 * @param catalog    the catalog to describe
+	 * @param components the components the caller asked for
+	 * @return the catalog's snapshot, or an unusable-catalog snapshot carrying the failure reason
 	 */
 	@Nonnull
-	private static CatalogStatistics getCatalogStatisticsSafely(@Nonnull CatalogContract catalog) {
+	private static CatalogStatistics getCatalogStatisticsSafely(
+		@Nonnull CatalogContract catalog,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
 		try {
-			return catalog.getStatistics();
+			return catalog.getStatistics(components);
 		} catch (RuntimeException ex) {
-			log.error(
-				"Failed to collect statistics of catalog `{}` - reporting it as unusable.",
-				catalog.getName(), ex
+			log.error("Failed to compute statistics of catalog `" + catalog.getName() + "`!", ex);
+			final CatalogStatistics.Builder builder = CatalogStatistics.builder(
+				new CatalogIdentity(
+					null, catalog.getName(), null, -1L, false, true, false, false, -1
+				)
 			);
-			return new CatalogStatistics(
-				null,
-				catalog.getName(),
-				true,
-				false,
-				catalog.getCatalogState(),
-				-1L,
-				-1L,
-				-1L,
-				-1L,
-				new CatalogStatistics.EntityCollectionStatistics[0]
-			);
+			for (final CatalogStatisticsComponent component : components) {
+				if (component != CatalogStatisticsComponent.IDENTITY) {
+					builder.withUnavailable(
+						component,
+						ComponentAvailability.CATALOG_UNUSABLE,
+						"Statistics of catalog `" + catalog.getName() + "` could not be computed: " + ex.getMessage()
+					);
+				}
+			}
+			return builder.build();
 		}
 	}
 

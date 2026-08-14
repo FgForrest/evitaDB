@@ -39,7 +39,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;

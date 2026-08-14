@@ -731,11 +731,88 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	void verifyIntegrity();
 
 	/**
-	 * Returns size taken by all catalog data structures in bytes.
+	 * Measures the catalog's disk footprint and attributes it to the storage classes that have different remedies -
+	 * live data, compaction waste, retained write-ahead log, files awaiting deletion and the bootstrap file. The
+	 * measured total is {@link CatalogStorageFootprint#totalBytes()}; it is the sum of a single flat listing of the
+	 * catalog directory rather than a recursive walk.
 	 *
-	 * @return size taken by all catalog data structures in bytes
+	 * This replaced a plain size-on-disk scalar, which had no caller left once the statistics path stopped needing
+	 * it. Reintroduce one only if something genuinely wants the total without the breakdown - the breakdown costs
+	 * one listing plus a counter read per open data store, so the scalar was never the cheaper answer.
+	 *
+	 * @return the decomposed footprint of this catalog
 	 */
-	long getSizeOnDiskInBytes();
+	@Nonnull
+	CatalogStorageFootprint measureStorageFootprint();
+
+	/**
+	 * Breaks the catalog's **own** data store down by storage-part type - the file holding the catalog schema, the
+	 * headers and the catalog-level indexes. Entity collections keep their records - their entity schema included - in
+	 * their own data stores and answer for themselves through
+	 * {@link EntityCollectionPersistenceService#measureStoragePartComposition()}; there is deliberately no
+	 * catalog-wide sum, because adding records of different types out of different data stores yields a number with
+	 * no operational meaning.
+	 *
+	 * The breakdown is an in-memory map read - the per-type counts and bytes are maintained as the flush is promoted,
+	 * never recomputed by walking the file.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	StoragePartFootprint[] measureStoragePartComposition();
+
+	/**
+	 * Reports what the catalog's **own** data store is holding in memory rather than on disk - the records written but
+	 * not yet flushed, and the multi-version history it cannot release while an old session is still reading it.
+	 *
+	 * Scoped to this one data store, like {@link #measureStoragePartComposition()} and unlike
+	 * {@link #measureStorageFootprint()}. A catalog-wide figure is the sum of this and every collection's
+	 * {@link EntityCollectionPersistenceService#measureVolatileData()}; unlike the storage-part breakdown that sum is
+	 * meaningful, because bytes held in memory add up across stores no matter what they hold.
+	 *
+	 * Every value is a counter read; nothing is walked and no file is touched.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	VolatileDataFootprint measureVolatileData();
+
+	/**
+	 * Measures everything the fragmentation report needs: how the catalog directory's bytes classify, whether any of
+	 * its data stores is due for compaction, and when the next one will be - the latter two both for the catalog's
+	 * own store alone and folded across every collection store it currently holds open.
+	 *
+	 * Unlike {@link #measureStoragePartComposition()} the fold **is** meaningful here, for the same reason
+	 * {@link #measureVolatileData()} may be summed by its caller: eligibility is a disjunction and a rate of stranded
+	 * bytes adds up regardless of which store stranded them. A collection whose persistence service this catalog does
+	 * not hold open is absent from the sum rather than guessed at - the same rule
+	 * {@link #measureStorageFootprint()} applies to a file whose live size no open index can report.
+	 *
+	 * **This returns the footprint too, rather than leaving the caller to fetch it**, because the predicate is
+	 * evaluated against the very file lengths the footprint classifies - see {@link CatalogFragmentationSnapshot} for
+	 * why they have to come from one listing. A caller that wants only the byte classification calls
+	 * {@link #measureStorageFootprint()} and pays for no forecast at all.
+	 *
+	 * The predicate is evaluated here rather than by the caller so that it cannot drift from the trigger that
+	 * actually fires compaction - see {@link CompactionForecast}.
+	 *
+	 * @return the footprint and the compaction forecast, measured together
+	 */
+	@Nonnull
+	CatalogFragmentationSnapshot measureFragmentation();
+
+	/**
+	 * Describes how this catalog's deferred-checkpoint fence is behaving - what the last completed checkpoint cost and
+	 * how far behind the physical device the catalog is allowed to run.
+	 *
+	 * Free of file-system access: every figure is an in-memory read of state the checkpoint path already maintains.
+	 *
+	 * @return the durability snapshot, or `null` when this catalog checkpoints at the end of every round and there is
+	 * therefore no fence to describe - either because no checkpoint interval is configured or because writes are not
+	 * synced to the device at all
+	 */
+	@Nullable
+	DurabilitySnapshot measureDurability();
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

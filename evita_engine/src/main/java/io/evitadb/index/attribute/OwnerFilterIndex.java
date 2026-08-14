@@ -27,11 +27,13 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.Range;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -243,6 +245,27 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 	@Override
 	public boolean isDirty() {
 		return this.dirty.isTrue();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * An owner allocated its own value tree and its own range companion and charges both in full, on top of the
+	 * fields and query memos every filter index shares. The tree's keys are attribute values this index owns, priced
+	 * by {@link IndexHeapSize#OWNED_KEY_SIZER}, exactly as the owner unique index prices its own.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the inherited id and the dirty slot, on top of the base's own fields
+		long size = getSharedHeapSizeInBytes(Long.BYTES + layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ getInvertedIndex().getHeapSizeInBytes();
+		final RangeIndex theRangeIndex = getRangeIndex();
+		if (theRangeIndex != null) {
+			size += theRangeIndex.getHeapSizeInBytes();
+		}
+		return size;
 	}
 
 	@Override

@@ -27,7 +27,8 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import io.evitadb.api.CatalogStatistics;
+import io.evitadb.api.CatalogContract;
+import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.ReadOnlyException;
@@ -35,6 +36,15 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionsInfo;
+import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -52,6 +62,7 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcTaskStatusesResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.CatalogStatisticsConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.utils.GrpcTimeoutUtil;
 import io.evitadb.externalApi.http.ExternalApiProvider;
@@ -76,6 +87,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
@@ -102,6 +117,29 @@ import static java.util.Optional.ofNullable;
  */
 @Slf4j
 public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaManagementServiceImplBase {
+	/**
+	 * Components the deprecated flat catalog statistics message is assembled from - the catalog-level numbers it
+	 * carries, plus the collection inventory it needs to address each collection in turn.
+	 */
+	private static final Set<CatalogStatisticsComponent> CATALOG_STATISTICS_COMPONENTS = EnumSet.of(
+		CatalogStatisticsComponent.IDENTITY,
+		CatalogStatisticsComponent.RECORD_COUNTS,
+		CatalogStatisticsComponent.INDEX_SUMMARY,
+		CatalogStatisticsComponent.STORAGE_SIZE,
+		CatalogStatisticsComponent.COLLECTIONS
+	);
+	/**
+	 * Components the per-collection rows of that message are assembled from.
+	 */
+	private static final Set<CatalogStatisticsComponent> COLLECTION_STATISTICS_COMPONENTS = EnumSet.of(
+		CatalogStatisticsComponent.RECORD_COUNTS,
+		CatalogStatisticsComponent.INDEX_SUMMARY,
+		CatalogStatisticsComponent.STORAGE_SIZE
+	);
+	/**
+	 * Returned for a catalog that could not report its collection inventory - an unusable one, in practice.
+	 */
+	private static final CollectionInfo[] EMPTY_COLLECTION_INVENTORY = new CollectionInfo[0];
 	/**
 	 * Instance of Evita upon which will be executed service calls
 	 */
@@ -307,20 +345,61 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	/**
 	 * Retrieves catalog statistics from the server.
 	 *
+	 * Assembles the deprecated flat message from the component model. The per-collection loop is what makes this
+	 * response grow with the number of collections - the very cost the component model exists to remove - and it is
+	 * deliberately confined to this one deprecated RPC rather than pushed back into the engine.
+	 *
 	 * @param request          the request for catalog statistics
 	 * @param responseObserver the observer for receiving the catalog statistics response
+	 * @deprecated superseded by the component-selected catalog and entity collection statistics procedures; kept with
+	 * its exact semantics for clients that still call it. See the `GetCatalogStatistics` comment in
+	 * `GrpcEvitaManagementAPI.proto` for what the flat shape cannot express.
 	 */
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Override
 	public void getCatalogStatistics(Empty request, StreamObserver<GrpcEvitaCatalogStatisticsResponse> responseObserver) {
 		executeWithClientContext(
 			() -> {
-				final CatalogStatistics[] catalogStatistics = this.management.getCatalogStatistics();
+				final List<GrpcCatalogStatistics> catalogStatistics = this.evita.getCatalogs()
+					.stream()
+					.sorted(Comparator.comparing(CatalogContract::getName))
+					.map(EvitaManagementService::getCatalogStatisticsSafely)
+					.toList();
 				responseObserver.onNext(
 					GrpcEvitaCatalogStatisticsResponse.newBuilder()
-						.addAllCatalogStatistics(
-							Arrays.stream(catalogStatistics)
-								.map(EvitaDataTypesConverter::toGrpcCatalogStatistics)
-								.toList()
+						.addAllCatalogStatistics(catalogStatistics)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of one named catalog.
+	 *
+	 * @param request          names the catalog and the components to compute
+	 * @param responseObserver the observer for receiving the snapshot
+	 * @see EvitaManagementContract#getCatalogStatistics(String, Set)
+	 */
+	@Override
+	public void getCatalogStatisticsSnapshot(
+		GrpcCatalogStatisticsSnapshotRequest request,
+		StreamObserver<GrpcCatalogStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final CatalogStatistics statistics = this.management.getCatalogStatistics(
+					request.getCatalogName(),
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				responseObserver.onNext(
+					GrpcCatalogStatisticsSnapshotResponse.newBuilder()
+						.setCatalogStatistics(
+							CatalogStatisticsConverter.toGrpcCatalogStatisticsSnapshot(statistics)
 						)
 						.build()
 				);
@@ -330,6 +409,220 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 			responseObserver,
 			this.context
 		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of every catalog known to the server, ordered by catalog name.
+	 *
+	 * @param request          names the components to compute for each catalog
+	 * @param responseObserver the observer for receiving the snapshots
+	 * @see EvitaManagementContract#getAllCatalogStatistics(Set)
+	 */
+	@Override
+	public void getAllCatalogStatisticsSnapshots(
+		GrpcAllCatalogStatisticsSnapshotRequest request,
+		StreamObserver<GrpcAllCatalogStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final Collection<CatalogStatistics> statistics = this.management.getAllCatalogStatistics(
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				final GrpcAllCatalogStatisticsSnapshotResponse.Builder builder =
+					GrpcAllCatalogStatisticsSnapshotResponse.newBuilder();
+				for (final CatalogStatistics catalogStatistics : statistics) {
+					builder.addCatalogStatistics(
+						CatalogStatisticsConverter.toGrpcCatalogStatisticsSnapshot(catalogStatistics)
+					);
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns a component-selected statistics snapshot of one entity collection.
+	 *
+	 * @param request          names the catalog, the entity collection and the components to compute
+	 * @param responseObserver the observer for receiving the snapshot
+	 * @see EvitaManagementContract#getEntityCollectionStatistics(String, String, Set)
+	 */
+	@Override
+	public void getEntityCollectionStatisticsSnapshot(
+		GrpcEntityCollectionStatisticsSnapshotRequest request,
+		StreamObserver<GrpcEntityCollectionStatisticsSnapshotResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final EntityCollectionStatistics statistics = this.management.getEntityCollectionStatistics(
+					request.getCatalogName(),
+					request.getEntityType(),
+					CatalogStatisticsConverter.toComponents(request.getComponentsList())
+				);
+				responseObserver.onNext(
+					GrpcEntityCollectionStatisticsSnapshotResponse.newBuilder()
+						.setEntityCollectionStatistics(
+							CatalogStatisticsConverter.toGrpcEntityCollectionStatisticsSnapshot(statistics)
+						)
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Returns one page of the entity indexes held by one collection.
+	 *
+	 * @param request          names the catalog and collection, and carries the selection, ordering and paging
+	 * @param responseObserver the observer for receiving the page
+	 * @see EvitaManagementContract#browseIndexes(String, String, IndexBrowseCriteria)
+	 */
+	@Override
+	public void browseIndexes(
+		GrpcIndexBrowseRequest request,
+		StreamObserver<GrpcIndexBrowseResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final IndexBrowseResult result = this.management.browseIndexes(
+					request.getCatalogName(),
+					// unset selects the catalog's own indexes rather than a collection's; the wrapper is what keeps that
+					// apart from a client that genuinely sent an empty collection name
+					request.hasEntityType() ? request.getEntityType().getValue() : null,
+					CatalogStatisticsConverter.toIndexBrowseCriteria(request)
+				);
+				final GrpcIndexBrowseResponse.Builder builder =
+					GrpcIndexBrowseResponse.newBuilder()
+						.setCatalogVersion(result.catalogVersion())
+						.setPageNumber(result.pageNumber())
+						.setPageSize(result.pageSize())
+						.setTotalRecordCount(result.totalRecordCount());
+				for (final BrowsedIndex index : result.indexes()) {
+					builder.addIndexes(CatalogStatisticsConverter.toGrpcBrowsedIndex(index));
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Describes one entity index in full - what it occupies on the heap, and how well it discriminates.
+	 *
+	 * @param request          names the catalog, the collection and the index to describe
+	 * @param responseObserver the observer for receiving the description
+	 * @see EvitaManagementContract#getIndexDetail(String, String, int)
+	 */
+	@Override
+	public void getIndexDetail(
+		GrpcIndexDetailRequest request,
+		StreamObserver<GrpcIndexDetailResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final IndexDetail detail = this.management.getIndexDetail(
+					request.getCatalogName(),
+					// see `browseIndexes` above - unset addresses the catalog's own index of that handle
+					request.hasEntityType() ? request.getEntityType().getValue() : null,
+					request.getIndexPrimaryKey()
+				);
+				responseObserver.onNext(
+					GrpcIndexDetailResponse.newBuilder()
+						.setIndexDetail(CatalogStatisticsConverter.toGrpcIndexDetail(detail))
+						.build()
+				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Collects statistics of a single catalog, degrading to a minimal placeholder when the catalog fails to provide
+	 * them.
+	 *
+	 * Statistics of all catalogs are aggregated into a single response, so an exception raised by one catalog would
+	 * otherwise abort the entire listing and hide every healthy catalog from the client as well. A catalog that cannot
+	 * report its statistics is still a catalog the client needs to see - it is reported as `unusable` with unknown
+	 * (`-1`) figures instead of taking the whole response down with it.
+	 *
+	 * @param catalog the catalog to collect the statistics for
+	 * @return statistics of the catalog, or an `unusable` placeholder when they cannot be collected
+	 * @deprecated part of the deprecated `GetCatalogStatistics` procedure and removed with it
+	 */
+	@Deprecated(since = "2026.2", forRemoval = true)
+	@Nonnull
+	private static GrpcCatalogStatistics getCatalogStatisticsSafely(@Nonnull CatalogContract catalog) {
+		try {
+			final CatalogStatistics statistics = catalog.getStatistics(CATALOG_STATISTICS_COMPONENTS);
+			return EvitaDataTypesConverter.toGrpcCatalogStatistics(
+				statistics, collectCollectionStatistics(catalog, statistics)
+			);
+		} catch (RuntimeException ex) {
+			log.error(
+				"Failed to collect statistics of catalog `{}` - reporting it as unusable.",
+				catalog.getName(), ex
+			);
+			return GrpcCatalogStatistics.newBuilder()
+				.setCatalogName(catalog.getName())
+				.setCorrupted(true)
+				.setUnusable(true)
+				.setReadOnly(false)
+				.setCatalogState(EvitaEnumConverter.toGrpcCatalogState(catalog.getCatalogState()))
+				.setCatalogVersion(-1L)
+				.setTotalRecords(-1L)
+				.setIndexCount(-1L)
+				.setSizeOnDiskInBytes(-1L)
+				.build();
+		}
+	}
+
+	/**
+	 * Collects the statistics of every collection the catalog reported in its inventory.
+	 *
+	 * A collection dropped between the inventory snapshot and its lookup is skipped rather than allowed to throw: the
+	 * caller would otherwise degrade the whole catalog to `unusable` with `-1` figures over one missing collection.
+	 * Reporting whatever exists at the moment of the read is the semantics this RPC has always had.
+	 *
+	 * @param catalog    the catalog whose collections should be described
+	 * @param statistics the catalog-level statistics carrying the collection inventory
+	 * @return statistics of the collections, in inventory order
+	 * @deprecated part of the deprecated `GetCatalogStatistics` procedure and removed with it
+	 */
+	@Deprecated(since = "2026.2", forRemoval = true)
+	@Nonnull
+	private static EntityCollectionStatistics[] collectCollectionStatistics(
+		@Nonnull CatalogContract catalog,
+		@Nonnull CatalogStatistics statistics
+	) {
+		final CollectionInfo[] inventory = statistics.collectionsIfPresent()
+			.map(CollectionsInfo::collections)
+			.orElse(EMPTY_COLLECTION_INVENTORY);
+		final EntityCollectionStatistics[] collectionStatistics = new EntityCollectionStatistics[inventory.length];
+		int collectionCount = 0;
+		for (final CollectionInfo collection : inventory) {
+			final Optional<EntityCollectionContract> entityCollection =
+				catalog.getCollectionForEntity(collection.entityType());
+			if (entityCollection.isPresent()) {
+				collectionStatistics[collectionCount++] =
+					entityCollection.get().getStatistics(COLLECTION_STATISTICS_COMPONENTS);
+			}
+		}
+		return collectionCount == collectionStatistics.length ?
+			collectionStatistics : Arrays.copyOf(collectionStatistics, collectionCount);
 	}
 
 	/**

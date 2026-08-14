@@ -903,3 +903,167 @@ message GrpcConflictResolution {
   repeated GrpcGranularConflictPolicy granularity = 2;
 
 }
+
+// Independently selectable parts of a catalog or entity collection statistics snapshot. A client names the components
+// it wants and the engine computes only those - a component that was not asked for is never computed, and its
+// sub-message is absent from the response with no status entry.
+//
+// A component may exist at the catalog level, at the entity collection level, or at both. The catalog level reports
+// aggregates only and never breaks them down per collection, so that its response stays a fixed size no matter how
+// many collections the catalog holds; anything about one collection is fetched by naming that collection. Requesting
+// a component at a level where it does not exist is an error, not a silently empty result.
+enum GrpcCatalogStatisticsComponent {
+
+  // Default value, never valid in a request. Naming it is rejected with an error rather than silently ignored, so
+  // a client that forgot to fill the component list is told instead of receiving an identity-only response.
+  COMPONENT_UNSPECIFIED = 0;
+  // Catalog id, name, state, version, read-only / unusable flags and transactional capabilities. Always delivered
+  // whether or not it was requested - no other component can be interpreted without knowing which catalog produced
+  // it and whether that catalog is usable. Available at both levels.
+  COMPONENT_IDENTITY = 1;
+  // Total / live / archived entity counts. The catalog level sums the per-collection counters, the collection level
+  // reports the counters of the named collection. Available at both levels.
+  COMPONENT_RECORD_COUNTS = 2;
+  // Maps to a different sub-message at each level: at the catalog level it is the *inventory* of entity collections
+  // (which collections exist, and their entity type primary keys) carrying no statistics at all, while at the
+  // collection level it is the header counters of the named collection.
+  COMPONENT_COLLECTIONS = 3;
+  // Number of sessions currently open against the catalog, split into read-only and read-write. Sessions are opened
+  // against a catalog, never against a collection - catalog level only.
+  COMPONENT_SESSIONS = 4;
+  // The four commit pipeline version watermarks and the lags between them. The pipeline is catalog-wide - catalog
+  // level only.
+  COMPONENT_COMMIT_PIPELINE = 5;
+  // Transaction, mutation and write-ahead log counters together with their short-window rates. Transactions span the
+  // whole catalog - catalog level only.
+  COMPONENT_ACTIVITY = 6;
+  // Disk footprint broken into the classes that have different remedies - live bytes, waste, write-ahead log, files
+  // awaiting deletion, bootstrap and the unaccounted remainder. Available at both levels, and the only component
+  // still delivered for a catalog that could not be loaded, because file lengths are readable regardless.
+  COMPONENT_STORAGE_SIZE = 7;
+  // Storage-part histogram - where the bytes actually go, per storage-part type. The catalog level covers the
+  // catalog's own data store (schemas, catalog indexes), the collection level the named collection's data store.
+  // There is deliberately no cross-collection sum. Available at both levels.
+  COMPONENT_STORAGE_COMPOSITION = 8;
+  // Active record share, and whether the data store already satisfies the compaction predicate. Available at both
+  // levels; the configured thresholds driving that predicate are catalog-wide and reported at the catalog level only.
+  COMPONENT_FRAGMENTATION = 9;
+  // Time-travel window, retained write-ahead log files and the awaiting-deletion breakdown. The write-ahead log is
+  // catalog-wide - catalog level only.
+  COMPONENT_HISTORY = 10;
+  // Checkpoint cadence, fence depth and files forced - how much replay a crash would cost right now. A property of
+  // the catalog's write-ahead log - catalog level only.
+  COMPONENT_DURABILITY = 11;
+  // Index counts. The catalog level reports the plain total, which every collection answers from a map size; the
+  // breakdown by index kind and scope walks the index keys and is therefore collection level only. Available at both
+  // levels, with different detail at each.
+  COMPONENT_INDEX_SUMMARY = 12;
+  // Distinct values and records covered per index. Expensive - never part of a polled refresh. Collection level only,
+  // because a catalog-wide form would mean paying that cost for every collection of the catalog at once.
+  COMPONENT_INDEX_CARDINALITY = 13;
+  // Pending (not yet flushed) state, and the in-memory history retained for sessions that started long ago.
+  // Available at both levels.
+  COMPONENT_VOLATILE_STATE = 15;
+
+  // 14 held `COMPONENT_MEMORY_FOOTPRINT`, a component that reported a per-index heap estimate. It never shipped in a
+  // release and was withdrawn before one: a heap measurement is per *index* rather than per collection, so it is
+  // reached through `GetIndexDetail` - which names one index and measures only that - instead of
+  // through a component that would have had to measure every index of a collection to answer. Kept reserved rather
+  // than reused so a client built against a pre-release proto is answered with an unrecognized-value error rather
+  // than being quietly given a different component.
+  reserved 14;
+  reserved "COMPONENT_MEMORY_FOOTPRINT";
+
+}
+
+// Outcome of computing one requested `GrpcCatalogStatisticsComponent`. Without it a client cannot tell a component it
+// never requested from one the engine could not compute - both arrive as an absent sub-message - which is how a
+// corrupted catalog ends up rendering as an empty one. A component is reported only if it was requested.
+enum GrpcComponentAvailability {
+
+  // Default value, never sent by the server. A status message always carries an explicit availability; receiving this
+  // means the message was default-constructed and must not be read as `AVAILABILITY_DELIVERED`.
+  AVAILABILITY_UNSPECIFIED = 0;
+  // The component was requested and computed - its sub-message is present in the response.
+  AVAILABILITY_DELIVERED = 1;
+  // The catalog is corrupted and could not be loaded, and this component reads state that only a loaded catalog has.
+  // Components reading the file system directly - notably `COMPONENT_STORAGE_SIZE` - stay delivered even then.
+  AVAILABILITY_CATALOG_UNUSABLE = 2;
+  // The component depends on an engine feature switched off in the current configuration, for example time-travel
+  // history when write-ahead log retention is disabled. A configuration change makes it available.
+  AVAILABILITY_FEATURE_DISABLED = 3;
+
+  // 4 held `AVAILABILITY_NOT_SUPPORTED`, for a component this server build cannot compute at all. It never shipped in
+  // a release and no component ever produced it - every component of this build either answers or is unavailable for
+  // one of the two reasons above. It was dropped rather than kept for a hypothetical future producer because adding
+  // an enum value is the wire-compatible direction: the day a component genuinely cannot be computed, the value comes
+  // back without breaking any client, whereas keeping it forces every client to branch on an outcome no server sends.
+  // Kept reserved rather than reused so a client built against a pre-release proto is answered with an
+  // unrecognized-value error rather than being quietly given a different availability.
+  reserved 4;
+  reserved "AVAILABILITY_NOT_SUPPORTED";
+
+}
+
+// Type of entity index, as reported by the per-collection index summary and by an index browse. This is the engine's
+// own index type vocabulary rather than a mirror of it, so the values cannot drift apart. A catalog index has no value
+// here: the engine addresses those by scope alone because there is exactly one kind of them.
+enum GrpcEntityIndexType {
+
+  // Default value, never sent by the server. Every reported index carries an explicit type.
+  INDEX_TYPE_UNSPECIFIED = 0;
+  // Index covering all entities of the collection.
+  INDEX_TYPE_GLOBAL = 1;
+  // Index covering entities that reference any entity of a particular referenced entity type.
+  INDEX_TYPE_REFERENCED_ENTITY_TYPE = 2;
+  // Index covering entities that reference one particular referenced entity.
+  INDEX_TYPE_REFERENCED_ENTITY = 3;
+  // Index covering entities that reference any entity belonging to a particular group entity type.
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY_TYPE = 4;
+  // Index covering entities that reference one particular group entity.
+  INDEX_TYPE_REFERENCED_GROUP_ENTITY = 5;
+
+}
+
+// The order in which an index browse returns its results. Both orders walk every index of the collection; what they
+// differ in is how much of that walk has to be kept in memory to produce a page.
+enum GrpcIndexBrowseOrdering {
+
+  // Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
+  // answer is "everything, cheaply" or "the largest ones", which are different questions.
+  INDEX_BROWSE_ORDERING_UNSPECIFIED = 0;
+  // The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
+  // a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
+  // a client should read into.
+  INDEX_BROWSE_ORDERING_MAP_ORDER = 1;
+  // Largest first by `entityCount`, ties broken deterministically by index kind, then scope, then discriminator.
+  // The tiebreaker matters: index counts are heavily tied in practice, and without it successive pages would
+  // re-order the tied block and show duplicates while hiding other indexes.
+  //
+  // This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
+  // narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
+  // is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
+  // mean estimating every index in the collection on every call.
+  INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;
+
+}
+
+// Which of an attribute's index structures a cardinality reading describes. One attribute can be indexed several ways
+// at once - a filterable AND sortable attribute has both a filter and a sort index - and their distinct-value counts
+// are not interchangeable, so a reading always names the structure it came from.
+//
+// The chain index used for ordered references has no value dimension at all: it stores predecessor links between
+// records rather than values, so "distinct values" is not a question that can be asked of it and it is deliberately
+// absent here.
+enum GrpcAttributeIndexType {
+
+  // Default value, never sent by the server. Every reported cardinality carries an explicit structure.
+  ATTRIBUTE_INDEX_TYPE_UNSPECIFIED = 0;
+  // The unique index - a value maps to at most one record.
+  ATTRIBUTE_INDEX_TYPE_UNIQUE = 1;
+  // The filter index - the inverted index used to resolve equality, prefix and range predicates.
+  ATTRIBUTE_INDEX_TYPE_FILTER = 2;
+  // The sort index - records ordered by their attribute value.
+  ATTRIBUTE_INDEX_TYPE_SORT = 3;
+
+}

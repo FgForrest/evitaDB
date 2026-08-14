@@ -27,7 +27,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.StringValue;
-import io.evitadb.api.CatalogStatistics;
+import com.linecorp.armeria.client.grpc.GrpcClientBuilder;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
@@ -35,6 +35,12 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -48,6 +54,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaManagementServiceStub;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.CatalogStatisticsConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.ConflictResolutionConverter;
 import io.evitadb.function.Functions;
@@ -69,6 +76,7 @@ import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -132,21 +140,6 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		);
 		this.evitaManagementServiceStub = streamingChannel.stub(EvitaManagementServiceStub.class);
 		this.evitaManagementServiceFutureStub = unaryChannel.stub(EvitaManagementServiceFutureStub.class);
-	}
-
-	@Nonnull
-	@Override
-	public CatalogStatistics[] getCatalogStatistics() {
-		this.evitaClient.assertActive();
-
-		final GrpcEvitaCatalogStatisticsResponse response = executeWithEvitaService(
-			evitaService -> evitaService.getCatalogStatistics(Empty.newBuilder().build())
-		);
-
-		return response.getCatalogStatisticsList()
-			.stream()
-			.map(EvitaDataTypesConverter::toCatalogStatistics)
-			.toArray(CatalogStatistics[]::new);
 	}
 
 	@Nonnull
@@ -555,6 +548,137 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			response.getTrafficRecordingEnabled(),
 			response.getQueryCacheEnabled()
 		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStatistics getCatalogStatistics(
+		@Nonnull String catalogName,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcCatalogStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getCatalogStatisticsSnapshot(
+				GrpcCatalogStatisticsSnapshotRequest.newBuilder()
+					.setCatalogName(catalogName)
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		// an absent envelope is not an empty catalog. Unwrapping it would yield a statistics object with a blank name,
+		// version 0 and no component statuses at all - which reads as "everything you asked for, and it was all zero"
+		// rather than "the server sent nothing", and is precisely the silent success the component model exists to
+		// rule out at the level of the individual component
+		if (!response.hasCatalogStatistics()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no catalog statistics for catalog `" + catalogName + "`."
+			);
+		}
+		return CatalogStatisticsConverter.toCatalogStatistics(response.getCatalogStatistics());
+	}
+
+	@Nonnull
+	@Override
+	public Collection<CatalogStatistics> getAllCatalogStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcAllCatalogStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getAllCatalogStatisticsSnapshots(
+				GrpcAllCatalogStatisticsSnapshotRequest.newBuilder()
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		final List<GrpcCatalogStatisticsSnapshot> snapshots = response.getCatalogStatisticsList();
+		final List<CatalogStatistics> statistics = new ArrayList<>(snapshots.size());
+		for (final GrpcCatalogStatisticsSnapshot snapshot : snapshots) {
+			// the server already ordered them by catalog name - re-sorting here would only risk disagreeing with it
+			statistics.add(CatalogStatisticsConverter.toCatalogStatistics(snapshot));
+		}
+		return statistics;
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionStatistics getEntityCollectionStatistics(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcEntityCollectionStatisticsSnapshotResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getEntityCollectionStatisticsSnapshot(
+				GrpcEntityCollectionStatisticsSnapshotRequest.newBuilder()
+					.setCatalogName(catalogName)
+					.setEntityType(entityType)
+					.addAllComponents(CatalogStatisticsConverter.toGrpcComponents(components))
+					.build()
+			)
+		);
+
+		if (!response.hasEntityCollectionStatistics()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no statistics for collection `" + entityType + "` of catalog `" + catalogName + "`."
+			);
+		}
+		return CatalogStatisticsConverter.toEntityCollectionStatistics(
+			response.getEntityCollectionStatistics()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcIndexBrowseRequest request = CatalogStatisticsConverter.toGrpcIndexBrowseRequest(
+			catalogName, entityType, criteria
+		);
+		final GrpcIndexBrowseResponse response = executeWithEvitaService(
+			evitaService -> evitaService.browseIndexes(request)
+		);
+
+		return CatalogStatisticsConverter.toIndexBrowseResult(response);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail getIndexDetail(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		int indexPrimaryKey
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcIndexDetailRequest.Builder requestBuilder = GrpcIndexDetailRequest.newBuilder()
+			.setCatalogName(catalogName)
+			.setIndexPrimaryKey(indexPrimaryKey);
+		// unset addresses the catalog's own index of that handle; an empty string would name a collection that cannot
+		// exist, which is why absence travels as an unset wrapper rather than as a sentinel
+		if (entityType != null) {
+			requestBuilder.setEntityType(StringValue.of(entityType));
+		}
+		final GrpcIndexDetailRequest request = requestBuilder.build();
+		final GrpcIndexDetailResponse response = executeWithEvitaService(
+			evitaService -> evitaService.getIndexDetail(request)
+		);
+
+		if (!response.hasIndexDetail()) {
+			throw new GenericEvitaInternalError(
+				"Server returned no detail for index `" + indexPrimaryKey + "` of catalog `" + catalogName + "`."
+			);
+		}
+		return CatalogStatisticsConverter.toIndexDetail(response.getIndexDetail());
 	}
 
 	@Override

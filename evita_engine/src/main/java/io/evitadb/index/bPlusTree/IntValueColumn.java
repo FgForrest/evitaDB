@@ -24,11 +24,13 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfIntInOrderedArray;
 
@@ -152,6 +154,19 @@ final class IntValueColumn<M extends Comparable<M>> implements ValueColumn<M> {
 			boxed[i] = (M) Integer.valueOf(this.keys[i]);
 		}
 		return boxed;
+	}
+
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		return layout.sizeOfObject(layout.referenceSize())
+			+ layout.sizeOfArray(this.keys.length, Integer.BYTES);
+	}
+
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super M> elementSizer) {
+		// keys are `int` values inside the array - there is nothing for the sizer to price
+		return getHeapSizeInBytes();
 	}
 
 	/**

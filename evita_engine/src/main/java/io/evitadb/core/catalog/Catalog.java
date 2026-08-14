@@ -28,8 +28,24 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.exception.IndexNotFoundException;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionsInfo;
+import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.CommitPipelineStatistics;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.HistoryStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.IndexSummaryStatistics;
+import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.SessionStatistics;
+import io.evitadb.api.statistics.StorageCompositionStatistics;
+import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -105,6 +121,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
 import io.evitadb.core.transaction.Transaction;
@@ -122,7 +139,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
@@ -134,14 +151,18 @@ import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -207,6 +228,11 @@ public final class Catalog
 	 */
 	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
 		ThreadLocal.withInitial(ArrayDeque::new);
+	/**
+	 * The answer for a catalog no session has ever been opened against - its session registry is created lazily and
+	 * therefore does not exist yet. Three zeroes is the truthful reading of that state, not a missing measurement.
+	 */
+	private static final SessionStatistics NO_ACTIVE_SESSIONS = new SessionStatistics(0, 0, 0);
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -309,6 +335,13 @@ public final class Catalog
 	 * Reference to the current {@link EvitaConfiguration} settings.
 	 */
 	private final EvitaConfiguration evitaConfiguration;
+	/**
+	 * Reference to the engine this catalog belongs to. Held only for the state the engine owns *about* this catalog
+	 * but does not store in it - today that is the session registry, which is created lazily on the first session and
+	 * therefore cannot be handed to the constructor. It is carried across catalog generations like the transaction
+	 * manager is, because it identifies the engine and not the version.
+	 */
+	private final Evita evita;
 	/**
 	 * Reference to the shared transactional executor service that provides carrier threads for transaction processing.
 	 */
@@ -586,6 +619,7 @@ public final class Catalog
 		final String catalogName = catalogSchema.getName();
 		final long catalogVersion = 0L;
 
+		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
@@ -674,6 +708,7 @@ public final class Catalog
 		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
 		boolean readOnly
 	) {
+		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
 		this.scheduler = evita.getServiceExecutor();
 		this.transactionalExecutor = evita.getTransactionExecutor();
@@ -794,6 +829,7 @@ public final class Catalog
 		this.trafficRecordingEngine = previousCatalogVersion.trafficRecordingEngine;
 		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
 		this.proxyFactory = previousCatalogVersion.proxyFactory;
+		this.evita = previousCatalogVersion.evita;
 		this.evitaConfiguration = previousCatalogVersion.evitaConfiguration;
 		this.scheduler = previousCatalogVersion.scheduler;
 		this.transactionalExecutor = previousCatalogVersion.transactionalExecutor;
@@ -1453,24 +1489,386 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public CatalogStatistics getStatistics() {
-		final EntityCollectionStatistics[] collectionStatistics = this.entityCollections.values()
-			.stream()
-			.map(EntityCollection::getStatistics)
-			.toArray(EntityCollectionStatistics[]::new);
+	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		CatalogStatisticsComponent.assertNotEmpty(components);
+		final CatalogStatistics.Builder builder = CatalogStatistics.builder(getIdentity());
+		// STORAGE_SIZE, HISTORY and FRAGMENTATION are three readings of one directory listing: the first attributes its
+		// bytes, the second reports how many files each of two of those classes holds and what is pinning them, the
+		// third turns the live/waste split into a share. Measuring once is not only the cheaper answer - it is the only
+		// one under which the three components cannot describe different moments. The listing is flat and its sum is
+		// the measured total, which is what keeps the size record's total-equals-sum invariant true by construction
+		// rather than by agreement between separate measurements.
+		// FRAGMENTATION needs one thing more - the compaction predicate, evaluated against those very file lengths -
+		// so when it is asked for, the persistence layer measures both from the one listing and the other two read
+		// their footprint back out of that snapshot. Asking for them *without* FRAGMENTATION costs no forecast at all
+		final CatalogFragmentationSnapshot fragmentationSnapshot =
+			components.contains(CatalogStatisticsComponent.FRAGMENTATION) ?
+				this.persistenceService.measureFragmentation() : null;
+		final CatalogStorageFootprint storageFootprint;
+		if (fragmentationSnapshot != null) {
+			storageFootprint = fragmentationSnapshot.footprint();
+		} else if (components.contains(CatalogStatisticsComponent.STORAGE_SIZE) ||
+			components.contains(CatalogStatisticsComponent.HISTORY)) {
+			storageFootprint = this.persistenceService.measureStorageFootprint();
+		} else {
+			storageFootprint = null;
+		}
+		// COMMIT_PIPELINE and ACTIVITY both read the version watermarks, and ACTIVITY's `pipelineDepth` is by
+		// definition the span between two of them. Reading them twice in one request would let the two components
+		// contradict each other whenever a stage advanced in between - a client comparing them would see a depth that
+		// does not match the watermarks it is derived from and would be right to call it a bug.
+		// Null here means either "neither was asked for" or "this catalog has no pipeline"; inside the two arms below
+		// the first is impossible, so there it reads purely as the second
+		final CommitPipelineStatistics commitPipeline =
+			supportsTransaction() && (components.contains(CatalogStatisticsComponent.COMMIT_PIPELINE) ||
+				components.contains(CatalogStatisticsComponent.ACTIVITY)) ?
+				this.transactionManager.describeCommitPipeline() : null;
+		for (final CatalogStatisticsComponent component : components) {
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				case COLLECTIONS -> builder.withCollections(collectCollectionInventory());
+				case INDEX_SUMMARY -> builder.withIndexSummary(new IndexSummaryStatistics(countIndexes()));
+				case RECORD_COUNTS -> builder.withRecordCounts(countRecords());
+				case STORAGE_SIZE -> builder.withStorageSize(
+					StorageSizeProjection.toStorageSizeStatistics(Objects.requireNonNull(storageFootprint))
+				);
+				case STORAGE_COMPOSITION -> builder.withStorageComposition(composeStorageParts());
+				case SESSIONS -> builder.withSessions(countSessions());
+				case COMMIT_PIPELINE -> {
+					if (commitPipeline != null) {
+						builder.withCommitPipeline(commitPipeline);
+					} else {
+						// four zeroes would render as a pipeline with nothing queued anywhere, which is the opposite of
+						// the truth: in WARM_UP writes bypass the pipeline entirely and none of its watermarks move
+						builder.withUnavailable(
+							component, ComponentAvailability.FEATURE_DISABLED, bulkWriteModeExplanation(
+								getCatalogState())
+						);
+					}
+				}
+				case HISTORY -> builder.withHistory(describeHistory(Objects.requireNonNull(storageFootprint)));
+				case VOLATILE_STATE -> builder.withVolatileState(measureVolatileState());
+				case FRAGMENTATION -> builder.withFragmentation(
+					FragmentationProjection.toFragmentationStatistics(
+						Objects.requireNonNull(fragmentationSnapshot),
+						this.evitaConfiguration.storage()
+					)
+				);
+				case ACTIVITY -> {
+					if (commitPipeline != null) {
+						builder.withActivity(this.transactionManager.describeActivity(commitPipeline));
+					} else {
+						// every counter would read zero however hard the catalog is being written, because bulk
+						// ingestion never enters the pipeline that counts them - "idle and healthy" is the exact
+						// inverse of the truth here, same as for COMMIT_PIPELINE above
+						builder.withUnavailable(
+							component, ComponentAvailability.FEATURE_DISABLED, bulkWriteModeExplanation(
+								getCatalogState())
+						);
+					}
+				}
+				case DURABILITY -> {
+					final DurabilitySnapshot durability = this.persistenceService.measureDurability();
+					if (durability != null) {
+						builder.withDurability(DurabilityProjection.toDurabilityStatistics(durability));
+					} else {
+						// zeroes here would read as "durability is instant and free"; with sync writes off it in fact
+						// means durability is not happening at all, which is the inverse of that
+						builder.withUnavailable(
+							component,
+							ComponentAvailability.FEATURE_DISABLED,
+							"Catalog checkpoints at the end of every round, so there is no deferred-durability fence " +
+								"to describe - either no checkpoint interval is configured, or writes are not synced " +
+								"to the physical device."
+						);
+					}
+				}
+				case INDEX_CARDINALITY -> builder.withIndexCardinality(
+					CatalogIndexCardinalityProjection.describe(collectCatalogIndexes())
+				);
+				// A switch *statement* is not checked for exhaustiveness the way an expression is, so a component
+				// added to the enum and not to this switch would fall straight through and record nothing. The
+				// resulting response is indistinguishable from one where the client never asked for it - the exact
+				// ambiguity the status-and-reason model exists to remove, arrived at by omission instead
+				default -> throw new GenericEvitaInternalError(
+					"Catalog statistics component `" + component + "` is not handled!"
+				);
+			}
+		}
+		return builder.build();
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		// no snapshot is taken where the collection-level browse takes one: the collection seals its index map so that
+		// the match count and the page cannot come from two different states, and a catalog has at most one index per
+		// scope - collected here in one pass, after which nothing is read from the catalog again
+		return CatalogIndexProjection.browse(
+			collectCatalogIndexes(), criteria, getVersion()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException {
+		final Scope scope = CatalogIndexProjection.toScope(indexPrimaryKey);
+		// two distinct misses answered alike, deliberately: a handle that addresses no scope at all, and one that
+		// addresses a scope whose index has not been created yet. Both mean "the catalog holds no such index right now",
+		// and the second can start resolving later without ever denoting a different index
+		final CatalogIndex catalogIndex = scope == null ? null : getCatalogIndexIfExits(scope).orElse(null);
+		if (catalogIndex == null) {
+			throw new IndexNotFoundException(null, indexPrimaryKey);
+		}
+		return CatalogIndexProjection.describe(catalogIndex);
+	}
+
+	/**
+	 * Sums the record counts of every collection in the catalog. `totalRecords` keeps its historical meaning - the
+	 * number of entity body storage parts - while the live/archived split is read from the cardinality of the global
+	 * index of each scope. Both are counter reads rather than walks, which is what allows this component to stay
+	 * catalog-level.
+	 *
+	 * The two are *not* guaranteed to reconcile: a body part that belongs to neither global index counts towards
+	 * `totalRecords` alone, and surfacing that difference is the point of reporting all three numbers.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#RECORD_COUNTS} component
+	 */
+	@Nonnull
+	private RecordCounts countRecords() {
+		long totalRecords = 0L;
+		long liveRecords = 0L;
+		long archivedRecords = 0L;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			final CollectionRecordCounts collectionCounts = collection.countRecords();
+			totalRecords += collectionCounts.totalRecords();
+			liveRecords += collectionCounts.liveRecords();
+			archivedRecords += collectionCounts.archivedRecords();
+		}
+		return new RecordCounts(totalRecords, liveRecords, archivedRecords);
+	}
+
+	/**
+	 * Counts the sessions currently open against this catalog.
+	 *
+	 * The registry is owned by the engine rather than by the catalog, because it is created lazily on the first
+	 * session and outlives every individual catalog generation. A catalog nobody has ever opened a session against
+	 * has no registry at all, which is honestly reported as three zeroes rather than as an unavailable component -
+	 * "no sessions" is exactly what it means.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#SESSIONS} component
+	 */
+	@Nonnull
+	private SessionStatistics countSessions() {
+		return this.evita.getCatalogSessionRegistry(getName())
+			.map(SessionRegistry::countActiveSessions)
+			.orElse(NO_ACTIVE_SESSIONS);
+	}
+
+	/**
+	 * Why {@link CatalogStatisticsComponent#COMMIT_PIPELINE} and {@link CatalogStatisticsComponent#ACTIVITY} are both
+	 * withheld while the catalog is writing in bulk.
+	 *
+	 * The two components report different things but are unavailable for one and the same reason - bulk writes never
+	 * enter the pipeline that either of them measures - so the sentence is written once rather than twice. Two copies
+	 * of one explanation drift, and these two already had: identical in what they produced, differing in where the
+	 * line was wrapped.
+	 *
+	 * @return the explanation handed to the client alongside {@link ComponentAvailability#FEATURE_DISABLED}
+	 * @param catalogState current state of the catalog
+	 */
+	@Nonnull
+	private static String bulkWriteModeExplanation(@Nonnull CatalogState catalogState) {
+		return "Catalog is in `" + catalogState + "` state, where writes are applied in bulk and the " +
+			"transactional commit pipeline is not used.";
+	}
+
+	/**
+	 * Describes how far back this catalog can be read and what is keeping superseded files on disk.
+	 *
+	 * **The window is the honest one, not the one the bootstrap file lists.** The bootstrap file is never trimmed, so
+	 * it names every version the catalog has ever had in both modes - but with time travel disabled
+	 * `purgeAllObsoleteFiles` removes every data file the *current* header does not reference, so those older versions
+	 * have nothing left to read. Reporting the bootstrap's oldest record as the start of the window would therefore
+	 * promise history that is not there; with time travel off the window is the current version alone.
+	 *
+	 * The file counts, the byte classes and the reader floor all come from the footprint the caller already measured -
+	 * see the comment at that call site for why they must not be measured again here. The *bootstrap* file is read
+	 * separately, and with time travel on it is read once per direction: the pagination is directional, so one call
+	 * cannot yield both ends of the window. Only the directory listing is shared with
+	 * {@link CatalogStatisticsComponent#STORAGE_SIZE}, and that is what the one-snapshot-per-request rule is about -
+	 * these are two bounded seek-reads of one small file, which is the cost {@link HistoryStatistics} documents.
+	 *
+	 * @param footprint the catalog directory listing the caller measured for this request
+	 * @return the {@link CatalogStatisticsComponent#HISTORY} component
+	 */
+	@Nonnull
+	private HistoryStatistics describeHistory(@Nonnull CatalogStorageFootprint footprint) {
+		final boolean timeTravelEnabled = this.evitaConfiguration.storage().timeTravelEnabled();
+		final List<MaterializedVersionBlock> newest = this.persistenceService
+			.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 1)
+			.getData();
+		final MaterializedVersionBlock newestBlock = newest.isEmpty() ? null : newest.get(0);
+		final MaterializedVersionBlock oldestBlock;
+		if (timeTravelEnabled) {
+			final List<MaterializedVersionBlock> oldest = this.persistenceService
+				.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 1)
+				.getData();
+			oldestBlock = oldest.isEmpty() ? null : oldest.get(0);
+		} else {
+			// only the current version's data files survive the purge, so the window has one version in it
+			oldestBlock = newestBlock;
+		}
+		return new HistoryStatistics(
+			timeTravelEnabled,
+			oldestBlock == null ? -1L : (timeTravelEnabled ? oldestBlock.startVersion() : oldestBlock.endVersion()),
+			oldestBlock == null ? null : oldestBlock.introducedAt(),
+			newestBlock == null ? -1L : newestBlock.endVersion(),
+			newestBlock == null ? null : newestBlock.introducedAt(),
+			footprint.walFileCount(),
+			footprint.walBytes(),
+			footprint.activeReaderFloor(),
+			footprint.awaitingDeletionFileCount(),
+			footprint.awaitingDeletionBytes(),
+			footprint.blockedByActiveReaderBytes(),
+			footprint.purgeableBytes()
+		);
+	}
+
+	/**
+	 * Sums what every data store of this catalog is holding in memory rather than on disk - the catalog's own store
+	 * plus each collection's.
+	 *
+	 * **This one *is* summed across data stores, unlike {@link CatalogStatisticsComponent#STORAGE_COMPOSITION}.** The
+	 * difference is not an inconsistency: bytes held in heap add up no matter which store holds them, whereas adding
+	 * counts of different storage-part types out of different stores yields a number with no meaning. The retained
+	 * history timestamp is folded with `min` rather than summed - the catalog is holding history back as far as its
+	 * oldest retaining store.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#VOLATILE_STATE} component
+	 */
+	@Nonnull
+	private VolatileStateStatistics measureVolatileState() {
+		// the catalog's own data store is measured on its own and *kept*, not just used to seed the fold - it is the
+		// slice that lets a client tell an unflushed backlog in the metadata store from one in a collection
+		final VolatileDataFootprint catalogDataStore = this.persistenceService.measureVolatileData();
+		VolatileDataFootprint footprint = catalogDataStore;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			footprint = footprint.plus(collection.measureVolatileData());
+		}
+		return new VolatileStateStatistics(
+			footprint.totalSizeIncludingVolatileDataBytes(),
+			footprint.nonFlushedRecordCount(),
+			footprint.nonFlushedSizeBytes(),
+			footprint.oldestRecordKeptTimestamp(),
+			VolatileStateProjection.toDataStoreVolatileState(catalogDataStore)
+		);
+	}
+
+	/**
+	 * Breaks the catalog's own data store down by storage-part type - the file holding the catalog schema, the
+	 * headers and the catalog-level indexes. There is deliberately no sum across the entity collections: each keeps
+	 * its records - its entity schema included - in its own data store, and adding records of different types out of
+	 * different data stores produces a number with no operational meaning. A collection's own breakdown is fetched
+	 * through its collection-level snapshot.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_COMPOSITION} component
+	 */
+	@Nonnull
+	private StorageCompositionStatistics composeStorageParts() {
+		return new StorageCompositionStatistics(
+			StoragePartProjection.toStoragePartUsage(this.persistenceService.measureStoragePartComposition())
+		);
+	}
+
+	/**
+	 * Describes who this catalog is and what mode it runs in. Shared by the catalog-level and the collection-level
+	 * statistics snapshots, so a client can tell which catalog version each of them observed.
+	 *
+	 * @return the identity component of the statistics model
+	 */
+	@Nonnull
+	public CatalogIdentity getIdentity() {
 		final CatalogState catalogState = getCatalogState();
-		return new CatalogStatistics(
+		return new CatalogIdentity(
 			getCatalogId(),
 			getName(),
-			!catalogState.isActive(),
-			this.readOnly.get(),
 			catalogState,
 			getVersion(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::totalRecords).sum(),
-			Arrays.stream(collectionStatistics).mapToLong(EntityCollectionStatistics::indexCount).sum() + 1,
-			this.persistenceService.getSizeOnDiskInBytes(),
-			collectionStatistics
+			this.readOnly.get(),
+			!catalogState.isActive(),
+			supportsTransaction(),
+			isGoingLive(),
+			this.entityCollections.size()
 		);
+	}
+
+	/**
+	 * Lists the entity collections the catalog holds. Carries no statistics - it is the inventory a client needs
+	 * before it can ask any single collection for its numbers.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#COLLECTIONS} component
+	 */
+	@Nonnull
+	private CollectionsInfo collectCollectionInventory() {
+		final CollectionInfo[] collections = new CollectionInfo[this.entityCollections.size()];
+		int index = 0;
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			collections[index++] = new CollectionInfo(
+				collection.getEntityType(),
+				collection.getEntityTypePrimaryKey()
+			);
+		}
+		return new CollectionsInfo(collections);
+	}
+
+	/**
+	 * Counts the indexes of the whole catalog. Each collection answers from the size of its index map, so the cost is
+	 * independent of how large those indexes are - which is what allows this component to stay catalog-level.
+	 *
+	 * **The catalog-level index is one per {@link Scope}, not one per catalog.** `LIVE` always exists; `ARCHIVED` is
+	 * created lazily by {@link #getCatalogIndex(Scope)} the first time something is indexed in that scope, so a
+	 * catalog holding archived globally-unique data has two. Counting a hard-coded one undercounted every such
+	 * catalog, and would undercount further the day a third scope is added - hence the loop over
+	 * {@link Scope#values()} rather than a constant.
+	 *
+	 * The number counts index *instances*, not non-empty ones: the `LIVE` catalog index exists from the moment the
+	 * catalog does, whether or not any globally-unique attribute has ever been written to it.
+	 *
+	 * @return number of indexes including every scope's catalog-level index
+	 */
+	private long countIndexes() {
+		// every scope whose catalog-level index has actually been created, then every collection adds its own
+		long totalIndexCount = 0L;
+		for (final Scope scope : Scope.values()) {
+			if (getCatalogIndexIfExits(scope).isPresent()) {
+				totalIndexCount++;
+			}
+		}
+		for (final EntityCollection collection : this.entityCollections.values()) {
+			totalIndexCount += collection.getIndexCount();
+		}
+		return totalIndexCount;
+	}
+
+	/**
+	 * Collects the catalog-level index of every scope that has actually been created.
+	 *
+	 * A scope whose index has never been created contributes nothing rather than an empty entry - the `ARCHIVED` index
+	 * is created lazily, and reporting it as present-but-empty would be indistinguishable from a scope that exists and
+	 * genuinely holds no globally-unique value.
+	 *
+	 * @return the existing catalog indexes, in {@link Scope#values()} order
+	 */
+	@Nonnull
+	private List<CatalogIndex> collectCatalogIndexes() {
+		final Scope[] scopes = Scope.values();
+		final List<CatalogIndex> catalogIndexes = new ArrayList<>(scopes.length);
+		for (final Scope scope : scopes) {
+			getCatalogIndexIfExits(scope).ifPresent(catalogIndexes::add);
+		}
+		return catalogIndexes;
 	}
 
 	@Override

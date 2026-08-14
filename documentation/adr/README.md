@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339, PR #1418 |
 | 2026-08-10 | [LocalDateTime is a first-class schema type, and its UTC-anchored Instant encoding lives in the index normalizer](2026-08-10-stored-value-normalization-split.md) | fix | accepted | #1403, PR #1404, PR #1405 |
 | 2026-08-06 | [Bound time travel with an absolute per-catalog byte budget, not a ratio or a generation count](2026-08-06-time-travel-disk-budget.md) | feature | accepted | #761, PR #1402 |
 | 2026-08-06 | [Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap](2026-08-06-catalog-folder-decoupling.md) | refactor | partially-implemented | #649 |

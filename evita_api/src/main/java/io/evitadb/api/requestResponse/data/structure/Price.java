@@ -193,7 +193,7 @@ public record Price(
 			// inner record id
 			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(this.innerRecordId).map(it -> MemoryMeasuringConstants.INT_SIZE).orElse(0) +
 			// price without and with tax + tax
-			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE) +
+			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE) +
 			// validity
 			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(this.validity).stream().mapToInt(EvitaDataTypes::estimateSize).sum();
 	}

@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -36,6 +37,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
@@ -64,6 +66,30 @@ public class TransactionalReference<T>
 	 */
 	public TransactionalReference(@Nullable T value) {
 		this.value = new AtomicReference<>(value);
+	}
+
+	/**
+	 * Returns the heap this holder occupies, in bytes — its own object, the {@link AtomicReference} it wraps and
+	 * whatever `valueSizer` decides the referenced value is worth.
+	 *
+	 * The value is the caller's to price, for the same reason a map's values are: this holder cannot tell whether it
+	 * owns what it points at. {@link io.evitadb.index.facet.FacetReferenceIndex} owns the group index it holds here
+	 * and prices it in full; a holder pointing at a structure another index maintains would return `0`.
+	 *
+	 * The committed value is read directly rather than through {@link #get()}: the per-transaction
+	 * {@link ReferenceChanges} layer belongs to the transaction that created it and disappears on commit or rollback,
+	 * exactly as the map decorators of this package treat theirs.
+	 *
+	 * @param valueSizer prices the referenced value, or returns `0` when this holder does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<? super T> valueSizer) {
+		final VMLayout layout = VMLayout.current();
+		final T committedValue = this.value.get();
+		// id + the AtomicReference slot, then the AtomicReference's own object holding a single reference
+		return layout.sizeOfObject(Long.BYTES + layout.referenceSize())
+			+ layout.sizeOfObject(layout.referenceSize())
+			+ (committedValue == null ? 0L : valueSizer.applyAsLong(committedValue));
 	}
 
 	/**

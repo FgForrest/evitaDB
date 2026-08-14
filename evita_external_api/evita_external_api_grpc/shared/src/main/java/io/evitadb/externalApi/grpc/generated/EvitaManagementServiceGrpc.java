@@ -163,6 +163,161 @@ public final class EvitaManagementServiceGrpc {
     return getGetCatalogStatisticsMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> getGetCatalogStatisticsSnapshotMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetCatalogStatisticsSnapshot",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> getGetCatalogStatisticsSnapshotMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> getGetCatalogStatisticsSnapshotMethod;
+    if ((getGetCatalogStatisticsSnapshotMethod = EvitaManagementServiceGrpc.getGetCatalogStatisticsSnapshotMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetCatalogStatisticsSnapshotMethod = EvitaManagementServiceGrpc.getGetCatalogStatisticsSnapshotMethod) == null) {
+          EvitaManagementServiceGrpc.getGetCatalogStatisticsSnapshotMethod = getGetCatalogStatisticsSnapshotMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetCatalogStatisticsSnapshot"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetCatalogStatisticsSnapshot"))
+              .build();
+        }
+      }
+    }
+    return getGetCatalogStatisticsSnapshotMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> getGetAllCatalogStatisticsSnapshotsMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetAllCatalogStatisticsSnapshots",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> getGetAllCatalogStatisticsSnapshotsMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> getGetAllCatalogStatisticsSnapshotsMethod;
+    if ((getGetAllCatalogStatisticsSnapshotsMethod = EvitaManagementServiceGrpc.getGetAllCatalogStatisticsSnapshotsMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetAllCatalogStatisticsSnapshotsMethod = EvitaManagementServiceGrpc.getGetAllCatalogStatisticsSnapshotsMethod) == null) {
+          EvitaManagementServiceGrpc.getGetAllCatalogStatisticsSnapshotsMethod = getGetAllCatalogStatisticsSnapshotsMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetAllCatalogStatisticsSnapshots"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetAllCatalogStatisticsSnapshots"))
+              .build();
+        }
+      }
+    }
+    return getGetAllCatalogStatisticsSnapshotsMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> getGetEntityCollectionStatisticsSnapshotMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetEntityCollectionStatisticsSnapshot",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> getGetEntityCollectionStatisticsSnapshotMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> getGetEntityCollectionStatisticsSnapshotMethod;
+    if ((getGetEntityCollectionStatisticsSnapshotMethod = EvitaManagementServiceGrpc.getGetEntityCollectionStatisticsSnapshotMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetEntityCollectionStatisticsSnapshotMethod = EvitaManagementServiceGrpc.getGetEntityCollectionStatisticsSnapshotMethod) == null) {
+          EvitaManagementServiceGrpc.getGetEntityCollectionStatisticsSnapshotMethod = getGetEntityCollectionStatisticsSnapshotMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetEntityCollectionStatisticsSnapshot"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetEntityCollectionStatisticsSnapshot"))
+              .build();
+        }
+      }
+    }
+    return getGetEntityCollectionStatisticsSnapshotMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "BrowseIndexes",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> getBrowseIndexesMethod;
+    if ((getBrowseIndexesMethod = EvitaManagementServiceGrpc.getBrowseIndexesMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getBrowseIndexesMethod = EvitaManagementServiceGrpc.getBrowseIndexesMethod) == null) {
+          EvitaManagementServiceGrpc.getBrowseIndexesMethod = getBrowseIndexesMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "BrowseIndexes"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("BrowseIndexes"))
+              .build();
+        }
+      }
+    }
+    return getBrowseIndexesMethod;
+  }
+
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "GetIndexDetail",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getGetIndexDetailMethod;
+    if ((getGetIndexDetailMethod = EvitaManagementServiceGrpc.getGetIndexDetailMethod) == null) {
+      synchronized (EvitaManagementServiceGrpc.class) {
+        if ((getGetIndexDetailMethod = EvitaManagementServiceGrpc.getGetIndexDetailMethod) == null) {
+          EvitaManagementServiceGrpc.getGetIndexDetailMethod = getGetIndexDetailMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest, io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "GetIndexDetail"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaManagementServiceMethodDescriptorSupplier("GetIndexDetail"))
+              .build();
+        }
+      }
+    }
+    return getGetIndexDetailMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogRequest,
       io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogResponse> getRestoreCatalogMethod;
 
@@ -635,12 +790,84 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+     * `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+     * wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+     * whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+     * value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+     * semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     default void getCatalogStatistics(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogStatisticsMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+     * components it needs and the server computes only those, so a polled management screen pays for what it displays.
+     * </pre>
+     */
+    default void getCatalogStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetCatalogStatisticsSnapshotMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+     * catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+     * </pre>
+     */
+    default void getAllCatalogStatisticsSnapshots(io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetAllCatalogStatisticsSnapshotsMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+     * to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+     * collection.
+     * </pre>
+     */
+    default void getEntityCollectionStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetEntityCollectionStatisticsSnapshotMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+     * </pre>
+     */
+    default void browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getBrowseIndexesMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    default void getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetIndexDetailMethod(), responseObserver);
     }
 
     /**
@@ -838,13 +1065,90 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+     * `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+     * wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+     * whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+     * value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+     * semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public void getCatalogStatistics(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> responseObserver) {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetCatalogStatisticsMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+     * components it needs and the server computes only those, so a polled management screen pays for what it displays.
+     * </pre>
+     */
+    public void getCatalogStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetCatalogStatisticsSnapshotMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+     * catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+     * </pre>
+     */
+    public void getAllCatalogStatisticsSnapshots(io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetAllCatalogStatisticsSnapshotsMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+     * to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+     * collection.
+     * </pre>
+     */
+    public void getEntityCollectionStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetEntityCollectionStatisticsSnapshotMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+     * </pre>
+     */
+    public void browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getBrowseIndexesMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public void getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getGetIndexDetailMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -1036,12 +1340,84 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+     * `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+     * wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+     * whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+     * value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+     * semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse getCatalogStatistics(com.google.protobuf.Empty request) throws io.grpc.StatusException {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetCatalogStatisticsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+     * components it needs and the server computes only those, so a polled management screen pays for what it displays.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse getCatalogStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetCatalogStatisticsSnapshotMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+     * catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse getAllCatalogStatisticsSnapshots(io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetAllCatalogStatisticsSnapshotsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+     * to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+     * collection.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse getEntityCollectionStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetEntityCollectionStatisticsSnapshotMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getBrowseIndexesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getGetIndexDetailMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1225,12 +1601,84 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+     * `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+     * wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+     * whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+     * value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+     * semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse getCatalogStatistics(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetCatalogStatisticsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+     * components it needs and the server computes only those, so a polled management screen pays for what it displays.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse getCatalogStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetCatalogStatisticsSnapshotMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+     * catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse getAllCatalogStatisticsSnapshots(io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetAllCatalogStatisticsSnapshotsMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+     * to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+     * collection.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse getEntityCollectionStatisticsSnapshot(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetEntityCollectionStatisticsSnapshotMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse browseIndexes(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getBrowseIndexesMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse getIndexDetail(io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getGetIndexDetailMethod(), getCallOptions(), request);
     }
 
     /**
@@ -1403,13 +1851,90 @@ public final class EvitaManagementServiceGrpc {
 
     /**
      * <pre>
-     * Procedure used to obtain catalog statistics.
+     * Deprecated since 2026.3 - superseded by `GetAllCatalogStatisticsSnapshots`, and by
+     * `GetCatalogStatisticsSnapshot` / `GetEntityCollectionStatisticsSnapshot` when a single catalog or collection is
+     * wanted. This one computes every statistic of every catalog on every call and returns them in a fixed flat shape
+     * whose size grows with the number of entity collections, it cannot report *why* a figure is missing (an unknown
+     * value is indistinguishable from a real `-1`), and it offers no way to ask for one catalog or one collection. Its
+     * semantics are frozen and will not change while it remains.
      * </pre>
      */
+    @java.lang.Deprecated
     public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse> getCatalogStatistics(
         com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.futureUnaryCall(
           getChannel().newCall(getGetCatalogStatisticsMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one named catalog. The client names the
+     * components it needs and the server computes only those, so a polled management screen pays for what it displays.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse> getCatalogStatisticsSnapshot(
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetCatalogStatisticsSnapshotMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain component-selected statistics snapshots of every catalog known to the server, ordered by
+     * catalog name. The component-selected replacement for the deprecated `GetCatalogStatistics`.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse> getAllCatalogStatisticsSnapshots(
+        io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetAllCatalogStatisticsSnapshotsMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain a component-selected statistics snapshot of one entity collection. This is the only way
+     * to obtain per-collection numbers - the catalog-level procedures report aggregates and never break them down by
+     * collection.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse> getEntityCollectionStatisticsSnapshot(
+        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetEntityCollectionStatisticsSnapshotMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to list the indexes of one entity collection, or the ones a catalog holds itself, a page at a
+     * time. Where the index summary reported by `GetEntityCollectionStatisticsSnapshot` counts indexes by type and
+     * scope, this enumerates them individually - the drill-down that follows an alarming count. Which owner is listed
+     * is chosen by `GrpcIndexBrowseRequest.entityType`; both answer with the same rows.
+     * Never poll the collection form. Every call walks the collection's whole index map, unavoidably: there is no
+     * per-type index of the indexes to consult, and building one would duplicate every key while still costing a full
+     * pass to order. Filters and ordering change the constant, not the growth, and paging keeps the answer small rather
+     * than the work behind it. The catalog form is bounded by the number of scopes and carries none of that cost.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse> browseIndexes(
+        io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getBrowseIndexesMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to describe one index in full - what it occupies on the heap, and how well it discriminates. The
+     * drill-down that follows `BrowseIndexes`.
+     * The caller names the index, and that is what bounds the cost: the heap estimate walks the index's contents, so
+     * this is affordable for one index and would not be for a collection holding hundreds of thousands. There is
+     * deliberately no procedure that measures a whole collection; a client that wants a total calls this in parallel
+     * and sums the results.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse> getIndexDetail(
+        io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getGetIndexDetailMethod(), getCallOptions()), request);
     }
 
     /**
@@ -1529,18 +2054,23 @@ public final class EvitaManagementServiceGrpc {
   private static final int METHODID_GET_CONFIGURATION = 1;
   private static final int METHODID_GET_ENGINE_SETTINGS = 2;
   private static final int METHODID_GET_CATALOG_STATISTICS = 3;
-  private static final int METHODID_RESTORE_CATALOG_UNARY = 4;
-  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 5;
-  private static final int METHODID_LIST_TASK_STATUSES = 6;
-  private static final int METHODID_GET_TASK_STATUS = 7;
-  private static final int METHODID_GET_TASK_STATUSES = 8;
-  private static final int METHODID_CANCEL_TASK = 9;
-  private static final int METHODID_LIST_FILES_TO_FETCH = 10;
-  private static final int METHODID_GET_FILE_TO_FETCH = 11;
-  private static final int METHODID_FETCH_FILE = 12;
-  private static final int METHODID_DELETE_FILE = 13;
-  private static final int METHODID_LIST_RESERVED_KEYWORDS = 14;
-  private static final int METHODID_RESTORE_CATALOG = 15;
+  private static final int METHODID_GET_CATALOG_STATISTICS_SNAPSHOT = 4;
+  private static final int METHODID_GET_ALL_CATALOG_STATISTICS_SNAPSHOTS = 5;
+  private static final int METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT = 6;
+  private static final int METHODID_BROWSE_INDEXES = 7;
+  private static final int METHODID_GET_INDEX_DETAIL = 8;
+  private static final int METHODID_RESTORE_CATALOG_UNARY = 9;
+  private static final int METHODID_RESTORE_CATALOG_FROM_SERVER_FILE = 10;
+  private static final int METHODID_LIST_TASK_STATUSES = 11;
+  private static final int METHODID_GET_TASK_STATUS = 12;
+  private static final int METHODID_GET_TASK_STATUSES = 13;
+  private static final int METHODID_CANCEL_TASK = 14;
+  private static final int METHODID_LIST_FILES_TO_FETCH = 15;
+  private static final int METHODID_GET_FILE_TO_FETCH = 16;
+  private static final int METHODID_FETCH_FILE = 17;
+  private static final int METHODID_DELETE_FILE = 18;
+  private static final int METHODID_LIST_RESERVED_KEYWORDS = 19;
+  private static final int METHODID_RESTORE_CATALOG = 20;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1574,6 +2104,26 @@ public final class EvitaManagementServiceGrpc {
         case METHODID_GET_CATALOG_STATISTICS:
           serviceImpl.getCatalogStatistics((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse>) responseObserver);
+          break;
+        case METHODID_GET_CATALOG_STATISTICS_SNAPSHOT:
+          serviceImpl.getCatalogStatisticsSnapshot((io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse>) responseObserver);
+          break;
+        case METHODID_GET_ALL_CATALOG_STATISTICS_SNAPSHOTS:
+          serviceImpl.getAllCatalogStatisticsSnapshots((io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse>) responseObserver);
+          break;
+        case METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT:
+          serviceImpl.getEntityCollectionStatisticsSnapshot((io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse>) responseObserver);
+          break;
+        case METHODID_BROWSE_INDEXES:
+          serviceImpl.browseIndexes((io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>) responseObserver);
+          break;
+        case METHODID_GET_INDEX_DETAIL:
+          serviceImpl.getIndexDetail((io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>) responseObserver);
           break;
         case METHODID_RESTORE_CATALOG_UNARY:
           serviceImpl.restoreCatalogUnary((io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogUnaryRequest) request,
@@ -1668,6 +2218,41 @@ public final class EvitaManagementServiceGrpc {
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcEvitaCatalogStatisticsResponse>(
                 service, METHODID_GET_CATALOG_STATISTICS)))
+        .addMethod(
+          getGetCatalogStatisticsSnapshotMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshotResponse>(
+                service, METHODID_GET_CATALOG_STATISTICS_SNAPSHOT)))
+        .addMethod(
+          getGetAllCatalogStatisticsSnapshotsMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcAllCatalogStatisticsSnapshotResponse>(
+                service, METHODID_GET_ALL_CATALOG_STATISTICS_SNAPSHOTS)))
+        .addMethod(
+          getGetEntityCollectionStatisticsSnapshotMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshotResponse>(
+                service, METHODID_GET_ENTITY_COLLECTION_STATISTICS_SNAPSHOT)))
+        .addMethod(
+          getBrowseIndexesMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse>(
+                service, METHODID_BROWSE_INDEXES)))
+        .addMethod(
+          getGetIndexDetailMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcIndexDetailRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcIndexDetailResponse>(
+                service, METHODID_GET_INDEX_DETAIL)))
         .addMethod(
           getRestoreCatalogMethod(),
           io.grpc.stub.ServerCalls.asyncClientStreamingCall(
@@ -1804,6 +2389,11 @@ public final class EvitaManagementServiceGrpc {
               .addMethod(getGetConfigurationMethod())
               .addMethod(getGetEngineSettingsMethod())
               .addMethod(getGetCatalogStatisticsMethod())
+              .addMethod(getGetCatalogStatisticsSnapshotMethod())
+              .addMethod(getGetAllCatalogStatisticsSnapshotsMethod())
+              .addMethod(getGetEntityCollectionStatisticsSnapshotMethod())
+              .addMethod(getBrowseIndexesMethod())
+              .addMethod(getGetIndexDetailMethod())
               .addMethod(getRestoreCatalogMethod())
               .addMethod(getRestoreCatalogUnaryMethod())
               .addMethod(getRestoreCatalogFromServerFileMethod())

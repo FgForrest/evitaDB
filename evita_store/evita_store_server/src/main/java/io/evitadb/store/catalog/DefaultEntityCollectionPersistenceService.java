@@ -58,7 +58,7 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -70,7 +70,11 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
+import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.CompactionForecast;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartFootprint;
+import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -128,6 +132,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -231,6 +236,13 @@ public class DefaultEntityCollectionPersistenceService
 	 */
 	@Getter
 	private final long lastCompactionAtMillis;
+	/**
+	 * The configured compaction thresholds. Retained - rather than only consumed by the constructor, as it was before
+	 * the compaction forecast existed - because {@link #measureCompactionForecast()} has to evaluate the very same
+	 * predicate the compaction trigger does, against the very same settings.
+	 */
+	@Nonnull
+	private final StorageSettings storageSettings;
 
 	@Nonnull
 	private static Optional<EntityWithFetchCount> toEntity(
@@ -522,6 +534,7 @@ public class DefaultEntityCollectionPersistenceService
 		);
 		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.syncWrites = storageSettings.syncWrites();
+		this.storageSettings = storageSettings;
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -915,8 +928,10 @@ public class DefaultEntityCollectionPersistenceService
 	/**
 	 * Picks the read-side reload plan for the given {@link EntityIndexType}: `GLOBAL` resolves
 	 * to `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
-	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` (plus
-	 * `REFERENCED_HIERARCHY_NODE`, which lacks a dedicated subclass) to `ReducedEntityIndex`.
+	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` to
+	 * `ReducedEntityIndex`. A manifest written before 2024.12 under the retired
+	 * `REFERENCED_HIERARCHY_NODE` type arrives here already folded into `REFERENCED_ENTITY` by
+	 * `EntityIndexTypeSerializer`, which is the subclass it had always been reloaded as.
 	 *
 	 * @param type the `EntityIndexType` of the manifest being reloaded
 	 * @return the immutable reload plan for the matching subclass
@@ -928,23 +943,105 @@ public class DefaultEntityCollectionPersistenceService
 			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE ->
 				ReferencedTypeEntityIndex.reloadPlan();
 			case REFERENCED_GROUP_ENTITY -> ReducedGroupEntityIndex.reloadPlan();
-			case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> ReducedEntityIndex.reloadPlan();
+			case REFERENCED_ENTITY -> ReducedEntityIndex.reloadPlan();
 		};
 	}
 
+	@Nonnull
 	@Override
-	public long getSizeOnDiskInBytes() {
+	public StoragePartFootprint[] measureStoragePartComposition() {
+		return getStoragePartPersistenceService().measureStoragePartComposition();
+	}
+
+	@Nonnull
+	@Override
+	public VolatileDataFootprint measureVolatileData() {
+		return getStoragePartPersistenceService().measureVolatileData();
+	}
+
+	@Override
+	public long getMaxRecordSizeBytes() {
+		return getStoragePartPersistenceService().getMaxRecordSizeBytes();
+	}
+
+	@Nonnull
+	@Override
+	public CompactionForecast measureCompactionForecast() {
+		// a collection asked about itself has no directory listing to share, so the store reads its own length
+		return measureCompactionForecast(DefaultCatalogPersistenceService.getNowEpochMillis(), null);
+	}
+
+	/**
+	 * Forecasts this data store's compaction against a clock reading, and optionally a file length, that the caller
+	 * supplies.
+	 *
+	 * The catalog-wide fold takes one clock reading and one directory listing and passes both to every store, so that
+	 * the stores' cadence gates and projections are all anchored at the same moment rather than at whatever instant
+	 * each was reached in the loop, and so that no store is re-`stat`ed for a length the listing already read.
+	 *
+	 * @param nowMillis        current wall-clock time in epoch milliseconds
+	 * @param measuredFileSize this store's file length as the caller's listing measured it, or `null` to read it here
+	 * @return this data store's compaction forecast as of that moment
+	 */
+	@Nonnull
+	CompactionForecast measureCompactionForecast(long nowMillis, @Nullable Long measuredFileSize) {
+		return DefaultCatalogPersistenceService.forecastCompaction(
+			getStoragePartPersistenceService().getOffsetIndex(),
+			measuredFileSize,
+			this.storageSettings,
+			this.lastCompactionAtMillis,
+			nowMillis
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CollectionStorageFootprint measureStorageFootprint() {
 		final Pattern pattern = getEntityCollectionDataStoreFileNamePattern(
 			this.entityCollectionFileReference.entityType(),
 			this.entityCollectionFileReference.entityTypePrimaryKey()
 		);
-		return Arrays.stream(
-			Objects.requireNonNull(
-				this.entityCollectionFile.getParent().toFile().listFiles(
-					(dir, name) -> pattern.matcher(name).matches()
-				)
+		final File[] files = Objects.requireNonNull(
+			this.entityCollectionFile.getParent().toFile().listFiles(
+				(dir, name) -> pattern.matcher(name).matches()
 			)
-		).mapToLong(File::length).sum();
+		);
+		final int currentFileIndex = this.entityCollectionFileReference.fileIndex();
+		long totalBytes = 0L;
+		long currentFileBytes = 0L;
+		long awaitingDeletionBytes = 0L;
+		for (final File file : files) {
+			final long length = file.length();
+			totalBytes += length;
+			final Matcher matcher = pattern.matcher(file.getName());
+			// the same pattern already accepted this name in the listing filter above
+			isPremiseValid(
+				matcher.matches(),
+				"Entity collection file name `" + file.getName() + "` stopped matching its own pattern!"
+			);
+			final int fileIndex = Integer.parseInt(matcher.group(1));
+			if (fileIndex == currentFileIndex) {
+				currentFileBytes = length;
+			} else if (fileIndex < currentFileIndex) {
+				awaitingDeletionBytes += length;
+			}
+			// a *higher* index is compaction output whose header flip has not happened yet - reporting it as garbage
+			// would be the exact inverse of the truth, so it falls through to the unaccounted remainder below
+		}
+		// the clamp is load-bearing, not defensive: with compression enabled the active size is an estimate that can
+		// exceed the file it describes (see OffsetIndex#getTotalActiveSize), and an unclamped value would drive
+		// `unaccountedBytes` negative and make the record's total-equals-sum invariant false
+		final long liveBytes = Math.min(
+			getStoragePartPersistenceService().getOffsetIndex().getTotalActiveSize(),
+			currentFileBytes
+		);
+		return new CollectionStorageFootprint(
+			totalBytes,
+			liveBytes,
+			currentFileBytes - liveBytes,
+			awaitingDeletionBytes,
+			totalBytes - currentFileBytes - awaitingDeletionBytes
+		);
 	}
 
 	@Nonnull
@@ -987,8 +1084,25 @@ public class DefaultEntityCollectionPersistenceService
 		return newDescriptor;
 	}
 
+	/**
+	 * Rewrites this collection's data store into a fresh generation holding only the records still reachable at the
+	 * given catalog version. The superseded file stays on disk until every reader of it has closed.
+	 *
+	 * @param catalogName        name of the catalog owning this collection
+	 * @param catalogVersion     catalog version the compacted snapshot is taken at
+	 * @param headerInfoSupplier supplier of the header counters recorded alongside the new file
+	 * @param previousFileSize   length of the data store file being replaced, as the caller's own flush already
+	 *                           measured it - handed in rather than re-read so the log line below costs no file
+	 *                           system access
+	 * @return the header addressing the newly written data store file
+	 */
 	@Nonnull
-	public EntityCollectionFileHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+	public EntityCollectionFileHeader compact(
+		@Nonnull String catalogName,
+		long catalogVersion,
+		@Nonnull HeaderInfoSupplier headerInfoSupplier,
+		long previousFileSize
+	) {
 		final DataFileCompactEvent event = new DataFileCompactEvent(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
@@ -1020,14 +1134,18 @@ public class DefaultEntityCollectionPersistenceService
 		final EntityCollectionFileHeader newCollectionHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
+		// this message used to close with the sum of every generation of this collection's files, which cost a
+		// directory listing on the write path for a log line. Both figures below were already computed by the flush
+		// and the compaction themselves, and what the total actually answers - how much the superseded generations
+		// still hold - is now `CollectionStorageSize#awaitingDeletionBytes`, measured only when a client asks for it
 		log.info(
-			"Compaction of catalog `{}` entity collection `{}` finished, current size is `{}` and active record share is `{}`%, " +
-				"entity collection files on disk consume `{}` bytes.",
+			"Compaction of catalog `{}` entity collection `{}` finished, its data store shrank from `{}` to `{}` " +
+				"bytes and its active record share is now `{}`%.",
 			catalogName,
 			this.entityCollectionFileReference.entityType(),
+			previousFileSize,
 			offsetIndexDescriptor.getFileSize(),
-			Math.round(offsetIndexDescriptor.getActiveRecordShare() * 100.0D),
-			this.getSizeOnDiskInBytes()
+			Math.round(offsetIndexDescriptor.getActiveRecordShare() * 100.0D)
 		);
 		return newCollectionHeader;
 	}
@@ -1114,6 +1232,10 @@ public class DefaultEntityCollectionPersistenceService
 	 * Method creates a function that allows to create new {@link EntityCollectionFileHeader} instance from
 	 * {@link PersistentStorageDescriptor} DTO. The catalog entity header contains additional information from this
 	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
+	 *
+	 * This is the one place a header is built, and therefore the one place `lastModifiedMillis` is stamped. Both
+	 * callers - the flush that produced a new descriptor, and compaction - reach the collection through here, so the
+	 * stamp cannot drift out of step with the contents it describes.
 	 */
 	@Nonnull
 	private EntityCollectionFileHeader createEntityCollectionHeader(
@@ -1135,7 +1257,8 @@ public class DefaultEntityCollectionPersistenceService
 			newDescriptor,
 			headerInfoSupplier.getGlobalIndexPrimaryKey().isPresent() ?
 				headerInfoSupplier.getGlobalIndexPrimaryKey().getAsInt() : null,
-			headerInfoSupplier.getIndexPrimaryKeys()
+			headerInfoSupplier.getIndexPrimaryKeys(),
+			DefaultCatalogPersistenceService.getNowEpochMillis()
 		);
 	}
 

@@ -250,6 +250,17 @@
 			<artifactId>json-unit-assertj</artifactId>
 			<version>6.0.1</version>
 		</dependency>
+		<!--
+			Ground truth for the heap-size estimates in `MemoryMeasuringConstants` / `EvitaDataTypes.estimateSize`.
+			Test scope only - JOL is far too heavy to ship, but it is the only way to assert an estimate is actually
+			RIGHT rather than merely unchanged. Version managed in the parent, shared with the memory spikes in
+			evita_performance_tests.
+		-->
+		<dependency>
+			<groupId>org.openjdk.jol</groupId>
+			<artifactId>jol-core</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>

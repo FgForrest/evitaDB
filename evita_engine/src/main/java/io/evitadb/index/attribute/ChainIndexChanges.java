@@ -31,6 +31,7 @@ import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -98,6 +99,33 @@ public class ChainIndexChanges
 	public void reset() {
 		this.unorderedLookup = null;
 		this.recordIds = null;
+	}
+
+	/**
+	 * Returns the heap this layer occupies, in bytes — its own object and whichever of its two derived caches have
+	 * been materialized.
+	 *
+	 * {@link #chainIndex} contributes its **slot alone**: it is a back-reference to the index that owns this layer,
+	 * so following it would charge that index's whole graph again and recurse.
+	 *
+	 * Both caches are charged in full and neither shares with the other: the bitmap is built through
+	 * {@code new BaseBitmap(int...)}, which constructs a roaring bitmap from the ids rather than retaining the array
+	 * it was handed. Both stay `null` for a {@link ChainIndex#isConsistent() consistent} index, whose tree-backed
+	 * supplier never populates them — so this term appears only once a chain has gone inconsistent and been read.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the chainIndex back-reference plus the two cache slots
+		long size = layout.sizeOfObject(3L * layout.referenceSize());
+		if (this.unorderedLookup != null) {
+			size += this.unorderedLookup.getHeapSizeInBytes();
+		}
+		if (this.recordIds != null) {
+			size += this.recordIds.getHeapSizeInBytes();
+		}
+		return size;
 	}
 
 	/**

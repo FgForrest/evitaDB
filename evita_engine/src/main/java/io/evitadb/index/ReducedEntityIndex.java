@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -330,6 +331,16 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return getReducedBaseHeapSizeInBytes(0L);
 	}
 
 	@Override

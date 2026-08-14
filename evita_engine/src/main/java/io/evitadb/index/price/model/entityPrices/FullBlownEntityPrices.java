@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -136,6 +137,24 @@ class FullBlownEntityPrices extends EntityPrices {
 	@Override
 	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract priceRecord) {
 		return ArrayUtils.removeRecordFromOrderedArray(priceRecord, this.prices, PRICE_ID_COMPARATOR);
+	}
+
+	/**
+	 * Returns the heap this wrapper occupies, in bytes — its own object and its arrays, never the price records
+	 * they point at, which the owning super index's price-record tree charges.
+	 *
+	 * Here `lowestPrices` aliases entries of `prices`, so only its own slots are charged.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the prices, lowestPrices and internalPriceIds slots
+		return layout.sizeOfObject(3L * layout.referenceSize())
+			+ layout.sizeOfArray(this.prices.length, layout.referenceSize())
+			+ layout.sizeOfArray(this.lowestPrices.length, layout.referenceSize())
+			+ layout.sizeOfArray(this.internalPriceIds.length, Integer.BYTES);
 	}
 
 }

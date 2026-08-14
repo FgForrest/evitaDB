@@ -49,9 +49,11 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
 import io.evitadb.store.offsetIndex.map.OffsetLocationChampMap;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
+import io.evitadb.store.offsetIndex.model.RecordTypeUsage;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
+import io.evitadb.store.offsetIndex.model.WasteAccumulation;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
@@ -94,7 +96,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import java.util.stream.Collectors;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.*;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -240,6 +241,13 @@ public class OffsetIndex {
 	 */
 	private final AtomicLong totalSizeBytes = new AtomicLong(0);
 	/**
+	 * How many bytes rewrites and removals have stranded in the current data file, and how fast that is growing. Only
+	 * ever written by the flush thread inside {@link #promoteNonFlushedValuesToSharedState(long, Collection)}, and
+	 * published as one immutable value so a statistics reader cannot pair a counter with a rate from another flush.
+	 */
+	@Nonnull
+	private volatile WasteAccumulation wasteAccumulation = WasteAccumulation.NONE;
+	/**
 	 * Volatile values contains history of previous writes and removals so that offset index can provide access to
 	 * the correct contents based on the catalog version. Volatile values keep track only of the changes that have
 	 * chance to be read by the client and try to be purged immediately when there is no chance to read them anymore.
@@ -299,6 +307,17 @@ public class OffsetIndex {
 	 * be safely read.
 	 */
 	private long lastSyncedPosition;
+	/**
+	 * End position of the data file as of the last growth sample, which is what the next sample subtracts from to
+	 * learn how many bytes the file actually gained.
+	 *
+	 * Deliberately separate from {@link #lastSyncedPosition}: a soft flush advances that one without promoting
+	 * anything, so reusing it as the baseline would drop every soft-flushed byte from the growth series instead of
+	 * folding it into the sample that promotes those records. Only written by the flush thread inside
+	 * {@link #promoteNonFlushedValuesToSharedState(long, Collection)}, under the same write handle serialization as
+	 * every other field it touches.
+	 */
+	private long lastSampledFilePosition;
 
 	/**
 	 * Reads particular storage part from the target file path. This method will take `location` as leading pointer
@@ -388,6 +407,9 @@ public class OffsetIndex {
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		this.writeHandle = writeHandle;
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		try {
 			final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
 			if (this.lastSyncedPosition == 0 || fileOffsetDescriptor.fileLocation().equals(FileLocation.EMPTY)) {
@@ -405,7 +427,7 @@ public class OffsetIndex {
 					.orElseGet(OffsetLocationChampMap::empty),
 				fileOffsetIndexBuilder
 					.map(CollectingOffsetIndexBuilder::getHistogram)
-					.<Map<Byte, Integer>>map(Map::copyOf)
+					.map(Map::copyOf)
 					.orElseGet(Map::of),
 				System.currentTimeMillis()
 			);
@@ -460,6 +482,9 @@ public class OffsetIndex {
 		this.recordTypeRegistry = recordTypeRegistry;
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
 				"Cannot create OffsetIndex from empty file: `" + filePath + "`!",
@@ -546,6 +571,9 @@ public class OffsetIndex {
 		);
 
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
+		// the growth series starts at whatever the file already is - a freshly compacted file included, which is
+		// how its first sample avoids reporting the whole compacted length as growth
+		this.lastSampledFilePosition = this.lastSyncedPosition;
 		if (this.lastSyncedPosition == 0) {
 			throw new UnexpectedIOException(
 				"Cannot create OffsetIndex from empty file: `" + filePath + "`!",
@@ -561,6 +589,9 @@ public class OffsetIndex {
 		);
 		this.totalSizeBytes.set(previousOffsetIndex.totalSizeBytes.get());
 		this.maxRecordSizeBytes.set(previousOffsetIndex.getMaxRecordSizeBytes());
+		// this constructor builds the compacted successor of `previousOffsetIndex` - the stranded bytes did not
+		// survive the rewrite, but the write load that produced them did
+		this.wasteAccumulation = previousOffsetIndex.wasteAccumulation.carriedOverToCompactedFile();
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.readOnlyKeyCompressorView = null;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
@@ -697,8 +728,9 @@ public class OffsetIndex {
 		final byte recordTypeId = this.recordTypeRegistry.idFor(recordType);
 		// the per-version histogram holds the exact per-type count as of catalogVersion; add only the net delta of
 		// any not-yet-flushed (in-flight) versions visible at catalogVersion
-		return this.roots.floorHistogram(catalogVersion).getOrDefault(
-			recordTypeId, 0) + this.volatileValues.countDifference(catalogVersion, recordTypeId);
+		return this.roots.floorHistogram(catalogVersion)
+			.getOrDefault(recordTypeId, RecordTypeUsage.EMPTY)
+			.count() + this.volatileValues.countDifference(catalogVersion, recordTypeId);
 	}
 
 	/**
@@ -1192,19 +1224,30 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns histogram (counts) of particular record types in this index.
+	 * Returns the histogram of particular record types in this index - how many records of each type are held and how
+	 * many bytes they occupy, keyed by the record type's simple class name.
+	 *
+	 * The histogram describes the **flushed** state only: it is the snapshot published by the last promotion, so
+	 * records written but not yet flushed are not part of it. That is deliberate - the question this breakdown answers
+	 * is where the bytes on disk went, and unflushed records have not reached the disk. It is also why the per-type
+	 * count here can lag {@link #count(long, Class)}, which does add the in-flight delta.
+	 *
+	 * The summed {@link RecordTypeUsage#totalBytes()} of every entry is the **record payload** the index holds - the
+	 * same accumulator {@link #getTotalSizeBytes()} builds on, before that method adds the offset-index entry
+	 * overhead of `MEM_TABLE_RECORD_SIZE` per live record. So the exact relation is
+	 * `Σ totalBytes + Σ count * MEM_TABLE_RECORD_SIZE == getTotalSizeBytes()`; the per-type numbers deliberately
+	 * carry no share of the index's own bookkeeping, which belongs to no record type.
 	 *
 	 * @return histogram of particular record types in this index
 	 */
 	@Nonnull
-	public Map<String, Integer> getHistogram() {
-		return this.roots.latestHistogram().entrySet().stream()
-			.collect(
-				Collectors.toMap(
-					it -> this.recordTypeRegistry.typeFor(it.getKey()).getSimpleName(),
-					Entry::getValue
-				)
-			);
+	public Map<String, RecordTypeUsage> getHistogram() {
+		final Map<Byte, RecordTypeUsage> latestHistogram = this.roots.latestHistogram();
+		final Map<String, RecordTypeUsage> result = CollectionUtils.createHashMap(latestHistogram.size());
+		for (final Entry<Byte, RecordTypeUsage> entry : latestHistogram.entrySet()) {
+			result.put(this.recordTypeRegistry.typeFor(entry.getKey()).getSimpleName(), entry.getValue());
+		}
+		return result;
 	}
 
 	/**
@@ -1225,6 +1268,50 @@ public class OffsetIndex {
 	 */
 	public long getTotalSizeIncludingVolatileData() {
 		return getTotalSizeBytes() + this.volatileValues.getTotalSize();
+	}
+
+	/**
+	 * Returns how many records have been written to this index but not yet flushed to its file, and how many bytes
+	 * they occupy. This is the same pair that is pushed to the non-flushed block observer on every write; reading it
+	 * here is what lets a statistics call ask for it instead of having to have been subscribed all along.
+	 *
+	 * The pair is a snapshot of a value that a concurrent write may already have moved on from - which is inherent to
+	 * asking "what is in flight right now" - but it is never internally inconsistent: the count and the size are
+	 * published together through a single volatile write.
+	 *
+	 * @return the records written but not yet flushed
+	 */
+	@Nonnull
+	public NonFlushedBlock getNonFlushedBlock() {
+		return this.volatileValues.getNonFlushedBlock();
+	}
+
+	/**
+	 * Returns how many bytes rewrites and removals have stranded in the current data file and how fast that is
+	 * growing - the input a compaction forecast extrapolates from.
+	 *
+	 * Scoped to the file this index currently writes to, not to the index's whole history: a compaction leaves the
+	 * stranded bytes behind in the file it replaced. See {@link WasteAccumulation} for what the rate does and does
+	 * not say.
+	 *
+	 * @return the waste accumulated by the current data file
+	 */
+	@Nonnull
+	public WasteAccumulation getWasteAccumulation() {
+		return this.wasteAccumulation;
+	}
+
+	/**
+	 * Returns the current length of the data file this index writes to.
+	 *
+	 * This is the very number the compaction trigger compares against `fileSizeCompactionThresholdBytes` when it runs
+	 * at flush time, which is why the forecast reads it from here rather than measuring the file separately - a
+	 * prediction made from a different notion of "file size" than the trigger uses would drift from it.
+	 *
+	 * @return length of the data file in bytes
+	 */
+	public long getFileSize() {
+		return this.writeHandle.getLastWrittenPosition();
 	}
 
 	/**
@@ -1365,9 +1452,13 @@ public class OffsetIndex {
 	 * Note: we could make this more precise if we'd store the size of the index in the {@link OffsetIndexDescriptor}
 	 * and estimate the uncompressed size only for the volatile values. But we don't necessarily need that precision now.
 	 *
+	 * Because the number is an estimate that can exceed the file it describes, any caller that reports it as a share
+	 * of - or a subset of - the file's bytes must clamp it to the file length. {@link #getActiveRecordShare(long)}
+	 * is the built-in way to ask the same question as a ratio.
+	 *
 	 * @return The total active size.
 	 */
-	private long getTotalActiveSize() {
+	public long getTotalActiveSize() {
 		return this.totalSizeBytes.get() +
 			countFileOffsetTableSize(this.roots.latestRoot().size(), this.outputBufferSize);
 	}
@@ -1551,28 +1642,35 @@ public class OffsetIndex {
 		// root + histogram snapshot is retained per promoted version, so a reader pinned to any of them resolves the
 		// exact per-version state through Roots.floorRoot (replacing the former overwritten-value reconstruction).
 		OffsetLocationChampMap root = currentRoots.latestRoot();
-		Map<Byte, Integer> histogram = currentRoots.latestHistogram();
+		Map<Byte, RecordTypeUsage> histogram = currentRoots.latestHistogram();
 
 		final int batchSize = nonFlushedValueSets.size();
 		final long[] addVersions = new long[batchSize];
 		final OffsetLocationChampMap[] addRoots = new OffsetLocationChampMap[batchSize];
-		@SuppressWarnings("unchecked") final Map<Byte, Integer>[] addHistograms = new Map[batchSize];
+		@SuppressWarnings("unchecked") final Map<Byte, RecordTypeUsage>[] addHistograms = new Map[batchSize];
 		final long[] addTimestamps = new long[batchSize];
 		// all versions in one flush become durable together, so they share a single promotion timestamp
 		final long promotedAt = System.currentTimeMillis();
 
 		long workingMaxRecordSize = this.maxRecordSizeBytes.get();
 		long recordLengthDelta = 0;
+		// bytes this flush strands in the data file. Deliberately *not* `recordLengthDelta`: a rewrite that shrinks
+		// a record has a negative length delta while still leaving the whole superseded record behind as waste
+		long wasteBytesGenerated = 0;
 		int batchIndex = 0;
 
 		// the sets arrive in ascending catalog-version order (see getNonFlushedEntriesToPromote)
 		for (NonFlushedValueSet nonFlushedValueSet : nonFlushedValueSets) {
-			final Map<Byte, Integer> histogramDiff = CollectionUtils.createHashMap(histogram.size());
+			final Map<Byte, RecordTypeUsage> histogramDiff = CollectionUtils.createHashMap(histogram.size());
 			for (Entry<RecordKey, VersionedValue> entry : nonFlushedValueSet.entrySet()) {
 				final RecordKey recordKey = entry.getKey();
 				final VersionedValue nonFlushedValue = entry.getValue();
 
 				final int count;
+				// every branch feeds the per-type byte delta with exactly what it feeds `recordLengthDelta`,
+				// the count-neutral update included - that is what keeps the per-type breakdown reconciling with
+				// `totalSizeBytes` by construction instead of by coincidence
+				final long byteDelta;
 				if (nonFlushedValue.removed()) {
 					// read the dropped record's length before path-copying it away (primitive fast path,
 					// no FileLocation materialization)
@@ -1581,9 +1679,13 @@ public class OffsetIndex {
 					if (removedLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT) {
 						root = root.removed(recordKey);
 						count = -1;
+						byteDelta = -removedLength;
 						recordLengthDelta -= removedLength;
+						// the record leaves the index but not the file - only compaction reclaims it
+						wasteBytesGenerated += removedLength;
 					} else {
 						count = 0;
+						byteDelta = 0L;
 					}
 				} else if (nonFlushedValueSet.wasAdded(recordKey)) {
 					final FileLocation recordLocation = nonFlushedValue.fileLocation();
@@ -1598,6 +1700,7 @@ public class OffsetIndex {
 					);
 					root = root.updated(recordKey, recordLocation);
 					count = 1;
+					byteDelta = currentRecordLength;
 				} else {
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
 					// read the replaced record's length before path-copying the new one in (primitive
@@ -1607,22 +1710,25 @@ public class OffsetIndex {
 						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
 					root = root.updated(recordKey, newRecordLocation);
 					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
+					// the superseded version stays in the file behind the new one
+					wasteBytesGenerated += existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
 					count = 0;
+					byteDelta = newRecordLocation.recordLength() - existingLength;
 				}
 
 				histogramDiff.merge(
-					recordKey.recordType(), count, Integer::sum
+					recordKey.recordType(), new RecordTypeUsage(count, byteDelta), RecordTypeUsage::plus
 				);
 			}
 
 			// snapshot this version's histogram (reuse the prior immutable map when no record type changed)
 			if (!histogramDiff.isEmpty()) {
-				final Map<Byte, Integer> updatedHistogram = new HashMap<>(histogram);
-				for (Entry<Byte, Integer> entry : histogramDiff.entrySet()) {
-					updatedHistogram.merge(entry.getKey(), entry.getValue(), Integer::sum);
+				final Map<Byte, RecordTypeUsage> updatedHistogram = new HashMap<>(histogram);
+				for (Entry<Byte, RecordTypeUsage> entry : histogramDiff.entrySet()) {
+					updatedHistogram.merge(entry.getKey(), entry.getValue(), RecordTypeUsage::plus);
 				}
 				histogram = Map.copyOf(updatedHistogram);
 			}
@@ -1636,6 +1742,23 @@ public class OffsetIndex {
 		// update global statistics
 		this.totalSizeBytes.addAndGet(recordLengthDelta);
 		this.maxRecordSizeBytes.set(workingMaxRecordSize);
+		// Growth is read off the file itself rather than summed from the record bodies above, because the bodies are
+		// not all the flush appends: every flush also writes an offset index fragment, and a removal writes only
+		// its tombstone into that fragment and no body at all. Reconstructing the number from bodies therefore
+		// reported growth 0 for a delete-only store - a file that genuinely lengthens by a fragment per flush - and
+		// the forecast then projected no compaction for it. Taking the end-position delta makes this figure agree
+		// with `getFileSize()` by construction, which is the quantity the compaction threshold compares against.
+		// Safe to read here: the post-action this runs from is downstream of both the write and the sync.
+		// the clamp guards an unreachable state rather than a real one - the position is monotonic on a given handle,
+		// and a compaction builds a fresh instance whose baseline starts at the new file's length. It is a clamp and
+		// not a thrown premise on purpose: this runs on the flush path, and a statistics counter must not be able to
+		// fail a flush
+		final long fileSizeAfterFlush = this.writeHandle.getLastWrittenPosition();
+		final long appendedBytes = Math.max(0L, fileSizeAfterFlush - this.lastSampledFilePosition);
+		this.lastSampledFilePosition = fileSizeAfterFlush;
+		// sample the waste and growth rates here rather than per write: a flush is where the stranded bytes actually
+		// become part of the file, and it is the same moment the compaction trigger itself evaluates
+		this.wasteAccumulation = this.wasteAccumulation.sampled(wasteBytesGenerated, appendedBytes, promotedAt);
 		// append the new per-version snapshots, then drop any history a catalog has released (the watermark set by
 		// purge is applied here, in the serialized writer, so no reader-side lock is needed)
 		Roots published = currentRoots.append(catalogVersion, addVersions, addRoots, addHistograms, addTimestamps);
@@ -1672,8 +1795,9 @@ public class OffsetIndex {
 		// delete-then-recreate of a key that already exists in the published root as a brand new key.
 		final Optional<VersionedValue> nonFlushedValueRef = this.volatileValues.getNonFlushedValueIfVersionMatches(
 			catalogVersion - 1, key);
-		final boolean update = nonFlushedValueRef.isPresent() ?
-			!nonFlushedValueRef.get().removed() : this.roots.latestRoot().containsKey(key);
+		final boolean update = nonFlushedValueRef
+			.map(versionedValue -> !versionedValue.removed())
+			.orElseGet(() -> this.roots.latestRoot().containsKey(key));
 		final FileLocation recordLocation = new StorageRecord<>(
 			this.writeKryo,
 			exclusiveWriteAccess,
@@ -1834,7 +1958,7 @@ public class OffsetIndex {
 		long currentVersion,
 		@Nonnull long[] versions,
 		@Nonnull OffsetLocationChampMap[] locationRoots,
-		@Nonnull Map<Byte, Integer>[] histograms,
+		@Nonnull Map<Byte, RecordTypeUsage>[] histograms,
 		@Nonnull long[] timestamps
 	) {
 
@@ -1851,7 +1975,7 @@ public class OffsetIndex {
 		static Roots initial(
 			long version,
 			@Nonnull OffsetLocationChampMap root,
-			@Nonnull Map<Byte, Integer> histogram,
+			@Nonnull Map<Byte, RecordTypeUsage> histogram,
 			long timestamp
 		) {
 			return new Roots(
@@ -1868,8 +1992,8 @@ public class OffsetIndex {
 
 		@SuppressWarnings("unchecked")
 		@Nonnull
-		private static Map<Byte, Integer>[] asHistogramArray(@Nonnull Map<Byte, Integer> histogram) {
-			return (Map<Byte, Integer>[]) new Map[]{histogram};
+		private static Map<Byte, RecordTypeUsage>[] asHistogramArray(@Nonnull Map<Byte, RecordTypeUsage> histogram) {
+			return (Map<Byte, RecordTypeUsage>[]) new Map[]{histogram};
 		}
 
 		/**
@@ -1904,7 +2028,7 @@ public class OffsetIndex {
 			long newCurrentVersion,
 			@Nonnull long[] addVersions,
 			@Nonnull OffsetLocationChampMap[] addRoots,
-			@Nonnull Map<Byte, Integer>[] addHistograms,
+			@Nonnull Map<Byte, RecordTypeUsage>[] addHistograms,
 			@Nonnull long[] addTimestamps
 		) {
 			if (addVersions.length == 0) {
@@ -1925,7 +2049,7 @@ public class OffsetIndex {
 			System.arraycopy(addVersions, 0, nv, keep, addLen);
 			final OffsetLocationChampMap[] nr = Arrays.copyOf(this.locationRoots, total);
 			System.arraycopy(addRoots, 0, nr, keep, addLen);
-			final Map<Byte, Integer>[] nh = Arrays.copyOf(this.histograms, total);
+			final Map<Byte, RecordTypeUsage>[] nh = Arrays.copyOf(this.histograms, total);
 			System.arraycopy(addHistograms, 0, nh, keep, addLen);
 			final long[] nt = new long[total];
 			System.arraycopy(this.timestamps, 0, nt, 0, keep);
@@ -2003,7 +2127,7 @@ public class OffsetIndex {
 		 * @return the resolved histogram
 		 */
 		@Nonnull
-		Map<Byte, Integer> floorHistogram(long catalogVersion) {
+		Map<Byte, RecordTypeUsage> floorHistogram(long catalogVersion) {
 			return this.histograms[floorIndex(catalogVersion)];
 		}
 
@@ -2023,7 +2147,7 @@ public class OffsetIndex {
 		 * @return the latest histogram
 		 */
 		@Nonnull
-		Map<Byte, Integer> latestHistogram() {
+		Map<Byte, RecordTypeUsage> latestHistogram() {
 			return this.histograms[this.histograms.length - 1];
 		}
 	}
@@ -2248,6 +2372,13 @@ public class OffsetIndex {
 		 * Contains the last size of non-flushed records in Bytes.
 		 */
 		private long nonFlushedRecordSizeInBytes;
+		/**
+		 * The two counters above published as one immutable pair, so that a reader outside the write path never sees
+		 * a count from one moment paired with a byte size from another. The instance stored here is always the very
+		 * one handed to {@link #nonFlushedBlockObserver}, so publishing it costs a volatile write and no allocation.
+		 */
+		@Nonnull
+		private volatile NonFlushedBlock nonFlushedBlock = new NonFlushedBlock(0, 0L);
 
 		/**
 		 * Net cardinality delta of the not-yet-flushed (in-flight) versions visible at `catalogVersion`. Flushed
@@ -2406,7 +2537,8 @@ public class OffsetIndex {
 				this.nonFlushedRecordCount = 0;
 				this.nonFlushedRecordSizeInBytes = 0L;
 				// notify the observer
-				this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
+				this.nonFlushedBlock = new NonFlushedBlock(0, 0L);
+				this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
 				return result;
 			} else {
 				return Collections.emptyList();
@@ -2456,7 +2588,18 @@ public class OffsetIndex {
 			this.nonFlushedRecordCount = 0;
 			this.nonFlushedRecordSizeInBytes = 0L;
 			// notify the observer
-			this.nonFlushedBlockObserver.accept(new NonFlushedBlock(0, 0L));
+			this.nonFlushedBlock = new NonFlushedBlock(0, 0L);
+			this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
+		}
+
+		/**
+		 * Returns the count and the byte size of the records written but not yet flushed, as one coherent pair.
+		 *
+		 * @return the current non-flushed block
+		 */
+		@Nonnull
+		public NonFlushedBlock getNonFlushedBlock() {
+			return this.nonFlushedBlock;
 		}
 
 		/**
@@ -2548,8 +2691,9 @@ public class OffsetIndex {
 		private void notifySizeIncrease(long sizeInBytes) {
 			this.nonFlushedRecordCount++;
 			this.nonFlushedRecordSizeInBytes += sizeInBytes;
-			this.nonFlushedBlockObserver.accept(
-				new NonFlushedBlock(this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes));
+			this.nonFlushedBlock = new NonFlushedBlock(
+				this.nonFlushedRecordCount, this.nonFlushedRecordSizeInBytes);
+			this.nonFlushedBlockObserver.accept(this.nonFlushedBlock);
 		}
 
 	}

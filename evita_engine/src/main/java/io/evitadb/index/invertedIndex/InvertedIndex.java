@@ -37,6 +37,8 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
+import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
@@ -52,6 +54,7 @@ import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -930,6 +933,39 @@ public class InvertedIndex implements
 	@Override
 	public void resetDirty() {
 		this.dirty.setToFalse();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag and the whole bucket tree
+	 * beneath it, keys and record bitmaps included.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * The **keys are this index's own** and are charged in full, priced by
+	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. No other index in the layer holds these instances: a
+	 * {@code SortIndex} sources its ordering from this tree rather than copying values out, and a
+	 * {@code FilterIndexView} holds a view object over this very tree — which is why both are priced without them.
+	 *
+	 * The remaining three references are the index's alone in name only and contribute their **slot** — `normalizer`
+	 * and `comparator` are constructor-injected at every call site and shared with the owning `FilterIndex`, and
+	 * `plainType` is a `Class`, owned by the JVM for the lifetime of its class loader.
+	 *
+	 * {@link #pageStreamRegistry} is excluded: it is single-writer flush bookkeeping carried by reference across
+	 * commits, not index content.
+	 *
+	 * Like every tree walk this is `O(buckets / blockSize)` rather than `O(1)`, so it belongs to the index detail call
+	 * and must never be called from a query path — see
+	 * {@link BucketBPlusTree#getHeapSizeInBytes(java.util.function.ToLongFunction)}.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id + indexedDecimalPlaces, then the dirty / buckets / normalizer / comparator / plainType /
+		// pageStreamRegistry slots
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 6L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.buckets.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
 	}
 
 	@Nonnull

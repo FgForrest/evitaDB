@@ -29,11 +29,13 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * AttributeIndexContract is the read surface of the attribute index — it prescribes the retrievers that expose the
@@ -55,10 +57,42 @@ import java.util.Set;
 public interface AttributeIndexContract {
 
 	/**
+	 * Hands every key of one attribute index family to `consumer`, without materialising a set to walk - the
+	 * once-through counterpart of {@link #getUniqueIndexes()} and its three siblings, which return map views the
+	 * backing map caches and then keeps for the lifetime of the index.
+	 *
+	 * Prefer this wherever the keys are walked exactly once - a manifest capture, a flush, a statistics projection.
+	 * The set-returning accessors remain right for a caller that needs set semantics (membership tests, a union it
+	 * did not build) or that asks the same index repeatedly.
+	 *
+	 * No key is handed over twice, matching the set the corresponding accessor would have returned.
+	 *
+	 * @param type     which family to walk; {@link AttributeIndexType#CARDINALITY} is not one an attribute index
+	 *                 holds - those live on the reduced and reference-type entity indexes - and is rejected
+	 * @param consumer invoked once per key held by that family
+	 */
+	void forEachAttributeIndexKey(
+		@Nonnull AttributeIndexType type,
+		@Nonnull Consumer<AttributeIndexKey> consumer
+	);
+
+	/**
 	 * Returns collection of all unique indexes in this {@link AttributeIndex} instance.
+	 *
+	 * **The returned set may be a map view the backing map caches and then keeps**; see
+	 * {@link #forEachAttributeIndexKey} for the walk that leaves nothing behind.
 	 */
 	@Nonnull
 	Set<AttributeIndexKey> getUniqueIndexes();
+
+	/**
+	 * Returns {@link UniqueIndex} for passed lookup key - the key-addressed counterpart of the schema-addressed
+	 * `AttributeIndex#getUniqueIndex(ReferenceSchemaContract, AttributeSchemaContract, Scope, Locale)`, mirroring
+	 * {@link #getFilterIndex(AttributeIndexKey)} and {@link #getSortIndex(AttributeIndexKey)} so a caller holding a key
+	 * from {@link #getUniqueIndexes()} can resolve it without re-deriving the schema it came from.
+	 */
+	@Nullable
+	UniqueIndex getUniqueIndex(@Nonnull AttributeIndexKey lookupKey);
 
 	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.

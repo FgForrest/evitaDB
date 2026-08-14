@@ -29,6 +29,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -125,6 +126,30 @@ public class UnorderedLookup implements Serializable {
 		this.positions = orderedPositions;
 		// eagerly memoize the (unchanged) unordered array so getArray()/getLastRecordId() stay on their fast paths
 		this.memoizedUnorderedArray = unorderedArray;
+	}
+
+	/**
+	 * Returns the heap this lookup occupies, in bytes — its own object and its three `int[]`s.
+	 *
+	 * All three are this lookup's own. The two built here are freshly allocated, and the unordered array adopted by
+	 * {@link #UnorderedLookup(int[])} is likewise handed over rather than borrowed: its only caller slices a fresh
+	 * result out of the element snapshot precisely so the shared memoized array is never aliased.
+	 *
+	 * {@link #memoizedUnorderedArray} is `null` until the first {@link #getArray()} on a lookup built by the
+	 * single-record constructor, so the figure grows once on first use there.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the positions / recordIds / memoizedUnorderedArray slots
+		long size = layout.sizeOfObject(3L * layout.referenceSize())
+			+ layout.sizeOfArray(this.positions.length, Integer.BYTES)
+			+ layout.sizeOfArray(this.recordIds.length, Integer.BYTES);
+		if (this.memoizedUnorderedArray != null) {
+			size += layout.sizeOfArray(this.memoizedUnorderedArray.length, Integer.BYTES);
+		}
+		return size;
 	}
 
 	/**

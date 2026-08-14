@@ -152,6 +152,37 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	int[] getArray();
 
 	/**
+	 * Returns the heap this bitmap occupies, in bytes — the figure reported through the statistics API's
+	 * memory-footprint component.
+	 *
+	 * # What is counted
+	 *
+	 * Everything the bitmap **owns**: its own object and whatever backing structure it allocated, measured
+	 * at that structure's *allocated capacity* rather than at {@link #size()}. The two differ without bound.
+	 * A roaring container never trims its backing array when records are removed, so a bitmap grown large
+	 * and then emptied keeps the whole allocation; pricing it by cardinality can under-report by more than
+	 * an order of magnitude, and an under-report is the one error a heap figure must never make.
+	 *
+	 * Structure aliased with a **previous version** of the same bitmap is counted in full. evitaDB's roaring
+	 * fork is copy-on-write and the commit path merges through operations that alias, so a freshly committed
+	 * bitmap shares almost everything with the version it replaced. That predecessor is collected shortly
+	 * afterwards, leaving this bitmap the sole owner, so excluding the aliased part would describe a state
+	 * lasting milliseconds and would report a near-empty figure for a mature index.
+	 *
+	 * # What is not counted
+	 *
+	 * Anything the bitmap merely borrows and does not own: a shared singleton such as
+	 * {@link EmptyBitmap#INSTANCE} costs its holder nothing beyond the reference slot, and a
+	 * {@link TransactionalBitmap}'s uncommitted diff belongs to the open transaction rather than to the
+	 * bitmap. This is what keeps per-index figures summing to a sensible total instead of exceeding the heap.
+	 *
+	 * Implementations must answer in `O(1)` or `O(chunks)` — never by walking the record ids.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	long getHeapSizeInBytes();
+
+	/**
 	 * Produces iterator over all record ids.
 	 */
 	@Nonnull

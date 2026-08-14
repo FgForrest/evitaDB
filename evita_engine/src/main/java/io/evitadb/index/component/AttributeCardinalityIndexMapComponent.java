@@ -86,25 +86,25 @@ public final class AttributeCardinalityIndexMapComponent implements IndexCompone
 	) {
 		// emit one storage part per dirty cardinality index AND announce a CARDINALITY key for
 		// every live entry — manifest population is unconditional so that a clean entry still
-		// shows up in the parent's EntityIndexStoragePart manifest
-		for (final Entry<AttributeIndexKey, AttributeCardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
-			final AttributeIndexKey key = entry.getKey();
-			final StoragePart part = entry.getValue().createStoragePart(entityIndexPrimaryKey, key);
+		// shows up in the parent's EntityIndexStoragePart manifest.
+		// `forEach` rather than `entrySet()`: a HashMap keeps the view it hands out, so an accessor asked for on this
+		// path would stay on the map for the lifetime of the owning index - see `TransactionalMap#forEach`
+		this.cardinalityIndexes.forEach((key, index) -> {
+			final StoragePart part = index.createStoragePart(entityIndexPrimaryKey, key);
 			if (part != null) {
 				trappedChanges.addChangeToStore(part);
 			}
 			manifest.addAttributeKey(
 				new AttributeIndexStorageKey(this.entityIndexKey, AttributeIndexType.CARDINALITY, key)
 			);
-		}
+		});
 	}
 
 	@Override
 	public void resetDirty() {
-		// reset every per-attribute cardinality index — the map itself has no own dirty flag
-		for (final AttributeCardinalityIndex index : this.cardinalityIndexes.values()) {
-			index.resetDirty();
-		}
+		// reset every per-attribute cardinality index — the map itself has no own dirty flag.
+		// `forEach` for the reason given on `collectModifiedStorageParts` above
+		this.cardinalityIndexes.forEach((key, index) -> index.resetDirty());
 	}
 
 	@Override

@@ -1,7 +1,7 @@
 ---
 title: Cut commit-merge latency and write-path allocation by pruning the trunk merge, not inverting it
 date: 2026-07-27
-updated: 2026-08-05 16:00
+updated: 2026-08-10 10:15
 status: accepted
 kind: optimization
 issues: [760]
@@ -9,7 +9,7 @@ prs: [1317, 1298]
 areas: [evita_engine/core/transaction, evita_engine/index, evita_engine/core/buffer, evita_engine/index/bPlusTree]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-08-05-schema-handling-write-path-optimizations]
+relates: [2026-07-10-more-optimized-data-structures, 2026-08-05-schema-handling-write-path-optimizations, 2026-08-10-catalog-and-collection-statistics]
 ---
 
 # Write-path performance tuning — commit-merge latency and allocation

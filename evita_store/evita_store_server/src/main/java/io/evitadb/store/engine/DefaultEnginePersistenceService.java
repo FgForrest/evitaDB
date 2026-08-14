@@ -37,6 +37,7 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
@@ -52,6 +53,7 @@ import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
+import io.evitadb.store.catalog.CatalogStorageFootprintMeasurer;
 import io.evitadb.store.catalog.Migration_2026_1;
 import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -1284,6 +1286,20 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
 		final Path folder = pathOf(folderId);
 		return folder.toFile().exists() ? FileUtils.getDirectorySize(folder) : 0L;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStorageFootprint catalogFolderFootprint(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName
+	) {
+		// a folder that is not there lists as `null`, which the measurement already reports as an all-zero
+		// footprint - so the missing-folder case needs no branch of its own here.
+		// The name is passed as the *fallback* prefix only: this catalog would not open, so there is no
+		// `storagePrefix` to hand over, and the measurement reads the real one off the folder's bootstrap file. That
+		// matters here more than anywhere else - a renamed catalog is a renamed catalog whether or not it loads
+		return CatalogStorageFootprintMeasurer.measure(catalogName, pathOf(folderId), null);
 	}
 
 	@Nonnull

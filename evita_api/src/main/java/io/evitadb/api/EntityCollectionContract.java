@@ -23,8 +23,8 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.EntityScope;
@@ -36,11 +36,16 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -48,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -109,7 +115,7 @@ import java.util.UUID;
  *
  * **Statistics and Monitoring**
  *
- * - {@link #getStatistics()}: Collection-level metrics (record count, index count, disk size)
+ * - {@link #getStatistics(Set)}: Collection-level metrics, computed only for the components asked for
  * - {@link #isEmpty()}, {@link #size()}: Quick checks for collection state
  * - {@link #getVersion()}: Mutation version for change tracking
  *
@@ -465,13 +471,61 @@ public interface EntityCollectionContract {
 	long getVersion();
 
 	/**
-	 * Returns entity collection statistics aggregating basic information about the entity collection and the data
-	 * stored in it.
+	 * Returns a component-selected snapshot of this entity collection's statistics.
 	 *
-	 * @return statistics about the entity collection
+	 * Only the named components are computed; each of them gets an entry in
+	 * {@link EntityCollectionStatistics#componentStatus()} saying whether it was delivered and, if not, why.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is always delivered, requested or not.
+	 *
+	 * This is the only way to obtain per-collection numbers - {@link CatalogContract#getStatistics(Set)} reports
+	 * catalog-wide aggregates and never breaks them down by collection. The two are independent snapshots that may
+	 * observe different catalog versions.
+	 *
+	 * @param components the components to compute; every one of them must satisfy
+	 *                   {@link CatalogStatisticsComponent#isCollectionLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws EvitaInvalidUsageException when a component that has no collection-level form is requested
 	 */
 	@Nonnull
-	EntityCollectionStatistics getStatistics();
+	EntityCollectionStatistics getStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Returns one page of this collection's entity indexes, filtered and ordered as asked.
+	 *
+	 * Where {@link #getStatistics(Set)} reports how many indexes exist per kind and scope, this enumerates them
+	 * individually - the drill-down that follows an alarming count.
+	 *
+	 * Every call walks the whole index map, so this is an explicitly-requested diagnostic and never something to
+	 * poll; see {@link EvitaManagementContract#browseIndexes(String, String, IndexBrowseCriteria)}
+	 * for why the walk cannot be avoided.
+	 *
+	 * @param criteria which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
+	 * @throws EvitaInvalidUsageException when the criteria name a reference this collection's schema does not declare
+	 */
+	@Nonnull
+	IndexBrowseResult browseIndexes(
+		@Nonnull IndexBrowseCriteria criteria
+	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Describes one index of this collection in full - what it occupies and how well it discriminates.
+	 *
+	 * The drill-down that follows {@link #browseIndexes(IndexBrowseCriteria)}: that lists indexes cheaply, this
+	 * measures one of them. The heap estimate walks the index's contents, so the caller naming the index is what
+	 * bounds the cost - see {@link IndexDetail} for the measured figures and for the invariant this
+	 * response must keep.
+	 *
+	 * @param indexPrimaryKey identity of the index to describe, as reported by {@link BrowsedIndex#indexPrimaryKey()}
+	 * @return the full description of that index
+	 * @throws IndexNotFoundException when this collection holds no index under that primary key - which is an
+	 *                                ordinary race rather than necessarily a mistake, since an index can be reclaimed
+	 *                                between the browse and the drill-down
+	 */
+	@Nonnull
+	IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException;
 
 	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to

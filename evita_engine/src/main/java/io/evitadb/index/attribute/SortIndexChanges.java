@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -235,6 +236,57 @@ public class SortIndexChanges
 	public void restore(@Nonnull SortIndexChangesMemento memento) {
 		// O(1): drop the memoized caches so they rebuild from the restored SortIndex on next access
 		invalidateSupplierArrays();
+	}
+
+	/**
+	 * Returns the heap this layer occupies, in bytes — its own object and whichever of the two direction caches have
+	 * been materialized.
+	 *
+	 * {@link #sortIndex} contributes its **slot alone**: it is a back-reference to the very index that owns this
+	 * layer, so following it would charge that index's whole graph a second time and recurse.
+	 *
+	 * The descending cache is priced **without its bitmap**. Both directions point at the same
+	 * {@link MaterializedSortRecords#allRecords} instance — the record-id set does not depend on direction, and
+	 * {@link #getDescendingArrays()} deliberately hands the ascending holder's bitmap straight through rather than
+	 * rebuilding it. Two concurrently-live holders of one object: it is charged once, to the ascending cache, which
+	 * always exists whenever the descending one does.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the sortIndex back-reference plus the two cache slots
+		long size = layout.sizeOfObject(3L * layout.referenceSize());
+		if (this.memoizedAscending != null) {
+			size += sizeOfMaterializedSortRecords(this.memoizedAscending, true);
+		}
+		if (this.memoizedDescending != null) {
+			size += sizeOfMaterializedSortRecords(this.memoizedDescending, false);
+		}
+		return size;
+	}
+
+	/**
+	 * Prices one direction's supplier arrays.
+	 *
+	 * Package-private so {@link SortIndex} can price its own committed-snapshot cache with the same arithmetic — that
+	 * one is built by an independent {@code materialize()} call and shares nothing with this layer, so it passes
+	 * `true`.
+	 *
+	 * @param records         the materialized arrays to price
+	 * @param chargeAllRecords whether the record-id bitmap belongs to this holder, or is shared with another
+	 * @return the heap footprint in bytes, including alignment padding
+	 */
+	static long sizeOfMaterializedSortRecords(
+		@Nonnull MaterializedSortRecords records,
+		boolean chargeAllRecords
+	) {
+		final VMLayout layout = VMLayout.current();
+		// id + the two array slots and the bitmap slot
+		final long size = layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize())
+			+ layout.sizeOfArray(records.sortedRecordIds().length, Integer.BYTES)
+			+ layout.sizeOfArray(records.recordPositions().length, Integer.BYTES);
+		return chargeAllRecords ? size + records.allRecords().getHeapSizeInBytes() : size;
 	}
 
 	/**

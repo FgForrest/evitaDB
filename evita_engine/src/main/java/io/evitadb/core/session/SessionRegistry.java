@@ -31,12 +31,14 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.observability.trace.TracingContext;
+import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.exception.SessionBusyException;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -59,7 +61,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -80,7 +84,9 @@ import static java.util.Optional.ofNullable;
  * ## Thread Safety Model
  *
  * Uses {@link ConcurrentHashMap} for session storage, {@link AtomicReference} for suspension state,
- * and per-session {@link ReentrantLock} for atomic operations.
+ * and per-session {@link ReentrantLock} for atomic operations. Registering a session and suspending the registry are
+ * additionally fenced against each other by {@link #registrationGate} - see its documentation for why the two cannot
+ * be left to the atomics alone.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see EvitaSessionProxy for session proxy implementation
@@ -107,6 +113,28 @@ public final class SessionRegistry {
 	 * This field is used to keep track of the current suspend operation (if any).
 	 */
 	private final AtomicReference<InSuspension> currentSuspension;
+	/**
+	 * Fences session registration against suspension, so that "this registry is not suspended" and "the session is
+	 * visible in {@link #activeSessions}" are one indivisible step rather than two.
+	 *
+	 * Registration holds the read lock; {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} takes the write
+	 * lock once as a barrier after publishing the suspension. Left to the atomics alone the two are a check-then-act:
+	 * a thread that has already read {@link #currentSuspension} as empty may still be several instructions short of
+	 * putting its session into the map, and the drain then finds the map empty and reports the catalog quiesced while
+	 * a live session is about to appear on it. Callers act on that report by destroying the catalog - a rename closes
+	 * the persistence service the straggler is about to read - so the straggler sees `PersistenceServiceClosed`, an
+	 * internal error, where the contract owes it a well-defined invalid-usage answer.
+	 *
+	 * Shared by reference with the registry {@link #withDifferentCatalogSupplier(Supplier)} builds, exactly as
+	 * {@link #activeSessions} and {@link #currentSuspension} are: a fresh lock there would leave two independent gates
+	 * guarding one map, which is this very bug reintroduced by a rename.
+	 *
+	 * **The gate is only as complete as the paths that take it.** {@link #addSession(boolean, Supplier)} is today the
+	 * one and only way a session enters {@link #activeSessions}, which is what lets a single gate cover the whole
+	 * registry - {@link #createSession(Function)} reaches it too, since its factory ends there. A second registration
+	 * path that writes the map directly would be outside this fence and would reopen the race in silence.
+	 */
+	private final ReentrantReadWriteLock registrationGate;
 	/**
 	 * This field is used to keep track of the sessions that were forcefully closed due to a suspension operation.
 	 * The information is held only for a limited time.
@@ -142,6 +170,7 @@ public final class SessionRegistry {
 		this.sharedDataStore = sharedDataStore;
 		this.activeSessions = CollectionUtils.createConcurrentHashMap(512);
 		this.currentSuspension = new AtomicReference<>(null);
+		this.registrationGate = new ReentrantReadWriteLock();
 		this.sessionsFifoQueue = new ConcurrentLinkedQueue<>();
 		this.catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
 	}
@@ -152,6 +181,7 @@ public final class SessionRegistry {
 		@Nonnull SessionRegistryDataStore sharedDataStore,
 		@Nonnull Map<UUID, EvitaSessionTuple> activeSessions,
 		@Nonnull AtomicReference<InSuspension> currentSuspension,
+		@Nonnull ReentrantReadWriteLock registrationGate,
 		@Nonnull ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue,
 		@Nonnull ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions
 	) {
@@ -160,6 +190,7 @@ public final class SessionRegistry {
 		this.sharedDataStore = sharedDataStore;
 		this.activeSessions = activeSessions;
 		this.currentSuspension = currentSuspension;
+		this.registrationGate = registrationGate;
 		this.sessionsFifoQueue = sessionsFifoQueue;
 		this.catalogConsumedVersions = catalogConsumedVersions;
 	}
@@ -183,6 +214,15 @@ public final class SessionRegistry {
 		@Nonnull SuspendOperation suspendOperation
 	) {
 		if (this.currentSuspension.compareAndSet(null, new InSuspension(suspendOperation))) {
+			// A barrier rather than a critical section: taking the write lock and giving it straight back waits out
+			// every registration that read the suspension as empty before the line above and has not yet reached
+			// `activeSessions`. Once it is granted, each of those is either already visible in the map or will see
+			// the suspension and be refused - which is what makes the drain below reading an empty map mean "there
+			// is nobody left" rather than "there is nobody left yet". Taken before the census on the next line so
+			// that the count covers the stragglers too.
+			final Lock registrationBarrier = this.registrationGate.writeLock();
+			registrationBarrier.lock();
+			registrationBarrier.unlock();
 			// init information about closed sessions
 			final SuspensionInformation suspensionInformation = new SuspensionInformation(
 				this.activeSessions.size()
@@ -292,6 +332,33 @@ public final class SessionRegistry {
 	}
 
 	/**
+	 * Counts the sessions currently open against this catalog, split by whether they may write.
+	 *
+	 * The read-write count is the operationally interesting half: an open read-write session pins a catalog version,
+	 * which keeps superseded data files from being purged. A count that will not fall to zero is therefore a direct
+	 * explanation for disk space that will not come back.
+	 *
+	 * The map is walked rather than counted from two maintained counters, because a session's mode is a property of
+	 * the session and duplicating it into a counter pair is one more thing that can drift out of step with the map
+	 * itself. The walk is over open sessions only, so it is bounded by concurrency rather than by data size.
+	 *
+	 * @return the number of open sessions, and how they split between read-only and read-write
+	 */
+	@Nonnull
+	public SessionStatistics countActiveSessions() {
+		int readOnly = 0;
+		int readWrite = 0;
+		for (final EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+			if (sessionTuple.plainSession().isReadOnly()) {
+				readOnly++;
+			} else {
+				readWrite++;
+			}
+		}
+		return new SessionStatistics(readOnly + readWrite, readOnly, readWrite);
+	}
+
+	/**
 	 * Creates and registers new session to the registry.
 	 * Method checks that there is only a single active session when catalog is in warm-up mode.
 	 */
@@ -300,7 +367,7 @@ public final class SessionRegistry {
 		boolean transactional,
 		@Nonnull Supplier<EvitaSession> sessionSupplier
 	) {
-		return handleSuspension(() -> {
+		return registerWhileNotSuspended(() -> {
 			if (!transactional && !this.activeSessions.isEmpty()) {
 				throw new ConcurrentInitializationException(this.activeSessions.keySet().iterator().next());
 			}
@@ -356,24 +423,7 @@ public final class SessionRegistry {
 						"Session not found in the queue."
 					);
 
-					session.getTransaction().ifPresent(transaction -> {
-						// find oldest session with open transaction using loop to avoid Stream allocation
-						OffsetDateTime oldestWithTransaction = null;
-						for (EvitaSessionTuple tuple : this.sessionsFifoQueue) {
-							final EvitaSession queuedSession = tuple.plainSession();
-							if (queuedSession.getOpenedTransaction().isPresent()) {
-								oldestWithTransaction = queuedSession.getCreated();
-								break;
-							}
-						}
-						// emit event
-						transaction.getFinalizationEvent()
-							.finishWithResolution(
-								oldestWithTransaction,
-								transaction.isRollbackOnly() ?
-									TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
-							).commit();
-					});
+					session.getTransaction().ifPresent(this::reportTransactionResolution);
 
 					this.catalogConsumedVersions.get(session.getCatalogName())
 						.unregisterSessionConsumingCatalogInVersion(
@@ -394,6 +444,58 @@ public final class SessionRegistry {
 						);
 				}
 			);
+		}
+	}
+
+	/**
+	 * Reports how the closing session's transaction ended - both to the observability event and, when it was rolled
+	 * back, to the {@link io.evitadb.api.statistics.CatalogStatisticsComponent#ACTIVITY} counters.
+	 *
+	 * **Both readings are taken from a single {@link Transaction#isRollbackOnly()} evaluation, deliberately.** The
+	 * event's {@link TransactionResolution} and the counter describe the same population, and reading the flag twice
+	 * in two places is what would eventually let them disagree.
+	 *
+	 * **Why the counter lives here and not in {@link Transaction#close()}, which is where the rollback actually
+	 * happens.** Three reasons, none of them cosmetic:
+	 *
+	 * - `Transaction` is not only a user transaction. `TransactionManager` builds instances with `replay = true` to
+	 *   incorporate the write-ahead log into the trunk and closes each one as the log drains, so `close()` also runs
+	 *   for every transaction replayed at startup. Since `Transaction.executeInTransactionIfProvided` marks a
+	 *   transaction rollback-only on any throwable, a failed replay would be counted as a client rollback - the same
+	 *   distortion that kept `recordCommittedTransaction` out of the trunk incorporation stage. A `!replay` guard
+	 *   would paper over it, which is the tell: the call site would not carry the distinction, a filter would.
+	 * - `Transaction` has no route to the {@link io.evitadb.core.transaction.TransactionManager}. It holds a
+	 *   `TransactionHandler`, whose implementation differs between a session and a replay, so reaching the manager
+	 *   would take a downcast, a new field, or a wider interface - all of which put statistics bookkeeping into the
+	 *   transaction's construction path.
+	 * - A session's transaction is discarded here and never offered to the commit pipeline, so this is the only place
+	 *   a rolled-back transaction is observable at all; the stages that count everything else never see it.
+	 *
+	 * Note a **dry-run** session marks its transaction rollback-only at creation, so its transactions are counted as
+	 * rolled back. That is literally true - they never commit - but it means the counter tracks dry runs rather than
+	 * failures on a catalog that receives them.
+	 *
+	 * @param transaction the closing session's transaction
+	 */
+	private void reportTransactionResolution(@Nonnull Transaction transaction) {
+		// find oldest session with open transaction using loop to avoid Stream allocation
+		OffsetDateTime oldestWithTransaction = null;
+		for (EvitaSessionTuple tuple : this.sessionsFifoQueue) {
+			final EvitaSession queuedSession = tuple.plainSession();
+			if (queuedSession.getOpenedTransaction().isPresent()) {
+				oldestWithTransaction = queuedSession.getCreated();
+				break;
+			}
+		}
+		final boolean rolledBack = transaction.isRollbackOnly();
+		// emit event
+		transaction.getFinalizationEvent()
+			.finishWithResolution(
+				oldestWithTransaction,
+				rolledBack ? TransactionResolution.ROLLBACK : TransactionResolution.COMMIT
+			).commit();
+		if (rolledBack) {
+			this.catalogSupplier.get().getTransactionManager().recordRolledBackTransaction();
 		}
 	}
 
@@ -443,6 +545,7 @@ public final class SessionRegistry {
 			this.sharedDataStore,
 			this.activeSessions,
 			this.currentSuspension,
+			this.registrationGate,
 			this.sessionsFifoQueue,
 			this.catalogConsumedVersions
 		);
@@ -466,12 +569,64 @@ public final class SessionRegistry {
 	 */
 	private <T> T handleSuspension(@Nonnull Supplier<T> supplier) {
 		final InSuspension inSuspension = this.currentSuspension.get();
-		if (inSuspension == null) {
-			return supplier.get();
-		} else if (inSuspension.suspendOperation() == SuspendOperation.POSTPONE) {
-			if (inSuspension.awaitFinish(500, TimeUnit.MILLISECONDS)) {
-				return supplier.get();
-			} else {
+		if (inSuspension != null) {
+			awaitResumeOrRefuse(inSuspension);
+		}
+		return supplier.get();
+	}
+
+	/**
+	 * Runs a session registration behind the gate {@link #registrationGate} describes, so that the suspension check
+	 * and the session's appearance in {@link #activeSessions} cannot be split apart by a concurrent suspension.
+	 *
+	 * Registration alone is gated. {@link #handleSuspension(Supplier)} stays ungated for the outer session factory,
+	 * whose body reaches user-supplied callbacks that must never be able to hold a rename up.
+	 *
+	 * @param <T>      the type of the result provided by the supplier
+	 * @param supplier registers the session and returns it
+	 * @return the result of the supplier's operation
+	 * @throws SessionBusyException        if the registry is suspended and did not resume in time
+	 * @throws InstanceTerminatedException if the registry is suspended because the catalog is being terminated
+	 */
+	private <T> T registerWhileNotSuspended(@Nonnull Supplier<T> supplier) {
+		// At most one retry: the first pass is the ordinary path and the second is the one a POSTPONE that has since
+		// finished has earned. A registry that manages to suspend again in between is genuinely busy, and answering
+		// so beats looping until it stops - `SessionBusyException` is already what the postponed path answers when
+		// its own wait runs out, so no caller gains a case it does not already handle.
+		for (int attempt = 0; attempt < 2; attempt++) {
+			final Lock registrationLock = this.registrationGate.readLock();
+			registrationLock.lock();
+			try {
+				if (this.currentSuspension.get() == null) {
+					return supplier.get();
+				}
+			} finally {
+				registrationLock.unlock();
+			}
+			// Waited out with the gate released, deliberately: a POSTPONE is waited out until the operation that
+			// installed it finishes, and that operation is itself waiting on the barrier this thread would
+			// otherwise be holding shut.
+			final InSuspension inSuspension = this.currentSuspension.get();
+			// null means the suspension ended between releasing the gate and this read - there is nothing to wait
+			// for, and the next pass takes the gate again
+			if (inSuspension != null) {
+				awaitResumeOrRefuse(inSuspension);
+			}
+		}
+		throw SessionBusyException.INSTANCE;
+	}
+
+	/**
+	 * Waits out a postponing suspension, or refuses outright when the catalog behind this registry is being
+	 * terminated.
+	 *
+	 * @param inSuspension the suspension currently in effect
+	 * @throws SessionBusyException        if the suspension postpones and did not finish within the timeout
+	 * @throws InstanceTerminatedException if the suspension rejects
+	 */
+	private static void awaitResumeOrRefuse(@Nonnull InSuspension inSuspension) {
+		if (inSuspension.suspendOperation() == SuspendOperation.POSTPONE) {
+			if (!inSuspension.awaitFinish(500, TimeUnit.MILLISECONDS)) {
 				throw SessionBusyException.INSTANCE;
 			}
 		} else {

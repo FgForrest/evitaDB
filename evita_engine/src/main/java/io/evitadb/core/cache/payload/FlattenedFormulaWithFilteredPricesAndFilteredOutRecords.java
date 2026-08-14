@@ -114,7 +114,7 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 			// query price mode
 			MemoryMeasuringConstants.INT_SIZE +
 			// from and to
-		    2 * MemoryMeasuringConstants.BIG_DECIMAL_SIZE +
+		    2 * MemoryMeasuringConstants.BIG_DECIMAL_WHOLE_SIZE +
 			// indexed price places
 			MemoryMeasuringConstants.INT_SIZE;
 	}

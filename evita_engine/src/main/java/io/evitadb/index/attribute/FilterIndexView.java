@@ -122,4 +122,16 @@ public final class FilterIndexView extends FilterIndex {
 		getInvertedIndex().resetDirty();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * A view adds no fields of its own and charges neither the shared value tree nor the shared range companion: both
+	 * belong to the {@link AttributeIndex} that maintains them and are charged there once. What remains — the view
+	 * object and whatever it has memoized while answering queries — is priced by the base.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		return getSharedHeapSizeInBytes(0L);
+	}
+
 }

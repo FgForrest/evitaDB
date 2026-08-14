@@ -56,6 +56,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -654,6 +655,19 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the number of distinct values this index orders by - the public form of {@link #valueCount()}, read from
+	 * the value tree's cached bucket counter and therefore `O(1)`.
+	 *
+	 * Read against {@link #size()} it says how large the blocks of ties are: a sort index with few distinct values
+	 * imposes almost no ordering.
+	 *
+	 * @return number of distinct ordering values
+	 */
+	public int getDistinctValueCount() {
+		return valueCount();
+	}
+
+	/**
 	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
 	 *
 	 * A plain query opens no transaction at all (read-only sessions never do, and even a read-write session only binds
@@ -817,6 +831,74 @@ public abstract sealed class SortIndex
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes.
+	 *
+	 * Each variant adds its own value side — {@code OwnerSortIndex} the inverted index it owns, {@code SortIndexView}
+	 * only a slot, because the tree it points at belongs to the enclosing {@code AttributeIndex}. Everything the two
+	 * have in common is priced by {@link #getSharedHeapSizeInBytes}.
+	 *
+	 * Like every walk over a tree or an ordered array this is `O(records)` rather than `O(1)`, so it belongs to
+	 * the index detail call and must never be called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public abstract long getHeapSizeInBytes();
+
+	/**
+	 * Prices everything both variants hold, given how many bytes of fields the concrete subclass adds.
+	 *
+	 * A subclass's fields live in the **same allocation** as the base's — one header, one round of padding — so the
+	 * subclass passes its field bytes in rather than sizing a second object and adding it, which would charge a
+	 * phantom header and round twice.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * - {@link #sortedRecords} and {@link #dirty} in full, and {@link #comparatorBase} with every
+	 *   {@link ComparatorSource} record in it. The descriptor array is handed **by reference** to the successor
+	 *   instance on every commit-merge, so it is shared with a version this one supersedes — charged in full on both
+	 *   sides, since the predecessor is garbage the moment the commit completes.
+	 * - {@link #sortIndexChanges} when present, which is whenever the catalog is in bulk-insert or read-only state.
+	 *   It prices only its own fields; the back-reference to this index is never followed.
+	 * - {@link #cachedAscendingArrays} when built, bitmap included — an independent `materialize()` produced it, so
+	 *   it shares nothing with the layer's own memos. Being lazily built it makes the figure **jump on the first
+	 *   sorted read**: an index that has never served a sort reports less than the identical index that has.
+	 * - {@link #normalizer} and {@link #comparator} contribute their **slot alone**, despite being built here rather
+	 *   than injected. They are fixed scaffolding chosen by the attribute schema — a wrapper around a natural-order
+	 *   or collating comparator, one per compound element — whose size is a few hundred bytes at most and does not
+	 *   grow with the indexed data. Pricing them exactly would mean a heap method on every comparator implementation
+	 *   in the codebase, and a collating one additionally drags the ~30 KB per-locale collation tables that belong to
+	 *   the JVM rather than to any index.
+	 * - {@link #referenceKey} and {@link #attributeIndexKey} contribute their slot: both are the enclosing index's,
+	 *   handed to every sub-index under it.
+	 *
+	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
+	 * @return the heap footprint in bytes of everything both variants share, including alignment padding
+	 */
+	protected final long getSharedHeapSizeInBytes(long ownFieldBytes) {
+		final VMLayout layout = VMLayout.current();
+		// id + indexedDecimalPlaces, then the sortedRecords / comparatorBase / normalizer / comparator / referenceKey
+		// / attributeIndexKey / dirty / sortIndexChanges / cachedAscendingArrays slots
+		long size = layout.sizeOfObject(
+			Long.BYTES + Integer.BYTES + 9L * layout.referenceSize() + ownFieldBytes
+		)
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.sortedRecords.getHeapSizeInBytes()
+			// every ComparatorSource component addresses a Class or an enum constant, both JVM-owned - the records
+			// themselves are this index's, their contents are nobody's
+			+ layout.sizeOfArray(this.comparatorBase.length, layout.referenceSize())
+			+ this.comparatorBase.length * layout.sizeOfObject(3L * layout.referenceSize());
+		if (this.sortIndexChanges != null) {
+			size += this.sortIndexChanges.getHeapSizeInBytes();
+		}
+		// read the volatile field ONCE: a concurrent reader can publish or drop the cache between two reads
+		final SortIndexChanges.MaterializedSortRecords ascending = this.cachedAscendingArrays;
+		if (ascending != null) {
+			size += SortIndexChanges.sizeOfMaterializedSortRecords(ascending, true);
+		}
+		return size;
 	}
 
 	/**

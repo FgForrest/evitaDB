@@ -45,17 +45,18 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
@@ -64,8 +65,12 @@ import static java.util.Optional.ofNullable;
 
 /**
  * This class represents main data structure that keeps all information connected with shared catalog data, that could
- * be used for searching, sorting or another computational task upon these data. There is always only one catalog index
- * present anytime.
+ * be used for searching, sorting or another computational task upon these data.
+ *
+ * There is **one instance per {@link Scope}**, not one per catalog: the `LIVE` one exists for the whole life of the
+ * catalog, and the `ARCHIVED` one is created lazily the first time something globally unique is indexed in that scope
+ * - see `Catalog#getCatalogIndex(Scope)`. Anything counting or iterating catalog indexes must go over the scopes;
+ * treating "the catalog index" as a single object is how `Catalog#countIndexes` came to undercount.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -131,19 +136,11 @@ public class CatalogIndex implements
 	 */
 	@Nonnull
 	public CatalogIndex createShallowCopyWithResetDirtyFlag() {
-		return new CatalogIndex(
-			this.version,
-			this.indexKey,
-			this.uniqueIndex
-				.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Entry::getKey,
-						Entry::getValue
-					)
-				)
-		);
+		// `forEach` into a pre-sized map, never `entrySet()`: asking a `HashMap` for a view parks it on the map for
+		// the lifetime of the index - see `documentation/developer/heap-size-testing.md`, trap 6
+		final Map<AttributeKey, GlobalUniqueIndex> copy = CollectionUtils.createHashMap(this.uniqueIndex.size());
+		this.uniqueIndex.forEach(copy::put);
+		return new CatalogIndex(this.version, this.indexKey, copy);
 	}
 
 	@Override
@@ -151,12 +148,40 @@ public class CatalogIndex implements
 		if (this.dirty.isTrue()) {
 			trappedChanges.addChangeToStore(createStoragePart());
 		}
-		for (Entry<AttributeKey, GlobalUniqueIndex> entry : this.uniqueIndex.entrySet()) {
+		// `forEach`, never `entrySet()`: a `HashMap` keeps the view it hands out, and this runs on the flush path -
+		// see `documentation/developer/heap-size-testing.md`, trap 6
+		this.uniqueIndex.forEach((attributeKey, uniqueIndex) ->
 			// granular flush: a PAGED index emits its changed leaf pages + freed-page removals + a paged root; a SINGLE
 			// index emits the inline root (and collapse removals if it just shrank from PAGED). See
 			// GlobalUniqueIndex#appendStorageParts.
-			entry.getValue().appendStorageParts(entry.getKey(), trappedChanges);
-		}
+			uniqueIndex.appendStorageParts(attributeKey, trappedChanges)
+		);
+	}
+
+	/**
+	 * Estimates the heap this catalog index occupies, in bytes.
+	 *
+	 * The index owns its key, its dirty latch and the map of {@link GlobalUniqueIndex} instances - each of which
+	 * prices itself. {@link #indexKey} is charged as the record object alone, because the {@link Scope} it holds is an
+	 * enum constant shared by the whole JVM; the map keys likewise, because an {@link AttributeKey}'s name comes from
+	 * the catalog schema and its locale is JVM-interned, so only the key record itself belongs to this index.
+	 *
+	 * Walking a global unique index's value tree is `O(values / blockSize)`, so this belongs to the index detail call
+	 * rather than to anything polled.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// id and version, then the indexKey / dirty / uniqueIndex slots
+		final long attributeKey = layout.sizeOfObject(2L * layout.referenceSize());
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 3L * layout.referenceSize())
+			// the key record holds a single reference, to a JVM-shared enum constant
+			+ layout.sizeOfObject(layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.uniqueIndex.getHeapSizeInBytes(
+				key -> attributeKey, GlobalUniqueIndex::getHeapSizeInBytes
+			);
 	}
 
 	/**
@@ -230,6 +255,25 @@ public class CatalogIndex implements
 				new AttributeKey(attributeSchema.getName(), locale) :
 				new AttributeKey(attributeSchema.getName())
 		);
+	}
+
+	/**
+	 * Returns every {@link GlobalUniqueIndex} this catalog index holds, keyed by the attribute - and, for an attribute
+	 * that is unique globally only within a locale, the locale - it covers.
+	 *
+	 * Unlike {@link #getGlobalUniqueIndex(GlobalAttributeSchemaContract, Locale)} this needs no schema to address an
+	 * index, which is what lets a caller enumerate the indexes rather than ask for one it already knows about. The
+	 * locale-scoped indexes cannot be reached any other way without knowing the catalog's locale set, which lives in
+	 * the data rather than in the schema.
+	 *
+	 * The returned map is an unmodifiable view over the live map, not a copy: its size is bounded by
+	 * (globally-unique attributes × locales) and therefore by the schema, never by the catalog's data volume.
+	 *
+	 * @return unmodifiable view of the global unique indexes
+	 */
+	@Nonnull
+	public Map<AttributeKey, GlobalUniqueIndex> getGlobalUniqueIndexes() {
+		return Collections.unmodifiableMap(this.uniqueIndex);
 	}
 
 	/**
@@ -355,9 +399,14 @@ public class CatalogIndex implements
 	 */
 	@Nonnull
 	private StoragePart createStoragePart() {
-		return new CatalogIndexStoragePart(
-			this.version, this.indexKey, this.uniqueIndex.keySet()
-		);
+		// `forEach` into a pre-sized set, never `keySet()`: outside a transaction that accessor hands out the backing
+		// `HashMap`'s own view, which the map then keeps for the lifetime of the index - see
+		// `documentation/developer/heap-size-testing.md`, trap 6. The copy is also the safer thing to hand a storage
+		// part: it is serialized after this call returns, and a live view would let a later write change what gets
+		// written
+		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(this.uniqueIndex.size());
+		this.uniqueIndex.forEach((attributeKey, uniqueIndex) -> attributeKeys.add(attributeKey));
+		return new CatalogIndexStoragePart(this.version, this.indexKey, attributeKeys);
 	}
 
 }

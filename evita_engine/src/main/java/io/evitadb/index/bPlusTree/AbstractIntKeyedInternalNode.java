@@ -29,12 +29,14 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Arrays;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfIntInOrderedArray;
 import static io.evitadb.utils.ArrayUtils.insertIntIntoSameArrayOnIndex;
@@ -251,6 +253,27 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 				}
 			}
 		}
+	}
+
+	@Override
+	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
+		final VMLayout layout = VMLayout.current();
+		// id + transactionalLayer + keys/children slots + peek
+		long size = layout.sizeOfObject(Long.BYTES + 1L + 2L * layout.referenceSize() + Integer.BYTES);
+		size += layout.sizeOfArray(this.keys.length, Integer.BYTES);
+		size += layout.sizeOfArray(this.children.length, layout.referenceSize());
+		// separator keys are `int` values inside the array, so unlike a boxed-key tree there is nothing here for
+		// the sizer to price and no way for one key to be counted twice
+		// THIS instance's own count, deliberately not `keyCount()`: the accessor resolves the calling thread's
+		// transactional layer, and that layer is a separate node object with its OWN `children` array. Bounding the
+		// array measured above by another object's count walks slots this one never filled
+		// `peek` is the last occupied index, so the child count is peek+1 - and NOT clamped at zero: a node emptied
+		// by a merge carries peek == -1 with `children[0]` already nulled, and clamping would walk that slot
+		final int childCount = this.peek + 1;
+		for (int i = 0; i < childCount; i++) {
+			size += this.children[i].getHeapSizeInBytes(elementSizer);
+		}
+		return size;
 	}
 
 	@Override

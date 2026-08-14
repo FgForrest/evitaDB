@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,8 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.notNull;
@@ -64,10 +67,33 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 	@Serial private static final long serialVersionUID = 7715100845881804377L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
+	/**
+	 * Prices one {@link PriceIndexKey} used as a key of the per-combination index map.
+	 *
+	 * The key object is the map's own — it is created per price-list / currency combination and handed to the
+	 * sub-index constructor, which keeps only a reference slot to it. What the key *points at* is not: its
+	 * `recordHandling` is an enum constant and its `currency` a {@link Currency} interned by the JVM, both owned for
+	 * the lifetime of their class loader; the price list name comes from the entity schema's price definitions and is
+	 * held by every key of that price list, so it is scaffolding rather than this map's content. All three therefore
+	 * contribute their slot alone, exactly as an injected comparator does elsewhere.
+	 */
+	protected static final ToLongFunction<PriceIndexKey> PRICE_INDEX_KEY_SIZER = key -> {
+		final VMLayout layout = VMLayout.current();
+		// the recordHandling, currency and priceList slots, plus the memoized hash code
+		return layout.sizeOfObject(3L * layout.referenceSize() + Integer.BYTES);
+	};
+
 	@Nonnull
 	@Override
 	public Collection<? extends PriceListAndCurrencyPriceIndex> getPriceListAndCurrencyIndexes() {
 		return getPriceIndexes().values();
+	}
+
+	@Override
+	public void forEachPriceListAndCurrencyIndex(
+		@Nonnull Consumer<? super PriceListAndCurrencyPriceIndex> consumer
+	) {
+		getPriceIndexes().forEach((priceIndexKey, priceIndex) -> consumer.accept(priceIndex));
 	}
 
 	@Nonnull
@@ -170,21 +196,36 @@ abstract class AbstractPriceIndex<T extends PriceListAndCurrencyPriceIndex> impl
 
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
+	 *
+	 * # Why this walks with `forEach` while the read surface above does not
+	 *
+	 * A {@link java.util.HashMap} keeps the `values` view it hands out, so asking for one costs sixteen retained bytes
+	 * on the map for the lifetime of the owning index - see
+	 * {@link io.evitadb.index.map.TransactionalMap#forEach}. This path runs from every entity index constructor and
+	 * every flush, on every index in the catalog, and asks once; keeping a view for that is pure loss.
+	 *
+	 * {@link #getPriceListAndCurrencyIndexes()} and {@link #getPriceIndexesStream} are the **opposite** case and are
+	 * deliberately left alone: the price query translators call them repeatedly against the same index, which is
+	 * exactly what the JDK's caching exists for. Converting them would trade one retained view for a fresh walk on
+	 * every query - the wrong direction, and a regression that would not show up in a footprint measurement.
 	 */
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
-		for (T index : this.getPriceIndexes().values()) {
-			// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
-			// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
-			// multiple leaves
-			index.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
-		}
+		// each per-list index appends its own parts: the ref index (and any non-paged index) emits a single
+		// whole-index part, while the super price index emits granular PAGED leaf pages when its tree spans
+		// multiple leaves
+		this.getPriceIndexes().forEach(
+			(priceIndexKey, index) -> index.appendStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Walks with `forEach` for the reason given on {@link #getModifiedStorageParts}.
+	 */
 	@Override
 	public void resetDirty() {
-		for (PriceListAndCurrencyPriceIndex<?> priceIndex : getPriceIndexes().values()) {
-			priceIndex.resetDirty();
-		}
+		getPriceIndexes().forEach((priceIndexKey, priceIndex) -> priceIndex.resetDirty());
 	}
 
 	/*

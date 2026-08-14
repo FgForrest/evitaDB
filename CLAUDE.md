@@ -24,6 +24,12 @@ Prefer the libraries already in use — Kryo (binary serialization), RoaringBitm
 
 See "How this repository is organized" in README.md for module descriptions and dependency graph.
 
+**Physical contact with catalog storage happens only in `evita_store`.** Listing a folder, reading a file's
+length, opening or writing one — that is the storage module's work. `evita_api` and `evita_engine` say what is
+stored and what it means; only `evita_store` knows it is a file. SPI types under `io.evitadb.spi.store.**` are
+contracts and must execute no IO at all. Scope, the exceptions that are genuinely not catalog storage, and how to
+split a type that violates this: `.claude/rules/module-boundaries.md`
+
 ## Decision Records (ADR)
 
 `documentation/adr/` holds one dated record per line of work — what was done, when, why, which

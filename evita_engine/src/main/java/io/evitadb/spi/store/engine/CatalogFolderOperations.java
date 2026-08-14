@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.engine;
 
+import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 
 import javax.annotation.Nonnull;
@@ -77,6 +78,30 @@ public interface CatalogFolderOperations {
 	 * @return total size of the folder contents in bytes, or 0 when the folder does not exist
 	 */
 	long catalogFolderSize(@Nonnull CatalogFolderId folderId);
+
+	/**
+	 * Decomposes the folder the passed token denotes into the storage classes a catalog's files fall into -
+	 * the bootstrap file, the write-ahead log, the data stores and the unaccounted remainder.
+	 *
+	 * The decomposing counterpart of {@link #catalogFolderSize(CatalogFolderId)}, and it exists for the same
+	 * reason: a catalog that will not open still holds disk, and *how much of what* is what tells an operator
+	 * "restore it" apart from "shorten WAL retention".
+	 *
+	 * It lives here rather than in the engine because measuring means listing a directory, and only the storage
+	 * layer may turn a folder token into one - see {@link CatalogFolderId} for the boundary that establishes.
+	 * The reading is necessarily partial: without a readable header there is no current generation to name, so
+	 * only the classes recognisable from a file name alone are attributed and everything else reads as
+	 * unaccounted.
+	 *
+	 * @param folderId    token identifying the catalog folder
+	 * @param catalogName name of the catalog holding the folder, which is what its files are named after
+	 * @return the decomposed footprint; every class reads zero when the folder does not exist
+	 */
+	@Nonnull
+	CatalogStorageFootprint catalogFolderFootprint(
+		@Nonnull CatalogFolderId folderId,
+		@Nonnull String catalogName
+	);
 
 	/**
 	 * Creates a fresh, empty folder for the named catalog and marks it provisional.
@@ -192,6 +217,15 @@ public interface CatalogFolderOperations {
 
 			@Override
 			public long catalogFolderSize(@Nonnull CatalogFolderId folderId) {
+				throw new IllegalStateException(reason);
+			}
+
+			@Nonnull
+			@Override
+			public CatalogStorageFootprint catalogFolderFootprint(
+				@Nonnull CatalogFolderId folderId,
+				@Nonnull String catalogName
+			) {
 				throw new IllegalStateException(reason);
 			}
 

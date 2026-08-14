@@ -67,6 +67,7 @@ import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.utils.VMLayout;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -190,6 +191,15 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * for all locale variants of each histogram definition.
 	 */
 	@Nonnull private final TransactionalMap<String, HistogramIndex> histogramIndexes;
+	/**
+	 * The {@link HistogramIndexMapComponent} wrapper registered over {@link #histogramIndexes}, held here **only** so
+	 * {@link #getHeapSizeInBytes()} can ask it what it weighs. It is the one component carrying state of its own -
+	 * the on-disk leaf-page baseline of the last flush - which nothing else can reach and which would otherwise be
+	 * charged nowhere; every other wrapper is a pure adapter over fields charged at this index, priced inline there.
+	 *
+	 * Assigned by {@link #registerSubclassComponents()} rather than in a constructor, so it cannot be `final`.
+	 */
+	@Nonnull private HistogramIndexMapComponent histogramComponent;
 
 	/**
 	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
@@ -450,7 +460,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// consistency with peer subclasses — it is a no-op on every loop step
 		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
 		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
-		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		this.histogramComponent = new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey);
+		addComponent(this.histogramComponent);
 		addComponent(
 			new ReferenceTypeCardinalityComponent(this.indexPrimaryKeyCardinality, getReferenceName())
 		);
@@ -709,6 +720,37 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			this.histogramIndexes, this.dirty, getTransactionalLayerMaintainer(),
 			histogramName, locale, value, ownerPK, indexedDecimalPlaces
 		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * {@link #priceIndex} is {@link io.evitadb.index.price.VoidPriceIndex#INSTANCE} — one instance for the whole JVM
+	 * that this index shares with every other reference-type index — so only its slot is charged.
+	 */
+	@Override
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		// the reference name, attribute name and locale of an attribute key all belong to the schema
+		final long attributeIndexKey = layout.sizeOfObject(3L * layout.referenceSize());
+		// the priceIndex / indexPrimaryKeyCardinality / cardinalityIndexes / histogramIndexes / histogramComponent
+		// slots
+		return getBaseHeapSizeInBytes(5L * layout.referenceSize())
+			+ this.indexPrimaryKeyCardinality.getHeapSizeInBytes()
+			+ this.cardinalityIndexes.getHeapSizeInBytes(
+				key -> attributeIndexKey, AttributeCardinalityIndex::getHeapSizeInBytes
+			)
+			+ this.histogramIndexes.getHeapSizeInBytes(
+				histogramName -> 0L, HistogramIndex::getHeapSizeInBytes
+			)
+			// the four components this class registers: a price one over the void singleton, a cardinality one holding
+			// its map plus the index key, and a reference-type cardinality one holding its index plus the reference
+			// name. All three are pure adapters over fields charged above, so their shells are all they cost
+			+ layout.sizeOfObject(layout.referenceSize())
+			+ 2L * layout.sizeOfObject(2L * layout.referenceSize())
+			// the fourth prices itself: alongside its map and the index key it holds the on-disk leaf-page baseline of
+			// the last flush, which no field of this index points at and which a shell charge would report as free
+			+ this.histogramComponent.getHeapSizeInBytes();
 	}
 
 	@Override

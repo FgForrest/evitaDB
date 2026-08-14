@@ -24,8 +24,16 @@
 package io.evitadb.core;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.CatalogContract;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.CollectionRecordCounts;
+import io.evitadb.api.statistics.CollectionsInfo.CollectionInfo;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.IndexSummaryStatistics;
+import io.evitadb.api.statistics.RecordCounts;
 import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
@@ -113,8 +121,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -3821,61 +3832,131 @@ class EvitaTest implements EvitaTestSupport {
 				)
 			);
 
-			final CatalogStatistics[] catalogStatistics = this.evita.management().getCatalogStatistics();
-			assertNotNull(catalogStatistics);
-			assertEquals(3, catalogStatistics.length);
+			final Map<String, CatalogContract> catalogsByName = new HashMap<>(3);
+			for (final CatalogContract catalog : this.evita.getCatalogs()) {
+				catalogsByName.put(catalog.getName(), catalog);
+			}
+			assertEquals(3, catalogsByName.size());
 
-			final CatalogStatistics statistics = Arrays.stream(catalogStatistics).filter(
-				it -> TEST_CATALOG.equals(it.catalogName())).findFirst().orElseThrow();
-			assertTrue(
-				statistics.sizeOnDiskInBytes() > 400L && statistics.sizeOnDiskInBytes() < 600L,
-				"Expected size on disk to be between 400 and 600 bytes, but was " + statistics.sizeOnDiskInBytes()
+			final Set<CatalogStatisticsComponent> components = EnumSet.of(
+				CatalogStatisticsComponent.IDENTITY,
+				CatalogStatisticsComponent.RECORD_COUNTS,
+				CatalogStatisticsComponent.INDEX_SUMMARY,
+				CatalogStatisticsComponent.STORAGE_SIZE,
+				CatalogStatisticsComponent.COLLECTIONS
 			);
+
+			// an empty, healthy catalog - only the catalog-level index exists, and it holds no records at all
+			final CatalogStatistics statistics = catalogsByName.get(TEST_CATALOG).getStatistics(components);
 			assertEquals(
-				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG, false, false, CatalogState.WARMING_UP, 0L, 0, 1,
-					statistics.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				new CatalogIdentity(
+					statistics.identity().catalogId(), TEST_CATALOG, CatalogState.WARMING_UP, 0L,
+					false, false, false, false, 0
 				),
-				statistics
+				statistics.identity()
+			);
+			assertEquals(new RecordCounts(0L, 0L, 0L), statistics.recordCounts());
+			assertEquals(new IndexSummaryStatistics(1L), statistics.indexSummary());
+			assertEquals(0, statistics.collections().collections().length);
+			final long sizeOnDisk = statistics.storageSize().sizeOnDiskInBytes();
+			assertTrue(
+				sizeOnDisk > 400L && sizeOnDisk < 600L,
+				"Expected size on disk to be between 400 and 600 bytes, but was " + sizeOnDisk
 			);
 
-			final CatalogStatistics statistics1 = Arrays.stream(catalogStatistics).filter(
-				it -> (TEST_CATALOG + "_1").equals(it.catalogName())).findFirst().orElseThrow();
-			assertTrue(
-				statistics1.sizeOnDiskInBytes() > 900L && statistics1.sizeOnDiskInBytes() < 1200L,
-				"Expected size on disk to be between 900 and 1200 bytes, but was " + statistics1.sizeOnDiskInBytes()
-			);
+			// a corrupted catalog - everything derived from state that would not load is reported as explicitly
+			// unavailable rather than as a zero that reads like an empty catalog, but the disk footprint is still
+			// measured, because file lengths are readable whether or not the contents parse
+			final CatalogStatistics statistics1 = catalogsByName.get(TEST_CATALOG + "_1").getStatistics(components);
 			assertEquals(
-				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_1", true, false, CatalogState.CORRUPTED, -1L, -1, -1,
-					statistics1.sizeOnDiskInBytes(), new EntityCollectionStatistics[0]
+				new CatalogIdentity(
+					null, TEST_CATALOG + "_1", CatalogState.CORRUPTED, -1L, false, true, false, false, -1
 				),
-				statistics1
+				statistics1.identity()
+			);
+			for (final CatalogStatisticsComponent unavailable : new CatalogStatisticsComponent[]{
+				CatalogStatisticsComponent.RECORD_COUNTS,
+				CatalogStatisticsComponent.INDEX_SUMMARY,
+				CatalogStatisticsComponent.COLLECTIONS
+			}) {
+				assertEquals(
+					ComponentAvailability.CATALOG_UNUSABLE,
+					statistics1.componentStatus().get(unavailable).availability(),
+					"Component " + unavailable + " should be reported as unavailable for a corrupted catalog"
+				);
+			}
+			assertNull(statistics1.recordCounts());
+			assertNull(statistics1.indexSummary());
+			assertNull(statistics1.collections());
+			// a coarse plausibility window rather than an exact figure: the point is that a catalog which would not
+			// load still reports a real, non-zero disk footprint. The upper bound carries headroom for the folder's
+			// `.catalogname` marker, whose length is the catalog name's - so the window must not sit so tight that
+			// renaming the test catalog breaks it
+			final long sizeOnDisk1 = statistics1.storageSize().sizeOnDiskInBytes();
+			assertTrue(
+				sizeOnDisk1 > 900L && sizeOnDisk1 < 1400L,
+				"Expected size on disk to be between 900 and 1400 bytes, but was " + sizeOnDisk1
 			);
 
-			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(
-				it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
-			assertTrue(
-				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1800L,
-				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
+			// a healthy catalog holding one collection with one entity - the catalog index plus the collection's own
+			// index make two, and the collection is listed in the inventory but carries no statistics there
+			final CatalogContract catalog2 = catalogsByName.get(TEST_CATALOG + "_2");
+			final CatalogStatistics statistics2 = catalog2.getStatistics(components);
+			assertEquals(
+				new CatalogIdentity(
+					statistics2.identity().catalogId(), TEST_CATALOG + "_2", CatalogState.WARMING_UP, 0L,
+					false, false, false, false, 1
+				),
+				statistics2.identity()
 			);
-			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
+			assertEquals(new RecordCounts(1L, 1L, 0L), statistics2.recordCounts());
+			assertEquals(new IndexSummaryStatistics(2L), statistics2.indexSummary());
+			assertArrayEquals(
+				new CollectionInfo[]{new CollectionInfo(Entities.PRODUCT, 1)},
+				statistics2.collections().collections()
+			);
+			final long sizeOnDisk2 = statistics2.storageSize().sizeOnDiskInBytes();
+			assertTrue(
+				sizeOnDisk2 > 1000L && sizeOnDisk2 < 1800L,
+				"Expected size on disk to be between 1000 and 1800 bytes, but was " + sizeOnDisk2
+			);
+
+			final EntityCollectionStatistics productStatistics = catalog2
+				.getCollectionForEntityOrThrowException(Entities.PRODUCT)
+				.getStatistics(
+					EnumSet.of(
+						CatalogStatisticsComponent.RECORD_COUNTS,
+						CatalogStatisticsComponent.INDEX_SUMMARY,
+						CatalogStatisticsComponent.STORAGE_SIZE
+					)
+				);
+			assertEquals(Entities.PRODUCT, productStatistics.entityType());
+			assertEquals(new CollectionRecordCounts(1, 1, 0), productStatistics.recordCounts());
+			assertEquals(1, productStatistics.indexSummary().totalIndexCount());
 			// the granular index storage layout (per-leaf-page parts plus the sibling entity-id part) carries fixed
 			// per-part framing overhead, so a tiny collection persists a little larger than the legacy monolithic blob —
 			// the upper bound is widened accordingly while still bracketing the expected small-collection size
+			final long productSizeOnDisk = productStatistics.storageSize().sizeOnDiskInBytes();
 			assertTrue(
-				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 700L,
-				"Expected size on disk to be between 300 and 700 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+				productSizeOnDisk > 300L && productSizeOnDisk < 700L,
+				"Expected size on disk to be between 300 and 700 bytes, but was " + productSizeOnDisk
 			);
+
+			// the instance-wide call must describe every catalog, corrupted ones included: a catalog missing from the
+			// answer would be indistinguishable from a catalog that no longer exists, and a corrupted catalog is
+			// exactly what an operator opens this call to find
+			final List<CatalogStatistics> allStatistics =
+				new ArrayList<>(this.evita.management().getAllCatalogStatistics(components));
 			assertEquals(
-				new CatalogStatistics(
-					UUIDUtil.randomUUID(), TEST_CATALOG + "_2", false, false, CatalogState.WARMING_UP, 0, 1, 2,
-					statistics2.sizeOnDiskInBytes(),
-					new EntityCollectionStatistics[]{
-						new EntityCollectionStatistics(Entities.PRODUCT, 1, 1, productStatistics.sizeOnDiskInBytes())
-					}
-				),
-				statistics2
+				List.of(TEST_CATALOG, TEST_CATALOG + "_1", TEST_CATALOG + "_2"),
+				allStatistics.stream().map(it -> it.identity().catalogName()).toList(),
+				"Catalogs must be reported ordered by name, so a polled listing does not reshuffle between refreshes"
+			);
+			final CatalogStatistics corruptedStatistics = allStatistics.get(1);
+			assertTrue(corruptedStatistics.identity().unusable());
+			assertEquals(
+				ComponentAvailability.CATALOG_UNUSABLE,
+				corruptedStatistics.componentStatus().get(CatalogStatisticsComponent.RECORD_COUNTS).availability()
 			);
 
 		} finally {

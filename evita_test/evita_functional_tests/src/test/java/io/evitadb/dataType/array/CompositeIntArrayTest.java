@@ -24,6 +24,7 @@
 package io.evitadb.dataType.array;
 
 import io.evitadb.dataType.iterator.BatchArrayIterator;
+import io.evitadb.utils.JolHeapSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -853,6 +854,38 @@ class CompositeIntArrayTest {
 					" bytes) to have bigger footprint than small array (" +
 					small.getSizeInBytes() + " bytes)"
 			);
+		}
+
+		@Test
+		@DisplayName("should report the heap it actually occupies")
+		void shouldReportMeasuredHeapFootprint() {
+			// the expectation is MEASURED, not restated from the implementation. Asserting the same
+			// arithmetic the production code performs yields a test that goes green whenever both copies
+			// are wrong together, which is how the previous version of this figure came to omit the
+			// backing ArrayList and its element array entirely
+			final CompositeIntArray array = new CompositeIntArray();
+			for (int i = 0; i < 1_000; i++) {
+				array.add(i);
+			}
+			assertEquals(JolHeapSize.ownedSize(array), array.getSizeInBytes());
+		}
+
+		@Test
+		@DisplayName("should report the heap it occupies at every list-growth boundary")
+		void shouldReportMeasuredHeapFootprintAcrossListGrowth() {
+			// the chunk list's backing array grows in steps (10, 15, 22, ...) and is up to 50% slack, so
+			// the figure is checked either side of several of those steps rather than at one convenient
+			// size where an off-by-one growth model would still happen to agree
+			for (final int elementCount : new int[]{1, 50, 51, 500, 501, 750, 1_100, 1_101}) {
+				final CompositeIntArray array = new CompositeIntArray();
+				for (int i = 0; i < elementCount; i++) {
+					array.add(i);
+				}
+				assertEquals(
+					JolHeapSize.ownedSize(array), array.getSizeInBytes(),
+					"footprint mismatch at " + elementCount + " elements"
+				);
+			}
 		}
 	}
 

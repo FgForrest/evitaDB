@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
@@ -34,6 +35,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCard
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -195,6 +197,38 @@ public class AttributeCardinalityIndex
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Returns the heap this index occupies, in bytes — its own object, its dirty flag and the cardinality map with
+	 * every key and boxed count it holds.
+	 *
+	 * # What is charged, and what is not
+	 *
+	 * Each {@link AttributeCardinalityKey} is charged **in full, including its value payload**. The value arrives as
+	 * the caller's reference, so it could in principle be the same instance the sibling filter index was handed — but
+	 * only a {@link io.evitadb.index.bPlusTree.BoxedObjectColumn} actually retains one, and the front-coded and
+	 * primitive columns every common attribute type lands in copy the value out and keep nothing. Charging is
+	 * therefore both the usual case and the higher of the two defensible figures.
+	 *
+	 * {@link #valueType} addresses a {@link Class}, which the JVM owns for the lifetime of its class loader.
+	 *
+	 * Walking the map is `O(entries)` rather than `O(1)`, so this belongs to the index detail call and must never be
+	 * called from a query path.
+	 *
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes() {
+		final VMLayout layout = VMLayout.current();
+		final long keyShell = layout.sizeOfObject(Integer.BYTES + layout.referenceSize());
+		final long boxedInteger = layout.sizeOfObject(Integer.BYTES);
+		// the valueType / dirty / cardinalities slots
+		return layout.sizeOfObject(3L * layout.referenceSize())
+			+ this.dirty.getHeapSizeInBytes()
+			+ this.cardinalities.getHeapSizeInBytes(
+				key -> keyShell + IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(key.value()),
+				cardinality -> boxedInteger
+			);
 	}
 
 	/*

@@ -32,6 +32,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -41,7 +42,9 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
@@ -131,6 +134,53 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		this.valueType = TransactionalMap.class;
 		this.mapDelegate = mapDelegate;
 		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply(o);
+	}
+
+	/**
+	 * Returns the heap this map occupies, in bytes — the decorator itself plus the backing map, its bucket table,
+	 * one node per entry, and whatever the two sizers decide the keys and values are worth.
+	 *
+	 * The keys and values are the caller's to price because only the caller knows whether this map owns them. The
+	 * same {@link io.evitadb.index.bitmap.TransactionalBitmap} can sit in a map and be referenced from elsewhere, and
+	 * a key is frequently the very instance the owning index also holds as a field — pricing it in both places would
+	 * count one object twice. Return `0` from a sizer for anything this map merely borrows.
+	 *
+	 * The per-transaction {@link MapChanges} layer is deliberately **not** counted: it belongs to the transaction
+	 * that created it, not to this map, and it disappears on commit or rollback.
+	 *
+	 * See {@link MapHeapSize} for the one place the figure is an inference rather than a measurement — the bucket
+	 * table of a map created pre-sized above its eventual content.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the owned heap footprint in bytes, including alignment padding
+	 */
+	public long getHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		final VMLayout layout = VMLayout.current();
+		// id + mapDelegate/valueType/transactionalLayerWrapper slots. `valueType` addresses a Class object, which
+		// the JVM owns for the lifetime of its class loader, and the wrapper is a lambda shared with nobody but
+		// still only a reference here - both contribute their slot alone
+		return layout.sizeOfObject(Long.BYTES + 3L * layout.referenceSize())
+			+ getDelegateHeapSizeInBytes(keySizer, valueSizer);
+	}
+
+	/**
+	 * Returns the heap of the backing map alone — everything {@link #getHeapSizeInBytes} counts except this
+	 * decorator's own object, which the tests assert separately because a JOL walk of the decorator dies on the
+	 * lambda in {@link #transactionalLayerWrapper}.
+	 *
+	 * @param keySizer   prices one key, or returns `0` when this map does not own it
+	 * @param valueSizer prices one value, or returns `0` when this map does not own it
+	 * @return the heap footprint of the backing map in bytes
+	 */
+	long getDelegateHeapSizeInBytes(
+		@Nonnull ToLongFunction<? super K> keySizer,
+		@Nonnull ToLongFunction<? super V> valueSizer
+	) {
+		return MapHeapSize.sizeOf(this.mapDelegate, keySizer, valueSizer);
 	}
 
 	/**
@@ -393,6 +443,38 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 			return this.mapDelegate.entrySet();
 		} else {
 			return new TransactionalMemoryEntrySet<>(layer, this);
+		}
+	}
+
+	/**
+	 * Walks every entry of the map, handing each to `action`.
+	 *
+	 * **Overridden to stay allocation-free outside a transaction**, which the {@link Map} default is not. That default
+	 * iterates {@link #entrySet()}, and a {@link java.util.HashMap} allocates its `keySet` / `values` / `entrySet` view
+	 * on first request and then **caches it in the map** - so every accessor a flush path happens to reach a map
+	 * through parks one more permanent object on that map, for the lifetime of the index holding it. Sixteen bytes is
+	 * nothing until it is multiplied by the half-million indexes a large catalog carries. Delegating straight to the
+	 * backing map's own `forEach`, which walks its table, allocates nothing and reaches exactly the same entries in
+	 * exactly the same order.
+	 *
+	 * Inside a transaction the diff layer is the source of truth and there is no such walk to delegate to, so the
+	 * transactional entry set is iterated exactly as the default would - a view built fresh per call and owned by
+	 * nobody. That branch is equivalent to enumerating this map any other way, and not merely similar:
+	 * {@link TransactionalMemoryKeySet} and {@link TransactionalMemoryValues} both build a
+	 * {@link TransactionalMemoryEntrySet} iterator internally and project one side out of it, so all three
+	 * enumerations are the same walk over the same {@link MapChanges}.
+	 *
+	 * @param action invoked once per entry with its key and value
+	 */
+	@Override
+	public void forEach(@Nonnull BiConsumer<? super K, ? super V> action) {
+		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
+		if (layer == null) {
+			this.mapDelegate.forEach(action);
+		} else {
+			for (final Entry<K, V> entry : new TransactionalMemoryEntrySet<>(layer, this)) {
+				action.accept(entry.getKey(), entry.getValue());
+			}
 		}
 	}
 

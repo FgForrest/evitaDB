@@ -26,8 +26,14 @@ package io.evitadb.core.catalog;
 import io.evitadb.api.CatalogVersionPin;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.CatalogStatistics;
-import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
@@ -305,21 +311,83 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public CatalogStatistics getStatistics() {
-		return new CatalogStatistics(
-			null,
-			this.catalogName,
-			true,
-			false,
-			this.catalogState,
-			-1L,
-			-1,
-			-1,
-			// the adjacent statistics are reported as -1 because they are genuinely unknowable for a catalog
-			// that cannot be opened; the on-disk size still can be measured, so it is reported for real
-			this.folderOperations.catalogFolderSize(this.catalogFolderId),
-			new EntityCollectionStatistics[0]
+	public CatalogStatistics getStatistics(@Nonnull Set<CatalogStatisticsComponent> components) {
+		CatalogStatisticsComponent.assertNotEmpty(components);
+		final CatalogStatistics.Builder builder = CatalogStatistics.builder(
+			new CatalogIdentity(
+				null,
+				this.catalogName,
+				this.catalogState,
+				-1L,
+				false,
+				true,
+				false,
+				false,
+				-1
+			)
 		);
+		for (final CatalogStatisticsComponent component : components) {
+			switch (component) {
+				// always recorded by the builder itself, since nothing else can be interpreted without it
+				case IDENTITY -> { }
+				// the one component that survives a catalog which would not load: file lengths are readable whether or
+				// not the contents parse, and how much disk a corrupted catalog is holding is exactly what an operator
+				// needs to know about it.
+				case STORAGE_SIZE -> builder.withStorageSize(measureStorageSize());
+				// everything else is derived from state that could not be loaded. Reporting that explicitly is the
+				// point - a client must be able to tell this apart from a catalog that is merely empty.
+				//
+				// `default` is deliberate here rather than an exhaustive list: it is not a silent skip but the total
+				// answer, since any component this catalog cannot compute today it cannot compute for the same reason
+				// tomorrow. A component added later and forgotten here would otherwise throw on exactly the degraded
+				// catalog an operator is trying to inspect.
+				default -> builder.withUnavailable(
+					component,
+					ComponentAvailability.CATALOG_UNUSABLE,
+					"Catalog `" + this.catalogName + "` could not be loaded, so `" + component + "` cannot be computed."
+				);
+			}
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Measures the disk footprint of a catalog that would not load, through the same classifier a loaded catalog
+	 * uses - handing it no generations, which is how "the header could not be read" is expressed.
+	 *
+	 * Two classes survive that, because both are recognised from the file name alone: the bootstrap file and the
+	 * write-ahead log. Telling an operator which of the two is holding the disk of a corrupted catalog is the
+	 * difference between "restore it" and "shorten WAL retention". Everything else reads as unaccounted, including
+	 * the data store files - separating live records from compaction waste, or a current generation from a
+	 * superseded one, needs the header. {@link StorageSizeStatistics} documents that reading.
+	 *
+	 * The listing itself is asked of {@link CatalogFolderOperations} rather than taken here: measuring means
+	 * resolving the folder token to a directory, and joining a token with the storage root is the storage layer's
+	 * to do - see {@link CatalogFolderId}.
+	 *
+	 * @return the {@link CatalogStatisticsComponent#STORAGE_SIZE} component of an unusable catalog
+	 */
+	@Nonnull
+	private StorageSizeStatistics measureStorageSize() {
+		return StorageSizeProjection.toStorageSizeStatistics(
+			this.folderOperations.catalogFolderFootprint(this.catalogFolderId, this.catalogName)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public IndexBrowseResult browseIndexes(@Nonnull IndexBrowseCriteria criteria) {
+		// no empty page here, where `getStatistics` answers per component with `CATALOG_UNUSABLE`: that response has a
+		// slot to carry the reason in, and a browse result has none - an empty page would read as "this catalog holds no
+		// indexes", which is precisely the reading an operator must not be given about a catalog that would not load
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
+	}
+
+	@Nonnull
+	@Override
+	public IndexDetail describeIndex(int indexPrimaryKey) {
+		// not `IndexNotFoundException`, which would claim the catalog was read and found to hold no such index
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 
 	@Override

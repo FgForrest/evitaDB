@@ -288,6 +288,31 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	}
 
 	/**
+	 * Returns, per file this maintainer is holding for deferred removal, the last catalog version that may still use
+	 * it. A file whose version is at or above {@link #getActiveReaderFloor()} is pinned by an active reader or writer;
+	 * one below it is only waiting on the purge mechanism - which is exactly the predicate
+	 * {@link #purgeObsoleteFiles()} applies.
+	 *
+	 * Only files *this process* was asked to remove appear here. Files left behind by an earlier run, or retained
+	 * because time travel defers their removal to WAL rotation, are on disk but absent from the result - so a caller
+	 * splitting a set of on-disk files by this map must treat "not present" as "nothing known to block it" rather than
+	 * dropping the file from the split.
+	 *
+	 * Needs no locking: the backing list is copy-on-write, so the snapshot is consistent even while files are added.
+	 *
+	 * @return the catalog version guarding each maintained file, keyed by its path; empty when nothing is deferred
+	 */
+	@Nonnull
+	public Map<Path, Long> getMaintainedFileVersions() {
+		final List<MaintainedFile> files = this.maintainedFiles;
+		final Map<Path, Long> result = CollectionUtils.createHashMap(files.size());
+		for (final MaintainedFile maintainedFile : files) {
+			result.put(maintainedFile.path(), maintainedFile.catalogVersion());
+		}
+		return result;
+	}
+
+	/**
 	 * Records that a consumer started using the given catalog version. The version is held against reclamation until
 	 * as many {@link #catalogVersionReleased(long)} calls have arrived as pins.
 	 *

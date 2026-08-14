@@ -236,7 +236,11 @@ class FormulaCacheVisitorTest {
 			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 		}
 
-		assertEquals(32, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
+		// `sizeInBytes` is the DIVISOR of this ratio, so a smaller footprint estimate raises it. The estimate used
+		// to be inflated - a 16-byte object header where the VM uses 12, an over-counted `int[]` - so a cached
+		// formula looked bulkier than it is and scored lower than it deserved. Correcting the estimate moved this
+		// from 32 to 40; the value tracks the estimator and is expected to move again when it is refined further
+		assertEquals(40, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
 	}
 
 }

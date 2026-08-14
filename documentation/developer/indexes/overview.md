@@ -141,7 +141,7 @@ new immutable snapshot of each modified index
 
 | File | Module | Purpose |
 |------|--------|---------|
-| `EntityIndexType` | evita_engine | Enum of all index type discriminators |
+| `EntityIndexType` | evita_api | Enum of all index type discriminators |
 | `EntityIndexKey` | evita_engine | Composite key `(type, scope, discriminator)` |
 | `EntityIndex` | evita_engine | Abstract base with shared attribute/facet/hierarchy support |
 | `GlobalEntityIndex` | evita_engine | Complete per-entity-type index with `PriceSuperIndex` |
@@ -307,7 +307,6 @@ graph TD
         T3["REFERENCED_ENTITY"]
         T4["REFERENCED_GROUP_ENTITY_TYPE"]
         T5["REFERENCED_GROUP_ENTITY"]
-        T6["REFERENCED_HIERARCHY_NODE<br/><i>deprecated</i>"]
     end
 
     T1 -. "keys" .-> GEI

@@ -93,7 +93,9 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 			1.0,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, deserializedKeys.keys(), deserializedKeys.peakId()),
 			globalIndexKey,
-			entityIndexIds
+			entityIndexIds,
+			// this layout long predates the 2026.3 timestamp
+			EntityCollectionFileHeader.NOT_STAMPED
 		);
 	}
 

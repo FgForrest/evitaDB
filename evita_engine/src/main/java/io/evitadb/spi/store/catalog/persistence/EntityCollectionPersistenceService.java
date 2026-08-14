@@ -264,10 +264,66 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	);
 
 	/**
-	 * Returns the size of the entity collection on disk in bytes.
-	 * @return size of the entity collection on disk in bytes
+	 * Measures this collection's disk footprint and attributes it to live data, compaction waste and superseded data
+	 * store files that have not been deleted yet. Its `totalBytes` is the measured sum of this collection's data store
+	 * file lengths - the whole size on disk - and the remaining fields decompose it; the write-ahead log and the
+	 * bootstrap file are catalog-wide and therefore absent here.
+	 *
+	 * This is the only measurement of those file lengths on the service, deliberately: a second method returning the
+	 * bare total would take its own directory listing and could report a different size of the same collection within
+	 * one statistics response.
+	 *
+	 * @return the decomposed footprint of this collection's data store files
 	 */
-	long getSizeOnDiskInBytes();
+	@Nonnull
+	CollectionStorageFootprint measureStorageFootprint();
+
+	/**
+	 * Breaks this collection's data store down by storage-part type - where the bytes of this collection actually go
+	 * (entity bodies, attributes, references, prices, associated data, indexes).
+	 *
+	 * The breakdown is an in-memory map read - the per-type counts and bytes are maintained as the flush is promoted,
+	 * never recomputed by walking the file. It therefore describes the flushed state only; see
+	 * {@link StoragePartFootprint} for why that is the right reading and where it can diverge from record counts.
+	 *
+	 * @return the per-type breakdown, ordered by {@link StoragePartFootprint#LARGEST_FIRST}
+	 */
+	@Nonnull
+	StoragePartFootprint[] measureStoragePartComposition();
+
+	/**
+	 * Reports what this collection's data store is holding in memory rather than on disk - the records written but not
+	 * yet flushed, and the multi-version history it cannot release while an old session is still reading it.
+	 *
+	 * Every value is a counter read; nothing is walked and no file is touched.
+	 *
+	 * @return what this data store holds that is not on disk
+	 */
+	@Nonnull
+	VolatileDataFootprint measureVolatileData();
+
+	/**
+	 * Returns the size of the largest single record this collection's data store has **ever** held.
+	 *
+	 * It is a high-water mark, not a current maximum: the value is seeded from its predecessor on every reopen and only
+	 * ever widened during a flush, so removing the biggest record never lowers it. Anything that displays it must say
+	 * *largest ever seen*, because "largest currently stored" is a different number that nothing computes.
+	 *
+	 * @return the largest record size ever observed in this data store, in bytes
+	 */
+	long getMaxRecordSizeBytes();
+
+	/**
+	 * Reports whether this collection's data store is due for compaction and when it will be.
+	 *
+	 * The predicate is evaluated here rather than by the caller so that it cannot drift from the trigger that actually
+	 * fires compaction, and the projection is an extrapolation from the observed write rate rather than a schedule -
+	 * see {@link CompactionForecast}.
+	 *
+	 * @return this data store's compaction forecast
+	 */
+	@Nonnull
+	CompactionForecast measureCompactionForecast();
 
 	/**
 	 * Fetches the last assigned price id from the global index (if this is present in the entity collection storage

@@ -157,6 +157,7 @@
 		<opentelemetry.version>1.64.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
+		<jol.version>0.17</jol.version>
 		<!--
 			Thread fan-out for the `unit`/`unitAndFunctional` surefire profiles. Defaults to
 			unlimited (best for beefy, many-core dev machines). CI (ci-dev.yml / pr-review.yml)
@@ -386,6 +387,19 @@
 				<groupId>org.bouncycastle</groupId>
 				<artifactId>bcutil-jdk18on</artifactId>
 				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<!--
+				Ground truth for every heap-footprint estimate in the codebase - `MemoryMeasuringConstants`,
+				`EvitaDataTypes.estimateSize` and the index size estimators. Managed here because two modules
+				consume it at DIFFERENT scopes (evita_performance_tests compiles its memory spikes against it,
+				evita_functional_tests only asserts with it), and the two must never drift apart: a JOL upgrade
+				that changed a reported layout would silently move the spikes' documented numbers away from the
+				figures the tests assert. Deliberately not given a scope here so each module keeps its own.
+			-->
+			<dependency>
+				<groupId>org.openjdk.jol</groupId>
+				<artifactId>jol-core</artifactId>
+				<version>${jol.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -695,7 +709,24 @@
 						cap concurrency to the runner's actual core count, which bounds the off-heap
 						driver and makes 8g a safe, comfortable step up from the previous 5g.
 					-->
-					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<!--
+						`jol.magicFieldOffset` lets JOL resolve field offsets on classes where
+						`Unsafe.objectFieldOffset` refuses outright - records and field-carrying lambdas. Without it
+						the heap-size tests cannot measure `AttributeIndexKey`, `ComparatorSource`,
+						`ChainDescriptor` and friends, which means `SortIndex`, `ChainIndex`, `AttributeIndex` and
+						every entity index above them cannot be verified against a real walk at all. It affects only
+						the path that would otherwise throw: the whole heap-size regression returns identical
+						figures with it on, and the record sizes it reports are arithmetically exact. Note that
+						the add-opens flags below cannot substitute for it, because this is not a package-access
+						restriction.
+					-->
+					<argLine>${surefireArgLine} -Xmx8g -Duser.country=US, -Duser.language=us
+						-Dfile.encoding=${project.build.sourceEncoding} -Djol.magicFieldOffset=true
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang.invoke=ALL-UNNAMED
+						--add-opens java.base/java.lang=ALL-UNNAMED
+						--add-opens java.base/java.math=ALL-UNNAMED
+						--add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

@@ -23,16 +23,29 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TaskNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.system.EngineSettings;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.api.statistics.CatalogIdentity;
+import io.evitadb.api.statistics.CatalogStatistics;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.ComponentAvailability;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.IndexBrowseCriteria;
+import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.UnexpectedIOException;
 
 import javax.annotation.Nonnull;
@@ -72,8 +85,15 @@ import java.util.concurrent.CompletableFuture;
  * Obtain an instance via {@link EvitaContract#management()}:
  * ```
  * EvitaManagementContract management = evita.management();
- * CatalogStatistics[] stats = management.getCatalogStatistics();
+ * SystemStatus status = management.getSystemStatus();
  * ```
+ *
+ * **Catalog statistics** are component-selected: a caller names the components it needs instead of paying for every
+ * statistic of every catalog on every call. Three entry points, by how much is being asked about -
+ * {@link #getCatalogStatistics(String, Set)} for one catalog, {@link #getAllCatalogStatistics(Set)} for the whole
+ * instance, and {@link #getEntityCollectionStatistics(String, String, Set)} for one collection. They are the remote
+ * face of {@link CatalogContract#getStatistics(Set)} and {@link EntityCollectionContract#getStatistics(Set)}, which
+ * answer the same questions when the engine is embedded.
  *
  * **Thread-Safety**
  *
@@ -82,28 +102,6 @@ import java.util.concurrent.CompletableFuture;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface EvitaManagementContract {
-
-	/**
-	 * Retrieves comprehensive statistics for all catalogs in the evitaDB instance, regardless of their state.
-	 * This method provides a global view of the instance's data, including active, inactive, and corrupted catalogs.
-	 *
-	 * **Use Cases**
-	 *
-	 * - Monitoring dashboards displaying instance health and capacity
-	 * - Administrative tools listing all available catalogs
-	 * - Capacity planning by analyzing disk usage and entity counts
-	 * - Health checks identifying corrupted or problematic catalogs
-	 *
-	 * **Performance Characteristics**
-	 *
-	 * This method aggregates data from all catalogs, which may be expensive for instances with many catalogs.
-	 * Results are computed on-demand and not cached.
-	 *
-	 * @return array of statistics for each catalog, ordered by catalog name; never null but may be empty
-	 *         if no catalogs exist
-	 */
-	@Nonnull
-	CatalogStatistics[] getCatalogStatistics();
 
 	/**
 	 * Creates a point-in-time backup of the specified catalog as a ZIP archive. This method supports backing up
@@ -392,5 +390,156 @@ public interface EvitaManagementContract {
 	 */
 	@Nonnull
 	EngineSettings getEngineSettings();
+
+	/**
+	 * Returns a component-selected statistics snapshot of a single catalog.
+	 *
+	 * The caller names the {@link CatalogStatisticsComponent}s it wants and the engine computes only those, so a
+	 * management screen refreshing on a timer pays for what it displays and nothing else. Every requested component
+	 * gets an entry in {@link CatalogStatistics#componentStatus()} saying whether it was delivered and, if not, why -
+	 * a component that was never requested has no entry at all, which is what lets a caller tell the two apart.
+	 * {@link CatalogStatisticsComponent#IDENTITY} is delivered whether or not it was requested.
+	 *
+	 * **Aggregates only.** No component reported here breaks down per collection, so the size of the answer does not
+	 * grow with the number of collections in the catalog. Statistics of one collection are fetched by naming it - see
+	 * {@link #getEntityCollectionStatistics(String, String, Set)} - and the two are independent snapshots that may
+	 * observe different catalog versions.
+	 *
+	 * **A corrupted catalog still answers.** It reports its identity, the components that read the file system
+	 * directly, and {@link ComponentAvailability#CATALOG_UNUSABLE} for the rest, rather than failing the call.
+	 *
+	 * @param catalogName name of the catalog to describe
+	 * @param components  the components to compute; at least one must be named
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws CatalogNotFoundException   when no catalog of that name exists
+	 * @throws EvitaInvalidUsageException when no component is requested
+	 */
+	@Nonnull
+	CatalogStatistics getCatalogStatistics(
+		@Nonnull String catalogName,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, EvitaInvalidUsageException;
+
+	/**
+	 * Returns a component-selected statistics snapshot of every catalog known to this instance, ordered by catalog
+	 * name. The instance-wide form of {@link #getCatalogStatistics(String, Set)}, and the replacement for the
+	 * statistics call that used to compute everything for every catalog on every invocation.
+	 *
+	 * Corrupted catalogs are included rather than skipped - a catalog missing from the answer would be
+	 * indistinguishable from a catalog that no longer exists, and a corrupted catalog is exactly what an operator
+	 * opens this call to find.
+	 *
+	 * Everything this call returns is multiplied by the number of catalogs, so components are weighed here on
+	 * **payload as much as on compute time**. The selection is opt-in and every component defined today is admitted -
+	 * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} included, because what it reports here is the catalog
+	 * index's global unique indexes, a handful of `O(1)` counter readings whose listing stays in the same size class
+	 * as {@link CatalogStatisticsComponent#COLLECTIONS}, and never the far more expensive per-collection form.
+	 *
+	 * @param components the components to compute for each catalog; at least one must be named
+	 * @return one snapshot per catalog, ordered by catalog name
+	 * @throws EvitaInvalidUsageException when nothing is requested
+	 */
+	@Nonnull
+	Collection<CatalogStatistics> getAllCatalogStatistics(
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws EvitaInvalidUsageException;
+
+	/**
+	 * Returns a component-selected statistics snapshot of a single entity collection.
+	 *
+	 * This is the only way to obtain per-collection numbers: {@link #getCatalogStatistics(String, Set)} reports
+	 * catalog-wide aggregates and never breaks them down by collection. The presence rules are the same as there, and
+	 * the two responses are independent snapshots - compare {@link CatalogIdentity#catalogVersion()} of each when
+	 * that matters.
+	 *
+	 * @param catalogName name of the catalog holding the collection
+	 * @param entityType  name of the entity collection to describe
+	 * @param components  the components to compute; every one of them must satisfy
+	 *                    {@link CatalogStatisticsComponent#isCollectionLevel()}
+	 * @return the snapshot, carrying the requested components and the status of each
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when the catalog holds no collection of that entity type; an empty response
+	 *                                     would be indistinguishable from an empty collection
+	 * @throws EvitaInvalidUsageException  when a component that has no collection-level form is requested
+	 */
+	@Nonnull
+	EntityCollectionStatistics getEntityCollectionStatistics(
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull Set<CatalogStatisticsComponent> components
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException;
+
+	/**
+	 * Returns one page of the indexes held by a single entity collection, or of those the catalog holds itself,
+	 * filtered and ordered as asked.
+	 *
+	 * Where {@link CatalogStatisticsComponent#INDEX_SUMMARY} counts a collection's indexes by kind and scope, this
+	 * enumerates them individually. It is the drill-down that follows an alarming count: forty thousand
+	 * `REFERENCED_ENTITY` indexes say something is wrong, and only a listing says which reference caused it.
+	 *
+	 * **`entityType` chooses the owner, and that is the only difference between the two.** Naming a collection browses
+	 * its indexes; passing null browses the catalog's own - the globally-unique attribute index there is one of per
+	 * scope. Both answer with the same rows under the same criteria, so a client renders one table and holds one code
+	 * path. A catalog index carries no entity-index kind and no reference, so criteria naming either select none of
+	 * them; see {@link BrowsedIndex}.
+	 *
+	 * **Never poll the collection form.** Every call walks the collection's whole index map - `O(indexes)`, unavoidably,
+	 * because there is no per-kind index of the indexes to consult and building one would duplicate every key while
+	 * still costing a full pass to order. Filters and ordering change the constant, not the growth. Paging keeps the
+	 * *answer* small, not the work behind it, so this belongs in the same explicitly-requested category as
+	 * {@link CatalogStatisticsComponent#INDEX_CARDINALITY} rather than on a refresh timer. The catalog form is bounded
+	 * by the number of scopes and carries none of that cost.
+	 *
+	 * @param catalogName name of the catalog holding the indexes
+	 * @param entityType  name of the entity collection whose indexes to browse, or null to browse the indexes the
+	 *                    catalog holds itself
+	 * @param criteria    which indexes to select, in what order, and which page of them to return
+	 * @return the requested page, the number of indexes that matched, and the catalog version it was read at
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when an entity type is named and the catalog holds no such collection; an
+	 *                                     empty page would be indistinguishable from a collection holding no indexes
+	 * @throws EvitaInvalidUsageException  when the criteria name a reference the entity schema does not declare. Only
+	 *                                     the collection form can raise this - a catalog browse has no entity schema to
+	 *                                     validate against, and answers a reference filter with an empty page
+	 */
+	@Nonnull
+	IndexBrowseResult browseIndexes(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		@Nonnull IndexBrowseCriteria criteria
+	) throws CatalogNotFoundException, CollectionNotFoundException, EvitaInvalidUsageException;
+
+	/**
+	 * Describes one index in full - what it occupies on the heap, and how well it discriminates.
+	 *
+	 * The drill-down that follows {@link #browseIndexes(String, String, IndexBrowseCriteria)}: that lists an owner's
+	 * indexes cheaply, this measures one of them. Hand the same `entityType` back together with the
+	 * {@link BrowsedIndex#indexPrimaryKey()} of the row that looked worth investigating - the two together are the
+	 * index's identity, since the same handle under another owner is another index.
+	 *
+	 * **The caller names the index, and that is what bounds the cost.** Estimating an index's heap walks its contents,
+	 * which no cache can amortise - a measured warm second pass came back slower than the cold one. On a production
+	 * catalog the largest single index took 151 ms and the median took ~4 µs, so one named index is affordable while
+	 * sweeping a collection of a quarter of a million of them is not. There is deliberately no call that measures a
+	 * whole collection: a caller who wants a total issues these in parallel and sums them, which keeps the cost
+	 * visible to whoever chose to pay it.
+	 *
+	 * @param catalogName     name of the catalog holding the index
+	 * @param entityType      name of the entity collection holding the index, or null when the catalog holds it itself
+	 * @param indexPrimaryKey identity of the index to describe, as reported by {@link BrowsedIndex#indexPrimaryKey()}
+	 * @return the full description of that one index
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when an entity type is named and the catalog holds no such collection
+	 * @throws IndexNotFoundException      when that owner holds no index under that handle. A collection's index can be
+	 *                                     reclaimed between the browse and the drill-down, and a catalog's is created
+	 *                                     lazily per scope, so this is an ordinary outcome rather than necessarily a
+	 *                                     mistake - but it can never mean the handle now denotes a *different* index
+	 */
+	@Nonnull
+	IndexDetail getIndexDetail(
+		@Nonnull String catalogName,
+		@Nullable String entityType,
+		int indexPrimaryKey
+	) throws CatalogNotFoundException, CollectionNotFoundException, IndexNotFoundException;
 
 }
