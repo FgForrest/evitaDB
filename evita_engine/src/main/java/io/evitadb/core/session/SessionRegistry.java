@@ -61,7 +61,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -82,7 +84,9 @@ import static java.util.Optional.ofNullable;
  * ## Thread Safety Model
  *
  * Uses {@link ConcurrentHashMap} for session storage, {@link AtomicReference} for suspension state,
- * and per-session {@link ReentrantLock} for atomic operations.
+ * and per-session {@link ReentrantLock} for atomic operations. Registering a session and suspending the registry are
+ * additionally fenced against each other by {@link #registrationGate} - see its documentation for why the two cannot
+ * be left to the atomics alone.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see EvitaSessionProxy for session proxy implementation
@@ -109,6 +113,28 @@ public final class SessionRegistry {
 	 * This field is used to keep track of the current suspend operation (if any).
 	 */
 	private final AtomicReference<InSuspension> currentSuspension;
+	/**
+	 * Fences session registration against suspension, so that "this registry is not suspended" and "the session is
+	 * visible in {@link #activeSessions}" are one indivisible step rather than two.
+	 *
+	 * Registration holds the read lock; {@link #closeAllActiveSessionsAndSuspend(SuspendOperation)} takes the write
+	 * lock once as a barrier after publishing the suspension. Left to the atomics alone the two are a check-then-act:
+	 * a thread that has already read {@link #currentSuspension} as empty may still be several instructions short of
+	 * putting its session into the map, and the drain then finds the map empty and reports the catalog quiesced while
+	 * a live session is about to appear on it. Callers act on that report by destroying the catalog - a rename closes
+	 * the persistence service the straggler is about to read - so the straggler sees `PersistenceServiceClosed`, an
+	 * internal error, where the contract owes it a well-defined invalid-usage answer.
+	 *
+	 * Shared by reference with the registry {@link #withDifferentCatalogSupplier(Supplier)} builds, exactly as
+	 * {@link #activeSessions} and {@link #currentSuspension} are: a fresh lock there would leave two independent gates
+	 * guarding one map, which is this very bug reintroduced by a rename.
+	 *
+	 * **The gate is only as complete as the paths that take it.** {@link #addSession(boolean, Supplier)} is today the
+	 * one and only way a session enters {@link #activeSessions}, which is what lets a single gate cover the whole
+	 * registry - {@link #createSession(Function)} reaches it too, since its factory ends there. A second registration
+	 * path that writes the map directly would be outside this fence and would reopen the race in silence.
+	 */
+	private final ReentrantReadWriteLock registrationGate;
 	/**
 	 * This field is used to keep track of the sessions that were forcefully closed due to a suspension operation.
 	 * The information is held only for a limited time.
@@ -144,6 +170,7 @@ public final class SessionRegistry {
 		this.sharedDataStore = sharedDataStore;
 		this.activeSessions = CollectionUtils.createConcurrentHashMap(512);
 		this.currentSuspension = new AtomicReference<>(null);
+		this.registrationGate = new ReentrantReadWriteLock();
 		this.sessionsFifoQueue = new ConcurrentLinkedQueue<>();
 		this.catalogConsumedVersions = CollectionUtils.createConcurrentHashMap(32);
 	}
@@ -154,6 +181,7 @@ public final class SessionRegistry {
 		@Nonnull SessionRegistryDataStore sharedDataStore,
 		@Nonnull Map<UUID, EvitaSessionTuple> activeSessions,
 		@Nonnull AtomicReference<InSuspension> currentSuspension,
+		@Nonnull ReentrantReadWriteLock registrationGate,
 		@Nonnull ConcurrentLinkedQueue<EvitaSessionTuple> sessionsFifoQueue,
 		@Nonnull ConcurrentHashMap<String, VersionConsumingSessions> catalogConsumedVersions
 	) {
@@ -162,6 +190,7 @@ public final class SessionRegistry {
 		this.sharedDataStore = sharedDataStore;
 		this.activeSessions = activeSessions;
 		this.currentSuspension = currentSuspension;
+		this.registrationGate = registrationGate;
 		this.sessionsFifoQueue = sessionsFifoQueue;
 		this.catalogConsumedVersions = catalogConsumedVersions;
 	}
@@ -185,6 +214,15 @@ public final class SessionRegistry {
 		@Nonnull SuspendOperation suspendOperation
 	) {
 		if (this.currentSuspension.compareAndSet(null, new InSuspension(suspendOperation))) {
+			// A barrier rather than a critical section: taking the write lock and giving it straight back waits out
+			// every registration that read the suspension as empty before the line above and has not yet reached
+			// `activeSessions`. Once it is granted, each of those is either already visible in the map or will see
+			// the suspension and be refused - which is what makes the drain below reading an empty map mean "there
+			// is nobody left" rather than "there is nobody left yet". Taken before the census on the next line so
+			// that the count covers the stragglers too.
+			final Lock registrationBarrier = this.registrationGate.writeLock();
+			registrationBarrier.lock();
+			registrationBarrier.unlock();
 			// init information about closed sessions
 			final SuspensionInformation suspensionInformation = new SuspensionInformation(
 				this.activeSessions.size()
@@ -329,7 +367,7 @@ public final class SessionRegistry {
 		boolean transactional,
 		@Nonnull Supplier<EvitaSession> sessionSupplier
 	) {
-		return handleSuspension(() -> {
+		return registerWhileNotSuspended(() -> {
 			if (!transactional && !this.activeSessions.isEmpty()) {
 				throw new ConcurrentInitializationException(this.activeSessions.keySet().iterator().next());
 			}
@@ -507,6 +545,7 @@ public final class SessionRegistry {
 			this.sharedDataStore,
 			this.activeSessions,
 			this.currentSuspension,
+			this.registrationGate,
 			this.sessionsFifoQueue,
 			this.catalogConsumedVersions
 		);
@@ -530,12 +569,64 @@ public final class SessionRegistry {
 	 */
 	private <T> T handleSuspension(@Nonnull Supplier<T> supplier) {
 		final InSuspension inSuspension = this.currentSuspension.get();
-		if (inSuspension == null) {
-			return supplier.get();
-		} else if (inSuspension.suspendOperation() == SuspendOperation.POSTPONE) {
-			if (inSuspension.awaitFinish(500, TimeUnit.MILLISECONDS)) {
-				return supplier.get();
-			} else {
+		if (inSuspension != null) {
+			awaitResumeOrRefuse(inSuspension);
+		}
+		return supplier.get();
+	}
+
+	/**
+	 * Runs a session registration behind the gate {@link #registrationGate} describes, so that the suspension check
+	 * and the session's appearance in {@link #activeSessions} cannot be split apart by a concurrent suspension.
+	 *
+	 * Registration alone is gated. {@link #handleSuspension(Supplier)} stays ungated for the outer session factory,
+	 * whose body reaches user-supplied callbacks that must never be able to hold a rename up.
+	 *
+	 * @param <T>      the type of the result provided by the supplier
+	 * @param supplier registers the session and returns it
+	 * @return the result of the supplier's operation
+	 * @throws SessionBusyException        if the registry is suspended and did not resume in time
+	 * @throws InstanceTerminatedException if the registry is suspended because the catalog is being terminated
+	 */
+	private <T> T registerWhileNotSuspended(@Nonnull Supplier<T> supplier) {
+		// At most one retry: the first pass is the ordinary path and the second is the one a POSTPONE that has since
+		// finished has earned. A registry that manages to suspend again in between is genuinely busy, and answering
+		// so beats looping until it stops - `SessionBusyException` is already what the postponed path answers when
+		// its own wait runs out, so no caller gains a case it does not already handle.
+		for (int attempt = 0; attempt < 2; attempt++) {
+			final Lock registrationLock = this.registrationGate.readLock();
+			registrationLock.lock();
+			try {
+				if (this.currentSuspension.get() == null) {
+					return supplier.get();
+				}
+			} finally {
+				registrationLock.unlock();
+			}
+			// Waited out with the gate released, deliberately: a POSTPONE is waited out until the operation that
+			// installed it finishes, and that operation is itself waiting on the barrier this thread would
+			// otherwise be holding shut.
+			final InSuspension inSuspension = this.currentSuspension.get();
+			// null means the suspension ended between releasing the gate and this read - there is nothing to wait
+			// for, and the next pass takes the gate again
+			if (inSuspension != null) {
+				awaitResumeOrRefuse(inSuspension);
+			}
+		}
+		throw SessionBusyException.INSTANCE;
+	}
+
+	/**
+	 * Waits out a postponing suspension, or refuses outright when the catalog behind this registry is being
+	 * terminated.
+	 *
+	 * @param inSuspension the suspension currently in effect
+	 * @throws SessionBusyException        if the suspension postpones and did not finish within the timeout
+	 * @throws InstanceTerminatedException if the suspension rejects
+	 */
+	private static void awaitResumeOrRefuse(@Nonnull InSuspension inSuspension) {
+		if (inSuspension.suspendOperation() == SuspendOperation.POSTPONE) {
+			if (!inSuspension.awaitFinish(500, TimeUnit.MILLISECONDS)) {
 				throw SessionBusyException.INSTANCE;
 			}
 		} else {

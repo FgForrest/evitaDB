@@ -1,12 +1,12 @@
 ---
 title: Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap
 date: 2026-08-06
-updated: 2026-08-11 21:08
+updated: 2026-08-14 14:20
 status: partially-implemented
 kind: refactor
 issues: [649]
 prs: []
-areas: [evita_engine/src/main/java/io/evitadb/core/engine, evita_engine/src/main/java/io/evitadb/spi/store/engine, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
+areas: [evita_engine/src/main/java/io/evitadb/core/engine, evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/spi/store/engine, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
 supersedes: []
 superseded-by: []
 relates: []
@@ -903,8 +903,33 @@ ergonomics the absolute path used to provide.
   restore-in-place after a disaster. That is the intended outcome — the restored catalog lost everything
   committed after the backup point, so reusing the id would let a client keep serving what it believes
   is current.
+- **The reader guarantee had a race, and only CI ever hit it.** `CatalogPointerSwapReaderAvailabilityTest` is the
+  criterion this decision was accepted against — every failure a reader sees must be in the invalid-usage family —
+  and on 2026-08-14 it caught a straggler seeing `PersistenceServiceClosed`, an `EvitaInternalError`. The cause is
+  older than this record and independent of the folder decoupling: `SessionRegistry#handleSuspension` read the
+  suspension and registered the session as two steps, so a thread that had already passed the check could enter
+  `activeSessions` *after* `closeAllActiveSessionsAndSuspend` drained it and reported the catalog quiesced. The
+  rename acts on that report by closing the persistence service (`DefaultCatalogPersistenceService#replaceWith`)
+  under a live reader, whose next `countEntities` throws.
+
+  **Fixed by fencing the registration, not by translating the exception.** Registration now holds a read lock, and
+  the suspension takes the write lock once as a barrier after publishing itself — a `lock(); unlock();` pair rather
+  than a held lock, so it waits out only the registrations already in flight.
+
+  **Rejected: mapping `PersistenceServiceClosed` onto an invalid-usage exception at the session boundary.** It is
+  the cheaper change and it would have turned the acceptance test green, which is exactly why it needs recording:
+  it leaves a session running against a closed catalog and only relabels what that session is told. The guarantee
+  is that a reader is served or refused, not that it is refused in a tidier exception family. Worth revisiting only
+  if a registration path appears that genuinely cannot be fenced.
+
+  **A trap for anyone touching this:** the lock is shared *by reference* with the registry
+  `withDifferentCatalogSupplier` builds, exactly as `activeSessions` and the suspension reference already are. A
+  fresh lock there would leave two independent gates guarding one map — this same bug, reintroduced by a rename.
+  `SessionRegistrySuspensionTest` pins the barrier and fails in 8 ms without it.
 
 ## Timeline
 
 - **2026-08-05** — investigation and design; the plan and its seven proposed points assessed
 - **2026-08-06** — steps 1–9 implemented across ten commits on `649-cannot-replace-catalog-through-grpc`
+- **2026-08-14** — the reader-availability acceptance test failed in CI on a session-registration race older
+  than this work; fenced in `SessionRegistry` and pinned by `SessionRegistrySuspensionTest`
