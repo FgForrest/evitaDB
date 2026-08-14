@@ -85,7 +85,11 @@ final class IndexCardinalityProjection {
 	/**
 	 * Describes the cardinality of every schema-bounded index the collection holds.
 	 *
-	 * @param indexes        the collection's live index map
+	 * **The map must be one stable state, not the live one.** The lookups below and the `size()` they are subtracted
+	 * from are separate reads; taken against a map a warm-up writer is still mutating, a removal in between makes
+	 * `omittedIndexCount` negative. The caller passes a snapshot for exactly this reason.
+	 *
+	 * @param indexes        a sealed snapshot of the collection's index map, never the live one
 	 * @param referenceNames names of the reference schemas the collection declares, which is what bounds the number
 	 *                       of reference indexes that can be described
 	 * @return the {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} component
@@ -116,7 +120,8 @@ final class IndexCardinalityProjection {
 		return new CollectionIndexCardinality(
 			described.toArray(IndexCardinality[]::new),
 			// everything the targeted lookups did not find: the per-referenced-entity, per-hierarchy-node and
-			// per-group-entity indexes, whose number grows with the data. Both terms are `O(1)`
+			// per-group-entity indexes, whose number grows with the data. Both terms are `O(1)` on the snapshot the
+			// caller passed, and cannot go negative because they read the same state
 			indexes.size() - described.size()
 		);
 	}

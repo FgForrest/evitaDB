@@ -1081,9 +1081,16 @@ public final class EntityCollection implements
 				case FRAGMENTATION -> builder.withFragmentation(
 					describeFragmentation(Objects.requireNonNull(storageFootprint))
 				);
+				// `snapshot()` for the same reason `browseIndexes` takes one: the targeted lookups and the total they
+				// are subtracted from have to come from ONE state of the map. Read against the live map, a warm-up
+				// writer removing an index between the lookups and the count yields a NEGATIVE `omittedIndexCount`.
+				// The cost is not uniform and is accepted deliberately: free once the map is sealed (transactional
+				// mode hands back the existing trie), an `O(N)` throw-away build while warm-up still holds a
+				// `HashMap`. A statistic that cannot be internally invalid is worth more than an `O(1)` that can
+				// report a negative count, and this is a management call, not a query path
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					IndexCardinalityProjection.describe(
-						this.indexes, getInternalSchema().getReferences().keySet()
+						this.indexes.snapshot(), getInternalSchema().getReferences().keySet()
 					)
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them

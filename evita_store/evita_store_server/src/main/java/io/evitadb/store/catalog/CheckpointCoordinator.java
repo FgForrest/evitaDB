@@ -243,10 +243,20 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 	 * Called immediately before a bootstrap record is written, which is what makes the ordering invariant structural:
 	 * a record pointing into a data file cannot become durable before the bytes it addresses have.
 	 *
-	 * The set is snapshotted, forced and then removed by identity rather than cleared. A handle written between the
-	 * snapshot and the force must stay pending - clearing would drop it and leave a durable pointer to bytes that
-	 * were never synced, whereas forcing it again in the next checkpoint costs a redundant device flush (measured at
-	 * ~0.5 ms) and is harmless.
+	 * **Each handle is removed immediately before its own force, and put back if that force throws.** Two things have
+	 * to hold at once and they pull in opposite directions:
+	 *
+	 * - `pendingHandles` is a set, so re-registering a handle it already contains is a no-op. Removing *after* the
+	 *   force means a write landing through that handle once its `forceDurable()` returned registers nothing, and the
+	 *   removal then erases a sync debt nobody paid - a later bootstrap record pointing at bytes no force reached,
+	 *   which is exactly the corruption the ordering invariant above exists to rule out.
+	 * - `forceDurable` throws {@link io.evitadb.store.offsetIndex.exception.SyncFailedException} on an IO error, and
+	 *   both callers catch it and carry on. Draining the whole set up front would therefore lose every handle after
+	 *   the one that threw, reaching the same corruption by the other route.
+	 *
+	 * Interleaving satisfies both: the window in which a concurrent `noteSyncPending` can be swallowed is one
+	 * handle's own force, and the re-add on failure closes even that. The cost of losing the race the harmless way is
+	 * one redundant device flush in the next checkpoint (measured at ~0.5 ms).
 	 */
 	public void forcePendingSyncs() {
 		// deliberately no early return on an empty set: the counters below are what the next completed checkpoint
@@ -255,11 +265,14 @@ public class CheckpointCoordinator implements PendingSyncRegistry, Closeable {
 		final long startNanos = System.nanoTime();
 		final WriteOnlyHandle[] snapshot = this.pendingHandles.toArray(WriteOnlyHandle[]::new);
 		for (final WriteOnlyHandle handle : snapshot) {
-			handle.forceDurable();
-		}
-		// remove exactly what was forced; anything registered in the meantime stays owed
-		for (final WriteOnlyHandle handle : snapshot) {
 			this.pendingHandles.remove(handle);
+			try {
+				handle.forceDurable();
+			} catch (RuntimeException ex) {
+				// the debt is still owed - the caller logs and carries on, so the next checkpoint has to retry this
+				this.pendingHandles.add(handle);
+				throw ex;
+			}
 		}
 		this.forceStats.accumulateAndGet(
 			new ForceStats(snapshot.length, (System.nanoTime() - startNanos) / 1_000_000L),
