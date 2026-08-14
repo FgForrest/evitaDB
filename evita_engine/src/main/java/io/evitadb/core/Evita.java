@@ -1724,32 +1724,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Registers a session registry for a specific catalog. This ensures that a session
-	 * registry is associated with the provided catalog name. If a session registry
-	 * for the given catalog name already exists, an error is thrown to prevent overwriting.
-	 *
-	 * @param catalogName the name of the catalog to associate with the session registry
-	 * @param sessionRegistry the session registry to register with the catalog
-	 * @throws GenericEvitaInternalError if a session registry for the specified catalog name already exists
-	 */
-	public void registerCatalogSessionRegistry(@Nonnull String catalogName, @Nonnull SessionRegistry sessionRegistry) {
-		this.catalogSessionRegistries.compute(
-			catalogName,
-			(__, existingRegistry) -> {
-				if (existingRegistry != null && existingRegistry != sessionRegistry) {
-					throw new GenericEvitaInternalError(
-						"Catalog session registry for catalog `" + catalogName + "` already exists! " +
-							"Cannot overwrite it with another one!"
-					);
-				} else {
-					// otherwise we register the new one
-					return sessionRegistry;
-				}
-			}
-		);
-	}
-
-	/**
 	 * Registers a session registry for a specific catalog replacing any potentially existing registry under particular
 	 * catalog name. This ensures that a session registry is associated with the provided catalog name.
 	 *
