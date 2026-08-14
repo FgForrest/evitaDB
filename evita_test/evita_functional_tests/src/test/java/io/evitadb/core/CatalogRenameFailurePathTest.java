@@ -80,13 +80,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * offered. Both suspensions used to be lifted on the success path only.
  *
  * The third covers the *other* undo branch, which the second deliberately avoids: a target nobody has opened a
- * session on since boot has no registry, so the operation installs one purely to quiesce it and the undo has to
- * unpublish that registry rather than restore it. Calibrated by dropping the
- * `removeCatalogSessionRegistryIfPresent` call from that branch - the target then answers
- * `InstanceTerminatedException` for the rest of the process. What it cannot calibrate is the *ordering* within
- * that branch - unpublishing before resuming, so a racing `createSession` cannot land a live session in a
- * registry that is about to become unreachable - because reaching that window needs an interleaving no seam
- * exposes. The removal is asserted; the ordering is argued at the site.
+ * session on since boot has no registry, so the operation installs one purely to quiesce it, and the undo has to
+ * resume that registry **in place** rather than restore or unpublish it. Calibrated by dropping the
+ * `resumeOperations` call from that branch - the target then answers `InstanceTerminatedException` for the rest
+ * of the process.
  *
  * **How the failure is injected, and why here.** No production seam is used and no timing is raced. `replaceWith`
  * writes the header and the bootstrap record through handles opened at boot, which file permissions cannot fail;
@@ -247,8 +244,8 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("Leaves no registry behind when it installed one purely to quiesce the replace target")
-	void shouldLeaveNoRegistryBehindWhenReplaceFailsAgainstAnUntouchedTarget() throws Exception {
+	@DisplayName("Leaves the target serving when it installed a registry purely to quiesce it")
+	void shouldLeaveTheTargetServingWhenTheFailedReplaceInstalledItsRegistry() throws Exception {
 		defineCatalogAndGoLive(TEST_CATALOG);
 		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
 		defineCatalogAndGoLive(REPLACED_CATALOG);
@@ -281,14 +278,13 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 			Files.setPosixFilePermissions(dataFile, originalPermissions);
 		}
 
-		// asserted before anything opens a session, which would build a registry of its own and hide the leak.
-		// The registry the operation installed is suspended with REJECT, so leaving it published would make the
-		// target - a catalog that was never touched - answer `InstanceTerminatedException` for the rest of the
-		// process. Unpublishing it while it is still suspended is also what keeps a racing session request from
-		// landing in a registry that is about to become unreachable.
+		// Asserted before anything opens a session, so the registry can only be the one the operation installed
+		// to quiesce the target: it stays published and is resumed in place, which is exactly the state the
+		// first session would have left it in. The alternative - unpublishing it - orphans whatever sessions
+		// outlived a drain that gave up, since every later quiesce walks the registry map.
 		assertTrue(
-			this.evita.getCatalogSessionRegistry(REPLACED_CATALOG).isEmpty(),
-			"A failed replace must unpublish the registry it installed purely to quiesce the target!"
+			this.evita.getCatalogSessionRegistry(REPLACED_CATALOG).isPresent(),
+			"The failed replace must keep the registry it installed, rather than unpublishing it!"
 		);
 		assertEquals(
 			TARGET_VALUE, readPayload(REPLACED_CATALOG, 2),

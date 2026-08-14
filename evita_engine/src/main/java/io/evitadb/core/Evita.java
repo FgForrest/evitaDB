@@ -1673,8 +1673,13 @@ public final class Evita implements EvitaContract {
 	 * {@link CatalogNotFoundException} rather than the "terminated" that a placeholder would produce — a replace
 	 * is allowed to target a catalog that does not exist.
 	 *
-	 * The caller is responsible for what happens next: a registry this call created must be **removed** if the
-	 * operation fails, never restored, or the name is left permanently refusing sessions.
+	 * The caller is responsible for what happens next: a registry this call created must be **resumed or
+	 * removed** if the operation fails, or the name is left permanently refusing sessions.
+	 *
+	 * **An operation that has to undo the suspension cannot use this method**, because the drain it performs
+	 * throws when the sessions refuse to leave — and it throws with the suspension already published, so the
+	 * caller never learns which registry it now owns. Such a caller takes ownership through
+	 * {@link #obtainCatalogSessionRegistry(String)} first and drains the registry itself.
 	 *
 	 * @param catalogName      catalog whose sessions are to be closed and suspended
 	 * @param suspendOperation how requests arriving during the suspension are to be treated
@@ -1685,17 +1690,37 @@ public final class Evita implements EvitaContract {
 		@Nonnull String catalogName,
 		@Nonnull SuspendOperation suspendOperation
 	) {
-		final SessionRegistry registry = this.catalogSessionRegistries.computeIfAbsent(
-			catalogName,
-			name -> getCatalogInstance(name)
-				.map(__ -> createSessionNewRegistry(new SessionTraits(name)))
-				.orElse(null)
+		final Optional<SessionRegistry> registry = obtainCatalogSessionRegistry(catalogName);
+		registry.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+		return registry;
+	}
+
+	/**
+	 * Returns the session registry of the passed catalog, **installing one when it has none**.
+	 *
+	 * This is the half of {@link #suspendCatalogSessions(String, SuspendOperation)} that cannot fail: it takes
+	 * ownership of a registry without touching the sessions inside it. An operation that must be able to lift its
+	 * own suspension calls this first, records what it now owns, and only then drains — because the drain
+	 * publishes the suspension before it waits, and a drain that gives up throws with that suspension standing.
+	 *
+	 * The registry is installed through `computeIfAbsent` on the very map session creation uses, so a racing
+	 * request either finds the registry this call installed or is the one that installed it, and this call then
+	 * returns that same instance. **A name that names no catalog gets no registry**, so a request for it keeps
+	 * answering {@link CatalogNotFoundException} rather than the "terminated" a placeholder would produce.
+	 *
+	 * @param catalogName catalog whose registry is to be obtained
+	 * @return the registry registered under that name, or empty when the name names no catalog
+	 */
+	@Nonnull
+	public Optional<SessionRegistry> obtainCatalogSessionRegistry(@Nonnull String catalogName) {
+		return ofNullable(
+			this.catalogSessionRegistries.computeIfAbsent(
+				catalogName,
+				name -> getCatalogInstance(name)
+					.map(__ -> createSessionNewRegistry(new SessionTraits(name)))
+					.orElse(null)
+			)
 		);
-		if (registry == null) {
-			return empty();
-		}
-		registry.closeAllActiveSessionsAndSuspend(suspendOperation);
-		return of(registry);
 	}
 
 	/**

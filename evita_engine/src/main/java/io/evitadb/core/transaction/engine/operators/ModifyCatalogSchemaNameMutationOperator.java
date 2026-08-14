@@ -139,44 +139,55 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		@Nonnull Evita evita,
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
-		// close all active sessions to the catalog that will replace the original one
-		final Optional<SessionRegistry> prevailingCatalogSessionRegistry = evita.getCatalogSessionRegistry(catalogNameToBeReplacedWith);
+		// Obtained rather than merely looked up, so that a catalog which has no registry gets one installed here:
+		// registries are built lazily by the first session, so a catalog nobody has opened one on since boot has
+		// none at all, and suspending "whatever is registered" then suspends nothing. A session racing the
+		// operation would bind to the very catalog whose persistence service `replace` is about to close, and the
+		// completion path - which captured an empty Optional - would neither hand that late registry to the new
+		// name nor drain it.
+		final Optional<SessionRegistry> prevailingCatalogSessionRegistry =
+			evita.obtainCatalogSessionRegistry(catalogNameToBeReplacedWith);
 		// this will be always empty if catalogToBeReplaced == catalogToBeReplacedWith
-		Optional<SessionRegistry> removedCatalogSessionRegistry = evita.getCatalogSessionRegistry(catalogNameToBeReplaced);
+		final Optional<SessionRegistry> removedCatalogSessionRegistry =
+			evita.getCatalogSessionRegistry(catalogNameToBeReplaced);
 
-		prevailingCatalogSessionRegistry
-			.ifPresent(sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE));
-
-		// Written to as soon as the target is quiesced below, and read only by `undoOperations` - which is
-		// declared before that point and therefore cannot capture the local the quiescing produces.
+		// Written as soon as the target registry is owned - before it is drained, never after - and read only by
+		// `undoOperations`, which is declared above that point and cannot capture the local it produces.
 		final AtomicReference<SessionRegistry> quiescedTargetRegistryHolder = new AtomicReference<>();
 
 		final Runnable undoOperations = () -> {
-			// The registry map is put back the way it was *before* anything is resumed, and a registry dropped
-			// here is never resumed at all. Session creation goes through `computeIfAbsent` on this very map, so
-			// a registry that is both reachable and running accepts sessions: resuming first opens a window in
-			// which a racing `createSession` lands a live session in a registry the next line then unpublishes.
-			// Every later quiesce - replace, delete, engine shutdown - walks the map, so that session would be
-			// invisible to all of them and its catalog could be terminated underneath it.
+			// Which of the three outcomes applies is decided by what answered to the target name when the
+			// operation started, never by what answers to it now.
+			final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
 			if (removedCatalogSessionRegistry.isPresent()) {
-				// revert session registry swap
+				// A registry that predates the operation: restored under its name first, resumed after, in that
+				// order. Session creation goes through `computeIfAbsent` on this same map, so a name left empty
+				// for the length of a resume is a name a racing request can register a *different* registry
+				// under - which the restore then refuses, throwing out of the undo path itself.
 				evita.registerCatalogSessionRegistry(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
 				// A replace quiesces its target with REJECT before touching anything, and a failure leaves that
 				// target standing - the operation changed nothing. Resuming it is therefore part of undoing, or
 				// the catalog that was *not* replaced spends the rest of the process answering
-				// `InstanceTerminatedException` to every session opened against it. Guarded on the holder rather
-				// than resumed unconditionally, so that a suspension this operation did not install - one a
-				// concurrent operation is holding - is never cleared on its behalf.
-				final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
+				// `InstanceTerminatedException` to every session opened against it. Guarded on the holder so that
+				// a suspension this operation never installed is not cleared on someone else's behalf.
 				if (quiescedTargetRegistry != null) {
 					quiescedTargetRegistry.resumeOperations();
 				}
+			} else if (quiescedTargetRegistry != null) {
+				// A registry this operation installed itself, purely to quiesce the target. The replace failed,
+				// so that catalog is still there and still answers to this name - which makes a resumed registry
+				// under it exactly what the first session would have built anyway.
+				//
+				// Resumed **in place**, never unpublished: the drain can give up with sessions still inside it,
+				// and a registry that cannot be reached through the map is invisible to every later quiesce -
+				// replace, delete, engine shutdown - so those sessions would outlive the catalog they are bound
+				// to. Unpublishing while suspended has the mirror-image cost, since a resume that follows the
+				// removal lets a racing `createSession` populate a registry nobody can reach any more.
+				quiescedTargetRegistry.resumeOperations();
 			} else {
-				// Whatever answers to this name is the registry `suspendCatalogSessions` installed purely to
-				// quiesce the target. It is dropped rather than resumed into service - the rule the success path
-				// and `retireStragglerRegistry` already follow - so the next request builds a clean one through
-				// the map, while a thread still holding a stale reference keeps being refused instead of
-				// populating a registry nobody can reach any more.
+				// Nothing was quiesced under this name: a rename, whose target names nothing until the commit
+				// lands, or a replace onto a name that names no catalog. Whatever answers to it can only have
+				// been put there by the registry swap on the success path, and goes back with the rest of it.
 				evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
 			}
 			// and revert the suspension the operation opened with. Resuming used to happen on the success path
@@ -191,6 +202,15 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		};
 
 		try {
+			// Drained inside the `try`, so that a drain which gives up reaches `undoOperations` at all.
+			// `closeAllActiveSessionsAndSuspend` publishes the suspension and only then waits for the sessions to
+			// leave, and throws when they do not - with that suspension standing. Published before the `try`
+			// began, as it used to be, a session that outlasted the five-second drain left the surviving catalog
+			// answering `SessionBusyException` to everything for the rest of the process.
+			prevailingCatalogSessionRegistry.ifPresent(
+				sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE)
+			);
+
 			final boolean replaceOperation = catalogToBeReplaced != catalogToBeReplacedWith;
 			// Both folders are resolved here, in the read-only phase, and never again. The commit below repoints
 			// the target name at the source folder, so re-reading either afterwards would answer about the world
@@ -216,21 +236,26 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			// first terminate the catalog that is being replaced (unless it's the very same catalog)
 			final Optional<SessionRegistry> quiescedTargetRegistry;
 			if (replaceOperation) {
-				// `suspendCatalogSessions` rather than suspending only what `getCatalogSessionRegistry` already
-				// found: a target nobody has opened a session on since boot has no registry, so the captured
-				// Optional is empty and nothing is quiesced at all - which is how sessions came to be served
-				// against a catalog while it was being destroyed. It installs one only when the name names a
-				// catalog, so a replace onto a target that does not exist keeps answering
-				// `CatalogNotFoundException` rather than reporting a terminated instance.
+				// Obtained rather than looked up, for the reason the surviving catalog is: a target nobody has
+				// opened a session on since boot has no registry, so suspending what `getCatalogSessionRegistry`
+				// finds quiesces nothing at all - which is how sessions came to be served against a catalog while
+				// it was being destroyed. A registry is installed only when the name names a catalog, so a
+				// replace onto a target that does not exist keeps answering `CatalogNotFoundException` rather
+				// than reporting a terminated instance.
 				//
-				// Held apart from `removedCatalogSessionRegistry`, which stays the *pre-existing* registry:
-				// `undoOperations` must remove a registry this call created rather than restore it, and the
-				// captured Optional is empty exactly when we created it ourselves.
-				quiescedTargetRegistry = evita.suspendCatalogSessions(
-					catalogNameToBeReplaced, SuspendOperation.REJECT
-				);
-				// handed to the undo path, which has to lift this suspension when the operation fails
+				// Ownership is recorded *between* obtaining and draining, deliberately. The drain publishes the
+				// suspension before it waits, so it throws with the suspension standing; recording afterwards
+				// would leave `undoOperations` unaware of a registry it has to resume, and the catalog that was
+				// not replaced would reject every session until the process ended.
+				//
+				// Held apart from `removedCatalogSessionRegistry`, which stays the *pre-existing* registry: the
+				// captured Optional is empty exactly when this operation installed the registry itself, and undo
+				// resumes that one in place rather than restoring anything.
+				quiescedTargetRegistry = evita.obtainCatalogSessionRegistry(catalogNameToBeReplaced);
 				quiescedTargetRegistry.ifPresent(quiescedTargetRegistryHolder::set);
+				quiescedTargetRegistry.ifPresent(
+					sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.REJECT)
+				);
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
 				quiescedTargetRegistry = Optional.empty();
@@ -343,12 +368,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 								previous, quiescedTargetRegistry.orElse(null), catalogNameToBeReplaced
 							);
 						},
-						// The surviving catalog has no registry to hand over - nothing had opened a session on it
-						// since boot. Whatever is registered under the target name is then the registry this
-						// operation installed *purely to quiesce it*, and leaving that behind would keep the name
-						// rejecting sessions for the life of the process: the catalog would survive the replace
-						// and be unreachable afterwards. Dropped rather than resumed into service, so the next
-						// request builds a clean one against the catalog that now answers to this name.
+						// The surviving catalog has no registry to hand over. Reachable only if it stopped being a
+						// catalog between the `obtainCatalogSessionRegistry` that opens this method and here,
+						// which the engine's serialised mutations should make impossible - kept as cleanup rather
+						// than an assertion because this runs *after* the commit, where reporting a failure is
+						// worse than tidying up. Whatever is registered under the target name is then the registry
+						// this operation installed purely to quiesce it, and leaving that behind would keep the
+						// name rejecting sessions for the life of the process.
 						//
 						// Unpublished and left suspended, never resumed: a resumed registry that no longer answers
 						// to any name still accepts sessions from whoever holds a reference to it, and those

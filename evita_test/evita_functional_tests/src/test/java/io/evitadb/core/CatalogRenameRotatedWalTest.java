@@ -110,8 +110,6 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 	private static final int TRANSACTION_COUNT = 30;
 	private static final long WAL_FILE_SIZE_BYTES = 16_384L;
 	private static final int WAL_FILE_COUNT_KEPT = 2;
-	private static final long WAIT_TIMEOUT_MILLIS = 60_000L;
-	private static final long POLL_INTERVAL_MILLIS = 100L;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -257,9 +255,9 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 
 			// the fixture is only meaningful once the retention has purged the oldest files - that is what moves the
 			// surviving run above zero and makes a name-derived lookup observably differ from a prefix-derived one
-			final Path folder = catalogFolder(TEST_CATALOG);
-			awaitWalRotationAndPurge(folder);
+			purgeRotatedWalFiles();
 
+			final Path folder = catalogFolder(TEST_CATALOG);
 			final Set<String> walFilesBeforeRename = walFileNames(folder);
 			final int[] indexesBeforeRename = walIndexes(folder);
 			assertTrue(
@@ -329,9 +327,9 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 				commitProduct(TEST_CATALOG, i, payload + i);
 			}
 
-			final Path survivingFolder = catalogFolder(TEST_CATALOG);
-			awaitWalRotationAndPurge(survivingFolder);
+			purgeRotatedWalFiles();
 
+			final Path survivingFolder = catalogFolder(TEST_CATALOG);
 			final Set<String> walFilesBeforeReplace = walFileNames(survivingFolder);
 			final int[] indexesBeforeReplace = walIndexes(survivingFolder);
 			assertTrue(
@@ -376,23 +374,20 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Waits until the log has rotated far enough for the retention to have purged the oldest files, which is what
-	 * moves the first surviving index off zero.
+	 * Purges the WAL files the commits above rotated away, which is what moves the first surviving index off zero
+	 * and makes a name-derived lookup observably differ from a prefix-derived one.
 	 *
-	 * @param catalogDirectory folder to watch
+	 * **Done by shutting the engine down rather than by waiting for it to happen.** Rotation only queues a file
+	 * for removal; the deletion itself runs on `AbstractMutationLog`'s scheduled "WAL file remover" task, so no
+	 * commit completion implies it and there is nothing in the write path to latch on. `AbstractMutationLog#close`
+	 * drains those pending removals **synchronously**, so a restart is not a wait for the purge - it *is* the
+	 * purge, and the state on disk afterwards is the same whether the machine is idle or saturated.
+	 *
+	 * The alternative, polling the folder until the indexes move, is what this replaced: a positive wait paid on
+	 * every run, and one that reports a fixture that never converged as a failure of whatever ran next.
 	 */
-	private static void awaitWalRotationAndPurge(@Nonnull Path catalogDirectory) throws InterruptedException {
-		final long deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MILLIS;
-		while (System.currentTimeMillis() < deadline) {
-			final int[] indexes = walIndexes(catalogDirectory);
-			if (indexes.length > 1 && indexes[0] > 0) {
-				return;
-			}
-			//noinspection BusyWait
-			Thread.sleep(POLL_INTERVAL_MILLIS);
-		}
-		// deliberately silent - the caller asserts the precondition, so a timeout surfaces as the assertion
-		// naming what was actually on disk rather than as a bare timeout
+	private void purgeRotatedWalFiles() {
+		restartEngine();
 	}
 
 	/**
