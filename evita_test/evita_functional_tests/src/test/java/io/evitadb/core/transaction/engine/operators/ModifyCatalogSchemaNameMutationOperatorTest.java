@@ -251,9 +251,11 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 		@Nonnull ModifyCatalogSchemaNameMutation mutation,
 		@Nonnull Consumer<EngineStateUpdater> completionUpdater
 	) throws Exception {
-		// The surviving catalog keeps its folder across the rename, and the completion phase relabels it - so the
-		// folder has to be there, or the run is noisy with a relabel failure that has nothing to do with the test.
+		// The surviving catalog keeps its folder across the rename and the completion phase relabels it, while a
+		// replace retires the folder its target was living in - so both have to be there, or the run is noisy with
+		// failures that have nothing to do with the test.
 		Files.createDirectories(storageDirectory.resolve(SOURCE_CATALOG_NAME));
+		Files.createDirectories(storageDirectory.resolve(TARGET_CATALOG_NAME));
 
 		final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
 		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
@@ -267,7 +269,7 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 	}
 
 	@Nested
-	@DisplayName("The target name carries a registry from before the commit that publishes it")
+	@DisplayName("Where the target name's registry comes from, and when")
 	class PublicationOrdering {
 
 		@Test
@@ -322,6 +324,70 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 			assertTrue(
 				isServing(sourceRegistry),
 				"The suspension the rename opened with must be lifted once it has committed."
+			);
+		}
+
+		@Test
+		@DisplayName("should leave a replace target holding its own registry until the commit has landed")
+		void shouldNotAliasTheNameOfAReplaceTargetThatCanStillBeRestored(@TempDir Path storageDirectory)
+			throws Exception {
+			// The mirror image of the test above, and the reason it is not simply "publish early, always". A
+			// target that already names a catalog has a registry of its own holding that name from the read-only
+			// phase to the handoff, so the window the early publication closes never opens here - while the
+			// publication itself would cost something real. A caller captures the published registry *before* it
+			// waits out a suspension, and neither `handleSuspension` nor `registerWhileNotSuspended` consults the
+			// map again afterwards. So an alias taken back by a failed commit would leave that caller holding an
+			// unpublished registry, resolving a target catalog the failure left standing, and registering into the
+			// source registry's session map - untracked by the name it asked for, and invisible to the next
+			// quiesce of it.
+			final Map<String, SessionRegistry> registries = new ConcurrentHashMap<>(4);
+			final SessionRegistry sourceRegistry = sessionRegistryFor(SOURCE_CATALOG_NAME);
+			final SessionRegistry targetRegistry = sessionRegistryFor(TARGET_CATALOG_NAME);
+			registries.put(SOURCE_CATALOG_NAME, sourceRegistry);
+			registries.put(TARGET_CATALOG_NAME, targetRegistry);
+
+			final Map<String, CatalogContract> catalogs = new HashMap<>(4);
+			catalogs.put(SOURCE_CATALOG_NAME, catalogYielding(catalogWithSchema()));
+			catalogs.put(TARGET_CATALOG_NAME, catalogWithSchema());
+
+			final AtomicReference<SessionRegistry> atCommitTime = new AtomicReference<>();
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);
+			doAnswer(
+				invocation -> {
+					atCommitTime.set(registries.get(TARGET_CATALOG_NAME));
+					return null;
+				}
+			).when(completionUpdater).accept(any());
+
+			applyAndAwait(
+				mockEngine(catalogs, registries),
+				storageDirectory,
+				new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG_NAME, TARGET_CATALOG_NAME, true),
+				completionUpdater
+			);
+
+			assertSame(
+				targetRegistry, atCommitTime.get(),
+				"While the replace can still fail, its target must answer through the registry it already had - " +
+					"an alias installed here is one the undo has to take back, and a caller that captured it in " +
+					"the meantime is no longer reachable through the name it opened."
+			);
+			assertNotSame(
+				targetRegistry, registries.get(TARGET_CATALOG_NAME),
+				"Once the replace has committed the name belongs to the surviving catalog, so the swap must have " +
+					"happened by the time the operation returns."
+			);
+			assertNotSame(
+				sourceRegistry, registries.get(TARGET_CATALOG_NAME),
+				"The target must carry the derived view, whose catalog supplier resolves the target name."
+			);
+			assertNull(
+				registries.get(SOURCE_CATALOG_NAME),
+				"The consumed catalog's name stops naming anything, so it must stop carrying a registry."
+			);
+			assertTrue(
+				isServing(sourceRegistry),
+				"The suspension the replace opened with must be lifted once it has committed."
 			);
 		}
 
