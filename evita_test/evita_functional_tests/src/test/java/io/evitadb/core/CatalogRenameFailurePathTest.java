@@ -138,6 +138,9 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 	private static final String COMMITTED_VALUE = "committed before the failed rename";
 	private static final String TARGET_VALUE = "committed into the catalog being replaced away";
 	private static final String CATALOG_FILE_SUFFIX = ".catalog";
+	private static final String COLLECTION_FILE_SUFFIX = ".collection";
+	/** Mirrors `ModifyCatalogSchemaNameMutationOperator#MAX_INSPECTED_CAUSE_DEPTH`. */
+	private static final int MAX_INSPECTED_CAUSE_DEPTH = 32;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -427,6 +430,85 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@DisplayName("Declares the catalog unusable when the rebuild after a successful relabel fails")
+	void shouldDeclareTheCatalogUnusableWhenTheRebuildAfterTheRelabelFails() throws Exception {
+		defineCatalogAndGoLive(TEST_CATALOG);
+		commitProduct(TEST_CATALOG, 1, COMMITTED_VALUE);
+		// Restarted so the offset index carries nothing that needs flushing. Without this the relabel's own
+		// flush forces pending syncs across every open handle - the collection file's included - and the
+		// failure lands back inside `replaceWith`, where the sibling tests already put it. On a cold index
+		// there is nothing to force, so the flush passes and the rebuild below is genuinely the first thing
+		// to touch this file.
+		restartEngine();
+
+		// **Revoking the collection file rather than the catalog's own moves the failure past everything the
+		// storage layer does.** The relabel writes the schema part, the header and the bootstrap record into
+		// the `.catalog` and `.boot` files, which stay readable throughout, so `replaceWith` succeeds all the
+		// way to closing the former service and opening its replacement. Only the rebuild that follows - one
+		// `EntityCollection` per collection, opened against that replacement - touches this file. That window
+		// belongs to `Catalog#replace` rather than to `replaceWith`, and until it was marked, a failure in it
+		// took the compensating path: session admission resumed against a catalog whose service had already
+		// been closed underneath it and whose folder already carried the other name.
+		final Path collectionFile = soleCollectionFile(catalogFolder(TEST_CATALOG));
+		final Set<PosixFilePermission> originalPermissions = Files.getPosixFilePermissions(collectionFile);
+
+		try {
+			Files.setPosixFilePermissions(collectionFile, Collections.emptySet());
+			assumeTrue(
+				isUnreadable(collectionFile),
+				"Revoking read permission did not bite - the suite is running as a user that ignores it."
+			);
+			assertThrows(
+				RuntimeException.class,
+				() -> this.evita.renameCatalog(TEST_CATALOG, RENAMED_CATALOG),
+				"The rename must report the failure rather than swallow it!"
+			);
+		} finally {
+			Files.setPosixFilePermissions(collectionFile, originalPermissions);
+		}
+
+		final CatalogCorruptedException refusal = assertThrows(
+			CatalogCorruptedException.class,
+			() -> readPayload(TEST_CATALOG, 1),
+			"A rebuild that failed after the relabel must leave the catalog refusing sessions, not serving " +
+				"them through a persistence service the handover already closed!"
+		);
+		assertTrue(
+			carriesHandoverFailure(refusal),
+			"The refusal must name the failed handover in its cause chain!"
+		);
+
+		// and the restart still repairs it, which is what makes refusing the honest answer rather than a
+		// permanent outage
+		restartEngine();
+
+		assertEquals(
+			COMMITTED_VALUE, readPayload(TEST_CATALOG, 1),
+			"The catalog must come back whole from the restart that follows a failed rebuild!"
+		);
+	}
+
+	/**
+	 * Locates the sole entity-collection data file in a catalog folder, which the tests use to fail the
+	 * rebuild that follows a successful relabel without disturbing the relabel itself.
+	 *
+	 * @param catalogDirectory folder holding the catalog's files
+	 * @return the collection data file
+	 */
+	@Nonnull
+	private static Path soleCollectionFile(@Nonnull Path catalogDirectory) {
+		final File[] collectionFiles = catalogDirectory.toFile().listFiles(
+			(dir, name) -> name.endsWith(COLLECTION_FILE_SUFFIX)
+		);
+		assertNotNull(collectionFiles, "The catalog folder must be listable!");
+		assertEquals(
+			1, collectionFiles.length,
+			() -> "Exactly one collection data file is expected for a catalog holding one collection!"
+		);
+		return collectionFiles[0].toPath();
+	}
+
 	/**
 	 * Tells whether a failure carries the storage layer's point-of-no-return marker anywhere in its cause
 	 * chain - the signal that the folder had already been relabelled when the handover failed.
@@ -436,11 +518,14 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 	 */
 	private static boolean carriesHandoverFailure(@Nonnull Throwable failure) {
 		Throwable current = failure;
-		while (current != null && current != current.getCause()) {
+		// bounded exactly like the production walk in `ModifyCatalogSchemaNameMutationOperator`, so the test
+		// cannot pass on a chain the engine itself would give up on
+		for (int depth = 0; current != null && depth < MAX_INSPECTED_CAUSE_DEPTH; depth++) {
 			if (current instanceof CatalogHandoverFailedException) {
 				return true;
 			}
-			current = current.getCause();
+			final Throwable cause = current.getCause();
+			current = cause == current ? null : cause;
 		}
 		return false;
 	}

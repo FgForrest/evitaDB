@@ -105,7 +105,6 @@ import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
@@ -1603,17 +1602,10 @@ public final class Evita implements EvitaContract {
 	 * onFailure callback so the auto-upgrade path can reuse the same terminal-failure bookkeeping
 	 * when a retry fails.
 	 *
-	 * Also reached from a rename or replace that failed past its point of no return
-	 * ({@link CatalogHandoverFailedException}), where the catalog is left with no persistence service behind
-	 * it and refusing sessions legibly is the only honest answer until a restart rebuilds it from its folder.
-	 * The registry serving the name resolves the catalog through the engine state on every session, so
-	 * binding the placeholder here is what turns the next session into a `CatalogCorruptedException` rather
-	 * than a use of a catalog that cannot read its own data.
-	 *
 	 * @param catalogName name of the catalog to mark CORRUPTED
 	 * @param cause       the failure carried by the resulting {@link CatalogCorruptedException}
 	 */
-	public void markCatalogCorrupted(@Nonnull String catalogName, @Nonnull Throwable cause) {
+	private void markCatalogCorrupted(@Nonnull String catalogName, @Nonnull Throwable cause) {
 		final ExpandedEngineState updated = this.engineState.updateAndGet(
 			existingState -> {
 				if (existingState == null) {

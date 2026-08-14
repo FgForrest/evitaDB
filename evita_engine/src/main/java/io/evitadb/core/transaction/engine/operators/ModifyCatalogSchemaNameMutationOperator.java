@@ -36,6 +36,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.engine.ExpandedEngineState.Builder;
+import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogTransitioningException;
 import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.core.session.SuspendOperation;
@@ -116,7 +117,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			return doReplaceCatalogInternal(
 				catalogNameToBeReplaced, catalogNameToBeReplacedWith,
 				catalogToBeReplaced, catalogToBeReplacedWith,
-				transactionId, mutation, evita, completionEngineStateUpdater
+				transactionId, mutation, evita, transitionEngineStateUpdater, completionEngineStateUpdater
 			);
 		} else {
 			final String currentName = mutation.getCatalogName();
@@ -126,7 +127,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			return doReplaceCatalogInternal(
 				newName, currentName,
 				catalogToBeRenamed, catalogToBeRenamed,
-				transactionId, mutation, evita, completionEngineStateUpdater
+				transactionId, mutation, evita, transitionEngineStateUpdater, completionEngineStateUpdater
 			);
 		}
 	}
@@ -143,6 +144,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		@Nonnull UUID transactionId,
 		@Nonnull ModifyCatalogSchemaNameMutation mutation,
 		@Nonnull Evita evita,
+		@Nonnull Consumer<EngineStateUpdater> transitionEngineStateUpdater,
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		// Obtained rather than merely looked up, so that a catalog which has no registry gets one installed here:
@@ -190,7 +192,57 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			// from its folder, which it can, because the commit never ran and the load path reconciles the
 			// name the folder was left carrying.
 			if (isHandoverFailure(failure)) {
-				evita.markCatalogCorrupted(catalogNameToBeReplacedWith, failure);
+				// Routed through the *transition* updater rather than mutating engine state directly, because
+				// this is a read-derive-write on shared state and every other writer performs it under
+				// `EngineTransactionManager#engineStateLock`. A bare CAS loses to them by construction: a
+				// concurrent engine mutation reads the state, appends and fsyncs its WAL record, then calls
+				// `setNextEngineState`, whose accumulator returns its own derived value regardless of what
+				// landed in between. A declaration made outside the lock inside that window is simply erased -
+				// and the window spans an fsync - which puts the damaged catalog back to serving with nothing
+				// to show that it ever stopped. This is the idiom `SetCatalogStateMutationOperator` already
+				// uses to publish its placeholder.
+				//
+				// The version deliberately stays where it is: nothing is being committed here, the operation
+				// failed. `setNextEngineState` accepts an unchanged version, so the swap is an in-place
+				// exchange of the instance behind the name rather than a state version a failed operation has
+				// no business consuming.
+				//
+				// Wrapped so that a failure *declaring* the failure cannot cancel the resumes below. Every
+				// throw in here should be impossible, and if one happens anyway the worst outcome available is
+				// a catalog left serving - not both registries suspended for the life of the process, which is
+				// the very symptom this operation exists to stop producing.
+				try {
+					transitionEngineStateUpdater.accept(
+						new AbstractEngineStateUpdater(transactionId, mutation) {
+							@Nonnull
+							@Override
+							public ExpandedEngineState apply(
+								long version, @Nonnull ExpandedEngineState expandedEngineState
+							) {
+								return ExpandedEngineState
+									.builder(expandedEngineState)
+									.withCatalog(
+										ModifyCatalogSchemaNameMutationOperator.this.folderContext
+											.createUnusableCatalog(
+												catalogNameToBeReplacedWith,
+												CatalogState.CORRUPTED,
+												(cn, folderId, root) ->
+													new CatalogCorruptedException(cn, folderId, root, failure)
+											)
+									)
+									.build();
+							}
+						}
+					);
+					evita.notifyCatalogStateSettled(catalogNameToBeReplacedWith, CatalogState.CORRUPTED);
+				} catch (RuntimeException declarationFailure) {
+					log.error(
+						"Failed to declare catalog `{}` unusable after its handover failed past the point of no " +
+							"return - it stays published and may serve sessions against storage that no longer " +
+							"agrees with the engine state, until the server is restarted.",
+						catalogNameToBeReplacedWith, declarationFailure
+					);
+				}
 			}
 			// What belongs under the target name is decided by what answered to it when the operation started,
 			// never by what answers to it now.
