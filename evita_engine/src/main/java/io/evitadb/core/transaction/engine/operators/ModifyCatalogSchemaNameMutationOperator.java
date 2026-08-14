@@ -52,6 +52,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -146,13 +147,34 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		prevailingCatalogSessionRegistry
 			.ifPresent(sessionRegistry -> sessionRegistry.closeAllActiveSessionsAndSuspend(SuspendOperation.POSTPONE));
 
+		// Written to as soon as the target is quiesced below, and read only by `undoOperations` - which is
+		// declared before that point and therefore cannot capture the local the quiescing produces.
+		final AtomicReference<SessionRegistry> quiescedTargetRegistryHolder = new AtomicReference<>();
+
 		final Runnable undoOperations = () -> {
+			// A replace quiesces its target with REJECT before touching anything, and a failure leaves that
+			// target standing - the operation changed nothing. Resuming it is therefore part of undoing, or the
+			// catalog that was *not* replaced spends the rest of the process answering
+			// `InstanceTerminatedException` to every session opened against it.
+			final SessionRegistry quiescedTargetRegistry = quiescedTargetRegistryHolder.get();
+			if (quiescedTargetRegistry != null) {
+				quiescedTargetRegistry.resumeOperations();
+			}
 			// revert session registry swap
 			if (removedCatalogSessionRegistry.isPresent()) {
 				evita.registerCatalogSessionRegistry(catalogNameToBeReplaced, removedCatalogSessionRegistry.get());
 			} else {
 				evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
 			}
+			// and revert the suspension the operation opened with. Resuming used to happen on the success path
+			// only, so any failure between the suspend above and that resume left the surviving catalog listed
+			// but unusable: every session against it answered `SessionBusyException` for the life of the
+			// process, with no way back short of a restart. That is the session half of issue #1414, and it
+			// outlived the folder decoupling that removed the operation's other failure modes.
+			//
+			// Unconditional because `resumeOperations` clears a suspension if one is standing and does nothing
+			// otherwise - and this runs on paths that failed before the suspend could take effect as well.
+			prevailingCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
 		};
 
 		try {
@@ -194,6 +216,8 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				quiescedTargetRegistry = evita.suspendCatalogSessions(
 					catalogNameToBeReplaced, SuspendOperation.REJECT
 				);
+				// handed to the undo path, which has to lift this suspension when the operation fails
+				quiescedTargetRegistry.ifPresent(quiescedTargetRegistryHolder::set);
 			} else {
 				Assert.isPremiseValid(removedCatalogSessionRegistry.isEmpty(), "Expectation failed!");
 				quiescedTargetRegistry = Optional.empty();
