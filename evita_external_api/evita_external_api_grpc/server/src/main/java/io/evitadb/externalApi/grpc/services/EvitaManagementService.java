@@ -355,7 +355,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * its exact semantics for clients that still call it. See the `GetCatalogStatistics` comment in
 	 * `GrpcEvitaManagementAPI.proto` for what the flat shape cannot express.
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Override
 	public void getCatalogStatistics(Empty request, StreamObserver<GrpcEvitaCatalogStatisticsResponse> responseObserver) {
 		executeWithClientContext(
@@ -563,7 +563,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * @return statistics of the catalog, or an `unusable` placeholder when they cannot be collected
 	 * @deprecated part of the deprecated `GetCatalogStatistics` procedure and removed with it
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	private static GrpcCatalogStatistics getCatalogStatisticsSafely(@Nonnull CatalogContract catalog) {
 		try {
@@ -602,7 +602,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	 * @return statistics of the collections, in inventory order
 	 * @deprecated part of the deprecated `GetCatalogStatistics` procedure and removed with it
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	private static EntityCollectionStatistics[] collectCollectionStatistics(
 		@Nonnull CatalogContract catalog,

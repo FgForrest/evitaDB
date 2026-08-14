@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Deprecated(since = "2026.3", forRemoval = true)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class EntityCollectionHeaderSerializer_2026_2
 	extends AbstractPersistentStorageHeaderSerializer<EntityCollectionFileHeader> {
 

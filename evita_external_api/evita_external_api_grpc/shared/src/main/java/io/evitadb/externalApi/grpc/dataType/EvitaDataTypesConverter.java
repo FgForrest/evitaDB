@@ -1735,7 +1735,7 @@ public class EvitaDataTypesConverter {
 	 * @return {@link GrpcCatalogStatistics} instance
 	 * @deprecated exists only to feed the deprecated `GetCatalogStatistics` procedure and is removed with it
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	public static GrpcCatalogStatistics toGrpcCatalogStatistics(
 		@Nonnull CatalogStatistics catalogStatistics,
@@ -1781,7 +1781,7 @@ public class EvitaDataTypesConverter {
 	 * @return {@link GrpcEntityCollectionStatistics} instance
 	 * @deprecated exists only to feed the deprecated `GetCatalogStatistics` procedure and is removed with it
 	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@Nonnull
 	public static GrpcEntityCollectionStatistics toGrpcEntityCollectionStatistics(
 		@Nonnull EntityCollectionStatistics entityCollectionStatistics
