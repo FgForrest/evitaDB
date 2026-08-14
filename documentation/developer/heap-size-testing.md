@@ -149,6 +149,19 @@ per-element term, and at any realistic fixture size that is tens of kilobytes ra
 single component can be isolated, isolate it and assert it exactly: the leaf-page snapshots of an attribute index are
 pinned by reading the figure with and without them, which leaves nothing else in the difference.
 
+## Trap 5 — state every divergence with its magnitude and its slope
+
+Where the reported figure legitimately differs from the measurement, assert **how much**, never merely the direction:
+
+```java
+assertExceedsMeasuredHeapBy(index.getHeapSizeInBytes(), 2L * layout.sizeOfObject(Integer.BYTES), index, EXCLUDED);
+```
+
+Then pin that the gap does **not grow with the data**. A fixed gap is a documented convention; a gap that scales with
+size is a defect, and only the second assertion tells them apart. Two real defects were found exactly this way — a
+cardinality index under-reporting 24 bytes per B+ tree separator, and boxed-column trees over-reporting 32 bytes per
+leaf boundary. Both were invisible at one leaf and both grew.
+
 ## Trap 6 — reading a map materializes what you are about to measure
 
 `HashMap.keySet()`, `values()` and `entrySet()` allocate their view object on first call and **cache it in the map**.
@@ -175,19 +188,6 @@ left caching: `PriceIndexReadContract#getPriceListAndCurrencyIndexes` and `getPr
 translators call repeatedly against the same index — the case the JDK's caching exists for.
 
 The same applies to anything else lazily built on first read. Measure cold, or warm deliberately and say so.
-
-## Trap 5 — state every divergence with its magnitude and its slope
-
-Where the reported figure legitimately differs from the measurement, assert **how much**, never merely the direction:
-
-```java
-assertExceedsMeasuredHeapBy(index.getHeapSizeInBytes(), 2L * layout.sizeOfObject(Integer.BYTES), index, EXCLUDED);
-```
-
-Then pin that the gap does **not grow with the data**. A fixed gap is a documented convention; a gap that scales with
-size is a defect, and only the second assertion tells them apart. Two real defects were found exactly this way — a
-cardinality index under-reporting 24 bytes per B+ tree separator, and boxed-column trees over-reporting 32 bytes per
-leaf boundary. Both were invisible at one leaf and both grew.
 
 ## Checklist for a new structure
 
