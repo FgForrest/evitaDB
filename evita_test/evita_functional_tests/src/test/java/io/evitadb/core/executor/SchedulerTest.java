@@ -27,6 +27,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.evitadb.api.exception.TaskTimedOutException;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.task.InternallyScheduledTask;
 import io.evitadb.api.task.ServerTask;
@@ -42,6 +43,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
+import java.time.ZoneId;
+import java.time.Instant;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +67,10 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TASK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -564,4 +574,332 @@ class SchedulerTest {
 		}
 	}
 
+
+	@Nested
+	@DisplayName("Queue purging")
+	class QueuePurging {
+
+		@Test
+		@DisplayName("keeps a waiting task that has not yet reached the waiting threshold")
+		void shouldKeepWaitingTaskWhenWaitingThresholdHasNotElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// just inside the intended ten-minute waiting interval
+			backdateCreated(task, Duration.ofMinutes(10).minusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			final Optional<TaskStatus<?, ?>> status = SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task));
+			assertTrue(status.isPresent(), "A waiting task inside the waiting interval must be kept.");
+			assertEquals(TaskSimplifiedState.WAITING_FOR_PRECONDITION, status.get().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("drops a waiting task once the waiting threshold elapses")
+		void shouldDropWaitingTaskWhenWaitingThresholdHasElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// just outside the intended ten-minute waiting interval
+			backdateCreated(task, Duration.ofMinutes(10).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isEmpty(),
+				"A waiting task past the waiting interval must be dropped."
+			);
+		}
+
+		@Test
+		@DisplayName("keeps a finished task while it is within its defense period")
+		void shouldKeepFinishedTaskWhenWithinDefensePeriod() throws Exception {
+			final ClientRunnableTask<Void> task = finishedTask();
+			// just inside the intended five-minute defense period
+			backdateFinished(task, Duration.ofMinutes(5).minusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isPresent(),
+				"A finished task inside its defense period must be kept."
+			);
+		}
+
+		@Test
+		@DisplayName("drops a finished task once its defense period elapses")
+		void shouldDropFinishedTaskWhenDefensePeriodHasElapsed() throws Exception {
+			final ClientRunnableTask<Void> task = finishedTask();
+			// just outside the intended five-minute defense period
+			backdateFinished(task, Duration.ofMinutes(5).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(task)).isEmpty(),
+				"A finished task past its defense period must be dropped."
+			);
+		}
+
+		@Test
+		@DisplayName("fails a timed-out waiting task instead of dropping it silently")
+		void shouldFailWaitingTaskWhenWaitingThresholdHasElapsed() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			backdateCreated(task, Duration.ofMinutes(11));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			// the future must complete - a bare it.remove() leaves it dangling forever, so anything joining it hangs
+			final CompletableFuture<Void> future = task.getFutureResult();
+			assertTrue(future.isDone(), "A dropped waiting task must complete its future.");
+			final ExecutionException exception = assertThrows(
+				ExecutionException.class,
+				() -> future.get(30, TimeUnit.SECONDS)
+			);
+			assertInstanceOf(TaskTimedOutException.class, exception.getCause());
+
+			// the failure must carry a usable public message rather than the "unknown reasons" fallback
+			final TaskStatus<?, ?> status = task.getStatus();
+			assertEquals(TaskSimplifiedState.FAILED, status.simplifiedState());
+			assertNotNull(status.publicExceptionMessage());
+			assertNotEquals("Task failed for unknown reasons.", status.publicExceptionMessage());
+		}
+
+		@Test
+		@DisplayName("stops a timed-out waiting task from being found or resubmitted")
+		void shouldNotFindTimedOutWaitingTaskAfterPurge() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			final UUID taskId = taskIdOf(task);
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			backdateCreated(task, Duration.ofMinutes(11));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			// a timed-out task that stayed discoverable would let the restore handler keep appending chunks to it and
+			// then resubmit an already-failed task - SequentialTask#transitionToIssued does not refuse that
+			assertTrue(
+				SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isEmpty(),
+				"A timed-out waiting task must not remain findable."
+			);
+		}
+
+		@Test
+		@DisplayName("keeps a waiting task whose lookup refreshed its activity")
+		void shouldKeepWaitingTaskWhenLookupRefreshedItsActivity() {
+			final ClientRunnableTask<Void> task = waitingTask();
+			final UUID taskId = taskIdOf(task);
+			SchedulerTest.this.scheduler.registerWaitingTask(task);
+			// far past any fixed budget measured from creation - a large backup over a slow link looks like this
+			backdateCreated(task, Duration.ofMinutes(30));
+
+			// a chunked upload announces its interest by looking the task up on every chunk
+			assertTrue(
+				SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent(),
+				"The task must still be findable before the purge runs."
+			);
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			final Optional<TaskStatus<?, ?>> status = SchedulerTest.this.scheduler.getTaskStatus(taskId);
+			assertTrue(status.isPresent(), "A waiting task whose lookup refreshed it must survive the purge.");
+			assertEquals(TaskSimplifiedState.WAITING_FOR_PRECONDITION, status.get().simplifiedState());
+		}
+
+		@Test
+		@DisplayName("drops a waiting task whose last lookup has itself gone stale")
+		void shouldDropWaitingTaskWhenLookupWentStale() {
+			final MutableClock clock = new MutableClock();
+			final Scheduler clockedScheduler = new Scheduler(
+				ThreadPoolOptions.serviceThreadPoolBuilder().build(), clock
+			);
+			try {
+				final ClientRunnableTask<Void> task = waitingTask();
+				final UUID taskId = taskIdOf(task);
+				clockedScheduler.registerWaitingTask(task);
+				assertTrue(clockedScheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent());
+
+				// the upload stopped sending chunks - nothing looks the task up again, and the renewal itself ages out
+				clock.advance(Duration.ofMinutes(11));
+				clockedScheduler.purgeFinishedAndLongWaitingTasks();
+
+				assertTrue(
+					clockedScheduler.getTaskStatus(taskId).isEmpty(),
+					"A renewal only postpones the timeout - it must not make the task immortal."
+				);
+			} finally {
+				clockedScheduler.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("survives repeated lookups spanning far more than the waiting interval")
+		void shouldKeepWaitingTaskAcrossRepeatedLookups() {
+			final MutableClock clock = new MutableClock();
+			final Scheduler clockedScheduler = new Scheduler(
+				ThreadPoolOptions.serviceThreadPoolBuilder().build(), clock
+			);
+			try {
+				final ClientRunnableTask<Void> task = waitingTask();
+				final UUID taskId = taskIdOf(task);
+				clockedScheduler.registerWaitingTask(task);
+
+				// six chunks, nine minutes apart - fifty-four minutes in total, far past any fixed budget
+				for (int i = 0; i < 6; i++) {
+					clock.advance(Duration.ofMinutes(9));
+					assertTrue(
+						clockedScheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent(),
+						"The task must still be findable on chunk " + i + "."
+					);
+					clockedScheduler.purgeFinishedAndLongWaitingTasks();
+				}
+
+				assertTrue(
+					clockedScheduler.getTaskStatus(taskId).isPresent(),
+					"An upload that keeps sending chunks must keep its task alive indefinitely."
+				);
+			} finally {
+				clockedScheduler.shutdownNow();
+			}
+		}
+
+		@Test
+		@DisplayName("does not renew a task that is no longer waiting")
+		void shouldNotRenewActivityOfTaskThatLeftWaitingState() throws Exception {
+			// a finished task must keep ageing out of its defense period on schedule - looking it up must not revive it
+			final ClientRunnableTask<Void> task = finishedTask();
+			final UUID taskId = taskIdOf(task);
+			assertTrue(SchedulerTest.this.scheduler.findTask(it -> it.getStatus().taskId().equals(taskId)).isPresent());
+			backdateFinished(task, Duration.ofMinutes(5).plusSeconds(5));
+
+			SchedulerTest.this.scheduler.purgeFinishedAndLongWaitingTasks();
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskId).isEmpty(),
+				"Looking up a finished task must not extend its defense period."
+			);
+		}
+
+		@Test
+		@DisplayName("reclaims queue capacity taken by timed-out waiting tasks")
+		void shouldReclaimQueueCapacityWhenExpiredWaitingTasksArePurged() {
+			// the purge is also the queue's capacity-reclaim path: addTaskToQueue calls it only once offer() reports
+			// full, then retries. Timed-out tasks that are failed but left queued would reclaim no slot at all.
+			// mirrors Scheduler's own `physicalQueueCapacity = queueSize << 1`, so no production accessor is needed
+			final int physicalCapacity = ThreadPoolOptions.serviceThreadPoolBuilder().build().queueSize() << 1;
+			for (int i = 0; i < physicalCapacity; i++) {
+				final ClientRunnableTask<Void> filler = waitingTask();
+				SchedulerTest.this.scheduler.registerWaitingTask(filler);
+				backdateCreated(filler, Duration.ofMinutes(11));
+			}
+
+			// the queue is now full of expired waiting tasks - registering one more must succeed rather than be rejected
+			final ClientRunnableTask<Void> newcomer = waitingTask();
+			SchedulerTest.this.scheduler.registerWaitingTask(newcomer);
+
+			assertTrue(
+				SchedulerTest.this.scheduler.getTaskStatus(taskIdOf(newcomer)).isPresent(),
+				"Purging expired waiting tasks must free room for a newly registered task."
+			);
+		}
+
+	}
+
+
+	/**
+	 * A {@link Clock} the test can move forward at will, so an interval measured in minutes can be crossed in a
+	 * test that runs in milliseconds. Only the scheduler's own timestamps follow it; task timestamps are moved with
+	 * the backdating helpers instead.
+	 */
+	private static class MutableClock extends Clock {
+		private final ZoneId zone;
+		private Instant instant;
+
+		MutableClock() {
+			this(ZoneId.systemDefault(), Instant.now());
+		}
+
+		private MutableClock(@Nonnull ZoneId zone, @Nonnull Instant instant) {
+			this.zone = zone;
+			this.instant = instant;
+		}
+
+		void advance(@Nonnull Duration duration) {
+			this.instant = this.instant.plus(duration);
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return this.zone;
+		}
+
+		@Override
+		public Clock withZone(ZoneId newZone) {
+			return new MutableClock(newZone, this.instant);
+		}
+
+		@Override
+		public Instant instant() {
+			return this.instant;
+		}
+	}
+
+	/**
+	 * Creates a task parked in the waiting queue - never issued, so {@link TaskSimplifiedState#WAITING_FOR_PRECONDITION}
+	 * is the state the purge matches on.
+	 */
+	@Nonnull
+	private static ClientRunnableTask<Void> waitingTask() {
+		return new ClientRunnableTask<>("task", "Waiting task", null, () -> {
+		});
+	}
+
+	/**
+	 * Submits a task and blocks until it completes, so the caller receives one the purge sees as finished.
+	 */
+	@Nonnull
+	private ClientRunnableTask<Void> finishedTask() throws Exception {
+		final ClientRunnableTask<Void> task = new ClientRunnableTask<>("task", "Finished task", null, () -> {
+		});
+		this.scheduler.submit((ServerTask<?, ?>) task);
+		// positive wait - generous bound, returns the instant the task completes
+		task.getFutureResult().get(30, TimeUnit.SECONDS);
+		return task;
+	}
+
+	@Nonnull
+	private static UUID taskIdOf(@Nonnull AbstractServerTask<?, ?> task) {
+		return task.getStatus().taskId();
+	}
+
+	/**
+	 * Rewrites the task's creation timestamp to `age` ago. The purge reasons about task age through
+	 * {@link TaskStatus#created()}, so moving that timestamp is what lets a threshold measured in minutes be
+	 * asserted in milliseconds. Every `transitionToXxx` copies `created`, so the backdating survives later
+	 * transitions.
+	 */
+	private static <S, T> void backdateCreated(@Nonnull AbstractServerTask<S, T> task, @Nonnull Duration age) {
+		final OffsetDateTime backdated = OffsetDateTime.now().minus(age);
+		task.status.updateAndGet(
+			it -> new TaskStatus<>(
+				it.taskType(), it.taskName(), it.taskId(), it.catalogName(),
+				backdated, it.issued(), it.started(), it.finished(), it.progress(),
+				it.settings(), it.result(), it.publicExceptionMessage(), it.exceptionWithStackTrace(), it.traits()
+			)
+		);
+	}
+
+	/**
+	 * Rewrites the task's completion timestamp to `age` ago, so the finished-task defense period can be asserted
+	 * without waiting it out. See {@link #backdateCreated(AbstractServerTask, Duration)}.
+	 */
+	private static <S, T> void backdateFinished(@Nonnull AbstractServerTask<S, T> task, @Nonnull Duration age) {
+		final OffsetDateTime backdated = OffsetDateTime.now().minus(age);
+		task.status.updateAndGet(
+			it -> new TaskStatus<>(
+				it.taskType(), it.taskName(), it.taskId(), it.catalogName(),
+				it.created(), it.issued(), it.started(), backdated, it.progress(),
+				it.settings(), it.result(), it.publicExceptionMessage(), it.exceptionWithStackTrace(), it.traits()
+			)
+		);
+	}
 }

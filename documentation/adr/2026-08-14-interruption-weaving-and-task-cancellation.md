@@ -1,7 +1,7 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 15:05
+updated: 2026-08-14 17:20
 status: accepted
 kind: fix
 issues: [1416]
@@ -11,7 +11,7 @@ areas:
   - evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/async
 supersedes: []
 superseded-by: []
-relates: [2026-07-16-client-session-cancellation-cascade]
+relates: [2026-07-16-client-session-cancellation-cascade, 2026-08-14-waiting-task-idle-timeout]
 ---
 
 # Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
