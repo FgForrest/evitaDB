@@ -35,6 +35,7 @@ import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -92,7 +93,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * individual operations safe while leaving the compound lookup-and-renew, and renew-versus-timeout, races
 	 * wide open; the lock is what actually makes those atomic.
 	 */
-	private final Map<UUID, OffsetDateTime> waitingTaskLastActivity = new HashMap<>(16);
+	private final Map<UUID, OffsetDateTime> waitingTaskLastActivity = CollectionUtils.createHashMap(16);
 	/**
 	 * Java based scheduled executor service.
 	 */
