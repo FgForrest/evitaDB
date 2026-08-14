@@ -1,7 +1,7 @@
 ---
 title: Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future
 date: 2026-08-14
-updated: 2026-08-14 13:20
+updated: 2026-08-14 14:35
 status: accepted
 kind: fix
 issues: [1416]
@@ -153,6 +153,10 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   guard against regression is `InterruptionTransformerMatcherTest`, not these numbers.
 - Full functional suite with the weaving live: **21176 tests, 0 failures**, 39 skipped, 1 error
   (`ExportS3ServiceTest`, "Could not find a valid Docker environment" — environmental, no Docker available).
+  This belongs to the same pre-cancellation-fix build as the woven-site counts above: it proves the matcher fix
+  does not destabilise the suite, and nothing about the four cancellation defects, whose tests did not exist
+  yet. It has not been reproduced since — the full suite OOMs on this machine at the standard heap — so
+  post-fix full-suite green is CI's claim, not this record's.
 - `InterruptionTransformerMatcherTest` (new) asserts each of the **seven** engine matcher branches individually
   plus the GraphQL branch, and asserts that the abstract declarations and an unrelated method do **not** match.
   It needs no build artifacts and would have caught the `anyOf` defect in milliseconds. `InterruptionAdviceWovenTest`
@@ -166,7 +170,15 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   - `ObservableThreadExecutor` — `AbstractObservableTask#cancel()` could deliver its interrupt after the worker had
     finished and taken the next task. `ObservableThreadExecutorCancellationTest#shouldHoldFinishingWorkerUntilConcurrentCancelDeliveredInterrupt`.
   - `BackupTask#doBackup` — cleanup caught only `RuntimeException`.
-    `BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted`.
+    `BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted`. Its red came from an
+    independent Codex review of the pushed branch rather than from the revert here, for the reason recorded
+    under *Consequences* — the local calibration reverted this one fix and never restored it, so the branch was
+    committed and pushed carrying the explanatory comment without the code. The catch now mirrors
+    `FullBackupTask`: `Exception`, rethrowing a `RuntimeException` unchanged and wrapping anything checked in
+    `UnexpectedIOException`. That wrapping does not restore the interrupt flag, so an interrupted backup
+    surfaces to the caller as an IO failure rather than a cancellation — deliberately consistent with
+    `FullBackupTask`, and unlike `SequentialTask`, which transitions to FAILED carrying a `CancellationException`.
+    Worth revisiting only if a caller is found that needs to tell the two apart.
   - `SequentialTask#execute` — the completion block ran on a cancelled sequence.
     `SequentialTaskTest#shouldStopAtStepBoundaryWhenResultFutureCancelledDirectly`.
 - Tag-scoped regression run after all fixes: `-Dgroups="task & engine"` → **97 tests, 0 failures**.
@@ -193,6 +205,17 @@ by weaving `EvitaSession#getCatalogSchema` with the retention untouched.
   users as fetchable. Its sibling `FullBackupTask` already caught `Exception`, which is what settled it as an
   oversight rather than a choice. Any other cleanup block narrowed to `RuntimeException` on a path that can now
   be interrupted deserves the same look — this was not audited exhaustively.
+  An IDE will argue against the wider catch here, reporting the checked branch as unreachable because no
+  signature in scope declares it. That inspection is right about the source and wrong about the bytecode, and it
+  is how the narrowing got reintroduced once already; the catch site carries a comment saying so.
+- **Calibrating a fix by reverting it is how one of these fixes was lost.** The revert-and-observe-red step was
+  run on `BackupTask` and never undone, and the branch was committed, pushed and opened as a PR with the fix
+  absent. Two things made that survivable-looking: the explanatory comment sat immediately above the reverted
+  line, so the diff read as a completed fix, and the re-run happened against a jar built *before* the revert, so
+  it reported green. An independent review on a clean build caught it. The lesson is narrow and mechanical —
+  a revert used as a measuring instrument must be restored and then re-verified against a freshly built
+  artifact, and a comment is not evidence that the code beneath it exists. `mvn clean` on the woven module is
+  what makes the verification mean anything, because the ByteBuddy `transform` goal is incremental.
 - **The thread-tracking pattern this record rejects for new code was still live in the request path**, and is
   now fixed rather than merely noted. `AbstractObservableTask#cancel()` reads a `volatile Thread` and interrupts
   it directly; nothing ordered that interrupt against the worker clearing its flag and taking the next task, so

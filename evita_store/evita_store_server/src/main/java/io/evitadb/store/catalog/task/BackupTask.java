@@ -290,16 +290,29 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						e
 					);
 				}
-			} catch (RuntimeException exception) {
-				// `Exception` rather than `RuntimeException`, mirroring FullBackupTask: the `@Interruptible`
-				// checkpoints woven into the helpers below raise the *checked* InterruptedException from bytecode, so
-				// it is invisible in these signatures and a narrower catch lets it slip past this cleanup. The archive
-				// left behind is not merely a stray temp file - closing the stream still writes a valid central
-				// directory and registers the file for fetch, so users are offered a backup missing most of its entries
+			} catch (Exception exception) {
+				// `Exception` rather than `RuntimeException`, mirroring FullBackupTask - and do not let an IDE talk you
+				// out of it. Inspections call the checked half of this catch unreachable, because nothing in the
+				// signatures below declares a checked exception. They are reading the source; the exception is not in
+				// the source. The `@Interruptible` checkpoints woven into these helpers raise the *checked*
+				// InterruptedException straight from bytecode, long after javac has stopped looking, so narrowing this
+				// to RuntimeException lets an interrupted backup slip past the cleanup. What it leaves behind is not
+				// merely a stray temp file - closing the stream still writes a valid central directory and registers
+				// the file for fetch, so users are offered a backup missing most of its entries.
+				// Covered by BackupTaskCancellationTest#shouldDeleteRegisteredExportFileWhenBackupInterrupted, which
+				// only fails against a freshly woven module - a stale jar reports it green
 				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
 					.ifPresent(it -> exportService.deleteFile(it.fileId()));
 
-				throw exception;
+				if (exception instanceof RuntimeException re) {
+					throw re;
+				} else {
+					throw new UnexpectedIOException(
+						"Failed to backup catalog `" + this.catalogName + "`!",
+						"Failed to backup catalog!",
+						exception
+					);
+				}
 			}
 		} finally {
 			tearDown();
