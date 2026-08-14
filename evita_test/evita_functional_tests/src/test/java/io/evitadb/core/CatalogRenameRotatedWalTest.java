@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -53,12 +54,17 @@ import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Covers renaming a live catalog whose write-ahead log has already **rotated and been purged**, which is the one
- * rename shape no other test reaches.
+ * Covers renaming — and replacing — a live catalog whose write-ahead log has already **rotated and been purged**,
+ * which is the one shape no other test of either operation reaches.
+ *
+ * Both halves are here because both go through `ModifyCatalogSchemaNameMutationOperator#doReplaceCatalogInternal`
+ * and through the same `replaceWith`: a rename is a replace whose source and target are the same catalog. Covering
+ * only the rename left the operator half-tested against a rotated log.
  *
  * A rename moves no file: the folder keeps the prefix its files were created under, and the new catalog name is
  * written into the header only. Every log lookup therefore has to go through the prefix discovered from the
@@ -75,8 +81,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * **Calibration** — reverting `DefaultCatalogPersistenceService` (the rename constructor, `walFileNameProvider`)
  * to build the provider from `catalogName` rather than from the inherited storage prefix fails this test on the
- * file-name assertion, with an 8-byte stub written under the new catalog name beside the two files it failed to
- * find: `[renamedCatalog_9.wal, testCatalog_8.wal, testCatalog_9.wal]`.
+ * file-name assertion, with an 8-byte stub written under the new catalog name beside the files it failed to
+ * find - `renamedCatalog_9.wal` appearing beside `testCatalog_8.wal` and `testCatalog_9.wal`.
  *
  * Be precise about what that calibrates. It reconstructs the naming-provider defect, which was introduced *and*
  * fixed inside the folder-decoupling work itself — not the rename loop of issue #1414, which renamed the
@@ -88,13 +94,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Slf4j
-@DisplayName("Rename of a catalog whose write-ahead log has rotated")
+@DisplayName("Rename and replace of a catalog whose write-ahead log has rotated")
 @Tag(STORAGE)
 @Tag(WAL)
 @Tag(TRANSACTION)
 class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PAYLOAD = "payload";
 	private static final String RENAMED_CATALOG = "renamedCatalog";
+	private static final String REPLACED_CATALOG = "replacedCatalog";
 	/**
 	 * Long enough that a handful of transactions overflow a log file, so the fixture rotates within a count that
 	 * still runs in the fast loop.
@@ -166,6 +173,40 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Asserts that the operation created no write-ahead log file, which is what the orphaning defect did - it
+	 * wrote a stub under the catalog's new name beside the files it had failed to find.
+	 *
+	 * Stated as "nothing appeared" rather than "nothing changed" on purpose. Retention runs on its own schedule
+	 * and may purge a file at any moment, including while the operation is in flight, so asserting the set is
+	 * unchanged fails on a loaded machine for a reason that has nothing to do with the defect - measured, on a
+	 * full-suite run that saw `[5, 6, 7, 8, 9]` become `[8, 9]` mid-replace.
+	 *
+	 * @param before      log file names captured before the operation
+	 * @param after       log file names present after it
+	 * @param newName     the catalog name the operation introduced, which no file may carry
+	 * @param description what the assertion is about, for the failure message
+	 */
+	private static void assertNoWalFileAppeared(
+		@Nonnull Set<String> before,
+		@Nonnull Set<String> after,
+		@Nonnull String newName,
+		@Nonnull String description
+	) {
+		assertFalse(after.isEmpty(), description + " - the log must not have vanished entirely!");
+		assertTrue(
+			before.containsAll(after),
+			() -> description + " - no write-ahead log file may appear, but " + after +
+				" holds something that " + before + " did not."
+		);
+		final String forbiddenPrefix = newName + "_";
+		assertTrue(
+			after.stream().noneMatch(fileName -> fileName.startsWith(forbiddenPrefix)),
+			() -> description + " - no write-ahead log file may be addressed by the catalog's new name, but " +
+				after + " carries the `" + forbiddenPrefix + "` prefix."
+		);
+	}
+
+	/**
 	 * Asserts the passed indexes form an unbroken ascending run - the premise the log asserts on when it opens,
 	 * and the one the orphaned files of issue #1414 broke.
 	 *
@@ -195,76 +236,143 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		if (this.evita != null && this.evita.isActive()) {
-			this.evita.close();
+			evita().close();
 		}
 		cleanupTestPaths(this.paths);
 	}
 
-	@Test
-	@DisplayName("Keeps the rotated log addressable, and opens again after a restart")
-	void shouldOpenRenamedCatalogWhoseWriteAheadLogHasRotated() throws Exception {
-		defineCatalogAndGoLive();
+	@Nested
+	@DisplayName("Rename")
+	class Rename {
 
-		final String payload = "x".repeat(PAYLOAD_LENGTH);
-		for (int i = 1; i <= TRANSACTION_COUNT; i++) {
-			commitProduct(TEST_CATALOG, i, payload + i);
+		@Test
+		@DisplayName("Keeps the rotated log addressable, and opens again after a restart")
+		void shouldOpenRenamedCatalogWhoseWriteAheadLogHasRotated() throws Exception {
+			defineCatalogAndGoLive();
+
+			final String payload = "x".repeat(PAYLOAD_LENGTH);
+			for (int i = 1; i <= TRANSACTION_COUNT; i++) {
+				commitProduct(TEST_CATALOG, i, payload + i);
+			}
+
+			// the fixture is only meaningful once the retention has purged the oldest files - that is what moves the
+			// surviving run above zero and makes a name-derived lookup observably differ from a prefix-derived one
+			final Path folder = catalogFolder(TEST_CATALOG);
+			awaitWalRotationAndPurge(folder);
+
+			final Set<String> walFilesBeforeRename = walFileNames(folder);
+			final int[] indexesBeforeRename = walIndexes(folder);
+			assertTrue(
+				indexesBeforeRename.length > 1 && indexesBeforeRename[0] > 0,
+				() -> "The fixture must rotate AND purge the log before the rename - it is what this test is for - " +
+					"but the surviving indexes were " + Arrays.toString(indexesBeforeRename) +
+					". Raise TRANSACTION_COUNT or lower WAL_FILE_SIZE_BYTES if the write path got cheaper."
+			);
+
+			evita().renameCatalog(TEST_CATALOG, RENAMED_CATALOG);
+
+			// a rename relabels the catalog and moves nothing, so the folder must hold exactly the files it held
+			// before - neither renamed onto the new name, nor joined by a stub created under it
+			final Path folderAfterRename = catalogFolder(RENAMED_CATALOG);
+			assertEquals(
+				folder, folderAfterRename,
+				"A rename must repoint the name, never move the data!"
+			);
+			assertNoWalFileAppeared(
+				walFilesBeforeRename, walFileNames(folderAfterRename), RENAMED_CATALOG, "After the rename"
+			);
+			assertContiguous(walIndexes(folderAfterRename), "After the rename");
+
+			// the write path has to stay anchored to the same prefix too: a transaction committed after the rename
+			// must extend the run the folder already carries rather than start a second one under the new name
+			commitProduct(RENAMED_CATALOG, TRANSACTION_COUNT + 1, "committed after the rename");
+			assertContiguous(walIndexes(folderAfterRename), "After a commit that follows the rename");
+
+			// the last transaction stops at WAL persistence rather than at visibility, so the log may still hold an
+			// unincorporated record when the engine goes down - which is what puts the restart on the replay path
+			// instead of merely on the addressing one. It is deliberately not asserted that replay *did* run: trunk
+			// incorporation is free to have caught up first, and a test that demanded it lose that race would be
+			// flaky. Either way the entity has to be there afterwards, and only one of the two paths can deliver it.
+			commitProductAwaitingWalOnly(RENAMED_CATALOG, TRANSACTION_COUNT + 2, "committed into the log only");
+
+			// the reported failure was a boot that threw out of the log's constructor, so the restart is the assertion
+			restartEngine();
+
+			assertTrue(
+				evita().getCatalogNames().contains(RENAMED_CATALOG),
+				"The renamed catalog must come back from the restart!"
+			);
+			assertEquals(
+				TRANSACTION_COUNT + 2, productCount(RENAMED_CATALOG),
+				"Every transaction committed around the rename must survive the restart!"
+			);
+			assertContiguous(walIndexes(catalogFolder(RENAMED_CATALOG)), "After the restart");
 		}
 
-		// the fixture is only meaningful once the retention has purged the oldest files - that is what moves the
-		// surviving run above zero and makes a name-derived lookup observably differ from a prefix-derived one
-		final Path folder = catalogFolder(TEST_CATALOG);
-		awaitWalRotationAndPurge(folder);
+	}
 
-		final Set<String> walFilesBeforeRename = walFileNames(folder);
-		final int[] indexesBeforeRename = walIndexes(folder);
-		assertTrue(
-			indexesBeforeRename.length > 1 && indexesBeforeRename[0] > 0,
-			() -> "The fixture must rotate AND purge the log before the rename - it is what this test is for - " +
-				"but the surviving indexes were " + Arrays.toString(indexesBeforeRename) +
-				". Raise TRANSACTION_COUNT or lower WAL_FILE_SIZE_BYTES if the write path got cheaper."
-		);
+	@Nested
+	@DisplayName("Replace")
+	class Replace {
 
-		this.evita.renameCatalog(TEST_CATALOG, RENAMED_CATALOG);
+		@Test
+		@DisplayName("Keeps the surviving catalog's rotated log addressable, and opens again after a restart")
+		void shouldOpenReplacedCatalogWhoseWriteAheadLogHasRotated() throws Exception {
+			defineCatalogAndGoLive();
 
-		// a rename relabels the catalog and moves nothing, so the folder must hold exactly the files it held
-		// before - neither renamed onto the new name, nor joined by a stub created under it
-		final Path folderAfterRename = catalogFolder(RENAMED_CATALOG);
-		assertEquals(
-			folder, folderAfterRename,
-			"A rename must repoint the name, never move the data!"
-		);
-		assertEquals(
-			walFilesBeforeRename, walFileNames(folderAfterRename),
-			"The rename must leave every write-ahead log file exactly as it found it!"
-		);
-		assertContiguous(walIndexes(folderAfterRename), "After the rename");
+			// the catalog being replaced *away* only has to exist - a replace purges it entirely, so the surviving
+			// data, and the log this test is about, are the source's
+			evita().defineCatalog(REPLACED_CATALOG);
 
-		// the write path has to stay anchored to the same prefix too: a transaction committed after the rename
-		// must extend the run the folder already carries rather than start a second one under the new name
-		commitProduct(RENAMED_CATALOG, TRANSACTION_COUNT + 1, "committed after the rename");
-		assertContiguous(walIndexes(folderAfterRename), "After a commit that follows the rename");
+			final String payload = "x".repeat(PAYLOAD_LENGTH);
+			for (int i = 1; i <= TRANSACTION_COUNT; i++) {
+				commitProduct(TEST_CATALOG, i, payload + i);
+			}
 
-		// the last transaction stops at WAL persistence rather than at visibility, so the log may still hold an
-		// unincorporated record when the engine goes down - which is what puts the restart on the replay path
-		// instead of merely on the addressing one. It is deliberately not asserted that replay *did* run: trunk
-		// incorporation is free to have caught up first, and a test that demanded it lose that race would be
-		// flaky. Either way the entity has to be there afterwards, and only one of the two paths can deliver it.
-		commitProductAwaitingWalOnly(RENAMED_CATALOG, TRANSACTION_COUNT + 2, "committed into the log only");
+			final Path survivingFolder = catalogFolder(TEST_CATALOG);
+			awaitWalRotationAndPurge(survivingFolder);
 
-		// the reported failure was a boot that threw out of the log's constructor, so the restart is the assertion
-		this.evita.close();
-		this.evita = new Evita(getEvitaConfiguration());
-		this.evita.waitUntilFullyInitialized();
+			final Set<String> walFilesBeforeReplace = walFileNames(survivingFolder);
+			final int[] indexesBeforeReplace = walIndexes(survivingFolder);
+			assertTrue(
+				indexesBeforeReplace.length > 1 && indexesBeforeReplace[0] > 0,
+				() -> "The fixture must rotate AND purge the log before the replace - it is what this test is " +
+					"for - but the surviving indexes were " + Arrays.toString(indexesBeforeReplace) +
+					". Raise TRANSACTION_COUNT or lower WAL_FILE_SIZE_BYTES if the write path got cheaper."
+			);
 
-		assertTrue(
-			this.evita.getCatalogNames().contains(RENAMED_CATALOG),
-			"The renamed catalog must come back from the restart!"
-		);
-		assertEquals(
-			TRANSACTION_COUNT + 2, productCount(RENAMED_CATALOG),
-			"Every transaction committed around the rename must survive the restart!"
-		);
-		assertContiguous(walIndexes(catalogFolder(RENAMED_CATALOG)), "After the restart");
+			evita().replaceCatalog(TEST_CATALOG, REPLACED_CATALOG);
+
+			// a replace repoints the target's name at the source's folder and tombstones the folder the target
+			// occupied. The source folder - the one that survives - must be as untouched as it is by a rename:
+			// the two operations run through the same operator, and only the rename half was ever covered here.
+			final Path folderAfterReplace = catalogFolder(REPLACED_CATALOG);
+			assertEquals(
+				survivingFolder, folderAfterReplace,
+				"A replace must repoint the name at the surviving folder, never move the data!"
+			);
+			assertNoWalFileAppeared(
+				walFilesBeforeReplace, walFileNames(folderAfterReplace), REPLACED_CATALOG, "After the replace"
+			);
+			assertContiguous(walIndexes(folderAfterReplace), "After the replace");
+
+			commitProduct(REPLACED_CATALOG, TRANSACTION_COUNT + 1, "committed after the replace");
+			assertContiguous(walIndexes(folderAfterReplace), "After a commit that follows the replace");
+			commitProductAwaitingWalOnly(REPLACED_CATALOG, TRANSACTION_COUNT + 2, "committed into the log only");
+
+			restartEngine();
+
+			assertTrue(
+				evita().getCatalogNames().contains(REPLACED_CATALOG),
+				"The catalog must come back from the restart under the name it was replaced into!"
+			);
+			assertEquals(
+				TRANSACTION_COUNT + 2, productCount(REPLACED_CATALOG),
+				"Every transaction committed around the replace must survive the restart!"
+			);
+			assertContiguous(walIndexes(catalogFolder(REPLACED_CATALOG)), "After the restart");
+		}
+
 	}
 
 	/**
@@ -285,6 +393,28 @@ class CatalogRenameRotatedWalTest implements EvitaTestSupport {
 		}
 		// deliberately silent - the caller asserts the precondition, so a timeout surfaces as the assertion
 		// naming what was actually on disk rather than as a bare timeout
+	}
+
+	/**
+	 * Returns the engine the nested tests run against. They cannot reach the field directly, and the qualified
+	 * form of the reference is unreadable at every call site.
+	 *
+	 * @return the running engine, never null
+	 */
+	@Nonnull
+	private Evita evita() {
+		return this.evita;
+	}
+
+	/**
+	 * Shuts the engine down and boots a fresh one over the same directories, in the same JVM - which is what puts
+	 * the next catalog load on the path issue #1414 died on, and what would surface a folder lock the previous
+	 * instance failed to release.
+	 */
+	private void restartEngine() {
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	/**
