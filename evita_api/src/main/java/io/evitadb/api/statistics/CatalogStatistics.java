@@ -23,6 +23,8 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.exception.GenericEvitaInternalError;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -482,6 +484,7 @@ public record CatalogStatistics(
 			@Nonnull ComponentAvailability availability,
 			@Nonnull String reason
 		) {
+			assertNotRecordedTheOtherWay(component, false);
 			this.componentStatus.put(component, ComponentStatus.unavailable(component, availability, reason));
 			return this;
 		}
@@ -520,8 +523,40 @@ public record CatalogStatistics(
 		 */
 		@Nonnull
 		private Builder delivered(@Nonnull CatalogStatisticsComponent component) {
+			assertNotRecordedTheOtherWay(component, true);
 			this.componentStatus.put(component, ComponentStatus.delivered(component));
 			return this;
+		}
+
+		/**
+		 * Refuses to record one component both ways round.
+		 *
+		 * The value field and the status entry are two halves of one decision, and nothing downstream cross-checks
+		 * them: a component recorded delivered and then unavailable keeps its computed value in the snapshot while
+		 * telling the reader there is none, and the other order leaves a value behind that the status says was never
+		 * computed. Either way the snapshot contradicts itself, which is precisely what the status model was added to
+		 * make impossible. No call site does this today - the engine's switch takes one branch per component - and
+		 * this is what keeps that true rather than incidental.
+		 *
+		 * The status map is checked instead of the value field itself because it is an exact stand-in: every
+		 * `withXxx` sets its field and records the component delivered in the same call, `identity` included.
+		 *
+		 * @param component  the component about to be recorded
+		 * @param delivering true when recording it as delivered, false when recording it as unavailable
+		 */
+		private void assertNotRecordedTheOtherWay(
+			@Nonnull CatalogStatisticsComponent component,
+			boolean delivering
+		) {
+			final ComponentStatus alreadyRecorded = this.componentStatus.get(component);
+			if (alreadyRecorded != null &&
+				(alreadyRecorded.availability() == ComponentAvailability.DELIVERED) != delivering) {
+				throw new GenericEvitaInternalError(
+					"Component `" + component + "` was already recorded as " +
+						(delivering ? "unavailable" : "delivered") + ", and cannot now be recorded as " +
+						(delivering ? "delivered" : "unavailable") + "!"
+				);
+			}
 		}
 
 	}

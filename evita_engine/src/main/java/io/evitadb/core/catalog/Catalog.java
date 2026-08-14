@@ -1587,6 +1587,13 @@ public final class Catalog
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					CatalogIndexCardinalityProjection.describe(collectCatalogIndexes())
 				);
+				// A switch *statement* is not checked for exhaustiveness the way an expression is, so a component
+				// added to the enum and not to this switch would fall straight through and record nothing. The
+				// resulting response is indistinguishable from one where the client never asked for it - the exact
+				// ambiguity the status-and-reason model exists to remove, arrived at by omission instead
+				default -> throw new GenericEvitaInternalError(
+					"Catalog statistics component `" + component + "` is not handled!"
+				);
 			}
 		}
 		return builder.build();

@@ -1097,6 +1097,12 @@ public final class EntityCollection implements
 				case SESSIONS, COMMIT_PIPELINE, ACTIVITY, HISTORY, DURABILITY -> throw new GenericEvitaInternalError(
 					"Catalog-level component `" + component + "` passed the collection-level check!"
 				);
+				// the arms above enumerate every constant the enum has today, but a switch *statement* is not checked
+				// for exhaustiveness - a component added later would fall through and record nothing, which a client
+				// reads as "not requested" rather than as the omission it is
+				default -> throw new GenericEvitaInternalError(
+					"Catalog statistics component `" + component + "` is not handled!"
+				);
 			}
 		}
 		return builder.build();
