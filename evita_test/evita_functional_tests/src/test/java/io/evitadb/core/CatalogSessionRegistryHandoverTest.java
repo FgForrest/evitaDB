@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.core.session.SessionRegistry;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -42,7 +43,11 @@ import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
@@ -52,6 +57,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SESSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -129,6 +135,22 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			}
 		);
 		this.evita.updateCatalog(catalogName, EvitaSessionContract::goLiveAndClose);
+	}
+
+	/**
+	 * Counts the brands the named catalog serves through a fresh session — which is both the data assertion and
+	 * the proof that the name accepts sessions at all.
+	 *
+	 * The counter is held in an explicitly typed local because `queryCatalog` is overloaded on `Function` and
+	 * `Consumer`, and an inline lambda matches both.
+	 *
+	 * @param catalogName catalog to read
+	 * @return number of brand entities the catalog holds
+	 */
+	private int brandCount(@Nonnull String catalogName) {
+		final Function<EvitaSessionContract, Integer> brandCounter =
+			session -> session.getEntityCollectionSize(Entities.BRAND);
+		return this.evita.queryCatalog(catalogName, brandCounter);
 	}
 
 	/**
@@ -278,6 +300,39 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 			);
 		}
 
+		@Test
+		@DisplayName("Quiesces and hands over a catalog that has no registry yet")
+		void shouldInstallAndHandOverTheRegistryOfANeverSessionedCatalog() {
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+			// Registries are built lazily by the first session, so after a restart the catalog has none - the
+			// state every catalog is in right after a boot. Suspending only what is already registered quiesces
+			// nothing at all here, and a session arriving while the rename runs binds to the catalog whose
+			// persistence service the operation is in the middle of handing over.
+			restartEngine();
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(SOURCE_CATALOG).isPresent(),
+				"The fixture must leave the catalog without a registry, or the test proves nothing!"
+			);
+
+			CatalogSessionRegistryHandoverTest.this.evita.renameCatalog(SOURCE_CATALOG, TARGET_CATALOG);
+
+			// asserted before anything opens a session: a registry under the new name can only be there because
+			// the rename installed one to quiesce the source and carried that one across
+			assertTrue(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).isPresent(),
+				"A rename must quiesce its source even when that source has no registry, and carry it over!"
+			);
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(SOURCE_CATALOG).isPresent(),
+				"A name that no longer names a catalog must not keep holding a session registry!"
+			);
+			assertEquals(
+				BRANDS_IN_SOURCE,
+				brandCount(TARGET_CATALOG),
+				"The renamed catalog must serve its data under the new name!"
+			);
+		}
+
 	}
 
 	@Nested
@@ -377,6 +432,233 @@ class CatalogSessionRegistryHandoverTest implements EvitaTestSupport {
 				CatalogSessionRegistryHandoverTest.this.evita.getCatalogNames().contains(SOURCE_CATALOG),
 				"The source name must stop naming anything once it has been replaced into the target!"
 			);
+		}
+
+		@Test
+		@DisplayName("Quiesces and hands over a source that has no registry yet")
+		void shouldInstallAndHandOverTheRegistryOfANeverSessionedSource() {
+			createCatalogWithBrands(TARGET_CATALOG, BRANDS_IN_TARGET);
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+			restartEngine();
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(SOURCE_CATALOG).isPresent(),
+				"The fixture must leave the source without a registry, or the test proves nothing!"
+			);
+
+			CatalogSessionRegistryHandoverTest.this.evita.replaceCatalog(SOURCE_CATALOG, TARGET_CATALOG);
+
+			assertTrue(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).isPresent(),
+				"A replace must quiesce its source even when that source has no registry, and carry it over!"
+			);
+			assertEquals(
+				BRANDS_IN_SOURCE,
+				brandCount(TARGET_CATALOG),
+				"The target must serve the data of the catalog that replaced it!"
+			);
+		}
+
+	}
+
+	/**
+	 * Covers what the operation is left holding when the *quiescing itself* fails.
+	 *
+	 * `SessionRegistry#closeAllActiveSessionsAndSuspend` publishes the suspension first and only then waits for
+	 * the sessions to leave, giving up after five seconds and throwing. Both suspensions this operation takes can
+	 * therefore fail with the suspension standing, and both have to be lifted on the way out - the surviving
+	 * catalog would otherwise answer `SessionBusyException`, and a replace target `InstanceTerminatedException`,
+	 * for the rest of the process.
+	 *
+	 * The drain is made to fail deterministically rather than by racing it: a session parked inside
+	 * `updateCatalog`'s session-bound lambda is a session with a method running, which is precisely what
+	 * `executeWhenMethodIsNotRunning` refuses to close. It is held there until the operation has already failed,
+	 * so no wall-clock budget decides the outcome; the five seconds spent waiting are the production drain's own
+	 * bound, not a sleep this test chose.
+	 */
+	@Nested
+	@DisplayName("Drain failure")
+	class DrainFailure {
+		private final ExecutorService blockedSessionExecutor = Executors.newSingleThreadExecutor(
+			runnable -> {
+				final Thread thread = new Thread(runnable, "blocked-session");
+				// daemon, so a wedged fixture cannot keep the surefire JVM alive after the suite finishes
+				thread.setDaemon(true);
+				return thread;
+			}
+		);
+
+		@AfterEach
+		void shutDownExecutor() {
+			this.blockedSessionExecutor.shutdownNow();
+		}
+
+		@Test
+		@DisplayName("Leaves the source serving when its sessions refuse to drain")
+		void shouldResumeTheSourceWhenItsDrainGivesUp() throws Exception {
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+
+			final CountDownLatch release = new CountDownLatch(1);
+			final Future<?> blockedSession = holdSessionOpen(SOURCE_CATALOG, release);
+			try {
+				assertThrows(
+					RuntimeException.class,
+					() -> CatalogSessionRegistryHandoverTest.this.evita.renameCatalog(SOURCE_CATALOG, TARGET_CATALOG),
+					"A rename whose source will not drain must report the failure rather than swallow it!"
+				);
+			} finally {
+				release.countDown();
+			}
+			awaitCompletionQuietly(blockedSession);
+
+			// The rename changed nothing, so the source must answer under its own name. The suspension used to be
+			// published before the `try` that installs the undo path, so nothing lifted it and this read failed
+			// with `SessionBusyException` for the life of the process.
+			assertEquals(
+				BRANDS_IN_SOURCE,
+				brandCount(SOURCE_CATALOG),
+				"A rename that failed while quiescing must leave the source serving!"
+			);
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogNames().contains(TARGET_CATALOG),
+				"A rename that never got past quiescing must not have created the target name!"
+			);
+		}
+
+		@Test
+		@DisplayName("Leaves both catalogs serving when the replace target refuses to drain")
+		void shouldResumeTheTargetWhenItsDrainGivesUp() throws Exception {
+			createCatalogWithBrands(TARGET_CATALOG, BRANDS_IN_TARGET);
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+
+			final CountDownLatch release = new CountDownLatch(1);
+			final Future<?> blockedSession = holdSessionOpen(TARGET_CATALOG, release);
+			try {
+				assertThrows(
+					RuntimeException.class,
+					() -> CatalogSessionRegistryHandoverTest.this.evita.replaceCatalog(SOURCE_CATALOG, TARGET_CATALOG),
+					"A replace whose target will not drain must report the failure rather than swallow it!"
+				);
+			} finally {
+				release.countDown();
+			}
+			awaitCompletionQuietly(blockedSession);
+
+			// The target's own drain is what failed, and it fails *inside* the call that hands the registry to the
+			// operation - so the ownership the undo path resumes has to be recorded before the drain, not after it.
+			// Recorded after, as it used to be, this read answered `InstanceTerminatedException` for ever.
+			assertEquals(
+				BRANDS_IN_TARGET,
+				brandCount(TARGET_CATALOG),
+				"A replace that failed while quiescing its target must leave that target serving!"
+			);
+			assertEquals(
+				BRANDS_IN_SOURCE,
+				brandCount(SOURCE_CATALOG),
+				"A replace that failed must leave its source serving too!"
+			);
+		}
+
+		@Test
+		@DisplayName("Owns the target's registry before the source's drain can fail")
+		void shouldOwnTheTargetRegistryBeforeTheSourceDrainCanFail() throws Exception {
+			createCatalogWithBrands(TARGET_CATALOG, BRANDS_IN_TARGET);
+			createCatalogWithBrands(SOURCE_CATALOG, BRANDS_IN_SOURCE);
+			// the target must start with no registry, or the undo takes the branch that restores a pre-existing
+			// one and the ownership this test is about is never exercised
+			restartEngine();
+			assertFalse(
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).isPresent(),
+				"The fixture must leave the target without a registry, or the test proves nothing!"
+			);
+
+			final CountDownLatch release = new CountDownLatch(1);
+			final Future<?> blockedSession = holdSessionOpen(SOURCE_CATALOG, release);
+			try {
+				assertThrows(
+					RuntimeException.class,
+					() -> CatalogSessionRegistryHandoverTest.this.evita.replaceCatalog(SOURCE_CATALOG, TARGET_CATALOG),
+					"A replace whose source will not drain must report the failure rather than swallow it!"
+				);
+			} finally {
+				release.countDown();
+			}
+			awaitCompletionQuietly(blockedSession);
+
+			// The heart of it, and observable without racing anything: the operation reached its own first failure
+			// point - the source's five-second drain - with the target's registry already in hand, so a registry
+			// exists under that name even though no session was ever opened on it. Owned late instead, the
+			// operation would spend that whole drain with the target unclaimed, and the undo would take a
+			// registry a session installed in the meantime to be its own leftover and unpublish it - hiding that
+			// session from every later quiesce and splitting the catalog's bookkeeping in two when the next
+			// session built a second registry.
+			final SessionRegistry targetRegistry = CatalogSessionRegistryHandoverTest.this.evita
+				.getCatalogSessionRegistry(TARGET_CATALOG)
+				.orElseThrow(() -> new AssertionError(
+					"The replace must own the target's registry before its source drain can fail, and leave it " +
+						"published when that drain does fail!"
+				));
+			assertEquals(
+				BRANDS_IN_TARGET, brandCount(TARGET_CATALOG),
+				"A replace that failed while quiescing its source must leave the target serving!"
+			);
+			assertSame(
+				targetRegistry,
+				CatalogSessionRegistryHandoverTest.this.evita.getCatalogSessionRegistry(TARGET_CATALOG).orElse(null),
+				"A session opened after the failure must reuse that registry rather than build a second one!"
+			);
+			assertEquals(
+				BRANDS_IN_SOURCE, brandCount(SOURCE_CATALOG),
+				"A replace that failed must leave its source serving too!"
+			);
+		}
+
+		/**
+		 * Parks a session inside the catalog's session-bound lambda and returns once it is genuinely in there, so
+		 * the operation that follows cannot start before the session it must fail to drain exists.
+		 *
+		 * @param catalogName catalog to hold a session on
+		 * @param release     released by the caller once the session may leave
+		 * @return handle of the held session, to be awaited after the release
+		 */
+		@Nonnull
+		private Future<?> holdSessionOpen(@Nonnull String catalogName, @Nonnull CountDownLatch release)
+			throws InterruptedException {
+			final CountDownLatch inside = new CountDownLatch(1);
+			final Future<?> blockedSession = this.blockedSessionExecutor.submit(
+				() -> CatalogSessionRegistryHandoverTest.this.evita.updateCatalog(
+					catalogName,
+					session -> {
+						inside.countDown();
+						try {
+							// generous on purpose: this is a positive wait, and the release below is what ends it
+							if (!release.await(30, TimeUnit.SECONDS)) {
+								throw new IllegalStateException("The session was never released!");
+							}
+						} catch (InterruptedException ex) {
+							Thread.currentThread().interrupt();
+						}
+					}
+				)
+			);
+			assertTrue(inside.await(30, TimeUnit.SECONDS), "The session to be held open never started!");
+			return blockedSession;
+		}
+
+		/**
+		 * Waits out work submitted to the executor — a held session, or an operation expected to fail. Its outcome
+		 * is deliberately not asserted: the held session was rolled back and closed underneath us and may report
+		 * that, the operation is *supposed* to throw, and what this class is about is the state the **catalogs**
+		 * are left in afterwards.
+		 *
+		 * @param work handle of the submitted work to wait out
+		 */
+		private void awaitCompletionQuietly(@Nonnull Future<?> work)
+			throws InterruptedException, TimeoutException {
+			try {
+				work.get(30, TimeUnit.SECONDS);
+			} catch (ExecutionException ex) {
+				// expected - see above
+			}
 		}
 
 	}

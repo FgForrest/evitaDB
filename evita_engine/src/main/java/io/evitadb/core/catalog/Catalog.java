@@ -152,6 +152,7 @@ import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogFragmentationSnapshot;
+import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
@@ -1177,8 +1178,10 @@ public final class Catalog
 			100,
 			theFuture -> {
 				final long catalogVersion = getVersion();
+				// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
+				// answers - so a failure past that point would otherwise report the new name as the old one.
+				final String currentCatalogName = getName();
 				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
-				exchangeCatalogSchema(renamedSchema, getInternalSchema());
 				final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> newIoService =
 					this.persistenceService.replaceWith(
 						catalogVersion,
@@ -1189,36 +1192,74 @@ public final class Catalog
 						// recalculate to percentages
 						(done, total) -> theFuture.updateProgress((int) (((double) done / total) * 100))
 					);
-				final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
-				final CatalogState catalogState = getCatalogState();
-				final List<EntityCollection> newCollections = this.entityCollections
-					.values()
-					.stream()
-					.map(
-						it -> new EntityCollection(
-							updatedSchema.getName(),
-							catalogVersionAfterRename,
-							catalogState,
-							it,
-							newIoService,
-							this.sequenceService
+				// **Everything below is as irreversible as `replaceWith` itself, and is marked to say so.** By
+				// the time that call returns, the folder has been relabelled *and* the service that served this
+				// catalog has been closed - so a failure in the rebuild that follows leaves `this` catalog, the
+				// one still published under the name being renamed away from, holding a closed persistence
+				// service in a folder whose stored identity no longer agrees with engine state. Left unmarked,
+				// such a failure takes the operator's ordinary compensating path, which resumes session
+				// admission and hands callers exactly that catalog: the failure mode the marker exists to
+				// prevent, reached by a route that never enters `replaceWith`.
+				try {
+					final long catalogVersionAfterRename = newIoService.getLastCatalogVersion();
+					final CatalogState catalogState = getCatalogState();
+					final List<EntityCollection> newCollections = this.entityCollections
+						.values()
+						.stream()
+						.map(
+							it -> new EntityCollection(
+								updatedSchema.getName(),
+								catalogVersionAfterRename,
+								catalogState,
+								it,
+								newIoService,
+								this.sequenceService
+							)
 						)
-					)
-					.toList();
+						.toList();
 
-				this.transactionManager.advanceVersion(catalogVersionAfterRename);
-				return new Catalog(
-					catalogVersionAfterRename,
-					catalogState,
-					this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
-					this.archiveCatalogIndex.get() == null ?
-						null :
-						this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
-					newCollections,
-					newIoService,
-					this,
-					true
-				);
+					this.transactionManager.advanceVersion(catalogVersionAfterRename);
+					// Exchanged **here**, not before the handover above, and this ordering is load-bearing. The
+					// exchange mutates *this* catalog - the one still published under the name it is being
+					// renamed away from - so performed early it hands a live catalog a schema naming a rename
+					// that has not happened yet, and a failure between the two leaves it there. The damage is
+					// not cosmetic: the commit pipeline looks a catalog up by the name its schema reports
+					// (`ExpandedEngineState#replaceCatalogReference`), so a write accepted afterwards is
+					// appended to the write-ahead log and then dies against a name the engine state has never
+					// heard of - and the next boot fails replaying it. That matters most for the failures that
+					// are *compensable*, where the catalog goes on serving; past the relabel the marker below
+					// keeps it from serving at all.
+					exchangeCatalogSchema(renamedSchema, getInternalSchema());
+					return new Catalog(
+						catalogVersionAfterRename,
+						catalogState,
+						this.catalogIndex.createShallowCopyWithResetDirtyFlag(),
+						this.archiveCatalogIndex.get() == null ?
+							null :
+							this.archiveCatalogIndex.get().createShallowCopyWithResetDirtyFlag(),
+						newCollections,
+						newIoService,
+						this,
+						true
+					);
+				} catch (Throwable ex) {
+					// The replacement service never reached a catalog that could close it, so it is closed
+					// here or its handles into the folder outlive the operation - and the folder is one a
+					// later drop or replace will want to delete. Suppressed rather than propagated: the
+					// failure being reported is the one worth reporting.
+					try {
+						newIoService.close();
+					} catch (Throwable suppressed) {
+						// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
+						// failure below - which would send the operator down the compensating path for a
+						// handover that has already relabelled the folder.
+						ex.addSuppressed(suppressed);
+					}
+					// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
+					// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
+					// compensating for it is the wrong answer however unsurvivable it is.
+					throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
+				}
 			}
 		);
 	}
