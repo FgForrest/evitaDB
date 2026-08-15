@@ -401,6 +401,17 @@
 				<artifactId>jol-core</artifactId>
 				<version>${jol.version}</version>
 			</dependency>
+			<!--
+				Force httpclient5 to the first patched version across all modules. Without this,
+				software.amazon.awssdk:apache5-client drags a vulnerable httpclient5 5.6.2 transitively
+				into evita_functional_tests (CVE-2026-64607, connection leak on Content-Encoding decode
+				error leading to pool exhaustion DoS).
+			-->
+			<dependency>
+				<groupId>org.apache.httpcomponents.client5</groupId>
+				<artifactId>httpclient5</artifactId>
+				<version>5.6.3</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<dependencies>
