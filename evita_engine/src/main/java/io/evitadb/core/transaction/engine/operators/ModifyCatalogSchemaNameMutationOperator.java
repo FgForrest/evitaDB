@@ -74,10 +74,15 @@ import static io.evitadb.utils.Assert.isTrue;
  * "unknown and should be treated as damaged" no longer describes any failure that is not a crash of the commit
  * itself. After it, the worst residue is a folder that outlived its tombstone, which the next boot drains.
  *
- * Forward-replay is still **not** implemented, but the reason has changed and narrowed: the disk work is now
- * idempotent, and what blocks replay is the completion phase's need for a live catalog instance to stage, which
- * does not exist at replay time when every catalog is still a stub. The default `Optional.empty()` in
- * `EngineMutationOperator` causes the transaction manager to wedge loudly.
+ * Forward-replay **is** implemented — see `replayCompletionState`. What made it possible is that ordering: the
+ * disk work is idempotent and already done by the time the commit record exists, so replay is purely the three
+ * state edits, with a placeholder standing in for the catalog instance the crash lost. It still declines rather
+ * than guesses where the recorded state cannot be rebuilt safely — an unbound source, or two names resolving to
+ * one folder — and those paths return `Optional.empty()`, which wedges the transaction manager loudly.
+ *
+ * That matters to anyone reasoning about a failed rename: a commit record left durable at `walV == stateV + 1`
+ * is **completed** by the next boot, not discarded. A failure the engine reports and declares in memory can
+ * therefore still turn into a finished rename after a restart.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

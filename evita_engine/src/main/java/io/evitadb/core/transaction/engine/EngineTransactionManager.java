@@ -854,10 +854,26 @@ public class EngineTransactionManager implements Closeable {
 				// finally, notify the change observer about the new version
 				this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
 			} catch (Throwable ex) {
+				// **Wedged rather than merely logged**, and this is the one post-durability failure that earns
+				// it. Everything else in this block is bookkeeping whose loss the next commit heals; losing the
+				// publish is different in kind, because the version counter has already moved. The next mutation
+				// would then derive its snapshot from `evita.getEngineState()` - still the pre-commit state -
+				// and persist it at the advanced version, durably erasing whatever this commit recorded: a
+				// catalog binding, a tombstone. And it would do so silently, once per commit, for as long as the
+				// process runs.
+				//
+				// Refusing further mutations is what stops that, and it is the same escalation the forward-replay
+				// path already uses for a state it cannot reconcile on its own. The caller of *this* mutation is
+				// still not told it failed - it did not, it is durable - but nothing else is allowed to build on
+				// a snapshot the engine can no longer vouch for.
+				wedge(
+					"engine state version `" + nextStateVersion + "` was committed durably but could not be " +
+						"published in memory: " + ex.getMessage()
+				);
 				log.error(
 					"Publishing engine state version `{}` in memory failed after it had been made durable. The " +
-						"mutation survives a restart, but this process may answer from the state that preceded " +
-						"it until then.",
+						"mutation survives a restart, but this process now refuses further engine mutations - " +
+						"restart it to resume from the durable state.",
 					nextStateVersion, ex
 				);
 			}
