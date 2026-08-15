@@ -176,6 +176,11 @@ public class EngineTransactionManager implements Closeable {
 	 * wedged, every public mutation-issuing entry point refuses to run until an operator intervenes
 	 * and hand-reconciles the bootstrap file.
 	 *
+	 * Also set at runtime by `updateEngineStateAfterEngineMutation` when a commit that is already
+	 * durable cannot be published in memory. That is the same hazard arriving by a different route:
+	 * the durable version has moved and the live state has not, so the next append would build on a
+	 * snapshot the engine can no longer vouch for.
+	 *
 	 * Structural WAL corruption (header without body) is NOT routed through this flag; the
 	 * persistence layer throws `WriteAheadLogCorruptedException` (with `WalKind.ENGINE`) directly, aborting the
 	 * `EngineTransactionManager` constructor and failing engine boot — a corrupt WAL cannot be
@@ -187,9 +192,9 @@ public class EngineTransactionManager implements Closeable {
 	 * `stateV + 1` again — duplicating (or clobbering) the crashed mutation. A loud fail-fast is
 	 * always better than silent corruption, so we gate every mutation entry on this flag.
 	 *
-	 * Marked `volatile` defensively: today the flag is only set during construction (so safe
-	 * publication via the constructor's happens-before is sufficient), but `volatile` hardens
-	 * the field against future refactorings that move wedge-setting onto a runtime path.
+	 * Marked `volatile` because it is genuinely set on a runtime path (the post-durability publish
+	 * failure above), not only during construction — a mutation on one thread must be refused by
+	 * the wedge another thread has just raised.
 	 */
 	private volatile boolean wedged;
 
@@ -358,9 +363,10 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
-		// Fail fast if forward WAL replay during startup wedged the engine — see `wedged`.
-		// Continuing would let the next append reuse a version that the WAL already committed,
-		// clobbering the crashed record and masking the original incident.
+		// Fail fast if the engine is wedged — by forward WAL replay during startup, or by a durable
+		// commit that could not be published in memory; see `wedged`. Continuing would let the next
+		// append build on a stale snapshot and reuse a version the WAL already committed, clobbering
+		// that record and masking the original incident.
 		if (this.wedged) {
 			throw new GenericEvitaInternalError(
 				"Engine is wedged and refuses further mutations: "
@@ -839,6 +845,9 @@ public class EngineTransactionManager implements Closeable {
 					nextStateVersion, ex
 				);
 			}
+			// **The publish, alone in its own guard.** It is the only statement past the boundary whose failure
+			// is not survivable, so it is the only one allowed to wedge - see the catch below for why, and the
+			// second block for why nothing else may join it there.
 			try {
 				// Published unconditionally, whatever the observers did: durable state sitting ahead of the state
 				// every reader resolves against is a split brain nobody can compensate for, and - because the
@@ -846,21 +855,12 @@ public class EngineTransactionManager implements Closeable {
 				// already holds.
 				this.lastStoredEngineStateVersion++;
 				this.evita.setNextEngineState(nextEngineState);
-				// only now is the pruning durable, so the confirmations that produced it can be forgotten
-				this.folderContext.forgetDrainedFolders(drainedFolders);
-				// and only now can a generation counter be retired, for the same reason: the evidence that the name
-				// holds nothing any more is exactly the pruned state that was just made durable
-				retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
-				// finally, notify the change observer about the new version
-				this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
 			} catch (Throwable ex) {
 				// **Wedged rather than merely logged**, and this is the one post-durability failure that earns
-				// it. Everything else in this block is bookkeeping whose loss the next commit heals; losing the
-				// publish is different in kind, because the version counter has already moved. The next mutation
-				// would then derive its snapshot from `evita.getEngineState()` - still the pre-commit state -
-				// and persist it at the advanced version, durably erasing whatever this commit recorded: a
-				// catalog binding, a tombstone. And it would do so silently, once per commit, for as long as the
-				// process runs.
+				// it, because the version counter has already moved. The next mutation would then derive its
+				// snapshot from `evita.getEngineState()` - still the pre-commit state - and persist it at the
+				// advanced version, durably erasing whatever this commit recorded: a catalog binding, a
+				// tombstone. And it would do so silently, once per commit, for as long as the process runs.
 				//
 				// Refusing further mutations is what stops that, and it is the same escalation the forward-replay
 				// path already uses for a state it cannot reconcile on its own. The caller of *this* mutation is
@@ -874,6 +874,37 @@ public class EngineTransactionManager implements Closeable {
 					"Publishing engine state version `{}` in memory failed after it had been made durable. The " +
 						"mutation survives a restart, but this process now refuses further engine mutations - " +
 						"restart it to resume from the durable state.",
+					nextStateVersion, ex
+				);
+				// Returned rather than fallen through: every statement below reads `nextEngineState` as the state
+				// that is now live, and it is not. Their work is retention bookkeeping for a version no reader
+				// can see, and the engine accepts no further mutation to make use of it.
+				return;
+			}
+			try {
+				// only now is the pruning durable, so the confirmations that produced it can be forgotten
+				this.folderContext.forgetDrainedFolders(drainedFolders);
+				// and only now can a generation counter be retired, for the same reason: the evidence that the name
+				// holds nothing any more is exactly the pruned state that was just made durable
+				retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
+				// finally, notify the change observer about the new version
+				this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
+			} catch (Throwable ex) {
+				// **Logged and never wedged**, in deliberate contrast to the publish above. These three are
+				// retention bookkeeping and a notification, and the next commit performs all of them again from
+				// the state it publishes then - a drained folder stays confirmed, a generation counter stays
+				// unretired, a subscriber wakes one version late. Nothing here can put the durable and live
+				// halves out of step, which is the only thing the wedge exists to prevent.
+				//
+				// The distinction is not academic: `notifyVersionPresentInLiveView` walks change-capture
+				// subscribers and `SystemChangeObserver` refuses it outright once closed, exactly as
+				// `processMutation` does two blocks above. Wedging on that would refuse every future mutation
+				// across every catalog because a subscriber went away during a shutdown - stopping the engine to
+				// protect state that is, by then, perfectly in step.
+				log.error(
+					"Post-publish bookkeeping for engine state version `{}` did not complete. The version is " +
+						"durable and live, so this costs only retention work and a change-capture wake-up that " +
+						"the next commit performs again.",
 					nextStateVersion, ex
 				);
 			}

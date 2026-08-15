@@ -232,6 +232,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				// to show that it ever stopped. This is the idiom `SetCatalogStateMutationOperator` already
 				// uses to publish its placeholder.
 				//
+				// **A deliberate exception to the updater's usual timing**, and the only one in the codebase:
+				// `EngineMutationOperator#applyMutation` describes this updater as running once before the heavy
+				// work, and this operator instead runs it zero times on the path that succeeds and once here, on
+				// the path that cannot be compensated for. The contract is written that way because the updater
+				// is the only route that holds the engine state lock, and a terminal declaration needs that lock
+				// for the same reason a pre-mutation transition does.
+				//
 				// The version deliberately stays where it is: nothing is being committed here, the operation
 				// failed. `setNextEngineState` accepts an unchanged version, so the swap is an in-place
 				// exchange of the instance behind the name rather than a state version a failed operation has

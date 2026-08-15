@@ -62,8 +62,10 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -91,6 +93,13 @@ import static org.mockito.Mockito.when;
  * past the boundary is best-effort and logged, which is the same rule the operators apply to their own
  * post-commit work. See `ModifyCatalogSchemaNameMutationOperator`, whose failure path is only able to choose
  * between two answers because no committed operation can reach it.
+ *
+ * **Not reporting is not the same as not caring**, and the last two tests hold the line between the two failures
+ * that look alike from the caller's side. Losing the in-memory publish leaves the durable and live halves out of
+ * step for good, so it wedges the engine; losing the retention bookkeeping and the change-capture wake-up that
+ * follow it costs a version's worth of work the next commit performs again, so it is logged and nothing more.
+ * Collapsing the two - wedging on either - would stop the whole engine because a subscriber went away during a
+ * shutdown, which is precisely the failure `SystemChangeObserver` is built to produce.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -207,16 +216,8 @@ class EngineTransactionManagerCommitBoundaryTest implements EvitaTestSupport {
 				evita, changeObserver, executor, rawService
 			)
 		) {
-			// `ServerModifyCatalogSchemaMutation` is the one engine mutation that reaches the commit without an
-			// operator and without a live catalog - it only advances the engine version - which is exactly the
-			// bare commit this test is about.
 			assertDoesNotThrow(
-				() -> manager.applyMutation(
-					new ServerModifyCatalogSchemaMutation(
-						1L, 1, new ModifyCatalogSchemaMutation(CATALOG_NAME, UUID.randomUUID())
-					),
-					null
-				),
+				() -> manager.applyMutation(bareEngineMutation(), null),
 				"A mutation that is already durable must not be reported as failed because a change observer " +
 					"refused it. The caller would undo bookkeeping the durable state already records, or retry an " +
 					"operation that has already happened - and neither redelivers the capture that was lost."
@@ -245,6 +246,123 @@ class EngineTransactionManagerCommitBoundaryTest implements EvitaTestSupport {
 				"The mutation was durable before the observer refused it, so the next boot must find it."
 			);
 		}
+	}
+
+	@Test
+	@DisplayName("should keep accepting mutations when the bookkeeping after the publish fails")
+	void shouldNotWedgeTheEngineWhenPostPublishBookkeepingFails() {
+		final ExpandedEngineState initialState = wrapAsExpanded(this.persistenceService.getEngineState());
+		final long versionBefore = initialState.version();
+		final AtomicReference<ExpandedEngineState> lastSetState = new AtomicReference<>();
+		final Evita evita = mockEvita(this.paths.storage(), initialState, lastSetState);
+
+		// The realistic failure of the whole post-publish tail, and the reason it may not wedge: this call walks
+		// change-capture subscribers, and `SystemChangeObserver` refuses it outright once closed - the same
+		// `assertActive` throw the test above uses for `processMutation`. A shutdown racing an in-flight commit
+		// produces it, and by then the durable and live halves are perfectly in step.
+		final SystemChangeObserver changeObserver = mock(SystemChangeObserver.class);
+		doThrow(new GenericEvitaInternalError("The change observer has already closed!"))
+			.when(changeObserver).notifyVersionPresentInLiveView(anyLong());
+		final ObservableExecutorService executor = mock(ObservableExecutorService.class);
+
+		@SuppressWarnings({"rawtypes"}) final EnginePersistenceService rawService = this.persistenceService;
+
+		//noinspection unchecked
+		try (
+			EngineTransactionManager manager = new EngineTransactionManager(
+				evita, changeObserver, executor, rawService
+			)
+		) {
+			assertDoesNotThrow(
+				() -> manager.applyMutation(bareEngineMutation(), null),
+				"The mutation was durable and published before the notification failed, so nothing is owed to " +
+					"the caller."
+			);
+			assertEquals(
+				versionBefore + 1, lastSetState.get().version(),
+				"The publish itself succeeded - only the bookkeeping behind it failed."
+			);
+
+			// The assertion this test exists for. A wedge here would refuse every subsequent mutation across
+			// every catalog for the life of the process, to protect a version that is already durable, already
+			// live, and already consistent - the cost of losing a subscriber wake-up is that the subscriber wakes
+			// on the next commit instead.
+			assertDoesNotThrow(
+				() -> manager.applyMutation(bareEngineMutation(), null),
+				"Losing the post-publish bookkeeping must not wedge the engine: the durable and live halves are " +
+					"in step, and the next commit redoes every one of those steps from the state it publishes."
+			);
+			assertEquals(
+				versionBefore + 2, lastSetState.get().version(),
+				"The second mutation must have committed and published like any other."
+			);
+		} finally {
+			this.persistenceService.close();
+			this.persistenceService = null;
+		}
+	}
+
+	@Test
+	@DisplayName("should wedge the engine when a durable commit cannot be published in memory")
+	void shouldWedgeTheEngineWhenTheDurableCommitCannotBePublished() {
+		final ExpandedEngineState initialState = wrapAsExpanded(this.persistenceService.getEngineState());
+		final AtomicReference<ExpandedEngineState> lastSetState = new AtomicReference<>();
+		final Evita evita = mockEvita(this.paths.storage(), initialState, lastSetState);
+		// Overrides the sink `mockEvita` installed: the publish is refused outright, which is the one
+		// post-durability failure the engine cannot absorb. Its real trigger is `setNextEngineState`'s own
+		// version-continuity premise check, which is supposed to be unreachable - the point of the test is what
+		// happens if it ever is not, since the alternative to wedging is erasing a commit per mutation, silently.
+		doThrow(new GenericEvitaInternalError("The engine refused to publish the committed state!"))
+			.when(evita).setNextEngineState(any(ExpandedEngineState.class));
+
+		final SystemChangeObserver changeObserver = mock(SystemChangeObserver.class);
+		final ObservableExecutorService executor = mock(ObservableExecutorService.class);
+
+		@SuppressWarnings({"rawtypes"}) final EnginePersistenceService rawService = this.persistenceService;
+
+		//noinspection unchecked
+		try (
+			EngineTransactionManager manager = new EngineTransactionManager(
+				evita, changeObserver, executor, rawService
+			)
+		) {
+			assertDoesNotThrow(
+				() -> manager.applyMutation(bareEngineMutation(), null),
+				"Even this failure is not reported: the mutation is durable, and telling the caller otherwise " +
+					"invites a retry of something that has already happened."
+			);
+
+			// Silence is affordable for the caller precisely because it is not affordable for the engine. The
+			// version counter has moved and the live state has not, so the next commit would derive its snapshot
+			// from the pre-commit state and persist it at the advanced version - erasing this one.
+			final Throwable refusal = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> manager.applyMutation(bareEngineMutation(), null),
+				"A commit that went durable without becoming live must stop the engine, not be logged and left " +
+					"to repeat itself once per mutation."
+			);
+			assertTrue(
+				refusal.getMessage().contains("Engine is wedged"),
+				"The refusal must name the wedge, so an operator reads why the engine stopped rather than " +
+					"guessing: " + refusal.getMessage()
+			);
+		} finally {
+			this.persistenceService.close();
+			this.persistenceService = null;
+		}
+	}
+
+	/**
+	 * Builds the one engine mutation that reaches the commit without an operator and without a live catalog - it
+	 * advances the engine version and does nothing else, which is exactly the bare commit these tests are about.
+	 *
+	 * @return a mutation that commits by advancing the engine version alone
+	 */
+	@Nonnull
+	private static ServerModifyCatalogSchemaMutation bareEngineMutation() {
+		return new ServerModifyCatalogSchemaMutation(
+			1L, 1, new ModifyCatalogSchemaMutation(CATALOG_NAME, UUID.randomUUID())
+		);
 	}
 
 }
