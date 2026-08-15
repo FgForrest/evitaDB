@@ -41,7 +41,7 @@ jobs:
           echo "Commits found in dev branch: $COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed to dev branch in the last week
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0  # setup JDK 17 for building
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0  # setup JDK 17 for building
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
