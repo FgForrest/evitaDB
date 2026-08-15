@@ -246,10 +246,18 @@ class CatalogRenameFailurePathTest implements EvitaTestSupport {
 
 		// The source is the catalog whose handover failed, so it - and only it - is refused past that point,
 		// for the reason spelled out in the rename test above.
-		assertThrows(
+		final CatalogCorruptedException refusal = assertThrows(
 			CatalogCorruptedException.class,
 			() -> readPayload(TEST_CATALOG, 1),
 			"A replace that failed past its point of no return must refuse sessions on the source legibly!"
+		);
+		// Asserted for the same reason as in the rename test: `CatalogCorruptedException` is what a catalog that
+		// failed to *open* reports too, so without this the test would still pass if the declaration were
+		// replaced by a catalog that simply cannot be loaded - a different failure wearing the same face.
+		assertTrue(
+			carriesHandoverFailure(refusal),
+			"The refusal must name the failed handover as its cause, or it is indistinguishable from a catalog " +
+				"that merely failed to open!"
 		);
 		// The target is the half of a replace that the handover never touches: its folder, its service and its
 		// data are exactly as they were, and the operation owes it nothing but the lifting of the REJECT

@@ -2942,7 +2942,7 @@ public class DefaultCatalogPersistenceService
 			// `Throwable`, not `RuntimeException`: an `Error` raised past the relabel leaves exactly the same
 			// disagreement behind, and letting it through unmarked would send the engine down the compensating
 			// path for the one class of failure least likely to be survivable.
-			throw new CatalogHandoverFailedException(catalogNameToBeReplaced, ex);
+			throw new CatalogHandoverFailedException(this.catalogName, catalogNameToBeReplaced, ex);
 		}
 	}
 

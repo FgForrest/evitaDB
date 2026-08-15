@@ -45,7 +45,12 @@ import java.io.Serial;
  * unusable catalog carrying this as its cause, so the failure is refused legibly until a restart rebuilds the
  * catalog from its folder - which it can, precisely because nothing was allowed to be written in between.
  *
- * Thrown only by the storage layer, which is the only layer that knows where that line falls.
+ * Raised where the line is known to have been crossed: by the storage layer, which owns the relabel itself, and
+ * by {@link io.evitadb.core.catalog.Catalog#replace} for the rebuild that follows it - the replacement catalog
+ * is assembled after the relabel and after the previous persistence service has been closed, so a failure there
+ * leaves the identical disagreement behind. It is **not** the only way a caller learns the line was crossed: a
+ * failure raised past the handover by code that has never heard of it carries no marker at all, and the operator
+ * recognises that case by having recorded the handover's completion rather than by inspecting the failure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -55,15 +60,25 @@ public class CatalogHandoverFailedException extends EvitaInternalError {
 	/**
 	 * Reports a handover that failed once the folder had already been relabelled for it.
 	 *
-	 * @param catalogName name the catalog was being handed over to
-	 * @param cause       failure that interrupted the handover
+	 * Both names are carried because they are the two halves of what the reader needs: the catalog is refused
+	 * under the name it still answers to, while the folder on disk has been relabelled for the other one.
+	 * Naming only the target - as this once did - shows a user a catalog name that never existed for them.
+	 *
+	 * @param catalogName    name the catalog is still published under, and the one that will refuse sessions
+	 * @param newCatalogName name it was being handed over to, and the one its folder now carries
+	 * @param cause          failure that interrupted the handover
 	 */
-	public CatalogHandoverFailedException(@Nonnull String catalogName, @Nonnull Throwable cause) {
+	public CatalogHandoverFailedException(
+		@Nonnull String catalogName,
+		@Nonnull String newCatalogName,
+		@Nonnull Throwable cause
+	) {
 		super(
-			"Handover of catalog `" + catalogName + "` failed after its storage folder had been relabelled " +
-				"for it, so the folder no longer agrees with the engine state: " + cause.getMessage(),
-			"Catalog `" + catalogName + "` could not be renamed and cannot be used until the server is " +
-				"restarted, which restores it under the name it had before.",
+			"Handover of catalog `" + catalogName + "` to `" + newCatalogName + "` failed after its storage " +
+				"folder had been relabelled for it, so the folder no longer agrees with the engine state: " +
+				cause.getMessage(),
+			"Catalog `" + catalogName + "` could not be renamed to `" + newCatalogName + "` and cannot be used " +
+				"until the server is restarted, which restores it under the name it had before.",
 			cause
 		);
 	}

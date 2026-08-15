@@ -63,6 +63,7 @@ import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.SESSION;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static java.util.Optional.ofNullable;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -74,7 +75,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -251,6 +255,31 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 		@Nonnull ModifyCatalogSchemaNameMutation mutation,
 		@Nonnull Consumer<EngineStateUpdater> completionUpdater
 	) throws Exception {
+		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
+		applyAndAwait(evita, storageDirectory, mutation, completionUpdater, transitionUpdater);
+	}
+
+	/**
+	 * Drives one rename or replace to completion on the calling thread, against a caller-supplied transition
+	 * updater.
+	 *
+	 * The transition updater is how the operator declares a catalog unusable, so a test that cares whether a
+	 * declaration happened has to hold the mock it is declared through.
+	 *
+	 * @param evita             engine the operator acts on
+	 * @param storageDirectory  root the folder context is built over
+	 * @param mutation          the rename or replace to apply
+	 * @param completionUpdater stands in for the engine-state commit
+	 * @param transitionUpdater stands in for the engine-state transition the declaration is published through
+	 * @throws ExecutionException when the operation fails, exactly as the engine would see it
+	 */
+	private static void applyAndAwait(
+		@Nonnull Evita evita,
+		@Nonnull Path storageDirectory,
+		@Nonnull ModifyCatalogSchemaNameMutation mutation,
+		@Nonnull Consumer<EngineStateUpdater> completionUpdater,
+		@Nonnull Consumer<EngineStateUpdater> transitionUpdater
+	) throws Exception {
 		// The surviving catalog keeps its folder across the rename and the completion phase relabels it, while a
 		// replace retires the folder its target was living in - so both have to be there, or the run is noisy with
 		// failures that have nothing to do with the test.
@@ -258,7 +287,6 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 		Files.createDirectories(storageDirectory.resolve(TARGET_CATALOG_NAME));
 
 		final CatalogFolderContext folderContext = TestCatalogFolderContexts.onDirectory(storageDirectory);
-		@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 
 		final ProgressingFuture<?> future = new ModifyCatalogSchemaNameMutationOperator(folderContext)
 			.applyMutation(UUID.randomUUID(), mutation, evita, transitionUpdater, completionUpdater);
@@ -426,12 +454,12 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 	}
 
 	@Nested
-	@DisplayName("A commit that fails leaves each name answering through the registry it started with")
+	@DisplayName("A commit that fails is past the point of no return, and is declared rather than compensated")
 	class CommitFailure {
 
 		@Test
-		@DisplayName("should unpublish the target's registry when a rename fails at the commit")
-		void shouldUnpublishTheTargetRegistryWhenTheRenameCommitFails(@TempDir Path storageDirectory) {
+		@DisplayName("should declare the catalog unusable when a rename fails at the commit")
+		void shouldDeclareTheCatalogUnusableWhenTheRenameCommitFails(@TempDir Path storageDirectory) {
 			final Map<String, SessionRegistry> registries = new ConcurrentHashMap<>(4);
 			final SessionRegistry sourceRegistry = sessionRegistryFor(SOURCE_CATALOG_NAME);
 			registries.put(SOURCE_CATALOG_NAME, sourceRegistry);
@@ -445,6 +473,7 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 					throw new GenericEvitaInternalError("The engine state refused the rename!");
 				}
 			).when(completionUpdater).accept(any());
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 
 			assertThrows(
 				ExecutionException.class,
@@ -452,10 +481,18 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 					mockEngine(catalogs, registries),
 					storageDirectory,
 					new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG_NAME, TARGET_CATALOG_NAME, false),
-					completionUpdater
+					completionUpdater,
+					transitionUpdater
 				)
 			);
 
+			// The commit runs *after* the handover, so by the time it fails the folder has been relabelled, the
+			// previous persistence service closed and the catalog's schema exchanged for the target's. Nothing
+			// about that failure carries the storage layer's marker - it was never raised by the storage layer -
+			// so a failure path that routes on the marker alone compensates here, and hands its callers a
+			// catalog whose every read dies against a closed service. What decides it is the record the
+			// completion phase leaves that the handover ran at all.
+			verify(transitionUpdater).accept(any());
 			assertNull(
 				registries.get(TARGET_CATALOG_NAME),
 				"A rename that failed names no catalog under the target, so a registry left published there would " +
@@ -473,8 +510,8 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 		}
 
 		@Test
-		@DisplayName("should restore the replace target's own registry when the commit fails")
-		void shouldRestoreTheTargetsOwnRegistryWhenTheReplaceCommitFails(@TempDir Path storageDirectory) {
+		@DisplayName("should declare the surviving catalog unusable when a replace fails at the commit")
+		void shouldDeclareTheSurvivingCatalogUnusableWhenTheReplaceCommitFails(@TempDir Path storageDirectory) {
 			final Map<String, SessionRegistry> registries = new ConcurrentHashMap<>(4);
 			final SessionRegistry sourceRegistry = sessionRegistryFor(SOURCE_CATALOG_NAME);
 			final SessionRegistry targetRegistry = sessionRegistryFor(TARGET_CATALOG_NAME);
@@ -491,6 +528,7 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 					throw new GenericEvitaInternalError("The engine state refused the replace!");
 				}
 			).when(completionUpdater).accept(any());
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
 
 			assertThrows(
 				ExecutionException.class,
@@ -498,10 +536,15 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 					mockEngine(catalogs, registries),
 					storageDirectory,
 					new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG_NAME, TARGET_CATALOG_NAME, true),
-					completionUpdater
+					completionUpdater,
+					transitionUpdater
 				)
 			);
 
+			// Declared for the same reason as the rename above - the handover ran before the commit did. Only
+			// the *surviving* catalog is declared; the catalog that was to be replaced was never touched, which
+			// is what the two assertions below hold the line on.
+			verify(transitionUpdater).accept(any());
 			assertSame(
 				targetRegistry, registries.get(TARGET_CATALOG_NAME),
 				"The replace changed nothing, so the target must still answer through the registry it had - a " +
@@ -521,6 +564,113 @@ class ModifyCatalogSchemaNameMutationOperatorTest {
 			assertTrue(
 				isServing(sourceRegistry),
 				"A failed replace must lift the suspension it opened the surviving catalog with."
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Work that fails after the commit is logged, never reported and never undone")
+	class PostCommitFailure {
+
+		@Test
+		@DisplayName("should neither declare nor report when the work after the commit fails")
+		void shouldNeitherDeclareNorReportWhenTheWorkAfterTheCommitFails(@TempDir Path storageDirectory) {
+			final Map<String, SessionRegistry> registries = new ConcurrentHashMap<>(4);
+			final SessionRegistry sourceRegistry = sessionRegistryFor(SOURCE_CATALOG_NAME);
+			registries.put(SOURCE_CATALOG_NAME, sourceRegistry);
+
+			final Map<String, CatalogContract> catalogs = new HashMap<>(4);
+			catalogs.put(SOURCE_CATALOG_NAME, catalogYielding(catalogWithSchema()));
+
+			final Evita evita = mockEngine(catalogs, registries);
+			// Retiring the source name is the first thing the handoff does *after* the commit has landed. Made to
+			// throw, it stands in for anything in that block failing - a premise assert in the live-view handover,
+			// a resume that refuses. The commit itself is untouched and succeeds.
+			doAnswer(
+				invocation -> {
+					throw new GenericEvitaInternalError("The registry map refused the retirement!");
+				}
+			).when(evita).removeCatalogSessionRegistryIfPresent(anyString());
+
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
+
+			assertDoesNotThrow(
+				() -> applyAndAwait(
+					evita,
+					storageDirectory,
+					new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG_NAME, TARGET_CATALOG_NAME, false),
+					completionUpdater,
+					transitionUpdater
+				),
+				"The commit has landed, so the rename happened and survives a restart. Reporting it as failed " +
+					"tells the caller to act on an operation that is already recorded in durable state."
+			);
+
+			verify(transitionUpdater, never()).accept(any());
+			// The injected throw lands one statement before the resume, so swallowing the failure is exactly
+			// what would hide this: the operation reports success while both names answer SessionBusyException
+			// for the life of the process - this issue's own headline symptom, on the path that claims to have
+			// worked. The resume is therefore owed from a `finally`, not from the block that failed.
+			assertTrue(
+				isServing(sourceRegistry),
+				"A commit that landed must lift the suspension it opened with even when the work after it " +
+					"failed, or the operation reports success and leaves every session refused until restart!"
+			);
+		}
+
+		@Test
+		@DisplayName("should hand the replace target over even when publishing to the live view fails")
+		void shouldHandTheReplaceTargetOverWhenPublishingToTheLiveViewFails(@TempDir Path storageDirectory) {
+			final Map<String, SessionRegistry> registries = new ConcurrentHashMap<>(4);
+			final SessionRegistry sourceRegistry = sessionRegistryFor(SOURCE_CATALOG_NAME);
+			final SessionRegistry targetRegistry = sessionRegistryFor(TARGET_CATALOG_NAME);
+			registries.put(SOURCE_CATALOG_NAME, sourceRegistry);
+			registries.put(TARGET_CATALOG_NAME, targetRegistry);
+
+			// Publishing the replacement to its transaction manager is the last statement before the registry
+			// handover, and the two cannot be reordered - so a failure there must be contained at the site rather
+			// than allowed to skip what follows it. For a replace onto an existing catalog what follows is the swap
+			// that displaces the target's own registry; skipped, that registry stays in the map under the committed
+			// name, still REJECT-suspended from the quiesce this operation opened with, and answers
+			// `InstanceTerminatedException` to every session for the life of the process - beneath an operation
+			// that reported success. The resume in the wrap's `finally` cannot reach it and must not: once the swap
+			// has happened that registry answers to no name, and resuming it would admit sessions no later quiesce
+			// could ever find.
+			final Catalog replacementResult = catalogWithSchema();
+			doThrow(new GenericEvitaInternalError("The transaction manager refused the replacement!"))
+				.when(replacementResult).notifyCatalogPresentInLiveView();
+
+			final Map<String, CatalogContract> catalogs = new HashMap<>(4);
+			catalogs.put(SOURCE_CATALOG_NAME, catalogYielding(replacementResult));
+			catalogs.put(TARGET_CATALOG_NAME, catalogWithSchema());
+
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> completionUpdater = mock(Consumer.class);
+			@SuppressWarnings("unchecked") final Consumer<EngineStateUpdater> transitionUpdater = mock(Consumer.class);
+
+			assertDoesNotThrow(
+				() -> applyAndAwait(
+					mockEngine(catalogs, registries),
+					storageDirectory,
+					new ModifyCatalogSchemaNameMutation(SOURCE_CATALOG_NAME, TARGET_CATALOG_NAME, true),
+					completionUpdater,
+					transitionUpdater
+				),
+				"The commit has landed, so the replace happened - a live-view publication that failed afterwards " +
+					"is not the caller's to act on."
+			);
+
+			verify(transitionUpdater, never()).accept(any());
+			assertNotSame(
+				targetRegistry, registries.get(TARGET_CATALOG_NAME),
+				"The surviving catalog's registry must reach the committed name. Left undone, the name keeps the " +
+					"registry this operation quiesced with REJECT and refuses every session until restart!"
+			);
+			assertTrue(
+				isServing(sourceRegistry),
+				"A committed replace must lift the suspension it opened the surviving catalog with, whatever " +
+					"failed after the commit!"
 			);
 		}
 

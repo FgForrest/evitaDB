@@ -816,19 +816,51 @@ public class EngineTransactionManager implements Closeable {
 					)
 				);
 
-			// notify system observer about the mutation
-			this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
-			this.changeObserver.processMutation(engineMutation);
-
-			this.lastStoredEngineStateVersion++;
-			this.evita.setNextEngineState(nextEngineState);
-			// only now is the pruning durable, so the confirmations that produced it can be forgotten
-			this.folderContext.forgetDrainedFolders(drainedFolders);
-			// and only now can a generation counter be retired, for the same reason: the evidence that the name
-			// holds nothing any more is exactly the pruned state that was just made durable
-			retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
-			// finally, notify the change observer about the new version
-			this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
+			// **The mutation is durable from here, and nothing below may report failure.** The write-ahead log
+			// record is appended and the bootstrap rewritten, so it survives a restart whatever happens next.
+			// A caller told "this failed" would be told something untrue, and would act on it: an operator
+			// undoes bookkeeping the durable state has already recorded, and a client retries an operation that
+			// has already happened. Everything after this line is therefore best-effort and logged - the same
+			// rule the operators apply to their own post-commit work, and for the same reason.
+			//
+			// Reporting nothing costs nothing that reporting would have recovered. The realistic failure here is
+			// a change observer closing underneath an in-flight operation, and the capture it refuses is lost
+			// either way: `processMutation` is what fills the replay buffer, so failing the caller's future
+			// neither redelivers the event nor lets anyone else recover it. It only adds a lie to a loss.
+			try {
+				// notify system observer about the mutation - before the publish, as it always has been
+				this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
+				this.changeObserver.processMutation(engineMutation);
+			} catch (Throwable ex) {
+				log.error(
+					"Change data capture dispatch failed for engine state version `{}`, which is already " +
+						"durable - subscribers have missed this mutation and cannot replay it, because the " +
+						"buffer they would replay from is filled by the dispatch that just failed.",
+					nextStateVersion, ex
+				);
+			}
+			try {
+				// Published unconditionally, whatever the observers did: durable state sitting ahead of the state
+				// every reader resolves against is a split brain nobody can compensate for, and - because the
+				// version counter moves with it - the next mutation would otherwise append at a version the log
+				// already holds.
+				this.lastStoredEngineStateVersion++;
+				this.evita.setNextEngineState(nextEngineState);
+				// only now is the pruning durable, so the confirmations that produced it can be forgotten
+				this.folderContext.forgetDrainedFolders(drainedFolders);
+				// and only now can a generation counter be retired, for the same reason: the evidence that the name
+				// holds nothing any more is exactly the pruned state that was just made durable
+				retireGenerationSequences(mutatedEngineState, nextEngineState, drainedFolders);
+				// finally, notify the change observer about the new version
+				this.changeObserver.notifyVersionPresentInLiveView(nextStateVersion);
+			} catch (Throwable ex) {
+				log.error(
+					"Publishing engine state version `{}` in memory failed after it had been made durable. The " +
+						"mutation survives a restart, but this process may answer from the state that preceded " +
+						"it until then.",
+					nextStateVersion, ex
+				);
+			}
 		} finally {
 			this.engineStateLock.unlock();
 		}

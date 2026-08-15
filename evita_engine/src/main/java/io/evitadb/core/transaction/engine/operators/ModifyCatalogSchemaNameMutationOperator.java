@@ -54,6 +54,8 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.evitadb.utils.Assert.isTrue;
@@ -174,6 +176,19 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		final Optional<SessionRegistry> quiescedTargetRegistry = replaceOperation ?
 			evita.obtainCatalogSessionRegistry(catalogNameToBeReplaced) : Optional.empty();
 
+		// **Whether the storage handover has run**, which is what separates compensating from declaring - and it
+		// is recorded as a fact here rather than read off the failure, because past the handover most failures
+		// are raised by code that has never heard of it: the engine-state commit, the premise check guarding the
+		// registry handoff, the bookkeeping either side of them. Marking each such site individually was tried
+		// and does not hold - three successive review rounds found three further unmarked exits, each one a
+		// catalog served through a persistence service the handover had already closed. Asking "did we get that
+		// far" once, where the answer is known, closes the class rather than another instance of it.
+		final AtomicBoolean handoverCompleted = new AtomicBoolean();
+		// The replacement catalog, once the handover has built one. Recorded so the declaration below can close
+		// it: it holds the *new* persistence service, opened by `replaceWith` and handed to a catalog that the
+		// failed commit never published, so nothing else will ever close it.
+		final AtomicReference<CatalogContract> replacementCatalog = new AtomicReference<>();
+
 		final Consumer<Throwable> undoOperations = failure -> {
 			// **Past the point of no return, compensating is the wrong verb.** Everything below puts session
 			// bookkeeping back, which is the whole of what a failure before the handover disturbed. Once the
@@ -183,7 +198,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			// rename that merely failed becomes a catalog that serves reads, accepts a write, appends it to
 			// the write-ahead log and then wedges the next boot replaying it against a name engine state has
 			// never heard of - the very symptom this issue is named after, re-created by the code that fixes
-			// it. Where the line falls is the storage layer's to know and it marks the failures past it.
+			// it.
 			//
 			// So the name is declared unusable instead, and **declared before the resume below**, never
 			// after: the resume is what lets the waiting callers through, and there must be nothing usable
@@ -191,7 +206,17 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			// naming the handover as its cause - refused, legibly, until a restart rebuilds the catalog
 			// from its folder, which it can, because the commit never ran and the load path reconciles the
 			// name the folder was left carrying.
-			if (isHandoverFailure(failure)) {
+			//
+			// **Nothing that reaches here can be a committed operation.** Neither the engine commit nor the
+			// completion work after it reports failure any more - the commit is best-effort and logged from
+			// the moment it becomes durable, and the block that follows it is wrapped for the same reason - so
+			// a failure arriving here is always one the durable state has no record of. That is what lets this
+			// path choose between exactly two answers instead of having to recognise a third.
+			//
+			// Either the storage layer marked the failure, or the handover had already completed and whatever
+			// failed afterwards is past the same line without knowing it. The latch is the load-bearing half:
+			// the marker only ever covers failures raised *inside* the handover.
+			if (handoverCompleted.get() || isHandoverFailure(failure)) {
 				// Routed through the *transition* updater rather than mutating engine state directly, because
 				// this is a read-derive-write on shared state and every other writer performs it under
 				// `EngineTransactionManager#engineStateLock`. A bare CAS loses to them by construction: a
@@ -211,6 +236,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				// throw in here should be impossible, and if one happens anyway the worst outcome available is
 				// a catalog left serving - not both registries suspended for the life of the process, which is
 				// the very symptom this operation exists to stop producing.
+				boolean declared = false;
 				try {
 					transitionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -235,13 +261,44 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						}
 					);
 					evita.notifyCatalogStateSettled(catalogNameToBeReplacedWith, CatalogState.CORRUPTED);
-				} catch (RuntimeException declarationFailure) {
+					declared = true;
+				} catch (Throwable declarationFailure) {
+					// `Throwable`, because narrowing this to `RuntimeException` does not make an `Error` any
+					// louder: it would be caught by `ProgressingFuture#completeExceptionally` and logged under
+					// a generic message anyway, and the only thing the narrower catch buys is skipping the
+					// resumes below - leaving both registries suspended for the life of the process, which
+					// this comment's own reasoning ranks as the worse of the two outcomes.
 					log.error(
 						"Failed to declare catalog `{}` unusable after its handover failed past the point of no " +
 							"return - it stays published and may serve sessions against storage that no longer " +
 							"agrees with the engine state, until the server is restarted.",
 						catalogNameToBeReplacedWith, declarationFailure
 					);
+				}
+				// The declaration swapped an `UnusableCatalog` in behind the name, so nothing reaches the
+				// instances that used to answer to it - but dropping the last reference to a catalog does not
+				// close what it holds open, and a failed handover can leave *two* services open. Best-effort
+				// and after the declaration, never before it: releasing handles is hygiene, and a failure to
+				// do it must not cost the refusal that keeps the damaged catalog off the wire.
+				//
+				// **Only once the declaration actually succeeded.** If it did not, the catalog is still
+				// published and still serving - the worst case the log above accepts - and terminating it then
+				// would convert "left serving" into "published and throwing", which is worse than either.
+				if (declared) {
+					// The original service, still open when the failure landed before `replaceWith` reached its
+					// own `close()` - the header write and the bootstrap publish are both inside that window.
+					// Guarded rather than caught, so the already-closed windows do not log a warning about
+					// handles that are not held.
+					if (!catalogToBeReplacedWith.isTerminated()) {
+						terminateQuietly(catalogToBeReplacedWith, catalogNameToBeReplacedWith);
+					}
+					// The *replacement* service, which is what leaks when the handover succeeded and the commit
+					// failed: `replaceWith` opened it and handed it to a catalog the commit never published, so
+					// nothing else holds a reference that would ever close it.
+					final CatalogContract replacement = replacementCatalog.get();
+					if (replacement != null && !replacement.isTerminated()) {
+						terminateQuietly(replacement, catalogNameToBeReplaced);
+					}
 				}
 			}
 			// What belongs under the target name is decided by what answered to it when the operation started,
@@ -347,7 +404,14 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						)
 				),
 				(theFuture, replacedCatalogs) -> {
+					// Reaching here at all means the nested `replace(...)` completed, so the folder has been
+					// relabelled, the previous persistence service closed and the source catalog's schema
+					// exchanged for the target's. **Recorded as the first statement**, before anything below can
+					// fail: everything from this line on is as irreversible as the handover itself, whether or
+					// not the failure that interrupts it knows so.
+					handoverCompleted.set(true);
 					final CatalogContract replacedCatalog = replacedCatalogs.iterator().next();
+					replacementCatalog.set(replacedCatalog);
 
 					// The registry the target name is to be served through once this operation completes. It shares
 					// its active sessions, its suspension and its registration gate with the registry it is derived
@@ -389,8 +453,11 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						// session creation refuses a name it cannot resolve. Asserted rather than cleaned up after,
 						// because the only available cleanup - draining a registry full of live sessions and giving
 						// up after five seconds - is the silent half-measure this whole ordering exists to remove.
-						// Throwing is safe here precisely because the commit has not run yet, so it reaches
-						// `undoOperations` like any other pre-commit failure.
+						// Throwing here reaches `undoOperations` with the handover latch already set, so the
+						// catalog is declared unusable rather than compensated for - which is what this window
+						// needs. Being ahead of the commit does not make a failure reversible: the relabel is
+						// already on disk by the time this runs, and it is the relabel, not the commit, that
+						// decides which of the two the failure path owes its caller.
 						Assert.isPremiseValid(
 							displacedRegistry == null,
 							() -> new GenericEvitaInternalError(
@@ -438,104 +505,157 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 						}
 					);
 
-					// The folder now holds a different catalog than it did a moment ago, so its label has to
-					// move with it or disaster recovery reads the previous occupant's name. Written after the
-					// commit rather than inside it: the state updater runs under the engine-state lock, and a
-					// file only humans read has no business being written while every other mutation waits.
-					//
-					// The catch is here so that "nothing after the commit may report failure" can be verified by
-					// reading this method, rather than by tracing three layers into the store module and hoping
-					// nobody changes them. It is not, however, what absorbs an I/O failure: the write itself is
-					// best-effort at its own site, so a full disk or an unwritable folder never reaches this far.
-					// What can is a `CatalogFolderOperations` implementation that refuses the call outright - a
-					// wiring error rather than an operational one - and even that must not turn a rename that has
-					// already committed into a reported failure.
+					// **The commit above has landed, and nothing below may report failure.** Past that point the
+					// operation has happened: the durable state records it and the next boot will bring it up. A
+					// throw from here would reach `undoOperations` with the handover latch set and be answered by
+					// declaring the catalog unusable - taking a rename that *succeeded* off the wire, removing the
+					// committed name's registry and orphaning the sessions inside it. Each step below already
+					// tolerates its own failure; this wrap is what makes that a property of the block rather than a
+					// habit its statements happen to share, so a statement added later cannot quietly undo it.
 					try {
-						this.folderContext.recordCatalogName(catalogNameToBeReplaced, prevailingFolderId);
-					} catch (RuntimeException ex) {
-						log.warn(
-							"Failed to relabel storage folder `{}` as catalog `{}` - the folder still carries its " +
-								"previous occupant's name, which only affects a human reading it directly.",
-							prevailingFolderId.id(), catalogNameToBeReplaced, ex
-						);
-					}
-
-					// notify callback that it's now a live snapshot
-					((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
-
-					// The catalog survives under the target name in BOTH operations, so its session registry
-					// follows it there - it carries the active sessions, the FIFO queue and the consumed-version
-					// census that backups pin against, all of which belong to the catalog rather than to the name
-					// it happened to be reached by. For a rename it is already published under the target name above,
-					// and what is left here is retiring the name it used to answer to and lifting the suspension;
-					// for a replace onto an existing catalog the swap happens here, where taking it back is no
-					// longer something a failure can ask for.
-					prevailingCatalogSessionRegistry.ifPresentOrElse(
-						sessionRegistry -> {
-							if (!publishedAheadOfCommit) {
-								evita.registerWithReplaceCatalogSessionRegistry(
-									catalogNameToBeReplaced, targetRegistry
-								);
-							}
-							// Dropped only now, never before the commit: until the commit lands the source
-							// name still resolves to the live catalog, and a name left empty is a name the
-							// next `createSessionInternal` fills with a fresh, unsuspended registry - serving
-							// sessions against the very catalog this operation is renaming. Past the commit the
-							// name resolves to nothing, so the same call answers `CatalogNotFoundException`
-							// instead, which is what a renamed-away name owes its callers. This used to run for a
-							// replace only, and the rename branch resumed `removedCatalogSessionRegistry` - always
-							// empty for a rename, because the target name must not exist - so the source name was
-							// left holding a registry suspended for ever, answering `SessionBusyException`.
-							evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
-							// One suspension is shared by both views of this registry, so this single call releases
-							// the callers waiting on either name, and it is the last thing the handoff owes them.
-							sessionRegistry.resumeOperations();
-						},
-						// The surviving catalog has no registry to hand over. Reachable only if it stopped being a
-						// catalog between the `obtainCatalogSessionRegistry` that opens this method and here,
-						// which the engine's serialised mutations should make impossible - kept as cleanup rather
-						// than an assertion because this runs *after* the commit, where reporting a failure is
-						// worse than tidying up. Whatever is registered under the target name is then the registry
-						// this operation installed purely to quiesce it, and leaving that behind would keep the
-						// name rejecting sessions for the life of the process.
+						// The folder now holds a different catalog than it did a moment ago, so its label has to
+						// move with it or disaster recovery reads the previous occupant's name. Written after the
+						// commit rather than inside it: the state updater runs under the engine-state lock, and a
+						// file only humans read has no business being written while every other mutation waits.
 						//
-						// Unpublished and left suspended, never resumed: a resumed registry that no longer answers
-						// to any name still accepts sessions from whoever holds a reference to it, and those
-						// sessions are then invisible to every later quiesce - which walks the registry map. The
-						// caller that loses this race is refused rather than served, which is precisely what
-						// quiescing the target is for.
-						() -> {
-							if (quiescedTargetRegistry.isPresent()) {
-								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
-							}
-						}
-					);
-
-					// Terminate the catalog that was replaced. A failure here costs open handles into a folder
-					// that is about to be deleted, which makes the delete below more likely to be refused - and
-					// that is already accounted for, because a refused delete leaves the tombstone standing for
-					// the next boot drain. What must not happen is propagating: the replace has committed.
-					if (replaceOperation && catalogToBeReplaced != null) {
+						// The catch is here so that "nothing after the commit may report failure" can be verified by
+						// reading this method, rather than by tracing three layers into the store module and hoping
+						// nobody changes them. It is not, however, what absorbs an I/O failure: the write itself is
+						// best-effort at its own site, so a full disk or an unwritable folder never reaches this far.
+						// What can is a `CatalogFolderOperations` implementation that refuses the call outright - a
+						// wiring error rather than an operational one - and even that must not turn a rename that has
+						// already committed into a reported failure.
 						try {
-							catalogToBeReplaced.terminate();
-						} catch (RuntimeException ex) {
+							this.folderContext.recordCatalogName(catalogNameToBeReplaced, prevailingFolderId);
+						} catch (Throwable ex) {
 							log.warn(
-								"Failed to terminate the superseded catalog `{}` - its handles stay open until the " +
-									"process ends, and the folder deletion below may be refused as a result.",
+								"Failed to relabel storage folder `{}` as catalog `{}` - the folder still " +
+									"carries its previous occupant's name, which only affects a human reading " +
+									"it directly.",
+								prevailingFolderId.id(), catalogNameToBeReplaced, ex
+							);
+						}
+
+						// notify callback that it's now a live snapshot
+						//
+						// Caught at the site rather than left to the wrap below, because this statement sits
+						// *before* the registry handover and the two cannot be reordered: the handover admits
+						// sessions, and admitting one before the transaction manager points at the replacement
+						// lets a write commit against a pipeline still based on the old instance. So the
+						// ordering stays and the failure is contained instead. Left to the wrap, a throw here
+						// would skip the handover entirely - and for a replace onto an existing catalog that
+						// leaves the quiesced target still in the map under the committed name, REJECT-suspended
+						// and answering `InstanceTerminatedException` for the life of the process, beneath an
+						// operation that reported success. The `finally` below does not reach it, and must not:
+						// once the swap *has* happened that registry answers to no name and resuming it would
+						// admit sessions nothing can later quiesce.
+						try {
+							((Catalog) replacedCatalog).notifyCatalogPresentInLiveView();
+						} catch (Throwable ex) {
+							log.error(
+								"Catalog `{}` could not be published to its transaction manager after the rename " +
+									"committed - transaction processing may still resolve the instance it " +
+									"replaced until the server is restarted.",
 								catalogNameToBeReplaced, ex
 							);
 						}
-					}
 
-					// Strictly after `terminate()`, never before: the delete has to follow the close of every
-					// handle into that folder, or an operating system that refuses to remove an open directory
-					// turns this into an intermittent failure - the exact class of bug the pointer-only design
-					// exists to remove. A refusal here is not an error either way; the tombstone staged above
-					// survives the run and the next boot drains it.
-					if (supersededFolderId != null) {
-						this.folderContext.deleteRetiredFolder(supersededFolderId);
-					}
+						// The catalog survives under the target name in BOTH operations, so its session registry
+						// follows it there - it carries the active sessions, the FIFO queue and the consumed-version
+						// census that backups pin against, all of which belong to the catalog rather than to the name
+						// it happened to be reached by. For a rename it is already published under the target
+						// name above, and what is left here is retiring the name it used to answer to and
+						// lifting the suspension;
+						// for a replace onto an existing catalog the swap happens here, where taking it back is no
+						// longer something a failure can ask for.
+						prevailingCatalogSessionRegistry.ifPresentOrElse(
+							sessionRegistry -> {
+								if (!publishedAheadOfCommit) {
+									evita.registerWithReplaceCatalogSessionRegistry(
+										catalogNameToBeReplaced, targetRegistry
+									);
+								}
+								// Dropped only now, never before the commit: until the commit lands the source
+								// name still resolves to the live catalog, and a name left empty is a name the
+								// next `createSessionInternal` fills with a fresh, unsuspended registry - serving
+								// sessions against the very catalog this operation is renaming. Past the commit the
+								// name resolves to nothing, so the same call answers `CatalogNotFoundException`
+								// instead, which is what a renamed-away name owes its callers. This used to run for a
+								// replace only, and the rename branch resumed `removedCatalogSessionRegistry` - always
+								// empty for a rename, because the target name must not exist - so the source name was
+								// left holding a registry suspended for ever, answering `SessionBusyException`.
+								evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplacedWith);
+								// One suspension is shared by both views of this registry, so this single call releases
+								// the callers waiting on either name, and it is the last thing the handoff owes them.
+								sessionRegistry.resumeOperations();
+							},
+							// The surviving catalog has no registry to hand over. Reachable only if it stopped being a
+							// catalog between the `obtainCatalogSessionRegistry` that opens this method and here,
+							// which the engine's serialised mutations should make impossible - kept as cleanup rather
+							// than an assertion because this runs *after* the commit, where reporting a failure is
+							// worse than tidying up. Whatever is registered under the target name is then the registry
+							// this operation installed purely to quiesce it, and leaving that behind would keep the
+							// name rejecting sessions for the life of the process.
+							//
+							// Unpublished and left suspended, never resumed: a resumed registry that no longer answers
+							// to any name still accepts sessions from whoever holds a reference to it, and those
+							// sessions are then invisible to every later quiesce - which walks the registry map. The
+							// caller that loses this race is refused rather than served, which is precisely what
+							// quiescing the target is for.
+							() -> {
+								if (quiescedTargetRegistry.isPresent()) {
+									evita.removeCatalogSessionRegistryIfPresent(catalogNameToBeReplaced);
+								}
+							}
+						);
 
+						// Terminate the catalog that was replaced. A failure here costs open handles into a folder
+						// that is about to be deleted, which makes the delete below more likely to be refused - and
+						// that is already accounted for, because a refused delete leaves the tombstone standing for
+						// the next boot drain. What must not happen is propagating: the replace has committed.
+						if (replaceOperation && catalogToBeReplaced != null) {
+							try {
+								catalogToBeReplaced.terminate();
+							} catch (Throwable ex) {
+								log.warn(
+									"Failed to terminate the superseded catalog `{}` - its handles stay open " +
+										"until the process ends, and the folder deletion below may be refused as " +
+										"a result.",
+									catalogNameToBeReplaced, ex
+								);
+							}
+						}
+
+						// Strictly after `terminate()`, never before: the delete has to follow the close of every
+						// handle into that folder, or an operating system that refuses to remove an open directory
+						// turns this into an intermittent failure - the exact class of bug the pointer-only design
+						// exists to remove. A refusal here is not an error either way; the tombstone staged above
+						// survives the run and the next boot drains it.
+						if (supersededFolderId != null) {
+							this.folderContext.deleteRetiredFolder(supersededFolderId);
+						}
+
+					} catch (Throwable ex) {
+						log.error(
+							"Catalog `{}` now answers to `{}` and that is durable, but the work that follows the " +
+								"commit did not finish - a superseded folder may be left for the next boot to " +
+								"drain, and change data capture subscribers may have missed the rename.",
+							catalogNameToBeReplacedWith, catalogNameToBeReplaced, ex
+						);
+					} finally {
+						// **The resume is owed unconditionally once the commit has landed**, and the block above
+						// is the only place that performs it - so a throw anywhere before it would leave both
+						// names answering `SessionBusyException` for the life of the process, beneath an
+						// operation that reported success. That is this issue's own headline symptom, restored
+						// on the one path that claims to have worked, and swallowing the failure is what would
+						// have hidden it. Idempotent, so the ordinary path pays nothing for running it twice:
+						// `resumeOperations` lifts a suspension if one stands and does nothing otherwise.
+						//
+						// Only the surviving catalog's registry. A replace's quiesced target holds a *different*
+						// suspension, which the handover above leaves standing on purpose - a registry that no
+						// longer answers to any name must not start admitting sessions again.
+						prevailingCatalogSessionRegistry.ifPresent(SessionRegistry::resumeOperations);
+					}
 					return new CommitVersions(
 						replacedCatalog.getVersion(),
 						replacedCatalog.getSchema().version()
@@ -543,7 +663,13 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 				},
 				undoOperations::accept
 			);
-		} catch (RuntimeException ex) {
+		} catch (Throwable ex) {
+			// `Throwable` rather than `RuntimeException` for the same reason the handover uses it: the drain and
+			// the schema mutation above run with both registries suspended, and an `Error` escaping without
+			// reaching `undoOperations` leaves them suspended for the life of the process - answering
+			// `SessionBusyException` to every session, which is the session half of issue #1414 restored by the
+			// code that fixes it. Rethrown unchanged; nothing in the block above throws a checked exception, so
+			// precise rethrow keeps the declared signature.
 			undoOperations.accept(ex);
 			throw ex;
 		}
@@ -554,9 +680,10 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 	 * `replaceWith` where the folder's stored identity becomes the incoming catalog's and stops agreeing with
 	 * engine state.
 	 *
-	 * The cause chain is walked rather than the top exception inspected, because the failure travels out of a
-	 * nested {@link ProgressingFuture} and arrives wrapped. Only the storage layer can raise the marker, and
-	 * it raises it at exactly one place, so finding it anywhere in the chain is proof the line was crossed.
+	 * **This is the narrower of the two things the failure path asks.** It recognises only failures raised
+	 * *inside* the handover; a failure raised after it returned carries no marker and is recognised by the
+	 * latch the completion phase sets instead. Both lead to the same answer, and the latch is the one that
+	 * covers the open-ended half.
 	 *
 	 * @param failure failure reported by the operation, if any
 	 * @return true when the failure crossed the point of no return
@@ -573,6 +700,26 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 			current = cause == current ? null : cause;
 		}
 		return false;
+	}
+
+	/**
+	 * Terminates a catalog whose failed handover left its persistence service open, reporting a refusal rather
+	 * than propagating it.
+	 *
+	 * @param catalog     catalog to release
+	 * @param catalogName name to report it under, which is the name it answered to rather than the one it holds
+	 */
+	private static void terminateQuietly(@Nonnull CatalogContract catalog, @Nonnull String catalogName) {
+		try {
+			catalog.terminate();
+		} catch (Throwable terminationFailure) {
+			log.warn(
+				"Failed to terminate catalog `{}` after declaring it unusable - the handles its persistence " +
+					"service holds into the storage folder stay open until the server is restarted, and a " +
+					"later attempt to delete that folder may be refused as a result.",
+				catalogName, terminationFailure
+			);
+		}
 	}
 
 	@Nonnull

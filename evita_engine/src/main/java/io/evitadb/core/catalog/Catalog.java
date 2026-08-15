@@ -1178,6 +1178,9 @@ public final class Catalog
 			100,
 			theFuture -> {
 				final long catalogVersion = getVersion();
+				// Read before the handover, because `exchangeCatalogSchema` below rewrites what `getName()`
+				// answers - so a failure past that point would otherwise report the new name as the old one.
+				final String currentCatalogName = getName();
 				final CatalogSchema renamedSchema = CatalogSchema._internalBuild(updatedSchema);
 				final CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader> newIoService =
 					this.persistenceService.replaceWith(
@@ -1246,13 +1249,16 @@ public final class Catalog
 					// failure being reported is the one worth reporting.
 					try {
 						newIoService.close();
-					} catch (RuntimeException suppressed) {
+					} catch (Throwable suppressed) {
+						// `Throwable`, so that an `Error` raised while closing cannot *replace* the marked
+						// failure below - which would send the operator down the compensating path for a
+						// handover that has already relabelled the folder.
 						ex.addSuppressed(suppressed);
 					}
 					// `Throwable` above rather than `RuntimeException` for the same reason the storage layer
 					// uses it: past the relabel an `Error` leaves the identical disagreement behind, and
 					// compensating for it is the wrong answer however unsurvivable it is.
-					throw new CatalogHandoverFailedException(updatedSchema.getName(), ex);
+					throw new CatalogHandoverFailedException(currentCatalogName, updatedSchema.getName(), ex);
 				}
 			}
 		);
