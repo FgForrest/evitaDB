@@ -283,8 +283,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(List.of(busy, idle), criteria(1, 10));
 
 			final BrowsedIndex busyRow = rowOfScope(result, Scope.LIVE);
-			assertEquals(1L, busyRow.queryCount());
-			assertEquals(2L, busyRow.updateCount(), "Two recordings, so a row reading a fresh holder reports zero");
+			assertEquals(1L, busyRow.queryCount(), "The live scope's row lost the one query recorded against it");
+			assertEquals(2L, busyRow.updateCount(), "Both recorded updates must reach the live scope's row");
 			assertEquals(toTimestamp(FIRST_MILLIS), busyRow.lastQueriedAt());
 			assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "The stamp is the last one recorded");
 
