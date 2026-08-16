@@ -184,6 +184,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param referencedPrimaryKeysIndex maps referenced entity PKs to bitmaps of entity PKs
 	 * @param cardinalityIndexes         cardinality tracking for filter attributes
 	 * @param histogramIndexes           histogram indexes by histogram name
+	 * @param activity                   the activity holder to keep counting into — the copied index's own instance on
+	 *                                   the commit-time merge copy, a fresh one when loading from disk; see
+	 *                                   {@link IndexActivity}
 	 */
 	public ReducedGroupEntityIndex(
 		int primaryKey,
@@ -198,12 +201,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Map<Integer, Integer> pkCardinalities,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
-		@Nonnull Map<String, HistogramIndex> histogramIndexes
+		@Nonnull Map<String, HistogramIndex> histogramIndexes,
+		@Nonnull IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
 		this.pkCardinalities = new PersistentTransactionalMap<>(pkCardinalities);
@@ -281,7 +285,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				groupCardinality.pkCardinalities(),
 				groupCardinality.referencedPrimaryKeysIndex(),
 				cardinalities.cardinalityIndexes(),
-				histograms.histogramIndexes()
+				histograms.histogramIndexes(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means
+				new IndexActivity()
 			);
 		});
 
@@ -789,7 +795,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			transactionalLayer.getStateCopyWithCommittedChanges(this.pkCardinalities),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.referencedPrimaryKeysIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

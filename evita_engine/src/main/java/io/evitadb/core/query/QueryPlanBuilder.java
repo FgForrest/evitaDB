@@ -36,6 +36,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.index.Index;
+import io.evitadb.index.IndexActivity;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -176,11 +178,42 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 
 	/**
 	 * Creates a final query plan instance.
+	 *
+	 * This is also where the winning index set is counted as **queried** ({@link IndexActivity}). The seam is here
+	 * rather than on {@link QueryPlan} because this is the last point that still holds the index *instances*, which
+	 * the plan itself does not - it carries only their description string. A query answered without any index at all
+	 * goes through {@link #empty(QueryPlanningContext)} instead and correctly counts nothing.
+	 *
+	 * **One increment means "the planner handed this plan back", not "this plan produced a response".** The set counted
+	 * is the one that won the cost comparison, and a losing variant is normally never built - but two callers build a
+	 * plan only to take a single piece off it: `ReferencedEntityFetcher` reads `getSorters()` when references are
+	 * ordered by a referenced entity's property, and `HavingTranslatorHelper` reads `getFilter()`. Both count, and that
+	 * is the intended reading - the sorter and the formula do run against those very indexes.
+	 *
+	 * **Under the two verification debug modes one query counts an index repeatedly, and counts losing candidates
+	 * too.** With {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} or
+	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} enabled,
+	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} builds and executes the preferred plan, every alternative
+	 * and every cacheable variant, after which the preferred plan is built once more to be returned. Those plans
+	 * genuinely execute against the indexes they name, so the extra increments are work performed rather than a
+	 * miscount, and are left standing; exact arithmetic on these readings simply requires a session with no
+	 * verification debug mode enabled.
+	 *
+	 * The cost is `O(winning set)` volatile increments, bounded from below by the reads the query is about to perform
+	 * on those very indexes.
 	 */
 	@Nonnull
 	public QueryPlan build() {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
+		final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
+		if (!winningIndexes.isEmpty()) {
+			// one instant for the whole set, so a single query cannot stamp its indexes with two different moments
+			final long now = System.currentTimeMillis();
+			for (final Index<?> index : winningIndexes) {
+				index.getActivity().recordQuery(now);
+			}
+		}
 		// propagate all collected requirements to the prefetch formula visitor
 		this.prefetchFormulaVisitor.addRequirement(
 			this.queryContext.getRequirementsToPrefetch()

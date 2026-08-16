@@ -97,23 +97,50 @@ public class CatalogIndex implements
 	 * transaction is committed and anything in this index was changed).
 	 */
 	@Getter private final int version;
+	/**
+	 * Query / update counters and last-activity stamps of this index — see {@link IndexActivity}.
+	 *
+	 * Threaded **by reference** through the reconstruction constructor, so both the commit-time merge copy and
+	 * {@link #createShallowCopyWithResetDirtyFlag()} keep counting into the very same holder, while a reload from disk
+	 * starts a fresh one. It is the one piece of state here that is neither transactional nor persisted.
+	 */
+	@Nonnull private final IndexActivity activity;
 
 	public CatalogIndex(@Nonnull Scope scope) {
 		this.version = 1;
 		this.indexKey = new CatalogIndexKey(scope);
 		this.dirty = new TransactionalBoolean();
+		// a brand-new index has been neither queried nor updated yet
+		this.activity = new IndexActivity();
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
+	/**
+	 * Reconstructs a catalog index from persisted or committed state.
+	 *
+	 * @param version     version this index carries forward
+	 * @param indexKey    the key identifying this index — a bare scope
+	 * @param uniqueIndex the global unique indexes this index holds
+	 * @param activity    the activity holder to keep counting into — the copied index's own instance on either copy
+	 *                    path, a fresh one when loading from disk; see {@link IndexActivity}
+	 */
 	public CatalogIndex(
 		int version,
 		@Nonnull CatalogIndexKey indexKey,
-		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex
+		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex,
+		@Nonnull IndexActivity activity
 	) {
 		this.version = version;
 		this.indexKey = indexKey;
 		this.dirty = new TransactionalBoolean();
+		this.activity = activity;
 		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
+	}
+
+	@Nonnull
+	@Override
+	public IndexActivity getActivity() {
+		return this.activity;
 	}
 
 	/**
@@ -140,7 +167,9 @@ public class CatalogIndex implements
 		// the lifetime of the index - see `documentation/developer/heap-size-testing.md`, trap 6
 		final Map<AttributeKey, GlobalUniqueIndex> copy = CollectionUtils.createHashMap(this.uniqueIndex.size());
 		this.uniqueIndex.forEach(copy::put);
-		return new CatalogIndex(this.version, this.indexKey, copy);
+		// the activity holder travels by reference, exactly as on the transactional copy: going live and renaming a
+		// catalog both carry the same logical index forward, and neither is a catalog load
+		return new CatalogIndex(this.version, this.indexKey, copy, this.activity);
 	}
 
 	@Override
@@ -169,15 +198,21 @@ public class CatalogIndex implements
 	 * Walking a global unique index's value tree is `O(values / blockSize)`, so this belongs to the index detail call
 	 * rather than to anything polled.
 	 *
+	 * {@link #activity} is charged in full even though it is shared with the superseded versions of this same logical
+	 * index - only one version is ever walked, and the predecessor is garbage-in-waiting, so reporting the four longs
+	 * as shared would show them belonging to nobody (accounting rule 2).
+	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
 	 */
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// id and version, then the indexKey / dirty / uniqueIndex slots
+		// id and version, then the indexKey / dirty / uniqueIndex / activity slots
 		final long attributeKey = layout.sizeOfObject(2L * layout.referenceSize());
-		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 3L * layout.referenceSize())
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 4L * layout.referenceSize())
 			// the key record holds a single reference, to a JVM-shared enum constant
 			+ layout.sizeOfObject(layout.referenceSize())
+			// the activity holder: four longs and nothing else, since its CAS updaters are static
+			+ layout.sizeOfObject(4L * Long.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.uniqueIndex.getHeapSizeInBytes(
 				key -> attributeKey, GlobalUniqueIndex::getHeapSizeInBytes
@@ -308,7 +343,9 @@ public class CatalogIndex implements
 		final CatalogIndex newCatalogIndex = new CatalogIndex(
 			this.version + (wasDirty ? 1 : 0),
 			this.indexKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			this.activity
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;

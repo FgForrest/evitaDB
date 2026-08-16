@@ -2542,6 +2542,113 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
+	 * Verifies that the four usage readings reach a remote client on both surfaces that carry them.
+	 *
+	 * The semantics are covered by `IndexUsageStatisticsTest`; what only this test can prove is that they survive the
+	 * wire, and the way they can fail to is worth naming: the two counts are plain `int64`s, so a converter that
+	 * dropped one hands back `0` - a perfectly plausible "this index is cold" - while the two stamps are message-typed
+	 * precisely so absence is expressible, and reading one without checking its presence yields the epoch, which a
+	 * client renders as a date in 1970. Both mistakes produce an answer rather than a failure, so all four readings are
+	 * asserted to arrive populated on some row of the page - each independently of the others, because a row is a
+	 * non-atomic snapshot of a holder whose count and stamp are written one after the other.
+	 */
+	@Test
+	@DisplayName("read the usage readings of an index")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldReportIndexUsageOverTheWire(EvitaClient evitaClient) {
+		// traffic of our own, so the assertion below does not rest on whatever other tests happened to run first
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.queryOneEntityReference(createSimpleEntityQuery(Entities.PRODUCT, 1));
+			}
+		);
+
+		final IndexBrowseResult page = evitaClient.management().browseIndexes(
+			TEST_CATALOG,
+			Entities.PRODUCT,
+			new IndexBrowseCriteria(
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+			)
+		);
+
+		boolean someRowCountedAQuery = false;
+		boolean someRowStampedAQuery = false;
+		boolean someRowCountedAnUpdate = false;
+		boolean someRowStampedAnUpdate = false;
+		for (final BrowsedIndex index : page.indexes()) {
+			// the count and the stamp are observed independently, and neither is asserted to imply the other. A
+			// recording advances the count and *then* writes the stamp, while the projection reads the count *first*,
+			// so a row is a non-atomic snapshot in which either reading can be the stale one - and this catalog is
+			// shared with every other test in the class. No flake has been seen (this module runs its tests in one
+			// thread), but an implication would be claiming a guarantee neither the holder nor the row makes; four
+			// independent presence checks detect a dropped field exactly as well and rest on no interleaving at all
+			someRowCountedAQuery |= index.queryCount() > 0;
+			someRowStampedAQuery |= index.lastQueriedAt() != null;
+			someRowCountedAnUpdate |= index.updateCount() > 0;
+			someRowStampedAnUpdate |= index.lastUpdatedAt() != null;
+			assertEquals(index.lastQueriedAt(), index.lastQueriedAtIfKnown().orElse(null));
+			assertEquals(index.lastUpdatedAt(), index.lastUpdatedAtIfKnown().orElse(null));
+		}
+
+		// what proves no field was dropped: each reading arrives populated on some row rather than uniformly empty,
+		// which is what a converter that never wrote it would produce
+		assertTrue(
+			someRowCountedAQuery,
+			"The query above was planned on an index of this collection, so some row has to report having served it"
+		);
+		assertTrue(
+			someRowStampedAQuery,
+			"The query above was planned on an index of this collection, so some row has to carry a query stamp"
+		);
+		assertTrue(
+			someRowCountedAnUpdate,
+			"The dataset was written through these very indexes, so some row has to report maintenance"
+		);
+		assertTrue(
+			someRowStampedAnUpdate,
+			"The dataset was written through these very indexes, so some row has to carry an update stamp"
+		);
+
+		// the drill-down reports the same four readings the row does. Compared as a floor rather than for equality:
+		// this catalog is shared with every other test in the class, so traffic can legitimately land between the two
+		// calls - what may never happen is a reading going backwards, which is what a dropped field looks like
+		final BrowsedIndex row = page.indexes()[0];
+		final IndexDetail detail = evitaClient.management().getIndexDetail(
+			TEST_CATALOG, Entities.PRODUCT, row.indexPrimaryKey()
+		);
+		assertTrue(detail.queryCount() >= row.queryCount(), "The drill-down lost the query count: " + detail);
+		assertTrue(detail.updateCount() >= row.updateCount(), "The drill-down lost the update count: " + detail);
+		// a stamp the row carried cannot be gone from the drill-down: it is only ever set to a real instant and never
+		// cleared, so its absence here means the field was lost on the way. What is deliberately *not* asserted is
+		// that it advanced - a stamp is a plain last-writer-wins store, so concurrent recordings can leave the older
+		// of two instants resident and a monotonicity check would flake rather than catch anything
+		if (row.lastQueriedAt() != null) {
+			assertNotNull(detail.lastQueriedAt(), "The drill-down lost the query stamp: " + detail);
+		}
+		if (row.lastUpdatedAt() != null) {
+			assertNotNull(detail.lastUpdatedAt(), "The drill-down lost the update stamp: " + detail);
+		}
+		// the epoch is what an unset `GrpcOffsetDateTime` decodes to when read without `hasX()`, and it is the one
+		// wrong value here that still looks like a timestamp rather than like a failure
+		if (detail.lastQueriedAt() != null) {
+			assertTrue(
+				detail.lastQueriedAt().getYear() > 2000,
+				"The query stamp arrived as the epoch, so its presence was never checked: " + detail.lastQueriedAt()
+			);
+		}
+		if (detail.lastUpdatedAt() != null) {
+			assertTrue(
+				detail.lastUpdatedAt().getYear() > 2000,
+				"The update stamp arrived as the epoch, so its presence was never checked: " + detail.lastUpdatedAt()
+			);
+		}
+		assertEquals(detail.lastQueriedAt(), detail.lastQueriedAtIfKnown().orElse(null));
+		assertEquals(detail.lastUpdatedAt(), detail.lastUpdatedAtIfKnown().orElse(null));
+	}
+
+	/**
 	 * Verifies that passing no entity type reaches the catalog's own indexes through the very same two procedures.
 	 *
 	 * The engine-side behaviour is covered by `IndexBrowseTest`; what only this test can prove is that an *absent*

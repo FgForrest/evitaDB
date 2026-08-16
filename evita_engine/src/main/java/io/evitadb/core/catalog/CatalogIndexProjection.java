@@ -33,6 +33,7 @@ import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.IndexActivity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -142,7 +143,7 @@ final class CatalogIndexProjection {
 		for (final CatalogIndex catalogIndex : catalogIndexes) {
 			final Scope scope = catalogIndex.getIndexKey().scope();
 			if (matches(scope, criteria)) {
-				matched.add(describeRow(scope));
+				matched.add(describeRow(scope, catalogIndex.getActivity()));
 			}
 		}
 		matched.sort(BY_HANDLE);
@@ -170,12 +171,18 @@ final class CatalogIndexProjection {
 	 * (globally-unique attributes x locales in use), so the cost of this call is the heap walk and nothing else - the
 	 * invariant {@link IndexDetail} rests on.
 	 *
+	 * **The activity readings do not survive the `ARCHIVED` index's lazy creation.** That index is created the first
+	 * time something globally unique is indexed in that scope, so a handle that failed to resolve and later starts
+	 * resolving addresses an index whose counters begin at zero - see {@link io.evitadb.index.IndexActivity} for the
+	 * general since-catalog-load rule this is one case of.
+	 *
 	 * @param catalogIndex the index to describe, already resolved by the caller from its handle
 	 * @return the full description of that one index
 	 */
 	@Nonnull
 	static IndexDetail describe(@Nonnull CatalogIndex catalogIndex) {
 		final Scope scope = catalogIndex.getIndexKey().scope();
+		final IndexActivity activity = catalogIndex.getActivity();
 		final List<AttributeCardinality> attributes = new ArrayList<>(16);
 		// `forEach`, never `entrySet()`: asking a map for a view parks it on the map for the lifetime of the index -
 		// see `documentation/developer/heap-size-testing.md`, trap 6
@@ -203,7 +210,11 @@ final class CatalogIndexProjection {
 				// than a reading that could not be taken
 				null, scope, null, null, null,
 				attributes.toArray(AttributeCardinality[]::new)
-			)
+			),
+			activity.getQueryCount(),
+			activity.getUpdateCount(),
+			activity.getLastQueriedAt(),
+			activity.getLastUpdatedAt()
 		);
 	}
 
@@ -234,11 +245,12 @@ final class CatalogIndexProjection {
 	/**
 	 * Renders the catalog index of one scope into its browse row.
 	 *
-	 * @param scope scope of the index
+	 * @param scope    scope of the index
+	 * @param activity the index's activity holder, whose four readings are `O(1)` volatile reads
 	 * @return the descriptor
 	 */
 	@Nonnull
-	private static BrowsedIndex describeRow(@Nonnull Scope scope) {
+	private static BrowsedIndex describeRow(@Nonnull Scope scope, @Nonnull IndexActivity activity) {
 		return new BrowsedIndex(
 			// no entity type - the catalog holds this index itself - and with it no kind, no discriminator in any of
 			// its three renderings, and no entity count; see `BrowsedIndex`
@@ -249,7 +261,11 @@ final class CatalogIndexProjection {
 			null,
 			null,
 			null,
-			null
+			null,
+			activity.getQueryCount(),
+			activity.getUpdateCount(),
+			activity.getLastQueriedAt(),
+			activity.getLastUpdatedAt()
 		);
 	}
 

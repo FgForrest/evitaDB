@@ -90,6 +90,14 @@ fresh); memoized caches generally — `memoizedAllRecordsFormula`, `cachedAscend
 **`GlobalUniqueIndex` locale maps:** `Locale` is JVM-interned (`LocaleObjectCache`) → slot only. The
 boxed ids are charged per holder, i.e. twice, by rule 1.
 
+**`IndexActivity` is charged in full by the index instance being measured, despite being shared.** The
+usage-counter holder is passed by reference through every merge copy, so one instance belongs to *all*
+catalog versions of one logical index — which looks like the shared-structure case that rule 1 charges
+per holder and rule 3 charges nowhere. It is neither: only one catalog version is ever reachable to be
+walked, so charging it in full double-counts nothing and reports the bytes that are genuinely resident.
+Four longs and no more — its CAS updaters are `static` fields of the class, which is why
+`AtomicLong` fields were not used and why the size is a constant the JOL assertions can pin.
+
 ## The exception that used to be here
 
 **Cached map views were 224 B per index of deliberate under-report, and are now zero.** A `HashMap`

@@ -34,6 +34,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.IndexActivity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -143,9 +144,14 @@ final class IndexBrowseProjection {
 				continue;
 			}
 			if (matched >= offset && matched < end) {
-				// one fetch serves both readings - the identity the row is addressed by and the count it reports
+				// one fetch serves every reading - the identity the row is addressed by, the count it reports and the
+				// activity holder it reads its four counters off
 				final EntityIndex index = indexOf(indexes, key);
-				page.add(describe(entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size()));
+				page.add(
+					describe(
+						entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(), index.getActivity()
+					)
+				);
 			}
 			matched++;
 		}
@@ -185,7 +191,7 @@ final class IndexBrowseProjection {
 			// comes off the same fetch, so retaining it costs a comparison-free int rather than a second lookup
 			final EntityIndex index = indexOf(indexes, key);
 			final BrowseCandidate candidate = new BrowseCandidate(
-				key, index.getPrimaryKey(), index.getAllPrimaryKeys().size()
+				key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(), index.getActivity()
 			);
 			if (heap.size() < retained) {
 				heap.offer(candidate);
@@ -226,7 +232,12 @@ final class IndexBrowseProjection {
 			// index mutated between the walk and here would otherwise be reported with a count that contradicts its
 			// own position in the page
 			final BrowseCandidate candidate = ordered.get(i);
-			page.add(describe(entityType, candidate.key(), candidate.indexPrimaryKey(), candidate.entityCount()));
+			page.add(
+				describe(
+					entityType, candidate.key(), candidate.indexPrimaryKey(), candidate.entityCount(),
+					candidate.activity()
+				)
+			);
 		}
 		return page;
 	}
@@ -294,6 +305,8 @@ final class IndexBrowseProjection {
 	 * @param key             key identifying the index
 	 * @param indexPrimaryKey identity of the index, which is what the descriptor is addressed by
 	 * @param entityCount     how many entities the index covers
+	 * @param activity        the index's activity holder, read here rather than during the walk - four `O(1)` volatile
+	 *                        reads that only the rows actually on the page pay for
 	 * @return the descriptor
 	 */
 	@Nonnull
@@ -301,7 +314,8 @@ final class IndexBrowseProjection {
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey key,
 		int indexPrimaryKey,
-		int entityCount
+		int entityCount,
+		@Nonnull IndexActivity activity
 	) {
 		return new BrowsedIndex(
 			entityType,
@@ -311,7 +325,11 @@ final class IndexBrowseProjection {
 			renderDiscriminator(key),
 			key.referenceName(),
 			discriminatorPrimaryKeyOf(key),
-			entityCount
+			entityCount,
+			activity.getQueryCount(),
+			activity.getUpdateCount(),
+			activity.getLastQueriedAt(),
+			activity.getLastUpdatedAt()
 		);
 	}
 
@@ -426,18 +444,21 @@ final class IndexBrowseProjection {
 	/**
 	 * One index that survived filtering, paired with the reading the ordering is computed from.
 	 *
-	 * Only the key and two ints are retained while the walk runs - never the {@link EntityIndex} itself - so the heap
-	 * holds no reference to index contents and cannot keep a dropped index alive. The identity is carried as its
-	 * primary key for exactly that reason: an int keeps nothing alive.
+	 * Only the key, two ints and the activity holder are retained while the walk runs - never the {@link EntityIndex}
+	 * itself - so the heap holds no reference to index contents and cannot keep a dropped index alive. The identity is
+	 * carried as its primary key for exactly that reason: an int keeps nothing alive, and an {@link IndexActivity}
+	 * holds no back-reference to the index it belongs to.
 	 *
 	 * @param key             key identifying the index
 	 * @param indexPrimaryKey identity of the index, carried through to the descriptor
 	 * @param entityCount     how many entities the index covers
+	 * @param activity        the index's activity holder, read only if this candidate makes it onto the page
 	 */
 	private record BrowseCandidate(
 		@Nonnull EntityIndexKey key,
 		int indexPrimaryKey,
-		int entityCount
+		int entityCount,
+		@Nonnull IndexActivity activity
 	) {
 	}
 

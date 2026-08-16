@@ -223,6 +223,12 @@ public class GlobalEntityIndex extends EntityIndex
 		captureOriginalsFromComponents();
 	}
 
+	/**
+	 * Reconstructs a global entity index from persisted or committed state.
+	 *
+	 * @param activity the activity holder to keep counting into — the copied index's own instance on the commit-time
+	 *                 merge copy, a fresh one when loading from disk; see {@link io.evitadb.index.IndexActivity}
+	 */
 	public GlobalEntityIndex(
 		int primaryKey,
 		@Nonnull EntityIndexKey entityIndexKey,
@@ -232,12 +238,13 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull EntityAttributeIndex attributeIndex,
 		@Nonnull PriceSuperIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nonnull IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));
@@ -293,7 +300,9 @@ public class GlobalEntityIndex extends EntityIndex
 				),
 				new PriceSuperIndex(prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
-				facet.facetIndex()
+				facet.facetIndex(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means
+				new IndexActivity()
 			);
 		});
 
@@ -316,7 +325,9 @@ public class GlobalEntityIndex extends EntityIndex
 			(EntityAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

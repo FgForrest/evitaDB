@@ -140,6 +140,9 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	 * @param priceIndex          the price reference index
 	 * @param hierarchyIndex      the hierarchy index
 	 * @param facetIndex          the facet index
+	 * @param activity            the activity holder to keep counting into — the copied index's own instance on the
+	 *                            commit-time merge copy, a fresh one when loading from disk; see
+	 *                            {@link io.evitadb.index.IndexActivity}
 	 */
 	protected AbstractReducedEntityIndex(
 		int primaryKey,
@@ -150,12 +153,13 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nonnull IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex
+			attributeIndex, hierarchyIndex, facetIndex, activity
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));

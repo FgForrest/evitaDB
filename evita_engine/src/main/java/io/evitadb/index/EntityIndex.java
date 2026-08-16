@@ -219,6 +219,14 @@ public abstract class EntityIndex implements
 	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing.
 	 */
 	private final List<IndexComponent> components = new ArrayList<>(INITIAL_COMPONENT_CAPACITY);
+	/**
+	 * Query / update counters and last-activity stamps of this index — see {@link IndexActivity}.
+	 *
+	 * Threaded **by reference** through the reconstruction constructor, so the commit-time merge copy keeps counting
+	 * into the very same holder while a reload from disk starts a fresh one. It is the one piece of state here that is
+	 * neither transactional nor persisted.
+	 */
+	@Nonnull private final IndexActivity activity;
 
 	/**
 	 * Read-only accessor exposed for `EntityIndexReloadPlanSymmetryTest`. Returns an unmodifiable
@@ -258,6 +266,8 @@ public abstract class EntityIndex implements
 		this.version = 1;
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
+		// a brand-new index has been neither queried nor updated yet
+		this.activity = new IndexActivity();
 		this.entityIds = new TransactionalBitmap();
 		// a fresh index has no persisted bitmaps yet
 		this.previouslyPersisted = false;
@@ -298,6 +308,10 @@ public abstract class EntityIndex implements
 	 * @param attributeIndex      the attribute sub-index reconstructed from persisted parts
 	 * @param hierarchyIndex      the hierarchy sub-index reconstructed from persisted parts
 	 * @param facetIndex          the facet sub-index reconstructed from persisted parts
+	 * @param activity            the activity holder this index continues counting into — the **same instance** the
+	 *                            copied index held when the caller is the commit-time merge copy, and a fresh one when
+	 *                            the index is being loaded from disk. It is a required parameter precisely so that a
+	 *                            future copy site has to state which of the two it is; see {@link IndexActivity}
 	 */
 	protected EntityIndex(
 		int primaryKey,
@@ -307,12 +321,14 @@ public abstract class EntityIndex implements
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nonnull IndexActivity activity
 	) {
 		this.primaryKey = primaryKey;
 		this.indexKey = indexKey;
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
+		this.activity = activity;
 		this.entityIds = new TransactionalBitmap(entityIds);
 		// reloaded / transactionally-copied indexes already carry persisted bitmaps when non-empty;
 		// this self-heals across the commit copy, which is built from the committed (non-empty) bitmap
@@ -791,6 +807,21 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * Deliberately `final`: the throwing stubs produced by {@link GlobalEntityIndex#createThrowingStub} and
+	 * {@link ReferencedTypeEntityIndex#createThrowingStub} are ByteBuddy proxies whose catch-all classification throws
+	 * for every method they can override, and a final method is not one of them. A stub therefore answers with the
+	 * (never-read) holder its real super instance allocated rather than raising - the same treatment `getIndexKey` gets
+	 * through an explicit pass-through classification.
+	 */
+	@Nonnull
+	@Override
+	public final IndexActivity getActivity() {
+		return this.activity;
+	}
+
+	/**
 	 * Returns the heap this index occupies, in bytes — its entity-id bitmaps, every sub-index it owns, and the
 	 * persisted-baseline manifest it keeps between flushes.
 	 *
@@ -831,6 +862,10 @@ public abstract class EntityIndex implements
 	 * {@link #entityIdsByLanguage} is keyed by {@link Locale}, which the schema shares with every index it touches,
 	 * so only the entry slots are charged for the keys.
 	 *
+	 * {@link #activity} is charged **here, in full**, even though the holder is shared with the superseded versions of
+	 * this same logical index: only one version of an index is ever walked, and the predecessor is garbage-in-waiting,
+	 * so reporting the four longs as shared would show them belonging to nobody (accounting rule 2).
+	 *
 	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
 	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding
 	 */
@@ -838,12 +873,14 @@ public abstract class EntityIndex implements
 		final VMLayout layout = VMLayout.current();
 		// id, primaryKey, version and the two booleans, then the attributeIndex / dirty / entityIds
 		// / entityIdsByLanguage / indexKey / facetIndex / hierarchyIndex / originalAttributeIndexes
-		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components slots, plus whatever
-		// the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields are
-		// sized in a single call
+		// / originalPriceIndexes / originalFacetIndexes / originalHistogramKeys / components / activity slots, plus
+		// whatever the concrete subclass declares - the instance carries ONE header, so the whole hierarchy's fields
+		// are sized in a single call
 		long size = layout.sizeOfObject(
-			Long.BYTES + 2L * Integer.BYTES + 2L + 12L * layout.referenceSize() + ownFieldBytes
+			Long.BYTES + 2L * Integer.BYTES + 2L + 13L * layout.referenceSize() + ownFieldBytes
 		);
+		// the activity holder: four longs and nothing else, since its CAS updaters are static
+		size += layout.sizeOfObject(4L * Long.BYTES);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.entityIds.getHeapSizeInBytes();
 		size += this.entityIdsByLanguage.getHeapSizeInBytes(

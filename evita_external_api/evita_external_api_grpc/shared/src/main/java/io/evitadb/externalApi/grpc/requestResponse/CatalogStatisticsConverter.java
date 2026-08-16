@@ -1332,9 +1332,19 @@ public class CatalogStatisticsConverter {
 		final GrpcIndexDetail.Builder builder = GrpcIndexDetail.newBuilder()
 			.setIndexPrimaryKey(detail.indexPrimaryKey())
 			.setHeapSizeInBytes(detail.heapSizeInBytes())
-			.setCardinality(toGrpcIndexCardinality(detail.cardinality()));
+			.setCardinality(toGrpcIndexCardinality(detail.cardinality()))
+			.setQueryCount(detail.queryCount())
+			.setUpdateCount(detail.updateCount());
 		if (detail.entityType() != null) {
 			builder.setEntityType(StringValue.of(detail.entityType()));
+		}
+		// the stamps are message-typed rather than a zero sentinel, so "never since the catalog was loaded" is
+		// expressible - an epoch-zero instant would render as a date in 1970
+		if (detail.lastQueriedAt() != null) {
+			builder.setLastQueriedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(detail.lastQueriedAt()));
+		}
+		if (detail.lastUpdatedAt() != null) {
+			builder.setLastUpdatedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(detail.lastUpdatedAt()));
 		}
 		return builder.build();
 	}
@@ -1353,7 +1363,13 @@ public class CatalogStatisticsConverter {
 			grpcDetail.hasEntityType() ? grpcDetail.getEntityType().getValue() : null,
 			grpcDetail.getIndexPrimaryKey(),
 			grpcDetail.getHeapSizeInBytes(),
-			toIndexCardinality(grpcDetail.getCardinality())
+			toIndexCardinality(grpcDetail.getCardinality()),
+			grpcDetail.getQueryCount(),
+			grpcDetail.getUpdateCount(),
+			grpcDetail.hasLastQueriedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastQueriedAt()) : null,
+			grpcDetail.hasLastUpdatedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastUpdatedAt()) : null
 		);
 	}
 
@@ -1492,7 +1508,9 @@ public class CatalogStatisticsConverter {
 	public static GrpcBrowsedIndex toGrpcBrowsedIndex(@Nonnull BrowsedIndex index) {
 		final GrpcBrowsedIndex.Builder builder = GrpcBrowsedIndex.newBuilder()
 			.setIndexPrimaryKey(index.indexPrimaryKey())
-			.setScope(toGrpcScope(index.scope()));
+			.setScope(toGrpcScope(index.scope()))
+			.setQueryCount(index.queryCount())
+			.setUpdateCount(index.updateCount());
 		if (index.entityType() != null) {
 			builder.setEntityType(StringValue.of(index.entityType()));
 		}
@@ -1513,6 +1531,14 @@ public class CatalogStatisticsConverter {
 		if (index.discriminatorPrimaryKey() != null) {
 			builder.setDiscriminatorPrimaryKey(Int32Value.of(index.discriminatorPrimaryKey()));
 		}
+		// the stamps are message-typed rather than a zero sentinel, so "never since the catalog was loaded" is
+		// expressible - an epoch-zero instant would render as a date in 1970
+		if (index.lastQueriedAt() != null) {
+			builder.setLastQueriedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(index.lastQueriedAt()));
+		}
+		if (index.lastUpdatedAt() != null) {
+			builder.setLastUpdatedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(index.lastUpdatedAt()));
+		}
 		return builder.build();
 	}
 
@@ -1532,7 +1558,13 @@ public class CatalogStatisticsConverter {
 			grpcIndex.hasDiscriminator() ? grpcIndex.getDiscriminator().getValue() : null,
 			grpcIndex.hasReferenceName() ? grpcIndex.getReferenceName().getValue() : null,
 			grpcIndex.hasDiscriminatorPrimaryKey() ? grpcIndex.getDiscriminatorPrimaryKey().getValue() : null,
-			grpcIndex.hasEntityCount() ? grpcIndex.getEntityCount().getValue() : null
+			grpcIndex.hasEntityCount() ? grpcIndex.getEntityCount().getValue() : null,
+			grpcIndex.getQueryCount(),
+			grpcIndex.getUpdateCount(),
+			grpcIndex.hasLastQueriedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastQueriedAt()) : null,
+			grpcIndex.hasLastUpdatedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null
 		);
 	}
 

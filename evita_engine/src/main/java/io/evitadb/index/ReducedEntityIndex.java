@@ -101,6 +101,8 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	 * @param priceIndex          the price reference index
 	 * @param hierarchyIndex      the hierarchy index
 	 * @param facetIndex          the facet index
+	 * @param activity            the activity holder to keep counting into — the copied index's own instance on the
+	 *                            commit-time merge copy, a fresh one when loading from disk; see {@link IndexActivity}
 	 */
 	public ReducedEntityIndex(
 		int primaryKey,
@@ -111,12 +113,13 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nonnull IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, activity
 		);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
@@ -171,7 +174,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
-				facet.facetIndex()
+				facet.facetIndex(),
+				// loaded from disk — the counters start over, which is what "since catalog load" means
+				new IndexActivity()
 			);
 		});
 
@@ -190,7 +195,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			(ReferenceAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(getPriceIndex()),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			// the very same holder, not a copy: this is one logical index carried into the next catalog version
+			getActivity()
 		);
 	}
 

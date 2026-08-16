@@ -288,4 +288,106 @@ public interface GrpcBrowsedIndexOrBuilder extends
    * <code>.google.protobuf.StringValue entityType = 8;</code>
    */
   com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder();
+
+  /**
+   * <pre>
+   * How many executed query plans have chosen this index as part of their winning target index set.
+   *
+   * It counts chosen, not consulted. Planning also probes candidate indexes that lose the cost comparison, reaches a
+   * collection's super price index from a reduced-index plan, and pulls referenced-entity indexes to enrich what is
+   * fetched - none of that is counted here. The reading means "this index was the filtering backbone of an executed
+   * query", which is what makes it actionable; counting every consultation would inflate the losers and say nothing
+   * about what to drop.
+   *
+   * Counted since the server loaded the catalog, and never persisted - see `updateCount`.
+   * </pre>
+   *
+   * <code>int64 queryCount = 9;</code>
+   * @return The queryCount.
+   */
+  long getQueryCount();
+
+  /**
+   * <pre>
+   * How many entity mutations have acquired this index for modification - one increment per entity mutation per index,
+   * never per attribute write.
+   *
+   * It counts work performed, including work a rollback later undoes: the increment happens when the mutation finishes
+   * applying, before the commit-or-rollback decision, because a rolled-back transaction still paid the index-
+   * maintenance cost and this reading measures that cost rather than surviving state.
+   *
+   * A global index is acquired by essentially every entity mutation, so its reading is close to the collection's total
+   * mutation count. That is accurate rather than misleading - a global index is never a drop candidate. The actionable
+   * readings are the ones on reduced indexes, which are acquired only when genuinely touched.
+   *
+   * Counted since the server loaded the catalog, and never persisted: both counters and both stamps reset on a catalog
+   * load, because their operational use is a rate over an observation window, which persisting them would not improve,
+   * while a hot mutable value in an index's manifest would cost a rewrite on every commit. Read a pair of samples, not
+   * one absolute number.
+   * </pre>
+   *
+   * <code>int64 updateCount = 10;</code>
+   * @return The updateCount.
+   */
+  long getUpdateCount();
+
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded - which is a statement about the observation window rather than about the index's whole life.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 11;</code>
+   * @return Whether the lastQueriedAt field is set.
+   */
+  boolean hasLastQueriedAt();
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded - which is a statement about the observation window rather than about the index's whole life.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 11;</code>
+   * @return The lastQueriedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastQueriedAt();
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded - which is a statement about the observation window rather than about the index's whole life.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastQueriedAtOrBuilder();
+
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded - see `lastQueriedAt`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 12;</code>
+   * @return Whether the lastUpdatedAt field is set.
+   */
+  boolean hasLastUpdatedAt();
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded - see `lastQueriedAt`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 12;</code>
+   * @return The lastUpdatedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastUpdatedAt();
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded - see `lastQueriedAt`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 12;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastUpdatedAtOrBuilder();
 }

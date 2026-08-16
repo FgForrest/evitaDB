@@ -34,6 +34,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.IndexActivity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -41,6 +42,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -76,6 +80,10 @@ class IndexBrowseProjectionTest {
 	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "categories";
 	private static final long CATALOG_VERSION = 17L;
+	/** An arbitrary but recognisable instant, and two later ones, so a stamp read off the wrong holder is visible. */
+	private static final long FIRST_MILLIS = 1_800_000_000_000L;
+	private static final long SECOND_MILLIS = 1_800_000_060_000L;
+	private static final long THIRD_MILLIS = 1_800_000_120_000L;
 	/** Hands out a distinct primary key per fixture index - the identity every descriptor is addressed by. */
 	private static final AtomicInteger INDEX_PRIMARY_KEYS = new AtomicInteger();
 
@@ -329,6 +337,87 @@ class IndexBrowseProjectionTest {
 				"The trailing row must identify the index it reports the count of"
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Activity readings")
+	class ActivityReadings {
+
+		/**
+		 * The two orderings reach the activity holder by different routes - the map-order walk reads it off the index
+		 * it has just fetched, while the size-ordered one retains it on a heap candidate for the whole walk and reads
+		 * it only when the page is cut. A page that dropped the holder, or paired it with the wrong row, would
+		 * therefore show up in one ordering and not in the other, so both are asserted against the same fixture.
+		 */
+		@Test
+		@DisplayName("Every row reports the traffic of the index it describes, in either ordering")
+		void shouldReportTheActivityOfEachDescribedIndex() {
+			// both indexes cover the same number of entities, so the only thing telling their rows apart is the traffic
+			// one of them saw - a projection reading a fresh or a neighbouring holder cannot come out right by chance
+			final Map.Entry<EntityIndexKey, EntityIndex> busy = indexEntry(representativeKey(5, "a"), 20);
+			final Map.Entry<EntityIndexKey, EntityIndex> idle = indexEntry(representativeKey(6, "b"), 20);
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(busy, idle);
+			final IndexActivity activity = busy.getValue().getActivity();
+			activity.recordQuery(FIRST_MILLIS);
+			activity.recordQuery(SECOND_MILLIS);
+			activity.recordUpdate(FIRST_MILLIS);
+			activity.recordUpdate(SECOND_MILLIS);
+			activity.recordUpdate(THIRD_MILLIS);
+
+			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
+				final IndexBrowseResult result = browse(
+					indexes, new IndexBrowseCriteria(
+						1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering,
+						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+					)
+				);
+
+				final BrowsedIndex busyRow = rowOf(result, busy.getValue().getPrimaryKey());
+				assertEquals(2L, busyRow.queryCount(), "The query count belongs to this row, in " + ordering);
+				assertEquals(3L, busyRow.updateCount(), "The update count belongs to this row, in " + ordering);
+				assertEquals(toTimestamp(SECOND_MILLIS), busyRow.lastQueriedAt(), "in " + ordering);
+				assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "in " + ordering);
+
+				final BrowsedIndex idleRow = rowOf(result, idle.getValue().getPrimaryKey());
+				assertEquals(0L, idleRow.queryCount(), "An index nothing queried reported traffic, in " + ordering);
+				assertEquals(0L, idleRow.updateCount(), "An index nothing wrote reported traffic, in " + ordering);
+				// absence rather than the epoch, which a client would render as a date in 1970
+				assertNull(idleRow.lastQueriedAt(), "in " + ordering);
+				assertNull(idleRow.lastUpdatedAt(), "in " + ordering);
+				assertTrue(idleRow.lastQueriedAtIfKnown().isEmpty(), "in " + ordering);
+				assertTrue(idleRow.lastUpdatedAtIfKnown().isEmpty(), "in " + ordering);
+			}
+		}
+
+	}
+
+	/**
+	 * Picks the row describing one index out of a page.
+	 *
+	 * @param result          the page to read
+	 * @param indexPrimaryKey identity of the index whose row is wanted
+	 * @return that index's row
+	 */
+	@Nonnull
+	private static BrowsedIndex rowOf(@Nonnull IndexBrowseResult result, int indexPrimaryKey) {
+		for (final BrowsedIndex index : result.indexes()) {
+			if (index.indexPrimaryKey() == indexPrimaryKey) {
+				return index;
+			}
+		}
+		throw new AssertionError("No row describes the index with primary key " + indexPrimaryKey);
+	}
+
+	/**
+	 * Renders epoch millis the way {@link IndexActivity} does, so an assertion compares like with like rather than
+	 * restating the conversion.
+	 *
+	 * @param millis the stamp to render
+	 * @return the timestamp in the JVM's own zone
+	 */
+	@Nonnull
+	private static OffsetDateTime toTimestamp(long millis) {
+		return OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
 	}
 
 	/**

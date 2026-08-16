@@ -858,6 +858,38 @@ message GrpcBrowsedIndex {
   // asked for, so a client concatenating a catalog browse and a collection browse into one table still has the other
   // half of each row's identity.
   google.protobuf.StringValue entityType = 8;
+  // How many executed query plans have chosen this index as part of their winning target index set.
+  //
+  // It counts chosen, not consulted. Planning also probes candidate indexes that lose the cost comparison, reaches a
+  // collection's super price index from a reduced-index plan, and pulls referenced-entity indexes to enrich what is
+  // fetched - none of that is counted here. The reading means "this index was the filtering backbone of an executed
+  // query", which is what makes it actionable; counting every consultation would inflate the losers and say nothing
+  // about what to drop.
+  //
+  // Counted since the server loaded the catalog, and never persisted - see `updateCount`.
+  int64 queryCount = 9;
+  // How many entity mutations have acquired this index for modification - one increment per entity mutation per index,
+  // never per attribute write.
+  //
+  // It counts work performed, including work a rollback later undoes: the increment happens when the mutation finishes
+  // applying, before the commit-or-rollback decision, because a rolled-back transaction still paid the index-
+  // maintenance cost and this reading measures that cost rather than surviving state.
+  //
+  // A global index is acquired by essentially every entity mutation, so its reading is close to the collection's total
+  // mutation count. That is accurate rather than misleading - a global index is never a drop candidate. The actionable
+  // readings are the ones on reduced indexes, which are acquired only when genuinely touched.
+  //
+  // Counted since the server loaded the catalog, and never persisted: both counters and both stamps reset on a catalog
+  // load, because their operational use is a rate over an observation window, which persisting them would not improve,
+  // while a hot mutable value in an index's manifest would cost a rewrite on every commit. Read a pair of samples, not
+  // one absolute number.
+  int64 updateCount = 10;
+  // When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+  // loaded - which is a statement about the observation window rather than about the index's whole life.
+  GrpcOffsetDateTime lastQueriedAt = 11;
+  // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+  // was loaded - see `lastQueriedAt`.
+  GrpcOffsetDateTime lastUpdatedAt = 12;
 
 }
 
@@ -898,5 +930,17 @@ message GrpcIndexDetail {
   // Name of the entity collection holding the described index. Unset for an index the catalog holds itself. Echoed
   // back with the handle above because the two together are the index's identity - see `GrpcBrowsedIndex.entityType`.
   google.protobuf.StringValue entityType = 4;
+  // How many executed query plans have chosen this index as part of their winning target index set - see
+  // `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+  // readings share.
+  int64 queryCount = 5;
+  // How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+  int64 updateCount = 6;
+  // When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+  // loaded.
+  GrpcOffsetDateTime lastQueriedAt = 7;
+  // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+  // was loaded.
+  GrpcOffsetDateTime lastUpdatedAt = 8;
 
 }

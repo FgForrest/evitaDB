@@ -45,6 +45,23 @@ public interface Index<T extends IndexKey> {
 	T getIndexKey();
 
 	/**
+	 * Returns the query / update counters and last-activity stamps of this index — the reading that says whether the
+	 * index earns the maintenance it costs.
+	 *
+	 * The returned holder is shared by every catalog version of one logical index (it is threaded through the
+	 * commit-time merge copy by reference), so a caller may retain it across versions; it is replaced only when the
+	 * index is loaded from disk or created afresh. See {@link IndexActivity} for what each reading counts and why it is
+	 * neither transactional nor persisted.
+	 *
+	 * Both {@link EntityIndex} and {@link CatalogIndex} expose it, because either can be the winning index of an
+	 * executed query plan.
+	 *
+	 * @return the activity holder of this index, never null
+	 */
+	@Nonnull
+	IndexActivity getActivity();
+
+	/**
 	 * Returns collection of {@link StoragePart} that represents various sub-indexes the index consists of. Collection
 	 * contains only those sub-indexes/parts that have been modified since last index flush to the storage.
 	 */

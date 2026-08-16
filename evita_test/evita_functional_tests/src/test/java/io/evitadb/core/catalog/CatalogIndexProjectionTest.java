@@ -36,6 +36,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +45,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -78,6 +82,10 @@ class CatalogIndexProjectionTest {
 
 	private static final String ENTITY_TYPE = "Product";
 	private static final long CATALOG_VERSION = 17L;
+	/** An arbitrary but recognisable instant, and two later ones, so a stamp read off the wrong holder is visible. */
+	private static final long FIRST_MILLIS = 1_800_000_000_000L;
+	private static final long SECOND_MILLIS = 1_800_000_060_000L;
+	private static final long THIRD_MILLIS = 1_800_000_120_000L;
 
 	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
 		@Override
@@ -150,6 +158,14 @@ class CatalogIndexProjectionTest {
 				assertNull(index.entityCount());
 				assertTrue(index.entityCountIfKnown().isEmpty());
 				assertNotNull(index.scope());
+				// nothing has been recorded on either holder, so both counters read zero and both stamps state absence
+				// rather than the epoch, which a client would render as a date in 1970
+				assertEquals(0L, index.queryCount());
+				assertEquals(0L, index.updateCount());
+				assertNull(index.lastQueriedAt());
+				assertNull(index.lastUpdatedAt());
+				assertTrue(index.lastQueriedAtIfKnown().isEmpty());
+				assertTrue(index.lastUpdatedAtIfKnown().isEmpty());
 			}
 			assertEquals(
 				List.of(Scope.LIVE, Scope.ARCHIVED),
@@ -253,6 +269,32 @@ class CatalogIndexProjectionTest {
 			}
 		}
 
+		@Test
+		@DisplayName("carries the traffic of the index each row describes, and nobody else's")
+		void shouldReportTheTrafficOfEachDescribedIndex() {
+			// the two scopes are separate indexes with separate holders, and a row is the only place the two can be
+			// crossed - the counters they report are the only thing distinguishing these two otherwise identical rows
+			final CatalogIndex busy = empty(Scope.LIVE);
+			final CatalogIndex idle = empty(Scope.ARCHIVED);
+			busy.getActivity().recordQuery(FIRST_MILLIS);
+			busy.getActivity().recordUpdate(SECOND_MILLIS);
+			busy.getActivity().recordUpdate(THIRD_MILLIS);
+
+			final IndexBrowseResult result = browse(List.of(busy, idle), criteria(1, 10));
+
+			final BrowsedIndex busyRow = rowOfScope(result, Scope.LIVE);
+			assertEquals(1L, busyRow.queryCount());
+			assertEquals(2L, busyRow.updateCount(), "Two recordings, so a row reading a fresh holder reports zero");
+			assertEquals(toTimestamp(FIRST_MILLIS), busyRow.lastQueriedAt());
+			assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "The stamp is the last one recorded");
+
+			final BrowsedIndex idleRow = rowOfScope(result, Scope.ARCHIVED);
+			assertEquals(0L, idleRow.queryCount(), "The archived scope's row reported the live scope's traffic");
+			assertEquals(0L, idleRow.updateCount(), "The archived scope's row reported the live scope's traffic");
+			assertNull(idleRow.lastQueriedAt());
+			assertNull(idleRow.lastUpdatedAt());
+		}
+
 	}
 
 	@Nested
@@ -274,6 +316,30 @@ class CatalogIndexProjectionTest {
 			assertTrue(detail.cardinality().entityCountIfKnown().isEmpty());
 			assertNull(detail.cardinality().referencedEntityCount());
 			assertEquals(0, detail.cardinality().attributes().length);
+			// nothing has been recorded on this index's holder, so both counters read zero and both stamps state
+			// absence rather than the epoch, which a client would render as a date in 1970
+			assertEquals(0L, detail.queryCount());
+			assertEquals(0L, detail.updateCount());
+			assertNull(detail.lastQueriedAt());
+			assertNull(detail.lastUpdatedAt());
+			assertTrue(detail.lastQueriedAtIfKnown().isEmpty());
+			assertTrue(detail.lastUpdatedAtIfKnown().isEmpty());
+		}
+
+		@Test
+		@DisplayName("reports the traffic recorded on the index it describes")
+		void shouldReportTheTrafficOfTheDescribedIndex() {
+			final CatalogIndex index = seeded(Scope.ARCHIVED);
+			index.getActivity().recordQuery(FIRST_MILLIS);
+			index.getActivity().recordQuery(SECOND_MILLIS);
+			index.getActivity().recordUpdate(THIRD_MILLIS);
+
+			final IndexDetail detail = CatalogIndexProjection.describe(index);
+
+			assertEquals(2L, detail.queryCount());
+			assertEquals(1L, detail.updateCount(), "A query must not be counted as maintenance");
+			assertEquals(toTimestamp(SECOND_MILLIS), detail.lastQueriedAt(), "The stamp is the last one recorded");
+			assertEquals(toTimestamp(THIRD_MILLIS), detail.lastUpdatedAt());
 		}
 
 		@Test
@@ -337,6 +403,33 @@ class CatalogIndexProjectionTest {
 	}
 
 	/**
+	 * Picks the row describing the catalog index of one scope out of a page.
+	 *
+	 * @param result the page to read
+	 * @param scope  scope of the index whose row is wanted
+	 * @return that index's row
+	 */
+	@Nonnull
+	private static BrowsedIndex rowOfScope(@Nonnull IndexBrowseResult result, @Nonnull Scope scope) {
+		return Arrays.stream(result.indexes())
+			.filter(it -> scope == it.scope())
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("no row describes the catalog index of scope " + scope));
+	}
+
+	/**
+	 * Renders epoch millis the way {@link IndexActivity} does, so an assertion compares like with like rather than
+	 * restating the conversion.
+	 *
+	 * @param millis the stamp to render
+	 * @return the timestamp in the JVM's own zone
+	 */
+	@Nonnull
+	private static OffsetDateTime toTimestamp(long millis) {
+		return OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+	}
+
+	/**
 	 * Builds unfiltered criteria for one page.
 	 *
 	 * @param pageNumber which page to ask for, 1-indexed
@@ -379,7 +472,7 @@ class CatalogIndexProjectionTest {
 			new AttributeKey("code"),
 			globalUniqueIndex(scope, new AttributeKey("code"), null, 2)
 		);
-		return new CatalogIndex(1, new CatalogIndexKey(scope), uniqueIndexes);
+		return new CatalogIndex(1, new CatalogIndexKey(scope), uniqueIndexes, new IndexActivity());
 	}
 
 	/**

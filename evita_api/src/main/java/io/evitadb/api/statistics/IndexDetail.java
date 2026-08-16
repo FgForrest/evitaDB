@@ -27,6 +27,8 @@ import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
+import java.util.Optional;
 
 /**
  * Everything worth knowing about **one** index: what it occupies, and whether it is earning it.
@@ -50,8 +52,9 @@ import javax.annotation.Nullable;
  *
  * **The invariant this contract rests on: nothing may be added here that is not bounded by one index's heap walk.**
  * The cardinality below satisfies it - every reading is either a counter or a walk over buckets the heap estimate
- * already traverses, so it cannot change the call's cost class. A future field that does not satisfy it would silently
- * turn a bounded call into an unbounded one, which is the failure this whole surface is shaped to prevent.
+ * already traverses, so it cannot change the call's cost class. So do the four activity readings, which are `O(1)`
+ * volatile reads. A future field that does not satisfy it would silently turn a bounded call into an unbounded one,
+ * which is the failure this whole surface is shaped to prevent.
  *
  * @param entityType       name of the entity collection holding the described index, or null for one the catalog holds
  *                         directly; echoed back with the primary key below because it is the other half of the index's
@@ -74,6 +77,15 @@ import javax.annotation.Nullable;
  *                         This is the only place a **per-referenced-entity** index is ever described:
  *                         {@link CollectionIndexCardinality} counts those without describing them, because doing so
  *                         would make its response grow with the catalog's data.
+ * @param queryCount       how many executed query plans have chosen this index as part of their winning target index
+ *                         set. See {@link BrowsedIndex#queryCount()} for what "chosen" excludes and for the
+ *                         since-catalog-load lifetime every one of these four readings shares.
+ * @param updateCount      how many entity mutations have acquired this index for modification. See
+ *                         {@link BrowsedIndex#updateCount()}.
+ * @param lastQueriedAt    when the last query that chose this index was planned, or null when no query has chosen it
+ *                         since the catalog was loaded; see {@link #lastQueriedAtIfKnown()}
+ * @param lastUpdatedAt    when the last entity mutation that acquired this index finished applying, or null when none
+ *                         has since the catalog was loaded; see {@link #lastUpdatedAtIfKnown()}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see BrowsedIndex
  * @see CollectionIndexCardinality
@@ -82,6 +94,40 @@ public record IndexDetail(
 	@Nullable String entityType,
 	int indexPrimaryKey,
 	long heapSizeInBytes,
-	@Nonnull IndexCardinality cardinality
+	@Nonnull IndexCardinality cardinality,
+	long queryCount,
+	long updateCount,
+	@Nullable OffsetDateTime lastQueriedAt,
+	@Nullable OffsetDateTime lastUpdatedAt
 ) {
+
+	/**
+	 * When the last query that chose this index was planned.
+	 *
+	 * **Empty means "not since the catalog was loaded"**, never "never" - the counters and their stamps are reset by a
+	 * catalog load, so an index that has served queries for months reports empty here on a freshly started server.
+	 *
+	 * **It does not imply {@link #queryCount()}, in either direction** - this description is assembled field by field
+	 * from readings that advance independently; see {@link BrowsedIndex#lastQueriedAtIfKnown()} for the ordering that
+	 * makes either one observable without the other.
+	 *
+	 * @return when this index was last chosen by a query, empty when it has not been since the catalog was loaded
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> lastQueriedAtIfKnown() {
+		return Optional.ofNullable(this.lastQueriedAt);
+	}
+
+	/**
+	 * When the last entity mutation that acquired this index for modification finished applying.
+	 *
+	 * **Empty means "not since the catalog was loaded"** - see {@link #lastQueriedAtIfKnown()}.
+	 *
+	 * @return when this index was last updated, empty when it has not been since the catalog was loaded
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> lastUpdatedAtIfKnown() {
+		return Optional.ofNullable(this.lastUpdatedAt);
+	}
+
 }

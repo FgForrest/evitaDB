@@ -143,4 +143,86 @@ public interface GrpcIndexDetailOrBuilder extends
    * <code>.google.protobuf.StringValue entityType = 4;</code>
    */
   com.google.protobuf.StringValueOrBuilder getEntityTypeOrBuilder();
+
+  /**
+   * <pre>
+   * How many executed query plans have chosen this index as part of their winning target index set - see
+   * `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+   * readings share.
+   * </pre>
+   *
+   * <code>int64 queryCount = 5;</code>
+   * @return The queryCount.
+   */
+  long getQueryCount();
+
+  /**
+   * <pre>
+   * How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+   * </pre>
+   *
+   * <code>int64 updateCount = 6;</code>
+   * @return The updateCount.
+   */
+  long getUpdateCount();
+
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   * @return Whether the lastQueriedAt field is set.
+   */
+  boolean hasLastQueriedAt();
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   * @return The lastQueriedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastQueriedAt();
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastQueriedAtOrBuilder();
+
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   * @return Whether the lastUpdatedAt field is set.
+   */
+  boolean hasLastUpdatedAt();
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   * @return The lastUpdatedAt.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastUpdatedAt();
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastUpdatedAtOrBuilder();
 }

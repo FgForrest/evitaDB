@@ -152,6 +152,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	};
 	/**
+	 * How many {@link Scope} constants there are, read once so {@link #accessedCatalogIndexes} can be slotted by
+	 * ordinal without asking the enum for its (defensively copied) value array on every entity mutation.
+	 */
+	private static final int SCOPE_COUNT = Scope.values().length;
+	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
 	 */
 	private final String entityType;
@@ -218,6 +223,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
 	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
+	/**
+	 * Catalog indexes this entity mutation acquired for modification, slotted by {@link Scope#ordinal()} so the same
+	 * index acquired repeatedly (once per globally-unique attribute written) is counted **once** in
+	 * {@link #applyChanges()} — the same per-entity-mutation dedup discipline {@link #accessedIndexes} gives the
+	 * entity indexes.
+	 *
+	 * Allocated lazily, because most entity mutations touch no globally-unique attribute at all and would otherwise
+	 * pay for an array they never fill.
+	 */
+	@Nullable private CatalogIndex[] accessedCatalogIndexes;
 	/**
 	 * Contains index of calculated {@link RepresentativeReferenceKey} that include representative attribute values
 	 * for each reference that allows duplicates. This prevents from recalculating these values multiple times
@@ -703,13 +718,34 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			removeEntity(primaryKeyToIndex);
 		}
 
-		// remove all empty indexes after this executor is committed
+		// one instant for the whole entity mutation, so a single upsert cannot stamp the indexes it touched with two
+		// different moments
+		final long now = System.currentTimeMillis();
+
+		// count the index-maintenance effort this entity mutation cost, then remove all empty indexes after this
+		// executor is committed
 		for (EntityIndexKey accessedIndexKey : this.accessedIndexes) {
+			final EntityIndex entityIndex = this.entityIndexCreatingAccessor.getIndexIfExists(accessedIndexKey);
+			// an index acquired earlier in this mutation may already be gone - `removeEntity` above drops the indexes
+			// an entirely removed entity emptied out
+			if (entityIndex == null) {
+				continue;
+			}
+			// counted once per index per entity mutation, never per attribute write, and counted for work performed
+			// rather than work that survives - a rolled-back transaction still paid this maintenance
+			entityIndex.getActivity().recordUpdate(now);
 			// global live index is never removed and is always present (even if empty)
-			if (!(accessedIndexKey.type() == EntityIndexType.GLOBAL && accessedIndexKey.scope() == Scope.LIVE)) {
-				final EntityIndex entityIndex = this.entityIndexCreatingAccessor.getIndexIfExists(accessedIndexKey);
-				if (entityIndex != null && entityIndex.isEmpty()) {
-					this.entityIndexCreatingAccessor.removeIndex(accessedIndexKey);
+			if (!(accessedIndexKey.type() == EntityIndexType.GLOBAL && accessedIndexKey.scope() == Scope.LIVE)
+				&& entityIndex.isEmpty()) {
+				this.entityIndexCreatingAccessor.removeIndex(accessedIndexKey);
+			}
+		}
+
+		// the catalog indexes this mutation maintained, if it maintained any globally-unique attribute at all
+		if (this.accessedCatalogIndexes != null) {
+			for (final CatalogIndex catalogIndex : this.accessedCatalogIndexes) {
+				if (catalogIndex != null) {
+					catalogIndex.getActivity().recordUpdate(now);
 				}
 			}
 		}
@@ -745,7 +781,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	@Nonnull
 	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
-		return this.catalogIndexCreatingAccessor.getOrCreateIndex(new CatalogIndexKey(scope));
+		final CatalogIndex catalogIndex = this.catalogIndexCreatingAccessor.getOrCreateIndex(
+			new CatalogIndexKey(scope)
+		);
+		if (this.accessedCatalogIndexes == null) {
+			this.accessedCatalogIndexes = new CatalogIndex[SCOPE_COUNT];
+		}
+		// remember the acquisition rather than counting it here — see the field's javadoc for why it is deduplicated
+		this.accessedCatalogIndexes[scope.ordinal()] = catalogIndex;
+		return catalogIndex;
 	}
 
 	/**

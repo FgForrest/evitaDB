@@ -221,6 +221,120 @@ private static final long serialVersionUID = 0L;
     return entityType_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : entityType_;
   }
 
+  public static final int QUERYCOUNT_FIELD_NUMBER = 5;
+  private long queryCount_ = 0L;
+  /**
+   * <pre>
+   * How many executed query plans have chosen this index as part of their winning target index set - see
+   * `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+   * readings share.
+   * </pre>
+   *
+   * <code>int64 queryCount = 5;</code>
+   * @return The queryCount.
+   */
+  @java.lang.Override
+  public long getQueryCount() {
+    return queryCount_;
+  }
+
+  public static final int UPDATECOUNT_FIELD_NUMBER = 6;
+  private long updateCount_ = 0L;
+  /**
+   * <pre>
+   * How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+   * </pre>
+   *
+   * <code>int64 updateCount = 6;</code>
+   * @return The updateCount.
+   */
+  @java.lang.Override
+  public long getUpdateCount() {
+    return updateCount_;
+  }
+
+  public static final int LASTQUERIEDAT_FIELD_NUMBER = 7;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt_;
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   * @return Whether the lastQueriedAt field is set.
+   */
+  @java.lang.Override
+  public boolean hasLastQueriedAt() {
+    return ((bitField0_ & 0x00000004) != 0);
+  }
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   * @return The lastQueriedAt.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastQueriedAt() {
+    return lastQueriedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastQueriedAt_;
+  }
+  /**
+   * <pre>
+   * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+   * loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastQueriedAtOrBuilder() {
+    return lastQueriedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastQueriedAt_;
+  }
+
+  public static final int LASTUPDATEDAT_FIELD_NUMBER = 8;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt_;
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   * @return Whether the lastUpdatedAt field is set.
+   */
+  @java.lang.Override
+  public boolean hasLastUpdatedAt() {
+    return ((bitField0_ & 0x00000008) != 0);
+  }
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   * @return The lastUpdatedAt.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastUpdatedAt() {
+    return lastUpdatedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
+  }
+  /**
+   * <pre>
+   * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+   * was loaded.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastUpdatedAtOrBuilder() {
+    return lastUpdatedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -247,6 +361,18 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000002) != 0)) {
       output.writeMessage(4, getEntityType());
     }
+    if (queryCount_ != 0L) {
+      output.writeInt64(5, queryCount_);
+    }
+    if (updateCount_ != 0L) {
+      output.writeInt64(6, updateCount_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      output.writeMessage(7, getLastQueriedAt());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      output.writeMessage(8, getLastUpdatedAt());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -271,6 +397,22 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000002) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getEntityType());
+    }
+    if (queryCount_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(5, queryCount_);
+    }
+    if (updateCount_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(6, updateCount_);
+    }
+    if (((bitField0_ & 0x00000004) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(7, getLastQueriedAt());
+    }
+    if (((bitField0_ & 0x00000008) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(8, getLastUpdatedAt());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -301,6 +443,20 @@ private static final long serialVersionUID = 0L;
       if (!getEntityType()
           .equals(other.getEntityType())) return false;
     }
+    if (getQueryCount()
+        != other.getQueryCount()) return false;
+    if (getUpdateCount()
+        != other.getUpdateCount()) return false;
+    if (hasLastQueriedAt() != other.hasLastQueriedAt()) return false;
+    if (hasLastQueriedAt()) {
+      if (!getLastQueriedAt()
+          .equals(other.getLastQueriedAt())) return false;
+    }
+    if (hasLastUpdatedAt() != other.hasLastUpdatedAt()) return false;
+    if (hasLastUpdatedAt()) {
+      if (!getLastUpdatedAt()
+          .equals(other.getLastUpdatedAt())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -324,6 +480,20 @@ private static final long serialVersionUID = 0L;
     if (hasEntityType()) {
       hash = (37 * hash) + ENTITYTYPE_FIELD_NUMBER;
       hash = (53 * hash) + getEntityType().hashCode();
+    }
+    hash = (37 * hash) + QUERYCOUNT_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getQueryCount());
+    hash = (37 * hash) + UPDATECOUNT_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getUpdateCount());
+    if (hasLastQueriedAt()) {
+      hash = (37 * hash) + LASTQUERIEDAT_FIELD_NUMBER;
+      hash = (53 * hash) + getLastQueriedAt().hashCode();
+    }
+    if (hasLastUpdatedAt()) {
+      hash = (37 * hash) + LASTUPDATEDAT_FIELD_NUMBER;
+      hash = (53 * hash) + getLastUpdatedAt().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -470,6 +640,8 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getCardinalityFieldBuilder();
         getEntityTypeFieldBuilder();
+        getLastQueriedAtFieldBuilder();
+        getLastUpdatedAtFieldBuilder();
       }
     }
     @java.lang.Override
@@ -487,6 +659,18 @@ private static final long serialVersionUID = 0L;
       if (entityTypeBuilder_ != null) {
         entityTypeBuilder_.dispose();
         entityTypeBuilder_ = null;
+      }
+      queryCount_ = 0L;
+      updateCount_ = 0L;
+      lastQueriedAt_ = null;
+      if (lastQueriedAtBuilder_ != null) {
+        lastQueriedAtBuilder_.dispose();
+        lastQueriedAtBuilder_ = null;
+      }
+      lastUpdatedAt_ = null;
+      if (lastUpdatedAtBuilder_ != null) {
+        lastUpdatedAtBuilder_.dispose();
+        lastUpdatedAtBuilder_ = null;
       }
       return this;
     }
@@ -539,6 +723,24 @@ private static final long serialVersionUID = 0L;
             ? entityType_
             : entityTypeBuilder_.build();
         to_bitField0_ |= 0x00000002;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.queryCount_ = queryCount_;
+      }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.updateCount_ = updateCount_;
+      }
+      if (((from_bitField0_ & 0x00000040) != 0)) {
+        result.lastQueriedAt_ = lastQueriedAtBuilder_ == null
+            ? lastQueriedAt_
+            : lastQueriedAtBuilder_.build();
+        to_bitField0_ |= 0x00000004;
+      }
+      if (((from_bitField0_ & 0x00000080) != 0)) {
+        result.lastUpdatedAt_ = lastUpdatedAtBuilder_ == null
+            ? lastUpdatedAt_
+            : lastUpdatedAtBuilder_.build();
+        to_bitField0_ |= 0x00000008;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -599,6 +801,18 @@ private static final long serialVersionUID = 0L;
       if (other.hasEntityType()) {
         mergeEntityType(other.getEntityType());
       }
+      if (other.getQueryCount() != 0L) {
+        setQueryCount(other.getQueryCount());
+      }
+      if (other.getUpdateCount() != 0L) {
+        setUpdateCount(other.getUpdateCount());
+      }
+      if (other.hasLastQueriedAt()) {
+        mergeLastQueriedAt(other.getLastQueriedAt());
+      }
+      if (other.hasLastUpdatedAt()) {
+        mergeLastUpdatedAt(other.getLastUpdatedAt());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -649,6 +863,30 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 34
+            case 40: {
+              queryCount_ = input.readInt64();
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 40
+            case 48: {
+              updateCount_ = input.readInt64();
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 48
+            case 58: {
+              input.readMessage(
+                  getLastQueriedAtFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000040;
+              break;
+            } // case 58
+            case 66: {
+              input.readMessage(
+                  getLastUpdatedAtFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000080;
+              break;
+            } // case 66
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1183,6 +1421,432 @@ private static final long serialVersionUID = 0L;
         entityType_ = null;
       }
       return entityTypeBuilder_;
+    }
+
+    private long queryCount_ ;
+    /**
+     * <pre>
+     * How many executed query plans have chosen this index as part of their winning target index set - see
+     * `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+     * readings share.
+     * </pre>
+     *
+     * <code>int64 queryCount = 5;</code>
+     * @return The queryCount.
+     */
+    @java.lang.Override
+    public long getQueryCount() {
+      return queryCount_;
+    }
+    /**
+     * <pre>
+     * How many executed query plans have chosen this index as part of their winning target index set - see
+     * `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+     * readings share.
+     * </pre>
+     *
+     * <code>int64 queryCount = 5;</code>
+     * @param value The queryCount to set.
+     * @return This builder for chaining.
+     */
+    public Builder setQueryCount(long value) {
+
+      queryCount_ = value;
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How many executed query plans have chosen this index as part of their winning target index set - see
+     * `GrpcBrowsedIndex.queryCount` for what "chosen" excludes and for the since-catalog-load lifetime all four of these
+     * readings share.
+     * </pre>
+     *
+     * <code>int64 queryCount = 5;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearQueryCount() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      queryCount_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private long updateCount_ ;
+    /**
+     * <pre>
+     * How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+     * </pre>
+     *
+     * <code>int64 updateCount = 6;</code>
+     * @return The updateCount.
+     */
+    @java.lang.Override
+    public long getUpdateCount() {
+      return updateCount_;
+    }
+    /**
+     * <pre>
+     * How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+     * </pre>
+     *
+     * <code>int64 updateCount = 6;</code>
+     * @param value The updateCount to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUpdateCount(long value) {
+
+      updateCount_ = value;
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * How many entity mutations have acquired this index for modification - see `GrpcBrowsedIndex.updateCount`.
+     * </pre>
+     *
+     * <code>int64 updateCount = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearUpdateCount() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      updateCount_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> lastQueriedAtBuilder_;
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     * @return Whether the lastQueriedAt field is set.
+     */
+    public boolean hasLastQueriedAt() {
+      return ((bitField0_ & 0x00000040) != 0);
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     * @return The lastQueriedAt.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastQueriedAt() {
+      if (lastQueriedAtBuilder_ == null) {
+        return lastQueriedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastQueriedAt_;
+      } else {
+        return lastQueriedAtBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public Builder setLastQueriedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastQueriedAtBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        lastQueriedAt_ = value;
+      } else {
+        lastQueriedAtBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public Builder setLastQueriedAt(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (lastQueriedAtBuilder_ == null) {
+        lastQueriedAt_ = builderForValue.build();
+      } else {
+        lastQueriedAtBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public Builder mergeLastQueriedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastQueriedAtBuilder_ == null) {
+        if (((bitField0_ & 0x00000040) != 0) &&
+          lastQueriedAt_ != null &&
+          lastQueriedAt_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getLastQueriedAtBuilder().mergeFrom(value);
+        } else {
+          lastQueriedAt_ = value;
+        }
+      } else {
+        lastQueriedAtBuilder_.mergeFrom(value);
+      }
+      if (lastQueriedAt_ != null) {
+        bitField0_ |= 0x00000040;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public Builder clearLastQueriedAt() {
+      bitField0_ = (bitField0_ & ~0x00000040);
+      lastQueriedAt_ = null;
+      if (lastQueriedAtBuilder_ != null) {
+        lastQueriedAtBuilder_.dispose();
+        lastQueriedAtBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getLastQueriedAtBuilder() {
+      bitField0_ |= 0x00000040;
+      onChanged();
+      return getLastQueriedAtFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastQueriedAtOrBuilder() {
+      if (lastQueriedAtBuilder_ != null) {
+        return lastQueriedAtBuilder_.getMessageOrBuilder();
+      } else {
+        return lastQueriedAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastQueriedAt_;
+      }
+    }
+    /**
+     * <pre>
+     * When the last query that chose this index was planned. Unset when no query has chosen it since the catalog was
+     * loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastQueriedAt = 7;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getLastQueriedAtFieldBuilder() {
+      if (lastQueriedAtBuilder_ == null) {
+        lastQueriedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getLastQueriedAt(),
+                getParentForChildren(),
+                isClean());
+        lastQueriedAt_ = null;
+      }
+      return lastQueriedAtBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> lastUpdatedAtBuilder_;
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     * @return Whether the lastUpdatedAt field is set.
+     */
+    public boolean hasLastUpdatedAt() {
+      return ((bitField0_ & 0x00000080) != 0);
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     * @return The lastUpdatedAt.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getLastUpdatedAt() {
+      if (lastUpdatedAtBuilder_ == null) {
+        return lastUpdatedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
+      } else {
+        return lastUpdatedAtBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public Builder setLastUpdatedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastUpdatedAtBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        lastUpdatedAt_ = value;
+      } else {
+        lastUpdatedAtBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public Builder setLastUpdatedAt(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (lastUpdatedAtBuilder_ == null) {
+        lastUpdatedAt_ = builderForValue.build();
+      } else {
+        lastUpdatedAtBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public Builder mergeLastUpdatedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (lastUpdatedAtBuilder_ == null) {
+        if (((bitField0_ & 0x00000080) != 0) &&
+          lastUpdatedAt_ != null &&
+          lastUpdatedAt_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getLastUpdatedAtBuilder().mergeFrom(value);
+        } else {
+          lastUpdatedAt_ = value;
+        }
+      } else {
+        lastUpdatedAtBuilder_.mergeFrom(value);
+      }
+      if (lastUpdatedAt_ != null) {
+        bitField0_ |= 0x00000080;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public Builder clearLastUpdatedAt() {
+      bitField0_ = (bitField0_ & ~0x00000080);
+      lastUpdatedAt_ = null;
+      if (lastUpdatedAtBuilder_ != null) {
+        lastUpdatedAtBuilder_.dispose();
+        lastUpdatedAtBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getLastUpdatedAtBuilder() {
+      bitField0_ |= 0x00000080;
+      onChanged();
+      return getLastUpdatedAtFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastUpdatedAtOrBuilder() {
+      if (lastUpdatedAtBuilder_ != null) {
+        return lastUpdatedAtBuilder_.getMessageOrBuilder();
+      } else {
+        return lastUpdatedAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
+      }
+    }
+    /**
+     * <pre>
+     * When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
+     * was loaded.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 8;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getLastUpdatedAtFieldBuilder() {
+      if (lastUpdatedAtBuilder_ == null) {
+        lastUpdatedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getLastUpdatedAt(),
+                getParentForChildren(),
+                isClean());
+        lastUpdatedAt_ = null;
+      }
+      return lastUpdatedAtBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

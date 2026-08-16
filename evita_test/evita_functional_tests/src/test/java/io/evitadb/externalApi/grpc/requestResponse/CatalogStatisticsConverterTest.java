@@ -144,6 +144,17 @@ class CatalogStatisticsConverterTest {
 	// than round-trip a matching pair
 	private static final OffsetDateTime LAST_CHECKPOINT_AT =
 		OffsetDateTime.of(2026, 12, 1, 2, 3, 4, 500_000_000, ZoneOffset.UTC);
+	/**
+	 * Stamp of the last query that chose an index, distinct from every other constant here so a converter crossing two
+	 * fields is visible.
+	 */
+	private static final OffsetDateTime LAST_QUERIED_AT =
+		OffsetDateTime.of(2026, 4, 5, 6, 7, 8, 900_000_000, ZoneOffset.UTC);
+	/**
+	 * Stamp of the last entity mutation that acquired an index - see {@link #LAST_QUERIED_AT}.
+	 */
+	private static final OffsetDateTime LAST_UPDATED_AT =
+		OffsetDateTime.of(2026, 6, 7, 8, 9, 10, 110_000_000, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -404,26 +415,33 @@ class CatalogStatisticsConverterTest {
 		// paired with the primary key of one target entity. Unset protobuf wrappers decode to an empty string and a
 		// zero when read without a presence check, so all three have to be asserted rather than just the populated one
 		final BrowsedIndex[] indexes = {
-			new BrowsedIndex("product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000),
+			new BrowsedIndex(
+				"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
+				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT
+			),
 			new BrowsedIndex(
 				"product", 2, EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE,
-				"categories", "categories", null, 400
+				"categories", "categories", null, 400,
+				0L, 12L, null, LAST_UPDATED_AT
 			),
 			// the case the two projections cannot express: same reference, same target, told apart only by the
 			// representative values the discriminator carries
 			new BrowsedIndex(
 				"product", 3, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
-				"categories/42/[red]", "categories", 42, 7
+				"categories/42/[red]", "categories", 42, 7,
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT
 			),
 			new BrowsedIndex(
 				"product", 4, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
-				"categories/42/[blue]", "categories", 42, 7
+				"categories/42/[blue]", "categories", 42, 7,
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT
 			),
-			// a catalog index: no owning collection, and with it no kind and no entity count. All three travel as
-			// unset wrappers, and every one of them decodes to a non-null default when read without a presence check -
-			// `""`, `INDEX_TYPE_UNSPECIFIED` and `0` respectively - so this row is the one that catches a converter
-			// reading any of them straight
-			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null)
+			// a catalog index that has never been touched: no owning collection, and with it no kind and no entity
+			// count, plus two never-recorded stamps. Every one of those five travels as an unset wrapper or message,
+			// and every one decodes to a non-null default when read without a presence check - `""`,
+			// `INDEX_TYPE_UNSPECIFIED`, `0` and the epoch respectively - so this row is the one that catches a
+			// converter reading any of them straight
+			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null, 0L, 0L, null, null)
 		};
 		final GrpcIndexBrowseResponse.Builder builder =
 			GrpcIndexBrowseResponse.newBuilder()
@@ -463,6 +481,20 @@ class CatalogStatisticsConverterTest {
 		);
 		assertNotEquals(roundTripped.indexes()[2].discriminator(), roundTripped.indexes()[3].discriminator());
 		assertNotEquals(roundTripped.indexes()[2], roundTripped.indexes()[3]);
+		// the activity readings, and specifically the two ways a stamp can be absent: an index that has been updated
+		// but never queried, and one that has been neither. A stamp read without a presence check decodes to the epoch,
+		// which a client renders as a date in 1970 rather than as "not since the catalog was loaded"
+		assertEquals(9_000_000_000L, roundTripped.indexes()[0].queryCount(), "A count past int range must not wrap");
+		assertEquals(4_000_000_000L, roundTripped.indexes()[0].updateCount(), "A count past int range must not wrap");
+		assertEquals(LAST_QUERIED_AT, roundTripped.indexes()[0].lastQueriedAt());
+		assertEquals(LAST_UPDATED_AT, roundTripped.indexes()[0].lastUpdatedAt());
+		assertNull(roundTripped.indexes()[1].lastQueriedAt(), "A never-queried index must not decode to the epoch");
+		assertTrue(roundTripped.indexes()[1].lastQueriedAtIfKnown().isEmpty());
+		assertEquals(LAST_UPDATED_AT, roundTripped.indexes()[1].lastUpdatedAt());
+		assertNull(roundTripped.indexes()[4].lastQueriedAt());
+		assertNull(roundTripped.indexes()[4].lastUpdatedAt());
+		assertEquals(0L, roundTripped.indexes()[4].queryCount());
+		assertEquals(0L, roundTripped.indexes()[4].updateCount());
 	}
 
 	@Test
@@ -486,7 +518,11 @@ class CatalogStatisticsConverterTest {
 					new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 5, 7),
 					new AttributeCardinality("name", "categories", Locale.ENGLISH, AttributeIndexType.SORT, 7, 7)
 				}
-			)
+			),
+			9_000_000_000L,
+			4_000_000_000L,
+			LAST_QUERIED_AT,
+			LAST_UPDATED_AT
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
@@ -501,6 +537,13 @@ class CatalogStatisticsConverterTest {
 		// the discriminator of a per-referenced-entity index is the one this surface newly carries - the collection
 		// level component never describes such an index, so nothing else would notice it being dropped
 		assertEquals("categories/42/[red]", roundTripped.cardinality().discriminator());
+		// the two counters are int64 for the same reason the heap figure is: a busy index passes two billion queries
+		// long before anybody restarts the server
+		assertEquals(9_000_000_000L, roundTripped.queryCount(), "A count past int range must not wrap");
+		assertEquals(4_000_000_000L, roundTripped.updateCount(), "A count past int range must not wrap");
+		assertEquals(LAST_QUERIED_AT, roundTripped.lastQueriedAt());
+		assertEquals(LAST_UPDATED_AT, roundTripped.lastUpdatedAt());
+		assertEquals(detail, roundTripped);
 	}
 
 	@Test
@@ -526,7 +569,13 @@ class CatalogStatisticsConverterTest {
 					// never bound to a reference, and one per locale for an attribute unique within a locale
 					new AttributeCardinality("url", null, Locale.ENGLISH, AttributeIndexType.UNIQUE, 3, 3)
 				}
-			)
+			),
+			// never queried and never updated since the catalog was loaded - the fourth and fifth absence this shape
+			// has to carry, and the two that would decode to the epoch rather than to null if read straight
+			0L,
+			0L,
+			null,
+			null
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
@@ -540,6 +589,10 @@ class CatalogStatisticsConverterTest {
 		assertNull(roundTripped.cardinality().entityCount(), "An unset entity count must not decode to zero");
 		assertTrue(roundTripped.cardinality().entityCountIfKnown().isEmpty());
 		assertEquals(0, roundTripped.indexPrimaryKey(), "The live catalog index's handle is zero, and must survive");
+		assertNull(roundTripped.lastQueriedAt(), "A never-queried index must not decode to the epoch");
+		assertNull(roundTripped.lastUpdatedAt(), "A never-updated index must not decode to the epoch");
+		assertTrue(roundTripped.lastQueriedAtIfKnown().isEmpty());
+		assertTrue(roundTripped.lastUpdatedAtIfKnown().isEmpty());
 		assertEquals(detail, roundTripped);
 	}
 
