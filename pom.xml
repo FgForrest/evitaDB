@@ -139,7 +139,7 @@
 		<grpc.version>1.83.1</grpc.version>
 		<bouncyCastle.version>1.85</bouncyCastle.version>
 		<swagger.version>2.2.52</swagger.version>
-		<armeria.version>1.40.0</armeria.version>
+		<armeria.version>1.41.0</armeria.version>
 		<!--
 			Overrides the netty version armeria 1.40.0 itself pulls in (4.2.15.Final) to pick up
 			GHSA-558v-64gr-wgg4 / GHSA-q6cq-mhr2-jmr5 / GHSA-6jqx-86gh-f27w and the other netty-codec-*
