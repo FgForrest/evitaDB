@@ -148,7 +148,7 @@
 			only those artifacts (not a full netty-bom import) are pinned. Drop this override (and the
 			property) once armeria itself depends on >= 4.2.16.Final.
 		-->
-		<netty.version>4.2.16.Final</netty.version>
+		<netty.version>4.2.17.Final</netty.version>
 		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.17.0</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
