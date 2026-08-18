@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.IndexNotFoundException;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.statistics.BrowsedIndex;
@@ -120,7 +121,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("Paging through every index in map order yields each exactly once")
 		void shouldPageThroughEveryIndexInMapOrderWithoutRepeatingOrLosingOne() {
-			assertPagingCoversEveryIndexExactlyOnce(IndexBrowseOrdering.MAP_ORDER, 3);
+			assertPagingCoversEveryIndexExactlyOnce(IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC, 3);
 		}
 
 		@Test
@@ -129,14 +130,18 @@ class IndexBrowseTest implements EvitaTestSupport {
 			// the load-bearing test of this class. Ten indexes report the same entity count, so ordering by that
 			// count alone leaves their relative order to chance - and a page boundary drawn through the middle of
 			// that block would then show some of them on both pages and others on neither
-			assertPagingCoversEveryIndexExactlyOnce(IndexBrowseOrdering.BY_ENTITY_COUNT_DESC, 3);
+			assertPagingCoversEveryIndexExactlyOnce(IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC, 3);
 		}
 
 		@Test
 		@DisplayName("Re-reading the same page returns the same indexes")
 		void shouldReturnAStablePageAcrossRepeatedReads() {
-			final IndexBrowseResult first = browse(criteria(2, 3, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC));
-			final IndexBrowseResult second = browse(criteria(2, 3, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC));
+			final IndexBrowseResult first = browse(
+				criteria(2, 3, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC)
+			);
+			final IndexBrowseResult second = browse(
+				criteria(2, 3, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC)
+			);
 			assertEquals(
 				identitiesOf(first), identitiesOf(second),
 				"The same page of an unchanged collection came back with different indexes - the order is not " +
@@ -394,7 +399,9 @@ class IndexBrowseTest implements EvitaTestSupport {
 		@DisplayName("The largest indexes come first")
 		void shouldReturnTheLargestIndexesFirst() {
 			final IndexBrowseResult result = browse(
-				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC)
+				criteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC
+				)
 			);
 			int previous = Integer.MAX_VALUE;
 			for (final BrowsedIndex index : result.indexes()) {
@@ -413,10 +420,38 @@ class IndexBrowseTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("The smallest indexes come first when the entity count is read ascending")
+		void shouldReturnTheSmallestIndexesFirst() {
+			// the case the flattened ordering could not express at all: the same key read from the other end, which
+			// is what a client asking "which indexes cover almost nothing" needs
+			final IndexBrowseResult result = browse(
+				criteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.ASC
+				)
+			);
+			int previous = Integer.MIN_VALUE;
+			for (final BrowsedIndex index : result.indexes()) {
+				assertTrue(
+					index.entityCount() >= previous,
+					"Indexes came back out of ascending order at " + index + " (previous count " + previous + ")"
+				);
+				previous = index.entityCount();
+			}
+			// the widest index leads the descending order, so it must close this one - anything else means the
+			// direction was ignored rather than applied
+			assertEquals(
+				PRODUCT_COUNT, result.indexes()[result.indexes().length - 1].entityCount(),
+				"The widest index covers every product and must therefore end the ascending order"
+			);
+		}
+
+		@Test
 		@DisplayName("Equally-sized indexes are ordered by kind, then scope, then discriminator")
 		void shouldBreakTiesDeterministically() {
 			final IndexBrowseResult result = browse(
-				criteria(1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC)
+				criteria(
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC
+				)
 			);
 			final List<Integer> tiedPrimaryKeys = new ArrayList<>(CATEGORY_COUNT);
 			for (final BrowsedIndex index : result.indexes()) {
@@ -451,7 +486,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 		void shouldKeepOnlyTheRequestedKinds() {
 			final IndexBrowseResult result = browse(
 				new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					EnumSet.of(EntityIndexType.REFERENCED_ENTITY), Set.of(), Set.of()
 				)
 			);
@@ -490,7 +525,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			// and the filter really selects rather than merely counting
 			final IndexBrowseResult archivedPage = browse(
 				new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					EnumSet.noneOf(EntityIndexType.class), EnumSet.of(Scope.ARCHIVED), Set.of()
 				)
 			);
@@ -504,7 +539,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 		void shouldKeepOnlyTheRequestedReference() {
 			final IndexBrowseResult result = browse(
 				new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categories")
 				)
 			);
@@ -524,7 +559,8 @@ class IndexBrowseTest implements EvitaTestSupport {
 		@Nonnull
 		private IndexBrowseCriteria criteriaWithScopes(@Nonnull Set<Scope> scopes) {
 			return new IndexBrowseCriteria(
-				1, 1, IndexBrowseOrdering.MAP_ORDER, EnumSet.noneOf(EntityIndexType.class), scopes, Set.of()
+				1, 1, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+				EnumSet.noneOf(EntityIndexType.class), scopes, Set.of()
 			);
 		}
 	}
@@ -590,7 +626,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 				EvitaInvalidUsageException.class,
 				() -> browse(
 					new IndexBrowseCriteria(
-						1, 10, IndexBrowseOrdering.MAP_ORDER,
+						1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categoriez")
 					)
 				)
@@ -638,29 +674,55 @@ class IndexBrowseTest implements EvitaTestSupport {
 			// return an empty page - a full sort and a proportional allocation from one cheap-looking request
 			final int tooDeep = (IndexBrowseCriteria.MAX_ORDERED_WINDOW / 10) + 1;
 			final int atTheLimit = IndexBrowseCriteria.MAX_ORDERED_WINDOW / 10;
-			// walked over every declared value rather than a written-out list of them, so an ordering added later is
+			// walked over every declared key rather than a written-out list of them, so an ordering key added later is
 			// covered the day it is declared instead of the day somebody remembers to extend this test
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
 				if (ordering == IndexBrowseOrdering.MAP_ORDER) {
 					// map order costs O(pageSize) whatever the page number, so the depth is deliberately allowed - the
-					// limit belongs to the orderings that need it, not to paging in general
+					// limit belongs to the keys that need it, not to paging in general. Only ascending is asked for:
+					// descending is refused by this key for a reason that has nothing to do with depth, and asserting
+					// a throw there would pass whether or not the depth limit exists
 					assertDoesNotThrow(
-						() -> criteria(tooDeep, 10, ordering),
+						() -> criteria(tooDeep, 10, ordering, OrderDirection.ASC),
 						"Map order materialises only the window, so depth costs it nothing and must not be limited"
 					);
 				} else {
-					assertThrows(
-						EvitaInvalidUsageException.class,
-						() -> criteria(tooDeep, 10, ordering),
-						"A page beyond the retention window must be refused when ordering by " + ordering
-					);
-					// and the boundary itself is allowed, so the limit is off-by-one safe in the permissive direction
-					assertDoesNotThrow(
-						() -> criteria(atTheLimit, 10, ordering),
-						"A window exactly at the maximum is within the limit when ordering by " + ordering
-					);
+					// both directions, because a ranked key retains everything up to the end of the page whichever end
+					// the page is cut from - the bound belongs to the key alone and must not be reachable around it
+					for (final OrderDirection direction : OrderDirection.values()) {
+						assertThrows(
+							EvitaInvalidUsageException.class,
+							() -> criteria(tooDeep, 10, ordering, direction),
+							"A page beyond the retention window must be refused when ordering by " + ordering +
+								" " + direction
+						);
+						// and the boundary itself is allowed, so the limit is off-by-one safe in the permissive
+						// direction
+						assertDoesNotThrow(
+							() -> criteria(atTheLimit, 10, ordering, direction),
+							"A window exactly at the maximum is within the limit when ordering by " + ordering +
+								" " + direction
+						);
+					}
 				}
 			}
+		}
+
+		@Test
+		@DisplayName("Map order paired with a descending direction is refused")
+		void shouldRejectMapOrderReadDescending() {
+			// map order ranks nothing, so there is no ranking for a direction to reverse. Rejected rather than
+			// answered with the forward walk: a silently ignored direction reads back to the client as one that was
+			// honoured, and it would take a page cut from the wrong end of nothing for an answer
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> criteria(1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.DESC),
+				"Map order has no ranking to reverse, so a descending walk must be refused rather than ignored"
+			);
+			assertDoesNotThrow(
+				() -> criteria(1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC),
+				"Ascending is how map order's own walk order is spelled and must remain the accepted pairing"
+			);
 		}
 	}
 
@@ -672,18 +734,23 @@ class IndexBrowseTest implements EvitaTestSupport {
 	 * members on both sides of a page boundary and others on neither, so the union comes up short while the running
 	 * total comes up long.
 	 *
-	 * @param ordering the order to page in
-	 * @param pageSize how many indexes to take per page - deliberately small, so boundaries fall inside the tie block
+	 * @param ordering  what to rank the indexes by while paging
+	 * @param direction which end of that ranking to page from
+	 * @param pageSize  how many indexes to take per page - deliberately small, so boundaries fall inside the tie block
 	 */
-	private void assertPagingCoversEveryIndexExactlyOnce(@Nonnull IndexBrowseOrdering ordering, int pageSize) {
-		final IndexBrowseResult first = browse(criteria(1, pageSize, ordering));
+	private void assertPagingCoversEveryIndexExactlyOnce(
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction,
+		int pageSize
+	) {
+		final IndexBrowseResult first = browse(criteria(1, pageSize, ordering, direction));
 		final int total = first.totalRecordCount();
 		final Set<Integer> seen = new LinkedHashSet<>(total);
 		int collected = 0;
 
 		final int pageCount = (total + pageSize - 1) / pageSize;
 		for (int pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
-			final IndexBrowseResult page = browse(criteria(pageNumber, pageSize, ordering));
+			final IndexBrowseResult page = browse(criteria(pageNumber, pageSize, ordering, direction));
 			assertEquals(
 				total, page.totalRecordCount(),
 				"The match count changed mid-browse although nothing was written between the pages"
@@ -806,7 +873,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final IndexBrowseResult byReference = IndexBrowseTest.this.evita.management().browseIndexes(
 				CATALOG, null,
 				new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of("categories")
 				)
 			);
@@ -815,7 +882,7 @@ class IndexBrowseTest implements EvitaTestSupport {
 			final IndexBrowseResult byKind = IndexBrowseTest.this.evita.management().browseIndexes(
 				CATALOG, null,
 				new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					EnumSet.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
 				)
 			);
@@ -836,10 +903,37 @@ class IndexBrowseTest implements EvitaTestSupport {
 
 	}
 
+	/**
+	 * Unfiltered criteria read ascending - the direction every ordering key accepts, and the only one map order does.
+	 *
+	 * @param pageNumber which page to ask for
+	 * @param pageSize   how many indexes the page holds
+	 * @param ordering   what to rank the indexes by
+	 * @return the criteria
+	 */
 	@Nonnull
 	private static IndexBrowseCriteria criteria(int pageNumber, int pageSize, @Nonnull IndexBrowseOrdering ordering) {
+		return criteria(pageNumber, pageSize, ordering, OrderDirection.ASC);
+	}
+
+	/**
+	 * Unfiltered criteria in one explicit key and direction.
+	 *
+	 * @param pageNumber which page to ask for
+	 * @param pageSize   how many indexes the page holds
+	 * @param ordering   what to rank the indexes by
+	 * @param direction  which end of that ranking the page is cut from
+	 * @return the criteria
+	 */
+	@Nonnull
+	private static IndexBrowseCriteria criteria(
+		int pageNumber,
+		int pageSize,
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction
+	) {
 		return new IndexBrowseCriteria(
-			pageNumber, pageSize, ordering, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+			pageNumber, pageSize, ordering, direction, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 		);
 	}
 

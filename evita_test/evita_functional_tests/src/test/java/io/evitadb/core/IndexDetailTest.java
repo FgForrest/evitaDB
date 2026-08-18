@@ -35,6 +35,7 @@ import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -284,7 +285,7 @@ class IndexDetailTest implements EvitaTestSupport {
 			CATALOG,
 			ENTITY_PRODUCT,
 			new IndexBrowseCriteria(
-				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);

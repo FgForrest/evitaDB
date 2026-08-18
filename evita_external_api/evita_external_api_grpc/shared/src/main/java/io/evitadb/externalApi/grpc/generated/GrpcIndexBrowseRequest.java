@@ -50,6 +50,7 @@ private static final long serialVersionUID = 0L;
   private GrpcIndexBrowseRequest() {
     catalogName_ = "";
     ordering_ = 0;
+    direction_ = 0;
     indexTypes_ = java.util.Collections.emptyList();
     scopes_ = java.util.Collections.emptyList();
     referenceNames_ =
@@ -187,11 +188,12 @@ private static final long serialVersionUID = 0L;
    * Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
    * `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
    *
-   * Every order except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged:
-   * `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than clamped. Those
-   * orders rank their candidates, so producing a page means retaining every index up to the end of it - a far-out
-   * page would retain and sort the whole index set only to answer with an empty page. Map order carries no such
-   * limit, because it materialises only the requested window however deep that window sits.
+   * Every ordering except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged, in either
+   * direction: `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than
+   * clamped. Those orderings rank their candidates, so producing a page means retaining every index up to the end of
+   * it - a far-out page would retain and sort the whole index set only to answer with an empty page, and it would do
+   * so whichever end the page is cut from. Map order carries no such limit, because it materialises only the
+   * requested window however deep that window sits.
    * </pre>
    *
    * <code>int32 pageNumber = 3;</code>
@@ -225,7 +227,9 @@ private static final long serialVersionUID = 0L;
   private int ordering_ = 0;
   /**
    * <pre>
-   * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+   * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+   * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+   * could mistake for one it asked for.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -236,7 +240,9 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+   * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+   * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+   * could mistake for one it asked for.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -245,6 +251,44 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering getOrdering() {
     io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering result = io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.forNumber(ordering_);
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.UNRECOGNIZED : result;
+  }
+
+  public static final int DIRECTION_FIELD_NUMBER = 9;
+  private int direction_ = 0;
+  /**
+   * <pre>
+   * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+   * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+   *
+   * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+   * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+   * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+   * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+   * @return The enum numeric value on the wire for direction.
+   */
+  @java.lang.Override public int getDirectionValue() {
+    return direction_;
+  }
+  /**
+   * <pre>
+   * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+   * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+   *
+   * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+   * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+   * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+   * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+   * @return The direction.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection() {
+    io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.forNumber(direction_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
   }
 
   public static final int INDEXTYPES_FIELD_NUMBER = 6;
@@ -516,7 +560,7 @@ private static final long serialVersionUID = 0L;
     if (pageSize_ != 0) {
       output.writeInt32(4, pageSize_);
     }
-    if (ordering_ != io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UNSPECIFIED.getNumber()) {
+    if (ordering_ != io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER.getNumber()) {
       output.writeEnum(5, ordering_);
     }
     if (getIndexTypesList().size() > 0) {
@@ -535,6 +579,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < referenceNames_.size(); i++) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 8, referenceNames_.getRaw(i));
+    }
+    if (direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
+      output.writeEnum(9, direction_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -560,7 +607,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(4, pageSize_);
     }
-    if (ordering_ != io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UNSPECIFIED.getNumber()) {
+    if (ordering_ != io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(5, ordering_);
     }
@@ -596,6 +643,10 @@ private static final long serialVersionUID = 0L;
       size += dataSize;
       size += 1 * getReferenceNamesList().size();
     }
+    if (direction_ != io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.ASC.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(9, direction_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -623,6 +674,7 @@ private static final long serialVersionUID = 0L;
     if (getPageSize()
         != other.getPageSize()) return false;
     if (ordering_ != other.ordering_) return false;
+    if (direction_ != other.direction_) return false;
     if (!indexTypes_.equals(other.indexTypes_)) return false;
     if (!scopes_.equals(other.scopes_)) return false;
     if (!getReferenceNamesList()
@@ -650,6 +702,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getPageSize();
     hash = (37 * hash) + ORDERING_FIELD_NUMBER;
     hash = (53 * hash) + ordering_;
+    hash = (37 * hash) + DIRECTION_FIELD_NUMBER;
+    hash = (53 * hash) + direction_;
     if (getIndexTypesCount() > 0) {
       hash = (37 * hash) + INDEXTYPES_FIELD_NUMBER;
       hash = (53 * hash) + indexTypes_.hashCode();
@@ -816,10 +870,11 @@ private static final long serialVersionUID = 0L;
       pageNumber_ = 0;
       pageSize_ = 0;
       ordering_ = 0;
+      direction_ = 0;
       indexTypes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000020);
-      scopes_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000040);
+      scopes_ = java.util.Collections.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000080);
       referenceNames_ =
           com.google.protobuf.LazyStringArrayList.emptyList();
       return this;
@@ -855,14 +910,14 @@ private static final long serialVersionUID = 0L;
     }
 
     private void buildPartialRepeatedFields(io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest result) {
-      if (((bitField0_ & 0x00000020) != 0)) {
+      if (((bitField0_ & 0x00000040) != 0)) {
         indexTypes_ = java.util.Collections.unmodifiableList(indexTypes_);
-        bitField0_ = (bitField0_ & ~0x00000020);
+        bitField0_ = (bitField0_ & ~0x00000040);
       }
       result.indexTypes_ = indexTypes_;
-      if (((bitField0_ & 0x00000040) != 0)) {
+      if (((bitField0_ & 0x00000080) != 0)) {
         scopes_ = java.util.Collections.unmodifiableList(scopes_);
-        bitField0_ = (bitField0_ & ~0x00000040);
+        bitField0_ = (bitField0_ & ~0x00000080);
       }
       result.scopes_ = scopes_;
     }
@@ -888,7 +943,10 @@ private static final long serialVersionUID = 0L;
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.ordering_ = ordering_;
       }
-      if (((from_bitField0_ & 0x00000080) != 0)) {
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.direction_ = direction_;
+      }
+      if (((from_bitField0_ & 0x00000100) != 0)) {
         referenceNames_.makeImmutable();
         result.referenceNames_ = referenceNames_;
       }
@@ -956,10 +1014,13 @@ private static final long serialVersionUID = 0L;
       if (other.ordering_ != 0) {
         setOrderingValue(other.getOrderingValue());
       }
+      if (other.direction_ != 0) {
+        setDirectionValue(other.getDirectionValue());
+      }
       if (!other.indexTypes_.isEmpty()) {
         if (indexTypes_.isEmpty()) {
           indexTypes_ = other.indexTypes_;
-          bitField0_ = (bitField0_ & ~0x00000020);
+          bitField0_ = (bitField0_ & ~0x00000040);
         } else {
           ensureIndexTypesIsMutable();
           indexTypes_.addAll(other.indexTypes_);
@@ -969,7 +1030,7 @@ private static final long serialVersionUID = 0L;
       if (!other.scopes_.isEmpty()) {
         if (scopes_.isEmpty()) {
           scopes_ = other.scopes_;
-          bitField0_ = (bitField0_ & ~0x00000040);
+          bitField0_ = (bitField0_ & ~0x00000080);
         } else {
           ensureScopesIsMutable();
           scopes_.addAll(other.scopes_);
@@ -979,7 +1040,7 @@ private static final long serialVersionUID = 0L;
       if (!other.referenceNames_.isEmpty()) {
         if (referenceNames_.isEmpty()) {
           referenceNames_ = other.referenceNames_;
-          bitField0_ |= 0x00000080;
+          bitField0_ |= 0x00000100;
         } else {
           ensureReferenceNamesIsMutable();
           referenceNames_.addAll(other.referenceNames_);
@@ -1079,6 +1140,11 @@ private static final long serialVersionUID = 0L;
               referenceNames_.add(s);
               break;
             } // case 66
+            case 72: {
+              direction_ = input.readEnum();
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 72
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1405,11 +1471,12 @@ private static final long serialVersionUID = 0L;
      * Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
      * `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
      *
-     * Every order except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged:
-     * `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than clamped. Those
-     * orders rank their candidates, so producing a page means retaining every index up to the end of it - a far-out
-     * page would retain and sort the whole index set only to answer with an empty page. Map order carries no such
-     * limit, because it materialises only the requested window however deep that window sits.
+     * Every ordering except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged, in either
+     * direction: `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than
+     * clamped. Those orderings rank their candidates, so producing a page means retaining every index up to the end of
+     * it - a far-out page would retain and sort the whole index set only to answer with an empty page, and it would do
+     * so whichever end the page is cut from. Map order carries no such limit, because it materialises only the
+     * requested window however deep that window sits.
      * </pre>
      *
      * <code>int32 pageNumber = 3;</code>
@@ -1424,11 +1491,12 @@ private static final long serialVersionUID = 0L;
      * Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
      * `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
      *
-     * Every order except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged:
-     * `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than clamped. Those
-     * orders rank their candidates, so producing a page means retaining every index up to the end of it - a far-out
-     * page would retain and sort the whole index set only to answer with an empty page. Map order carries no such
-     * limit, because it materialises only the requested window however deep that window sits.
+     * Every ordering except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged, in either
+     * direction: `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than
+     * clamped. Those orderings rank their candidates, so producing a page means retaining every index up to the end of
+     * it - a far-out page would retain and sort the whole index set only to answer with an empty page, and it would do
+     * so whichever end the page is cut from. Map order carries no such limit, because it materialises only the
+     * requested window however deep that window sits.
      * </pre>
      *
      * <code>int32 pageNumber = 3;</code>
@@ -1447,11 +1515,12 @@ private static final long serialVersionUID = 0L;
      * Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
      * `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
      *
-     * Every order except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged:
-     * `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than clamped. Those
-     * orders rank their candidates, so producing a page means retaining every index up to the end of it - a far-out
-     * page would retain and sort the whole index set only to answer with an empty page. Map order carries no such
-     * limit, because it materialises only the requested window however deep that window sits.
+     * Every ordering except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged, in either
+     * direction: `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than
+     * clamped. Those orderings rank their candidates, so producing a page means retaining every index up to the end of
+     * it - a far-out page would retain and sort the whole index set only to answer with an empty page, and it would do
+     * so whichever end the page is cut from. Map order carries no such limit, because it materialises only the
+     * requested window however deep that window sits.
      * </pre>
      *
      * <code>int32 pageNumber = 3;</code>
@@ -1523,7 +1592,9 @@ private static final long serialVersionUID = 0L;
     private int ordering_ = 0;
     /**
      * <pre>
-     * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+     * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+     * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+     * could mistake for one it asked for.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -1534,7 +1605,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+     * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+     * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+     * could mistake for one it asked for.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -1549,7 +1622,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+     * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+     * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+     * could mistake for one it asked for.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -1562,7 +1637,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+     * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+     * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+     * could mistake for one it asked for.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -1580,7 +1657,9 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+     * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+     * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+     * could mistake for one it asked for.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -1593,12 +1672,115 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int direction_ = 0;
+    /**
+     * <pre>
+     * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+     * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+     *
+     * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+     * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+     * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+     * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+     * @return The enum numeric value on the wire for direction.
+     */
+    @java.lang.Override public int getDirectionValue() {
+      return direction_;
+    }
+    /**
+     * <pre>
+     * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+     * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+     *
+     * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+     * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+     * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+     * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+     * @param value The enum numeric value on the wire for direction to set.
+     * @return This builder for chaining.
+     */
+    public Builder setDirectionValue(int value) {
+      direction_ = value;
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+     * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+     *
+     * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+     * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+     * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+     * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+     * @return The direction.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection() {
+      io.evitadb.externalApi.grpc.generated.GrpcOrderDirection result = io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.forNumber(direction_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcOrderDirection.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+     * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+     *
+     * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+     * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+     * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+     * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+     * @param value The direction to set.
+     * @return This builder for chaining.
+     */
+    public Builder setDirection(io.evitadb.externalApi.grpc.generated.GrpcOrderDirection value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      bitField0_ |= 0x00000020;
+      direction_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+     * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+     *
+     * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+     * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+     * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+     * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearDirection() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      direction_ = 0;
+      onChanged();
+      return this;
+    }
+
     private java.util.List<java.lang.Integer> indexTypes_ =
       java.util.Collections.emptyList();
     private void ensureIndexTypesIsMutable() {
-      if (!((bitField0_ & 0x00000020) != 0)) {
+      if (!((bitField0_ & 0x00000040) != 0)) {
         indexTypes_ = new java.util.ArrayList<java.lang.Integer>(indexTypes_);
-        bitField0_ |= 0x00000020;
+        bitField0_ |= 0x00000040;
       }
     }
     /**
@@ -1709,7 +1891,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearIndexTypes() {
       indexTypes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000020);
+      bitField0_ = (bitField0_ & ~0x00000040);
       onChanged();
       return this;
     }
@@ -1796,9 +1978,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<java.lang.Integer> scopes_ =
       java.util.Collections.emptyList();
     private void ensureScopesIsMutable() {
-      if (!((bitField0_ & 0x00000040) != 0)) {
+      if (!((bitField0_ & 0x00000080) != 0)) {
         scopes_ = new java.util.ArrayList<java.lang.Integer>(scopes_);
-        bitField0_ |= 0x00000040;
+        bitField0_ |= 0x00000080;
       }
     }
     /**
@@ -1902,7 +2084,7 @@ private static final long serialVersionUID = 0L;
      */
     public Builder clearScopes() {
       scopes_ = java.util.Collections.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000040);
+      bitField0_ = (bitField0_ & ~0x00000080);
       onChanged();
       return this;
     }
@@ -1987,7 +2169,7 @@ private static final long serialVersionUID = 0L;
       if (!referenceNames_.isModifiable()) {
         referenceNames_ = new com.google.protobuf.LazyStringArrayList(referenceNames_);
       }
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000100;
     }
     /**
      * <pre>
@@ -2088,7 +2270,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) { throw new NullPointerException(); }
       ensureReferenceNamesIsMutable();
       referenceNames_.set(index, value);
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }
@@ -2113,7 +2295,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) { throw new NullPointerException(); }
       ensureReferenceNamesIsMutable();
       referenceNames_.add(value);
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }
@@ -2138,7 +2320,7 @@ private static final long serialVersionUID = 0L;
       ensureReferenceNamesIsMutable();
       com.google.protobuf.AbstractMessageLite.Builder.addAll(
           values, referenceNames_);
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }
@@ -2160,7 +2342,7 @@ private static final long serialVersionUID = 0L;
     public Builder clearReferenceNames() {
       referenceNames_ =
         com.google.protobuf.LazyStringArrayList.emptyList();
-      bitField0_ = (bitField0_ & ~0x00000080);;
+      bitField0_ = (bitField0_ & ~0x00000100);;
       onChanged();
       return this;
     }
@@ -2186,7 +2368,7 @@ private static final long serialVersionUID = 0L;
       checkByteStringIsUtf8(value);
       ensureReferenceNamesIsMutable();
       referenceNames_.add(value);
-      bitField0_ |= 0x00000080;
+      bitField0_ |= 0x00000100;
       onChanged();
       return this;
     }

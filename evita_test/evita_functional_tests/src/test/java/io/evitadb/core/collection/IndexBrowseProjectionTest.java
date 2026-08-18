@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -161,7 +162,7 @@ class IndexBrowseProjectionTest {
 
 			final IndexBrowseResult result = browse(
 				indexes, new IndexBrowseCriteria(
-					20, 5, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+					20, 5, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 				)
 			);
@@ -181,7 +182,7 @@ class IndexBrowseProjectionTest {
 
 			final IndexBrowseResult result = browse(
 				indexes, new IndexBrowseCriteria(
-					2, 2, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+					2, 2, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 				)
 			);
@@ -210,7 +211,7 @@ class IndexBrowseProjectionTest {
 
 			final IndexBrowseResult result = browse(
 				indexes, new IndexBrowseCriteria(
-					1, 2, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+					1, 2, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 				)
 			);
@@ -218,6 +219,33 @@ class IndexBrowseProjectionTest {
 			assertEquals(2, result.indexes().length);
 			assertEquals(50, result.indexes()[0].entityCount(), "The largest index must lead");
 			assertEquals(40, result.indexes()[1].entityCount(), "The second largest must follow it");
+			assertEquals(5, result.totalRecordCount(), "Eviction must not change how many matched");
+		}
+
+		@Test
+		@DisplayName("Only the smallest indexes survive when the entity count is read ascending")
+		void shouldRetainExactlyTheSmallestIndexesWhenTheHeapEvicts() {
+			// the pairing the flattened ordering could not express: the same key, the other end of the ranking. It
+			// rides the same eviction machinery, so what this pins is that the heap evicts against the requested
+			// direction rather than against a direction baked into the key
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(
+				indexEntry(representativeKey(1), 10),
+				indexEntry(representativeKey(2), 50),
+				indexEntry(representativeKey(3), 20),
+				indexEntry(representativeKey(4), 40),
+				indexEntry(representativeKey(5), 30)
+			);
+
+			final IndexBrowseResult result = browse(
+				indexes, new IndexBrowseCriteria(
+					1, 2, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.ASC,
+					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+				)
+			);
+
+			assertEquals(2, result.indexes().length);
+			assertEquals(10, result.indexes()[0].entityCount(), "The smallest index must lead");
+			assertEquals(20, result.indexes()[1].entityCount(), "The second smallest must follow it");
 			assertEquals(5, result.totalRecordCount(), "Eviction must not change how many matched");
 		}
 
@@ -233,7 +261,7 @@ class IndexBrowseProjectionTest {
 
 			final IndexBrowseResult result = browse(
 				indexes, new IndexBrowseCriteria(
-					1, 2, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+					1, 2, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 				)
 			);
@@ -263,16 +291,17 @@ class IndexBrowseProjectionTest {
 
 			assertEquals(
 				identitiesOf(busiest, occasional, unqueried),
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 3)),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, 1, 3)),
 				"The most-queried index must lead a descending page"
 			);
 			assertEquals(
 				identitiesOf(unqueried, occasional, busiest),
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3)),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, 1, 3)),
 				"The least-queried index must lead an ascending page - the drop-candidate hunt"
 			);
 
-			final BrowsedIndex leader = browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 3).indexes()[0];
+			final BrowsedIndex leader =
+				browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, 1, 3).indexes()[0];
 			assertEquals(9L, leader.queryCount(), "The leading row must report the count that placed it there");
 		}
 
@@ -290,16 +319,17 @@ class IndexBrowseProjectionTest {
 
 			assertEquals(
 				identitiesOf(busiest, occasional, unwritten),
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, 1, 3)),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, 1, 3)),
 				"The most-updated index must lead a descending page"
 			);
 			assertEquals(
 				identitiesOf(unwritten, occasional, busiest),
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, 1, 3)),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.ASC, 1, 3)),
 				"The least-updated index must lead an ascending page"
 			);
 
-			final BrowsedIndex leader = browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, 1, 3).indexes()[0];
+			final BrowsedIndex leader =
+				browse(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, 1, 3).indexes()[0];
 			assertEquals(7L, leader.updateCount(), "The leading row must report the count that placed it there");
 		}
 
@@ -325,18 +355,18 @@ class IndexBrowseProjectionTest {
 			);
 
 			final List<Integer> firstPage =
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3));
+				identitiesOf(browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, 1, 3));
 			assertEquals(
 				identitiesOf(globalLive, globalArchived, typeAlpha), firstPage,
 				"Equal counts resolve by index kind, then scope, then discriminator"
 			);
 			assertEquals(
-				firstPage, identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3)),
+				firstPage, identitiesOf(browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, 1, 3)),
 				"The same page requested twice must be the same permutation of the tie block"
 			);
 
 			final List<Integer> secondPage =
-				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 2, 3));
+				identitiesOf(browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, 2, 3));
 			assertEquals(
 				identitiesOf(typeBeta, targetThree, targetSeven), secondPage,
 				"The second page must continue the tie block where the first one stopped"
@@ -366,7 +396,8 @@ class IndexBrowseProjectionTest {
 			// ranked, before any row is rendered. Live readings would put it at 11 queries, ahead of the leader's 5
 			final Map<EntityIndexKey, EntityIndex> indexes = trafficDuringWalk(overtaking, leader, 10);
 
-			final IndexBrowseResult result = browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 2);
+			final IndexBrowseResult result =
+				browse(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, 1, 2);
 
 			assertEquals(
 				identitiesOf(leader, overtaking), identitiesOf(result),
@@ -396,17 +427,21 @@ class IndexBrowseProjectionTest {
 		@DisplayName("An empty index map yields an empty page and echoes the request back")
 		void shouldReturnAnEmptyResultForAnEmptyIndexMap() {
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					Map.of(), new IndexBrowseCriteria(
-						1, 10, ordering, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
-					)
-				);
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					// every assertion below names the pairing it failed under, not merely the key
+					final String inOrder = ordering + " " + direction;
+					final IndexBrowseResult result = browse(
+						Map.of(), new IndexBrowseCriteria(
+							1, 10, ordering, direction, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+						)
+					);
 
-				assertEquals(0, result.totalRecordCount(), "Nothing matches an empty map, in " + ordering);
-				assertEquals(0, result.indexes().length, "The page is empty, in " + ordering);
-				assertEquals(1, result.pageNumber(), "The request is echoed back, in " + ordering);
-				assertEquals(10, result.pageSize(), "The request is echoed back, in " + ordering);
-				assertEquals(CATALOG_VERSION, result.catalogVersion(), "The version is reported, in " + ordering);
+					assertEquals(0, result.totalRecordCount(), "Nothing matches an empty map, in " + inOrder);
+					assertEquals(0, result.indexes().length, "The page is empty, in " + inOrder);
+					assertEquals(1, result.pageNumber(), "The request is echoed back, in " + inOrder);
+					assertEquals(10, result.pageSize(), "The request is echoed back, in " + inOrder);
+					assertEquals(CATALOG_VERSION, result.catalogVersion(), "The version is reported, in " + inOrder);
+				}
 			}
 		}
 	}
@@ -434,26 +469,30 @@ class IndexBrowseProjectionTest {
 			}
 
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					indexes, new IndexBrowseCriteria(
-						1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering,
-						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
-					)
-				);
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					// every assertion below names the pairing it failed under, not merely the key
+					final String inOrder = ordering + " " + direction;
+					final IndexBrowseResult result = browse(
+						indexes, new IndexBrowseCriteria(
+							1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering, direction,
+							EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+						)
+					);
 
-				assertEquals(indexes.size(), result.indexes().length, "Every index is on the page, in " + ordering);
-				final Set<Integer> reported = new HashSet<>(result.indexes().length);
-				for (final BrowsedIndex described : result.indexes()) {
-					assertTrue(
-						reported.add(described.indexPrimaryKey()),
-						"Two descriptors reported one identity, in " + ordering + " - a client drilling into either " +
-							"would reach the same index and never see the other"
-					);
-					assertTrue(
-						fixturePrimaryKeys.contains(described.indexPrimaryKey()),
-						"Descriptor reported primary key " + described.indexPrimaryKey() +
-							", which belongs to no index of the fixture, in " + ordering
-					);
+					assertEquals(indexes.size(), result.indexes().length, "Every index is on the page, in " + inOrder);
+					final Set<Integer> reported = new HashSet<>(result.indexes().length);
+					for (final BrowsedIndex described : result.indexes()) {
+						assertTrue(
+							reported.add(described.indexPrimaryKey()),
+							"Two descriptors reported one identity, in " + inOrder + " - a client drilling into " +
+								"either would reach the same index and never see the other"
+						);
+						assertTrue(
+							fixturePrimaryKeys.contains(described.indexPrimaryKey()),
+							"Descriptor reported primary key " + described.indexPrimaryKey() +
+								", which belongs to no index of the fixture, in " + inOrder
+						);
+					}
 				}
 			}
 		}
@@ -470,7 +509,7 @@ class IndexBrowseProjectionTest {
 
 			final IndexBrowseResult result = browse(
 				indexes, new IndexBrowseCriteria(
-					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+					1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 					EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 				)
 			);
@@ -513,27 +552,31 @@ class IndexBrowseProjectionTest {
 			activity.recordUpdate(THIRD_MILLIS);
 
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					indexes, new IndexBrowseCriteria(
-						1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering,
-						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
-					)
-				);
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					// every assertion below names the pairing it failed under, not merely the key
+					final String inOrder = ordering + " " + direction;
+					final IndexBrowseResult result = browse(
+						indexes, new IndexBrowseCriteria(
+							1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering, direction,
+							EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+						)
+					);
 
-				final BrowsedIndex busyRow = rowOf(result, busy.getValue().getPrimaryKey());
-				assertEquals(2L, busyRow.queryCount(), "The query count belongs to this row, in " + ordering);
-				assertEquals(3L, busyRow.updateCount(), "The update count belongs to this row, in " + ordering);
-				assertEquals(toTimestamp(SECOND_MILLIS), busyRow.lastQueriedAt(), "in " + ordering);
-				assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "in " + ordering);
+					final BrowsedIndex busyRow = rowOf(result, busy.getValue().getPrimaryKey());
+					assertEquals(2L, busyRow.queryCount(), "The query count belongs to this row, in " + inOrder);
+					assertEquals(3L, busyRow.updateCount(), "The update count belongs to this row, in " + inOrder);
+					assertEquals(toTimestamp(SECOND_MILLIS), busyRow.lastQueriedAt(), "in " + inOrder);
+					assertEquals(toTimestamp(THIRD_MILLIS), busyRow.lastUpdatedAt(), "in " + inOrder);
 
-				final BrowsedIndex idleRow = rowOf(result, idle.getValue().getPrimaryKey());
-				assertEquals(0L, idleRow.queryCount(), "An index nothing queried reported traffic, in " + ordering);
-				assertEquals(0L, idleRow.updateCount(), "An index nothing wrote reported traffic, in " + ordering);
-				// absence rather than the epoch, which a client would render as a date in 1970
-				assertNull(idleRow.lastQueriedAt(), "in " + ordering);
-				assertNull(idleRow.lastUpdatedAt(), "in " + ordering);
-				assertTrue(idleRow.lastQueriedAtIfKnown().isEmpty(), "in " + ordering);
-				assertTrue(idleRow.lastUpdatedAtIfKnown().isEmpty(), "in " + ordering);
+					final BrowsedIndex idleRow = rowOf(result, idle.getValue().getPrimaryKey());
+					assertEquals(0L, idleRow.queryCount(), "An index nothing queried reported traffic, in " + inOrder);
+					assertEquals(0L, idleRow.updateCount(), "An index nothing wrote reported traffic, in " + inOrder);
+					// absence rather than the epoch, which a client would render as a date in 1970
+					assertNull(idleRow.lastQueriedAt(), "in " + inOrder);
+					assertNull(idleRow.lastUpdatedAt(), "in " + inOrder);
+					assertTrue(idleRow.lastQueriedAtIfKnown().isEmpty(), "in " + inOrder);
+					assertTrue(idleRow.lastUpdatedAtIfKnown().isEmpty(), "in " + inOrder);
+				}
 			}
 		}
 
@@ -552,29 +595,33 @@ class IndexBrowseProjectionTest {
 			final OffsetDateTime now = OffsetDateTime.now();
 
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					indexes, new IndexBrowseCriteria(
-						1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering,
-						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
-					)
-				);
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					// every assertion below names the pairing it failed under, not merely the key
+					final String inOrder = ordering + " " + direction;
+					final IndexBrowseResult result = browse(
+						indexes, new IndexBrowseCriteria(
+							1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering, direction,
+							EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+						)
+					);
 
-				for (final Map.Entry<EntityIndexKey, EntityIndex> entry : List.of(first, second)) {
-					final EntityIndex index = entry.getValue();
-					final BrowsedIndex row = rowOf(result, index.getPrimaryKey());
-					assertNotNull(
-						row.observedSince(),
-						"An index has been observed since it came into existence, so there is no absence to report, " +
-							"in " + ordering
-					);
-					assertFalse(
-						row.observedSince().isAfter(now),
-						"Observation cannot have begun after the browse that reports it, in " + ordering
-					);
-					assertEquals(
-						index.getActivity().getObservedSince(), row.observedSince(),
-						"The row must carry the window of the holder it describes, in " + ordering
-					);
+					for (final Map.Entry<EntityIndexKey, EntityIndex> entry : List.of(first, second)) {
+						final EntityIndex index = entry.getValue();
+						final BrowsedIndex row = rowOf(result, index.getPrimaryKey());
+						assertNotNull(
+							row.observedSince(),
+							"An index has been observed since it came into existence, so there is no absence " +
+								"to report, in " + inOrder
+						);
+						assertFalse(
+							row.observedSince().isAfter(now),
+							"Observation cannot have begun after the browse that reports it, in " + inOrder
+						);
+						assertEquals(
+							index.getActivity().getObservedSince(), row.observedSince(),
+							"The row must carry the window of the holder it describes, in " + inOrder
+						);
+					}
 				}
 			}
 		}
@@ -620,7 +667,7 @@ class IndexBrowseProjectionTest {
 	private static IndexBrowseResult browseAll(@Nonnull Map<EntityIndexKey, EntityIndex> indexes) {
 		return browse(
 			indexes, new IndexBrowseCriteria(
-				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);
@@ -645,7 +692,8 @@ class IndexBrowseProjectionTest {
 	 * Browses one unfiltered page, for the tests whose subject is the order rather than the selection.
 	 *
 	 * @param indexes    the map to browse
-	 * @param ordering   the order to impose
+	 * @param ordering   what to rank the indexes by
+	 * @param direction  which end of that ranking the page is cut from
 	 * @param pageNumber which page to return, 1-indexed
 	 * @param pageSize   how many indexes the page holds
 	 * @return the resulting page
@@ -654,14 +702,29 @@ class IndexBrowseProjectionTest {
 	private static IndexBrowseResult browse(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction,
 		int pageNumber,
 		int pageSize
 	) {
 		return browse(
 			indexes, new IndexBrowseCriteria(
-				pageNumber, pageSize, ordering, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+				pageNumber, pageSize, ordering, direction,
+				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);
+	}
+
+	/**
+	 * The directions one ordering key accepts - both of them, except for the key that ranks nothing and therefore has
+	 * no ranking to reverse.
+	 *
+	 * @param ordering the key to ask about
+	 * @return the directions it can be paired with
+	 */
+	@Nonnull
+	private static List<OrderDirection> directionsOf(@Nonnull IndexBrowseOrdering ordering) {
+		return ordering == IndexBrowseOrdering.MAP_ORDER ?
+			List.of(OrderDirection.ASC) : List.of(OrderDirection.values());
 	}
 
 	/**

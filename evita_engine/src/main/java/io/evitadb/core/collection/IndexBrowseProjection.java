@@ -23,6 +23,7 @@
 
 package io.evitadb.core.collection;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.statistics.BrowsedIndex;
@@ -67,12 +68,12 @@ import java.util.Set;
 final class IndexBrowseProjection {
 
 	/**
-	 * Every descending ranked ordering as one comparator: the reading frozen on the candidate, largest first, ties
+	 * Every ranked key read descending as one comparator: the reading frozen on the candidate, largest first, ties
 	 * broken by the index key.
 	 *
-	 * One comparator serves all three because the reading they differ in has already been resolved - each candidate
-	 * carries the value its own ordering ranks by, taken once during the walk - so what is left to compare is the same
-	 * `long` whichever counter it came from.
+	 * One comparator serves all three keys because the reading they differ in has already been resolved - each
+	 * candidate carries the value its own key ranks by, taken once during the walk - so what is left to compare is the
+	 * same `long` whichever counter it came from.
 	 *
 	 * The tiebreaker is not a nicety. Every one of these orders is tie-dominated: entity counts because most
 	 * per-referenced-entity indexes cover a handful of entities each, activity counts because most indexes are never
@@ -84,14 +85,13 @@ final class IndexBrowseProjection {
 		Comparator.comparingLong(BrowseCandidate::rankedValue).reversed()
 			.thenComparing(BrowseCandidate::key);
 	/**
-	 * The ascending ranked orderings - {@link IndexBrowseOrdering#BY_QUERY_COUNT_ASC} and
-	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_ASC} - as one comparator: smallest first, ties broken by the same key
-	 * ordering {@link #RANKED_DESC} uses.
+	 * Every ranked key read ascending as one comparator: smallest first, ties broken by the same key ordering
+	 * {@link #RANKED_DESC} uses.
 	 *
 	 * The tiebreaker running ascending under a descending rank as well is deliberate rather than an oversight: it is
-	 * what a page boundary drawn inside a tie block relies on, and it has no direction of its own to reverse. These two
-	 * orders need it most, because the block of never-touched indexes they lead with is where nearly every page
-	 * boundary falls.
+	 * what a page boundary drawn inside a tie block relies on, and it has no direction of its own to reverse. The two
+	 * activity counters read ascending need it most, because the block of never-touched indexes they lead with is
+	 * where nearly every page boundary falls.
 	 */
 	private static final Comparator<BrowseCandidate> RANKED_ASC =
 		Comparator.comparingLong(BrowseCandidate::rankedValue)
@@ -130,12 +130,11 @@ final class IndexBrowseProjection {
 				final int matchCount = collectInMapOrder(entityType, indexes, criteria, offset, page);
 				yield toResult(criteria, catalogVersion, matchCount, page);
 			}
-			// every other ordering ranks its candidates, and they differ only in which reading is ranked and in which
-			// direction - both resolved once here, so one walk and one page cut serve all five of them
-			case BY_ENTITY_COUNT_DESC, BY_QUERY_COUNT_DESC, BY_QUERY_COUNT_ASC, BY_UPDATE_COUNT_DESC,
-				BY_UPDATE_COUNT_ASC -> {
+			// every other key ranks its candidates, and a browse differs only in which reading is ranked and in which
+			// direction it is read - both resolved once here, so one walk and one page cut serve every combination
+			case ENTITY_COUNT, QUERY_COUNT, UPDATE_COUNT -> {
 				final RankedCounter rankedCounter = rankedCounterOf(criteria.ordering());
-				final Comparator<BrowseCandidate> order = comparatorOf(criteria.ordering());
+				final Comparator<BrowseCandidate> order = comparatorOf(criteria.direction());
 				final PriorityQueue<BrowseCandidate> heap = new PriorityQueue<>(order.reversed());
 				final int matchCount = collectRanked(indexes, criteria, offset, heap, order, rankedCounter);
 				yield toResult(
@@ -302,17 +301,17 @@ final class IndexBrowseProjection {
 	}
 
 	/**
-	 * Which reading a ranked ordering places its candidates by, resolved once per browse rather than per candidate.
+	 * Which reading a ranked ordering key places its candidates by, resolved once per browse rather than per candidate.
 	 *
-	 * @param ordering the ordering to resolve, which must be one that ranks
+	 * @param ordering the ordering key to resolve, which must be one that ranks
 	 * @return the reading it ranks by
 	 */
 	@Nonnull
 	private static RankedCounter rankedCounterOf(@Nonnull IndexBrowseOrdering ordering) {
 		return switch (ordering) {
-			case BY_ENTITY_COUNT_DESC -> RankedCounter.ENTITY_COUNT;
-			case BY_QUERY_COUNT_DESC, BY_QUERY_COUNT_ASC -> RankedCounter.QUERY_COUNT;
-			case BY_UPDATE_COUNT_DESC, BY_UPDATE_COUNT_ASC -> RankedCounter.UPDATE_COUNT;
+			case ENTITY_COUNT -> RankedCounter.ENTITY_COUNT;
+			case QUERY_COUNT -> RankedCounter.QUERY_COUNT;
+			case UPDATE_COUNT -> RankedCounter.UPDATE_COUNT;
 			case MAP_ORDER -> throw new GenericEvitaInternalError(
 				"Ordering `" + ordering + "` ranks nothing and must never reach the ranked page build!"
 			);
@@ -320,20 +319,18 @@ final class IndexBrowseProjection {
 	}
 
 	/**
-	 * The comparator one ranked ordering imposes - which is its direction alone, the reading having already been
-	 * resolved onto the candidates by {@link #rankedCounterOf(IndexBrowseOrdering)}.
+	 * The comparator a ranked browse imposes, which is its direction alone - the reading has already been resolved onto
+	 * the candidates by {@link #rankedCounterOf(IndexBrowseOrdering)}, so what is left is which end of the frozen
+	 * `long` the page is cut from.
 	 *
-	 * @param ordering the ordering to resolve, which must be one that ranks
+	 * @param direction the direction the page is ordered in
 	 * @return its comparator
 	 */
 	@Nonnull
-	private static Comparator<BrowseCandidate> comparatorOf(@Nonnull IndexBrowseOrdering ordering) {
-		return switch (ordering) {
-			case BY_ENTITY_COUNT_DESC, BY_QUERY_COUNT_DESC, BY_UPDATE_COUNT_DESC -> RANKED_DESC;
-			case BY_QUERY_COUNT_ASC, BY_UPDATE_COUNT_ASC -> RANKED_ASC;
-			case MAP_ORDER -> throw new GenericEvitaInternalError(
-				"Ordering `" + ordering + "` imposes no ranking and must never reach the ranked page build!"
-			);
+	private static Comparator<BrowseCandidate> comparatorOf(@Nonnull OrderDirection direction) {
+		return switch (direction) {
+			case DESC -> RANKED_DESC;
+			case ASC -> RANKED_ASC;
 		};
 	}
 
@@ -556,9 +553,9 @@ final class IndexBrowseProjection {
 	 * @param indexPrimaryKey identity of the index, carried through to the descriptor
 	 * @param entityCount     how many entities the index covers
 	 * @param rankedValue     the reading this candidate is ranked by, frozen at the moment the walk reached it - the
-	 *                        entity count above for {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC}, an activity
-	 *                        counter for the four orders that rank by one. It is duplicated rather than derived on
-	 *                        demand precisely so that no comparison can ever reach a value that moves
+	 *                        entity count above for {@link IndexBrowseOrdering#ENTITY_COUNT}, an activity counter for
+	 *                        the two keys that rank by one. It is duplicated rather than derived on demand precisely
+	 *                        so that no comparison can ever reach a value that moves
 	 * @param activity        the index's activity holder, read only if this candidate makes it onto the page
 	 */
 	private record BrowseCandidate(
@@ -571,10 +568,12 @@ final class IndexBrowseProjection {
 	}
 
 	/**
-	 * The reading a ranked ordering places its candidates by.
+	 * The reading a ranked ordering key places its candidates by.
 	 *
-	 * Collapsing the five ranked orderings onto three readings and two directions is what lets one walk and one page
-	 * cut serve all of them. Nothing downstream of the walk needs to know which counter a candidate's
+	 * It carries the three ranked {@link IndexBrowseOrdering} keys over one for one, minus the one key that ranks
+	 * nothing - which is the whole of its point: the domain it names cannot express
+	 * {@link IndexBrowseOrdering#MAP_ORDER}, so the page cut switches over it without an arm for a case that must never
+	 * arrive. Nothing downstream of the walk needs to know which counter a candidate's
 	 * {@link BrowseCandidate#rankedValue()} came from, except the page cut - which has to report it back in the right
 	 * column.
 	 */

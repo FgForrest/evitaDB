@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CollectionIndexCardinality.AttributeCardinality;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -192,7 +193,7 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE), empty(Scope.ARCHIVED)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER,
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 					Set.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
 				)
 			);
@@ -209,7 +210,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(), Set.of("categoriez")
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+					Set.of(), Set.of(), Set.of("categoriez")
 				)
 			);
 			assertEquals(0, result.totalRecordCount());
@@ -222,7 +224,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(empty(Scope.LIVE), empty(Scope.ARCHIVED)),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(Scope.ARCHIVED), Set.of()
+					1, 10, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+					Set.of(), Set.of(Scope.ARCHIVED), Set.of()
 				)
 			);
 			assertEquals(1, result.totalRecordCount());
@@ -256,11 +259,25 @@ class CatalogIndexProjectionTest {
 		void shouldFallBackToTheHandleWhenNothingDiscriminates() {
 			// nothing has been recorded on either holder and no catalog index reports an entity count, so every one of
 			// the orderings is asked to rank two indexes it cannot tell apart. Each must still yield the same total
-			// order rather than whatever order the indexes happened to be collected in
+			// order rather than whatever order the indexes happened to be collected in - including the directions,
+			// which have nothing to reverse when every value compared is equal or absent
 			final List<CatalogIndex> reversed = List.of(empty(Scope.ARCHIVED), empty(Scope.LIVE));
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				assertHandlesInOrder(reversed, ordering, List.of(0, 1));
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					assertHandlesInOrder(reversed, ordering, direction, List.of(0, 1));
+				}
 			}
+		}
+
+		@Test
+		@DisplayName("degenerates to the handle for the entity count, in both directions")
+		void shouldDegenerateToTheHandleForTheEntityCount() {
+			// a catalog index maintains no primary-key bitmap, so there is no size to rank by and no direction that
+			// makes one appear. Asking for the smallest catalog index is exactly as answerable as asking for the
+			// largest, which is to say not at all - and both must still page reproducibly rather than by luck
+			final List<CatalogIndex> reversed = List.of(busy(Scope.ARCHIVED, 9, 9), busy(Scope.LIVE, 1, 1));
+			assertHandlesInOrder(reversed, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC, List.of(0, 1));
+			assertHandlesInOrder(reversed, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.ASC, List.of(0, 1));
 		}
 
 		@Test
@@ -270,11 +287,11 @@ class CatalogIndexProjectionTest {
 			// can be passed by a projection that quietly fell back to the handle
 			assertHandlesInOrder(
 				List.of(busy(Scope.LIVE, 1, 0), busy(Scope.ARCHIVED, 3, 0)),
-				IndexBrowseOrdering.BY_QUERY_COUNT_DESC, List.of(1, 0)
+				IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, List.of(1, 0)
 			);
 			assertHandlesInOrder(
 				List.of(busy(Scope.LIVE, 3, 0), busy(Scope.ARCHIVED, 1, 0)),
-				IndexBrowseOrdering.BY_QUERY_COUNT_ASC, List.of(1, 0)
+				IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, List.of(1, 0)
 			);
 		}
 
@@ -283,11 +300,11 @@ class CatalogIndexProjectionTest {
 		void shouldOrderByUpdateCount() {
 			assertHandlesInOrder(
 				List.of(busy(Scope.LIVE, 0, 2), busy(Scope.ARCHIVED, 0, 7)),
-				IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, List.of(1, 0)
+				IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, List.of(1, 0)
 			);
 			assertHandlesInOrder(
 				List.of(busy(Scope.LIVE, 0, 7), busy(Scope.ARCHIVED, 0, 2)),
-				IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, List.of(1, 0)
+				IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.ASC, List.of(1, 0)
 			);
 		}
 
@@ -298,10 +315,10 @@ class CatalogIndexProjectionTest {
 			// near-identical comparators apart - one wired to the wrong counter inverts exactly half of these
 			final List<CatalogIndex> indexes = List.of(busy(Scope.LIVE, 5, 1), busy(Scope.ARCHIVED, 1, 5));
 
-			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, List.of(0, 1));
-			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, List.of(1, 0));
-			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, List.of(1, 0));
-			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, List.of(0, 1));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC, List.of(0, 1));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.ASC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.DESC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.UPDATE_COUNT, OrderDirection.ASC, List.of(0, 1));
 		}
 
 		@Test
@@ -313,7 +330,8 @@ class CatalogIndexProjectionTest {
 			final IndexBrowseResult result = browse(
 				List.of(live, archived),
 				new IndexBrowseCriteria(
-					1, 10, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, Set.of(), Set.of(), Set.of()
+					1, 10, IndexBrowseOrdering.QUERY_COUNT, OrderDirection.DESC,
+					Set.of(), Set.of(), Set.of()
 				)
 			);
 			// traffic recorded against the trailing index *after* the page was built. A row that read its holder a
@@ -503,21 +521,24 @@ class CatalogIndexProjectionTest {
 	 * every fixture here is built so that the expected order contradicts the handle order the projection falls back to.
 	 *
 	 * @param indexes         the catalog indexes to browse
-	 * @param ordering        the order to ask for
+	 * @param ordering        what to rank the rows by
+	 * @param direction       which end of that ranking the page is cut from
 	 * @param expectedHandles the handles the page must carry, in the order they must arrive in
 	 */
 	private static void assertHandlesInOrder(
 		@Nonnull List<CatalogIndex> indexes,
 		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction,
 		@Nonnull List<Integer> expectedHandles
 	) {
 		final IndexBrowseResult result = browse(
-			indexes, new IndexBrowseCriteria(1, 10, ordering, Set.of(), Set.of(), Set.of())
+			indexes, new IndexBrowseCriteria(1, 10, ordering, direction, Set.of(), Set.of(), Set.of())
 		);
 		assertEquals(
 			expectedHandles,
 			Arrays.stream(result.indexes()).map(BrowsedIndex::indexPrimaryKey).toList(),
-			"ordering " + ordering + " placed the rows by something other than the counter it names"
+			"ordering " + ordering + " " + direction +
+				" placed the rows by something other than the counter it names"
 		);
 	}
 
@@ -572,6 +593,19 @@ class CatalogIndexProjectionTest {
 	}
 
 	/**
+	 * The directions one ordering key accepts - both of them, except for the key that ranks nothing and therefore has
+	 * no ranking to reverse.
+	 *
+	 * @param ordering the key to ask about
+	 * @return the directions it can be paired with
+	 */
+	@Nonnull
+	private static List<OrderDirection> directionsOf(@Nonnull IndexBrowseOrdering ordering) {
+		return ordering == IndexBrowseOrdering.MAP_ORDER ?
+			List.of(OrderDirection.ASC) : List.of(OrderDirection.values());
+	}
+
+	/**
 	 * Builds unfiltered criteria for one page.
 	 *
 	 * @param pageNumber which page to ask for, 1-indexed
@@ -581,7 +615,8 @@ class CatalogIndexProjectionTest {
 	@Nonnull
 	private static IndexBrowseCriteria criteria(int pageNumber, int pageSize) {
 		return new IndexBrowseCriteria(
-			pageNumber, pageSize, IndexBrowseOrdering.MAP_ORDER, Set.of(), Set.of(), Set.of()
+			pageNumber, pageSize, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
+			Set.of(), Set.of(), Set.of()
 		);
 	}
 

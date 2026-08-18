@@ -1769,23 +1769,22 @@ public class EvitaEnumConverter {
 	/**
 	 * Converts {@link GrpcIndexBrowseOrdering} to {@link IndexBrowseOrdering}.
 	 *
-	 * The unspecified value is rejected rather than defaulted to one of the real orders: choosing on the client's
-	 * behalf would silently decide whether it asked for "everything, cheaply" or "the largest ones".
+	 * This carries only the *key* half of an order; the direction it is read in travels beside it and is converted by
+	 * {@link #toOrderDirection(GrpcOrderDirection)}, which the browse surface shares with the query language rather
+	 * than restating.
 	 *
-	 * @param grpcOrdering the ordering to convert
-	 * @return the corresponding index browse ordering
-	 * @throws EvitaInvalidUsageException when the ordering is unspecified or unknown to this client
+	 * @param grpcOrdering the ordering key to convert
+	 * @return the corresponding index browse ordering key
+	 * @throws EvitaInvalidUsageException when the ordering key is unknown to this client
 	 */
 	@Nonnull
 	public static IndexBrowseOrdering toIndexBrowseOrdering(@Nonnull GrpcIndexBrowseOrdering grpcOrdering) {
 		return switch (grpcOrdering) {
 			case INDEX_BROWSE_ORDERING_MAP_ORDER -> IndexBrowseOrdering.MAP_ORDER;
-			case INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC -> IndexBrowseOrdering.BY_ENTITY_COUNT_DESC;
-			case INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC -> IndexBrowseOrdering.BY_QUERY_COUNT_DESC;
-			case INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC -> IndexBrowseOrdering.BY_QUERY_COUNT_ASC;
-			case INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC -> IndexBrowseOrdering.BY_UPDATE_COUNT_DESC;
-			case INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC -> IndexBrowseOrdering.BY_UPDATE_COUNT_ASC;
-			case INDEX_BROWSE_ORDERING_UNSPECIFIED, UNRECOGNIZED ->
+			case INDEX_BROWSE_ORDERING_ENTITY_COUNT -> IndexBrowseOrdering.ENTITY_COUNT;
+			case INDEX_BROWSE_ORDERING_QUERY_COUNT -> IndexBrowseOrdering.QUERY_COUNT;
+			case INDEX_BROWSE_ORDERING_UPDATE_COUNT -> IndexBrowseOrdering.UPDATE_COUNT;
+			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized index browse ordering: " + grpcOrdering);
 		};
 	}
@@ -1793,18 +1792,16 @@ public class EvitaEnumConverter {
 	/**
 	 * Converts {@link IndexBrowseOrdering} to {@link GrpcIndexBrowseOrdering}.
 	 *
-	 * @param ordering the ordering to convert
-	 * @return the corresponding gRPC index browse ordering
+	 * @param ordering the ordering key to convert
+	 * @return the corresponding gRPC index browse ordering key
 	 */
 	@Nonnull
 	public static GrpcIndexBrowseOrdering toGrpcIndexBrowseOrdering(@Nonnull IndexBrowseOrdering ordering) {
 		return switch (ordering) {
 			case MAP_ORDER -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER;
-			case BY_ENTITY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC;
-			case BY_QUERY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC;
-			case BY_QUERY_COUNT_ASC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC;
-			case BY_UPDATE_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC;
-			case BY_UPDATE_COUNT_ASC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC;
+			case ENTITY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_ENTITY_COUNT;
+			case QUERY_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_QUERY_COUNT;
+			case UPDATE_COUNT -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_UPDATE_COUNT;
 		};
 	}
 

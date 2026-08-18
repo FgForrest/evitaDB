@@ -31,6 +31,7 @@ import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.IndexActivity;
@@ -74,17 +75,18 @@ final class CatalogIndexProjection {
 	 * Orders browse rows by their handle - the only total order over catalog indexes that exists, and therefore the
 	 * tiebreaker every counter ordering here ends in.
 	 *
-	 * Two {@link IndexBrowseOrdering} values collapse to it outright. {@link IndexBrowseOrdering#MAP_ORDER} has no map
-	 * to follow - the indexes are addressed by scope, so their handles *are* their natural order - and
-	 * {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} has nothing to discriminate on, because every catalog index
-	 * reports an absent entity count. Applied explicitly rather than left to the order the indexes happened to be
-	 * collected in: an unstable order silently corrupts pagination, repeating some rows across pages while omitting
-	 * others.
+	 * Two {@link IndexBrowseOrdering} keys collapse to it outright, in either direction.
+	 * {@link IndexBrowseOrdering#MAP_ORDER} has no map to follow - the indexes are addressed by scope, so their handles
+	 * *are* their natural order - and {@link IndexBrowseOrdering#ENTITY_COUNT} has nothing to discriminate on, because
+	 * every catalog index reports an absent entity count, which no direction makes comparable. Applied explicitly
+	 * rather than left to the order the indexes happened to be collected in: an unstable order silently corrupts
+	 * pagination, repeating some rows across pages while omitting others.
 	 */
 	private static final Comparator<BrowsedIndex> BY_HANDLE =
 		Comparator.comparingInt(BrowsedIndex::indexPrimaryKey);
 	/**
-	 * {@link IndexBrowseOrdering#BY_QUERY_COUNT_DESC} as a comparator: most queried first, ties broken by handle.
+	 * {@link IndexBrowseOrdering#QUERY_COUNT} read descending, as a comparator: most queried first, ties broken by
+	 * handle.
 	 *
 	 * **It compares the rendered row and never the index's activity holder, which is a correctness requirement rather
 	 * than a convenience.** A counter advances under live traffic, so a comparator that read one could answer two
@@ -96,21 +98,21 @@ final class CatalogIndexProjection {
 	private static final Comparator<BrowsedIndex> MOST_QUERIED_FIRST =
 		Comparator.comparingLong(BrowsedIndex::queryCount).reversed().thenComparing(BY_HANDLE);
 	/**
-	 * {@link IndexBrowseOrdering#BY_QUERY_COUNT_ASC} as a comparator: least queried first, ties broken by handle. Over
-	 * indexes nothing has ever queried the tiebreaker is the whole of the order - see {@link #MOST_QUERIED_FIRST} for
-	 * why the comparison is over the row rather than over the holder.
+	 * {@link IndexBrowseOrdering#QUERY_COUNT} read ascending, as a comparator: least queried first, ties broken by
+	 * handle. Over indexes nothing has ever queried the tiebreaker is the whole of the order - see
+	 * {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
 	 */
 	private static final Comparator<BrowsedIndex> LEAST_QUERIED_FIRST =
 		Comparator.comparingLong(BrowsedIndex::queryCount).thenComparing(BY_HANDLE);
 	/**
-	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_DESC} as a comparator: most updated first, ties broken by handle - see
-	 * {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
+	 * {@link IndexBrowseOrdering#UPDATE_COUNT} read descending, as a comparator: most updated first, ties broken by
+	 * handle - see {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
 	 */
 	private static final Comparator<BrowsedIndex> MOST_UPDATED_FIRST =
 		Comparator.comparingLong(BrowsedIndex::updateCount).reversed().thenComparing(BY_HANDLE);
 	/**
-	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_ASC} as a comparator: least updated first, ties broken by handle - see
-	 * {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
+	 * {@link IndexBrowseOrdering#UPDATE_COUNT} read ascending, as a comparator: least updated first, ties broken by
+	 * handle - see {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
 	 */
 	private static final Comparator<BrowsedIndex> LEAST_UPDATED_FIRST =
 		Comparator.comparingLong(BrowsedIndex::updateCount).thenComparing(BY_HANDLE);
@@ -182,7 +184,7 @@ final class CatalogIndexProjection {
 		// because it ranks a map of up to hundreds of thousands of indexes and must not retain them all; here the whole
 		// candidate set is the page, so rendering every row up front and sorting the result is both cheaper and what
 		// freezes the ranking counter - see `MOST_QUERIED_FIRST`
-		matched.sort(comparatorOf(criteria.ordering()));
+		matched.sort(comparatorOf(criteria.ordering(), criteria.direction()));
 
 		// the offset is computed in long arithmetic for the same reason the collection-level browse does it - both
 		// factors are client-supplied and their product overflows int long before it reaches any bound - even though
@@ -200,28 +202,39 @@ final class CatalogIndexProjection {
 	}
 
 	/**
-	 * Picks the comparator that imposes one requested ordering over rows that have already been rendered.
+	 * Picks the comparator that imposes one requested key and direction over rows that have already been rendered.
 	 *
-	 * **Two orderings degenerate here, and the other four do not.** A catalog index reports no entity count, so ranking
-	 * by size has nothing to read; but it is chosen by queries and maintained by writes exactly as a collection's index
-	 * is, so both activity counters rank it meaningfully - which is why a catalog browse answers the counter orderings
-	 * rather than quietly collapsing them too.
+	 * **Two keys degenerate here, and the other two do not.** A catalog index reports no entity count, so ranking by
+	 * size has nothing to read and nothing for a direction to reverse either - asking for the smallest catalog index
+	 * is as answerable as asking for the largest, which is to say not at all, and both spellings collapse to the handle
+	 * order. The activity counters are the other case entirely: a catalog index is chosen by queries and maintained by
+	 * writes exactly as a collection's index is, so both of them rank it meaningfully in both directions - which is why
+	 * a catalog browse answers the counter keys rather than quietly collapsing them too.
 	 *
-	 * Written as an exhaustive switch with no `default`, so a value added to {@link IndexBrowseOrdering} fails the
-	 * build here instead of silently degenerating to the handle order. The degeneracy of the two that do collapse is a
-	 * documented property of those two, never a fallback for whatever is declared next.
+	 * Written as exhaustive switches with no `default`, so a value added to {@link IndexBrowseOrdering} or to
+	 * {@link OrderDirection} fails the build here instead of silently degenerating to the handle order. The degeneracy
+	 * of the two keys that do collapse is a documented property of those two, never a fallback for whatever is declared
+	 * next.
 	 *
-	 * @param ordering the order the client asked for
+	 * @param ordering  what the client asked the rows to be ranked by
+	 * @param direction which end of that ranking the client asked for
 	 * @return the comparator imposing it
 	 */
 	@Nonnull
-	private static Comparator<BrowsedIndex> comparatorOf(@Nonnull IndexBrowseOrdering ordering) {
+	private static Comparator<BrowsedIndex> comparatorOf(
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction
+	) {
 		return switch (ordering) {
-			case MAP_ORDER, BY_ENTITY_COUNT_DESC -> BY_HANDLE;
-			case BY_QUERY_COUNT_DESC -> MOST_QUERIED_FIRST;
-			case BY_QUERY_COUNT_ASC -> LEAST_QUERIED_FIRST;
-			case BY_UPDATE_COUNT_DESC -> MOST_UPDATED_FIRST;
-			case BY_UPDATE_COUNT_ASC -> LEAST_UPDATED_FIRST;
+			case MAP_ORDER, ENTITY_COUNT -> BY_HANDLE;
+			case QUERY_COUNT -> switch (direction) {
+				case DESC -> MOST_QUERIED_FIRST;
+				case ASC -> LEAST_QUERIED_FIRST;
+			};
+			case UPDATE_COUNT -> switch (direction) {
+				case DESC -> MOST_UPDATED_FIRST;
+				case ASC -> LEAST_UPDATED_FIRST;
+			};
 		};
 	}
 

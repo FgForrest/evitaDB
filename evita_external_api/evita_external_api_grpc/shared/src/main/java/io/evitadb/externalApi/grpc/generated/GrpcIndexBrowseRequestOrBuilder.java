@@ -101,11 +101,12 @@ public interface GrpcIndexBrowseRequestOrBuilder extends
    * Page of the result to return. Page-based paging: 1-indexed, page 1 is the first page (see
    * `io.evitadb.dataType.PaginatedList#getPageNumber`). A page past the end returns no indexes and is not an error.
    *
-   * Every order except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged:
-   * `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than clamped. Those
-   * orders rank their candidates, so producing a page means retaining every index up to the end of it - a far-out
-   * page would retain and sort the whole index set only to answer with an empty page. Map order carries no such
-   * limit, because it materialises only the requested window however deep that window sits.
+   * Every ordering except `INDEX_BROWSE_ORDERING_MAP_ORDER` additionally limits how deep it may be paged, in either
+   * direction: `pageNumber * pageSize` must not exceed 10000, and a request beyond that is rejected rather than
+   * clamped. Those orderings rank their candidates, so producing a page means retaining every index up to the end of
+   * it - a far-out page would retain and sort the whole index set only to answer with an empty page, and it would do
+   * so whichever end the page is cut from. Map order carries no such limit, because it materialises only the
+   * requested window however deep that window sits.
    * </pre>
    *
    * <code>int32 pageNumber = 3;</code>
@@ -129,7 +130,9 @@ public interface GrpcIndexBrowseRequestOrBuilder extends
 
   /**
    * <pre>
-   * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+   * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+   * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+   * could mistake for one it asked for.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
@@ -138,13 +141,46 @@ public interface GrpcIndexBrowseRequestOrBuilder extends
   int getOrderingValue();
   /**
    * <pre>
-   * The order to impose before the page is cut. `INDEX_BROWSE_ORDERING_UNSPECIFIED` is rejected, not defaulted.
+   * What to rank the indexes by before the page is cut. Unset means `INDEX_BROWSE_ORDERING_MAP_ORDER`, the walk of
+   * the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a client
+   * could mistake for one it asked for.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering ordering = 5;</code>
    * @return The ordering.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering getOrdering();
+
+  /**
+   * <pre>
+   * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+   * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+   *
+   * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+   * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+   * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+   * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+   * @return The enum numeric value on the wire for direction.
+   */
+  int getDirectionValue();
+  /**
+   * <pre>
+   * Which end of that ranking the page is cut from: `DESC` for the biggest, busiest or most-maintained indexes,
+   * `ASC` for the smallest and the untouched ones. Unset means `ASC`.
+   *
+   * `INDEX_BROWSE_ORDERING_MAP_ORDER` is the one ordering that constrains this. It ranks nothing, so it has nothing
+   * to reverse: it is accepted with `ASC` alone - which is how "the map's own walk order" is spelled - and a request
+   * pairing it with `DESC` is rejected rather than answered with the forward walk, because a direction that was
+   * silently ignored reads back to the client as one that was honoured. Every other ordering accepts both.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirection direction = 9;</code>
+   * @return The direction.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOrderDirection getDirection();
 
   /**
    * <pre>

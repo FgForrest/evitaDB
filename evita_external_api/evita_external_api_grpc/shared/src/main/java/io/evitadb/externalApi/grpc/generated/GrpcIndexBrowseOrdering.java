@@ -29,9 +29,13 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * The order in which an index browse returns its results. Every order walks every index of the collection; what they
- * differ in is how much of that walk has to be kept in memory to produce a page, and what the kept entries are
- * ranked by.
+ * What an index browse ranks its results by - the key half of the order, whose other half is the direction carried
+ * beside it in `GrpcIndexBrowseRequest.direction`. Every key walks every index of the collection; what they differ in
+ * is how much of that walk has to be kept in memory to produce a page, and what the kept entries are ranked by.
+ *
+ * The two halves are separate fields because they are separate choices: the same key read in the other direction
+ * answers the opposite question (the largest indexes or the smallest, the busiest or the untouched), and every key
+ * but map order is meaningful both ways.
  * </pre>
  *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering}
@@ -40,45 +44,52 @@ public enum GrpcIndexBrowseOrdering
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
-   * answer is "everything, cheaply" or "the largest ones", which are different questions.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_UNSPECIFIED = 0;</code>
-   */
-  INDEX_BROWSE_ORDERING_UNSPECIFIED(0),
-  /**
-   * <pre>
    * The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
    * a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
    * a client should read into.
+   *
+   * It holds the zero slot, so an unset `ordering` reads as "enumerate everything, cheaply" - the one answer that
+   * cannot be mistaken for a ranking the client did not ask for. It is also the one key with no ranking to reverse:
+   * it is accepted with direction `ASC` alone, which is how the walk order is spelled, and rejected with `DESC`
+   * rather than the direction being silently ignored.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_MAP_ORDER = 1;</code>
+   * <code>INDEX_BROWSE_ORDERING_MAP_ORDER = 0;</code>
    */
-  INDEX_BROWSE_ORDERING_MAP_ORDER(1),
+  INDEX_BROWSE_ORDERING_MAP_ORDER(0),
   /**
    * <pre>
-   * Largest first by `entityCount`, ties broken deterministically by index kind, then scope, then discriminator.
-   * The tiebreaker matters: index counts are heavily tied in practice, and without it successive pages would
-   * re-order the tied block and show duplicates while hiding other indexes.
+   * `entityCount`, ties broken deterministically by index kind, then scope, then discriminator - descending for the
+   * largest indexes first, ascending for the smallest. The tiebreaker matters: index counts are heavily tied in
+   * practice, and without it successive pages would re-order the tied block and show duplicates while hiding other
+   * indexes.
    *
    * This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
    * narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
    * is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
    * mean estimating every index in the collection on every call.
+   *
+   * A catalog browse has nothing for this key to rank by in either direction - a catalog index reports no entity
+   * count at all - so there it degenerates to the same order `INDEX_BROWSE_ORDERING_MAP_ORDER` yields, ascending as
+   * much as descending. It is accepted rather than rejected so that one client can send the same request to either.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;</code>
+   * <code>INDEX_BROWSE_ORDERING_ENTITY_COUNT = 1;</code>
    */
-  INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC(2),
+  INDEX_BROWSE_ORDERING_ENTITY_COUNT(1),
   /**
    * <pre>
-   * Most-queried first by `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
-   * Answers which indexes are earning the memory they occupy. Read each count against the same row's `observedSince`
-   * rather than on its own: the observation window opens per index, so two raw counts only become comparable once
-   * each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC` this order is
+   * `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
+   *
+   * Descending answers which indexes are earning the memory they occupy. Read each count against the same row's
+   * `observedSince` rather than on its own: the observation window opens per index, so two raw counts only become
+   * comparable once each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_ENTITY_COUNT` this key is
    * meaningful for a catalog browse too, because a catalog index is queried and maintained like any other.
+   *
+   * Ascending is the hunt for indexes that may be worth dropping, and it is dominated by ties at zero, because on
+   * most catalogs the majority of indexes have never been chosen by a query; the kind-then-scope-then-discriminator
+   * tiebreaker is the whole of what makes a page boundary drawn inside that block of zeros reproducible. A zero is
+   * not by itself a verdict - it is a statement about the window the row's `observedSince` opens.
    *
    * The rank is a best-effort reading taken as the walk passes each index, not a snapshot of one instant - the
    * counters move under live traffic. Each index is read once, and the count a row reports for the counter it was
@@ -86,92 +97,83 @@ public enum GrpcIndexBrowseOrdering
    * across calls: recording activity does not advance the catalog version, so two pages agreeing on `catalogVersion`
    * may still have been ranked by counters that moved between them, and one index can appear on two pages or on
    * neither. This is a top-N access pattern - page in `INDEX_BROWSE_ORDERING_MAP_ORDER` to enumerate the whole set -
-   * and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`.
+   * and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`, in both
+   * directions.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC = 3;</code>
+   * <code>INDEX_BROWSE_ORDERING_QUERY_COUNT = 2;</code>
    */
-  INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC(3),
+  INDEX_BROWSE_ORDERING_QUERY_COUNT(2),
   /**
    * <pre>
-   * Least-queried first by `queryCount`, same tiebreaker - the order for finding indexes that may be worth dropping.
-   * It is dominated by ties at zero, because on most catalogs the majority of indexes have never been chosen by a
-   * query; the kind-then-scope-then-discriminator tiebreaker is the whole of what makes a page boundary drawn inside
-   * that block of zeros reproducible. A zero is not by itself a verdict - it is a statement about the window the
-   * row's `observedSince` opens. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC = 4;</code>
-   */
-  INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC(4),
-  /**
-   * <pre>
-   * Most-updated first by `updateCount`, same tiebreaker. Paired with `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` it
-   * finds the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount`
-   * documents about the maintenance it counts before acting on the head of this order: a global index leads it on
+   * `updateCount`, same tiebreaker. Descending, read beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` descending, finds
+   * the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount` documents
+   * about the maintenance it counts before acting on the head of that direction: a global index leads it on
    * essentially every catalog and is never a drop candidate, and maintenance driven by a write to another collection
-   * is not counted at all. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
+   * is not counted at all.
+   *
+   * Ascending surfaces the indexes nothing is writing to. It is dominated by ties at zero exactly as
+   * `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending is, and reproducible inside that block for the same reason. A
+   * never-updated index is not thereby a drop candidate: it may be precisely the one every query reads, so read it
+   * beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending rather than acting on it alone.
+   *
+   * The caveats on `INDEX_BROWSE_ORDERING_QUERY_COUNT` apply unchanged, in both directions.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC = 5;</code>
+   * <code>INDEX_BROWSE_ORDERING_UPDATE_COUNT = 3;</code>
    */
-  INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC(5),
-  /**
-   * <pre>
-   * Least-updated first by `updateCount`, same tiebreaker - the order that surfaces indexes nothing is writing to.
-   * Dominated by ties at zero exactly as `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` is, and reproducible inside that
-   * block for the same reason. A never-updated index is not thereby a drop candidate: it may be precisely the one
-   * every query reads, so read it beside `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` rather than acting on it alone.
-   * The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC = 6;</code>
-   */
-  INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC(6),
+  INDEX_BROWSE_ORDERING_UPDATE_COUNT(3),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
-   * answer is "everything, cheaply" or "the largest ones", which are different questions.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_UNSPECIFIED = 0;</code>
-   */
-  public static final int INDEX_BROWSE_ORDERING_UNSPECIFIED_VALUE = 0;
-  /**
-   * <pre>
    * The order the indexes happen to sit in inside the collection's internal index map. Arbitrary, but stable for
    * a given catalog version, and the cheapest way to page exhaustively through the whole set. Carries no meaning
    * a client should read into.
+   *
+   * It holds the zero slot, so an unset `ordering` reads as "enumerate everything, cheaply" - the one answer that
+   * cannot be mistaken for a ranking the client did not ask for. It is also the one key with no ranking to reverse:
+   * it is accepted with direction `ASC` alone, which is how the walk order is spelled, and rejected with `DESC`
+   * rather than the direction being silently ignored.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_MAP_ORDER = 1;</code>
+   * <code>INDEX_BROWSE_ORDERING_MAP_ORDER = 0;</code>
    */
-  public static final int INDEX_BROWSE_ORDERING_MAP_ORDER_VALUE = 1;
+  public static final int INDEX_BROWSE_ORDERING_MAP_ORDER_VALUE = 0;
   /**
    * <pre>
-   * Largest first by `entityCount`, ties broken deterministically by index kind, then scope, then discriminator.
-   * The tiebreaker matters: index counts are heavily tied in practice, and without it successive pages would
-   * re-order the tied block and show duplicates while hiding other indexes.
+   * `entityCount`, ties broken deterministically by index kind, then scope, then discriminator - descending for the
+   * largest indexes first, ascending for the smallest. The tiebreaker matters: index counts are heavily tied in
+   * practice, and without it successive pages would re-order the tied block and show duplicates while hiding other
+   * indexes.
    *
    * This is a top-N access pattern - a page is built from a bounded heap rather than a full sort, so the advantage
    * narrows the deeper the requested page is. There is deliberately no ordering by estimated memory: entity count
    * is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
    * mean estimating every index in the collection on every call.
+   *
+   * A catalog browse has nothing for this key to rank by in either direction - a catalog index reports no entity
+   * count at all - so there it degenerates to the same order `INDEX_BROWSE_ORDERING_MAP_ORDER` yields, ascending as
+   * much as descending. It is accepted rather than rejected so that one client can send the same request to either.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;</code>
+   * <code>INDEX_BROWSE_ORDERING_ENTITY_COUNT = 1;</code>
    */
-  public static final int INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC_VALUE = 2;
+  public static final int INDEX_BROWSE_ORDERING_ENTITY_COUNT_VALUE = 1;
   /**
    * <pre>
-   * Most-queried first by `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
-   * Answers which indexes are earning the memory they occupy. Read each count against the same row's `observedSince`
-   * rather than on its own: the observation window opens per index, so two raw counts only become comparable once
-   * each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC` this order is
+   * `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
+   *
+   * Descending answers which indexes are earning the memory they occupy. Read each count against the same row's
+   * `observedSince` rather than on its own: the observation window opens per index, so two raw counts only become
+   * comparable once each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_ENTITY_COUNT` this key is
    * meaningful for a catalog browse too, because a catalog index is queried and maintained like any other.
+   *
+   * Ascending is the hunt for indexes that may be worth dropping, and it is dominated by ties at zero, because on
+   * most catalogs the majority of indexes have never been chosen by a query; the kind-then-scope-then-discriminator
+   * tiebreaker is the whole of what makes a page boundary drawn inside that block of zeros reproducible. A zero is
+   * not by itself a verdict - it is a statement about the window the row's `observedSince` opens.
    *
    * The rank is a best-effort reading taken as the walk passes each index, not a snapshot of one instant - the
    * counters move under live traffic. Each index is read once, and the count a row reports for the counter it was
@@ -179,48 +181,32 @@ public enum GrpcIndexBrowseOrdering
    * across calls: recording activity does not advance the catalog version, so two pages agreeing on `catalogVersion`
    * may still have been ranked by counters that moved between them, and one index can appear on two pages or on
    * neither. This is a top-N access pattern - page in `INDEX_BROWSE_ORDERING_MAP_ORDER` to enumerate the whole set -
-   * and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`.
+   * and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`, in both
+   * directions.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC = 3;</code>
+   * <code>INDEX_BROWSE_ORDERING_QUERY_COUNT = 2;</code>
    */
-  public static final int INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC_VALUE = 3;
+  public static final int INDEX_BROWSE_ORDERING_QUERY_COUNT_VALUE = 2;
   /**
    * <pre>
-   * Least-queried first by `queryCount`, same tiebreaker - the order for finding indexes that may be worth dropping.
-   * It is dominated by ties at zero, because on most catalogs the majority of indexes have never been chosen by a
-   * query; the kind-then-scope-then-discriminator tiebreaker is the whole of what makes a page boundary drawn inside
-   * that block of zeros reproducible. A zero is not by itself a verdict - it is a statement about the window the
-   * row's `observedSince` opens. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC = 4;</code>
-   */
-  public static final int INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC_VALUE = 4;
-  /**
-   * <pre>
-   * Most-updated first by `updateCount`, same tiebreaker. Paired with `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` it
-   * finds the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount`
-   * documents about the maintenance it counts before acting on the head of this order: a global index leads it on
+   * `updateCount`, same tiebreaker. Descending, read beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` descending, finds
+   * the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount` documents
+   * about the maintenance it counts before acting on the head of that direction: a global index leads it on
    * essentially every catalog and is never a drop candidate, and maintenance driven by a write to another collection
-   * is not counted at all. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
+   * is not counted at all.
+   *
+   * Ascending surfaces the indexes nothing is writing to. It is dominated by ties at zero exactly as
+   * `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending is, and reproducible inside that block for the same reason. A
+   * never-updated index is not thereby a drop candidate: it may be precisely the one every query reads, so read it
+   * beside `INDEX_BROWSE_ORDERING_QUERY_COUNT` ascending rather than acting on it alone.
+   *
+   * The caveats on `INDEX_BROWSE_ORDERING_QUERY_COUNT` apply unchanged, in both directions.
    * </pre>
    *
-   * <code>INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC = 5;</code>
+   * <code>INDEX_BROWSE_ORDERING_UPDATE_COUNT = 3;</code>
    */
-  public static final int INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC_VALUE = 5;
-  /**
-   * <pre>
-   * Least-updated first by `updateCount`, same tiebreaker - the order that surfaces indexes nothing is writing to.
-   * Dominated by ties at zero exactly as `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` is, and reproducible inside that
-   * block for the same reason. A never-updated index is not thereby a drop candidate: it may be precisely the one
-   * every query reads, so read it beside `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` rather than acting on it alone.
-   * The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
-   * </pre>
-   *
-   * <code>INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC = 6;</code>
-   */
-  public static final int INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC_VALUE = 6;
+  public static final int INDEX_BROWSE_ORDERING_UPDATE_COUNT_VALUE = 3;
 
 
   public final int getNumber() {
@@ -247,13 +233,10 @@ public enum GrpcIndexBrowseOrdering
    */
   public static GrpcIndexBrowseOrdering forNumber(int value) {
     switch (value) {
-      case 0: return INDEX_BROWSE_ORDERING_UNSPECIFIED;
-      case 1: return INDEX_BROWSE_ORDERING_MAP_ORDER;
-      case 2: return INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC;
-      case 3: return INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC;
-      case 4: return INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC;
-      case 5: return INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC;
-      case 6: return INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC;
+      case 0: return INDEX_BROWSE_ORDERING_MAP_ORDER;
+      case 1: return INDEX_BROWSE_ORDERING_ENTITY_COUNT;
+      case 2: return INDEX_BROWSE_ORDERING_QUERY_COUNT;
+      case 3: return INDEX_BROWSE_ORDERING_UPDATE_COUNT;
       default: return null;
     }
   }

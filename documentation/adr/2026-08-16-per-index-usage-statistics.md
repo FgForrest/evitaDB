@@ -1,7 +1,7 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-18 11:20
+updated: 2026-08-18 11:54
 status: accepted
 kind: feature
 issues: []
@@ -151,10 +151,25 @@ the contract violation and throw — so the comparator sees only the frozen valu
 `EntityIndexKey` tiebreaker, and the row reports the very value that placed it. The other activity
 readings on a row stay fresh reads; only the ranked one has a position to stay consistent with.
 Pages are documented as unstable across calls (recording does not advance the catalog version), the
-deep-page bound covers every ranked ordering by naming the exempt `MAP_ORDER` so a future value is
+deep-page bound covers every ranked ordering key by naming the exempt `MAP_ORDER` so a future key is
 bounded by default, and the catalog browse stopped collapsing the counter orderings — a catalog
-index is chosen and maintained like any other; only the entity-count ordering keeps its documented
-degeneracy there.
+index is chosen and maintained like any other; only the entity-count key keeps its documented
+degeneracy there, in both directions.
+
+**The order is a key plus an `OrderDirection`, and that shape replaced a flat six-value enum before
+release.** `IndexBrowseOrdering` was first implemented as `MAP_ORDER`, `BY_ENTITY_COUNT_DESC`,
+`BY_QUERY_COUNT_DESC/ASC` and `BY_UPDATE_COUNT_DESC/ASC`; it was reshaped into four keys
+(`MAP_ORDER`, `ENTITY_COUNT`, `QUERY_COUNT`, `UPDATE_COUNT`) carried beside the query language's own
+`OrderDirection`, because the flat form spelled out a product the query language already models —
+every new key would have doubled the constant count, "ascending" meant nothing shared across the
+values that named it, and ascending entity count was inexpressible for no reason other than that
+nobody had written the constant. Reshaping was free only because the whole browse surface was
+unreleased on `dev`, so the flat values were rewritten in place rather than deprecated; the same
+change after a release would have cost a wire-value migration and is the reason it was made now.
+`MAP_ORDER` ranks nothing and therefore takes only `ASC` — the pairing with `DESC` is rejected in
+the criteria's compact constructor rather than ignored, so a direction the engine cannot honour is
+never silently dropped, and the gRPC enum gives `MAP_ORDER` the zero slot so an unset ordering
+decodes to the cheapest walk instead of a ranking nobody asked for.
 
 **`observedSince` joined the readings as their denominator.** A count without a window start cannot
 become a rate, and a zero count cannot be told from a short observation. The stamp is per holder —

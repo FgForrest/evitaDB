@@ -23,17 +23,24 @@
 
 package io.evitadb.api.statistics;
 
+import io.evitadb.api.query.order.OrderDirection;
+
 /**
- * The order in which {@link BrowsedIndex} entries are returned by an index browse.
+ * What {@link BrowsedIndex} entries are ordered *by* on an index browse - the key half of the order, whose other half
+ * is the {@link OrderDirection} {@link IndexBrowseCriteria} carries beside it.
  *
- * Every value walks every index of the collection - the walk is unavoidable and is what makes browsing an explicit
+ * Every key walks every index of the collection - the walk is unavoidable and is what makes browsing an explicit
  * drill-down rather than something to poll. What they differ in is how much of that walk has to be *kept*, and what
  * the kept entries are ranked by.
  *
- * {@link #MAP_ORDER} keeps only the requested window and is the one order that is stable for a given catalog version;
- * every other value builds its page through a bounded heap and is a **top-N view**. The four orders that rank by an
- * activity counter carry caveats the entity-count one does not; they are documented once, on
- * {@link #BY_QUERY_COUNT_DESC}, and referred to from the other three.
+ * {@link #MAP_ORDER} keeps only the requested window and is the one key that is stable for a given catalog version;
+ * every other key builds its page through a bounded heap and is a **top-N view**. The two keys that rank by an
+ * activity counter carry caveats the entity-count one does not; they are documented once, on {@link #QUERY_COUNT},
+ * and referred to from {@link #UPDATE_COUNT}.
+ *
+ * **Only {@link #MAP_ORDER} constrains the direction.** It has no ranking to reverse, so {@link OrderDirection#ASC}
+ * is the spelling of "walk order" and {@link OrderDirection#DESC} is rejected outright; every other key is meaningful
+ * in both directions, and the direction is what turns one key into the two questions that used to be two constants.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see BrowsedIndex
@@ -50,22 +57,28 @@ public enum IndexBrowseOrdering {
 	 *
 	 * Being tied to the internal map layout, this order carries no meaning a client should read into - it is the
 	 * cheapest way to enumerate everything, nothing more. It is the right choice for exhaustive paging through the
-	 * whole set; use {@link #BY_ENTITY_COUNT_DESC} to find the large indexes instead.
+	 * whole set; use {@link #ENTITY_COUNT} descending to find the large indexes instead.
+	 *
+	 * **This is the one key with no ranking to reverse.** It pairs with {@link OrderDirection#ASC} alone - which is
+	 * how "walk order" is spelled - and {@link IndexBrowseCriteria} rejects it with {@link OrderDirection#DESC}
+	 * rather than ignoring the direction: the map layout is not an order a client can act on in either direction, so
+	 * a reversal has nothing to mean, and silently serving the forward walk would answer a question nobody asked.
 	 */
 	MAP_ORDER,
 
 	/**
-	 * Largest first, by {@link BrowsedIndex#entityCount()}, with ties broken deterministically by index kind, then
-	 * scope, then discriminator.
+	 * {@link BrowsedIndex#entityCount()}, with ties broken deterministically by index kind, then scope, then
+	 * discriminator - descending for the largest indexes first, ascending for the smallest.
 	 *
 	 * The tiebreaker is not a nicety. Real collections are tie-dominated - most per-referenced-entity indexes hold a
 	 * handful of entities each - so ordering on the count alone would let page 2 re-walk into a different permutation
 	 * of the same tie block, silently showing the client duplicates while hiding other indexes entirely.
 	 *
-	 * **A catalog browse has nothing for *this* order to rank by**, where the four counter orders do rank it. A catalog
-	 * index reports no entity count - it maintains no primary-key bitmap - so this ordering degenerates there to the
-	 * same total order {@link #MAP_ORDER} yields, over the one index per scope a catalog holds. It is accepted rather
-	 * than rejected so that a client can send the same criteria to either owner.
+	 * **A catalog browse has nothing for *this* key to rank by, in either direction**, where the two counter keys do
+	 * rank it. A catalog index reports no entity count - it maintains no primary-key bitmap - so this key degenerates
+	 * there to the same total order {@link #MAP_ORDER} yields, over the one index per scope a catalog holds, and it
+	 * degenerates to it ascending as much as descending. It is accepted rather than rejected so that a client can
+	 * send the same criteria to either owner.
 	 *
 	 * A page is built through a bounded heap of `pageNumber * pageSize` entries rather than a full sort, so a shallow
 	 * page over a large collection costs `O(indexes * log(pageNumber * pageSize))` in time and only
@@ -79,17 +92,26 @@ public enum IndexBrowseOrdering {
 	 * and measures the few it chose. Were the same reading ever added to {@link BrowsedIndex} it would belong to the
 	 * page already selected and still could not be used to select it.
 	 */
-	BY_ENTITY_COUNT_DESC,
+	ENTITY_COUNT,
 
 	/**
-	 * Most-queried first, by {@link BrowsedIndex#queryCount()}, with ties broken deterministically by index kind, then
-	 * scope, then discriminator.
+	 * {@link BrowsedIndex#queryCount()}, with ties broken deterministically by index kind, then scope, then
+	 * discriminator.
 	 *
-	 * This is the order that answers *which indexes are earning the memory they occupy*. Read the count against
-	 * {@link BrowsedIndex#observedSince()} rather than on its own: it is a total over an observation window that
-	 * begins per index, so two rows are only comparable once each has been divided by its own window. Unlike
-	 * {@link #BY_ENTITY_COUNT_DESC}, this order means something on a catalog browse as well - a catalog index is
-	 * chosen by queries and maintained by writes like any other.
+	 * **Descending is the direction that answers *which indexes are earning the memory they occupy*.** Read the count
+	 * against {@link BrowsedIndex#observedSince()} rather than on its own: it is a total over an observation window
+	 * that begins per index, so two rows are only comparable once each has been divided by its own window. Unlike
+	 * {@link #ENTITY_COUNT}, this key means something on a catalog browse as well - a catalog index is chosen by
+	 * queries and maintained by writes like any other.
+	 *
+	 * **Ascending is the drop-candidate hunt, and it is tie-dominated at zero by the nature of what it is for.** On
+	 * most catalogs the great majority of indexes have never been chosen by a query, so the head of that direction is
+	 * one large block of equal zeros rather than a ranking. The tiebreaker - index kind, then scope, then
+	 * discriminator - is the whole of what makes a page boundary drawn inside that block reproducible; ranking on the
+	 * counter alone would let each request re-permute the zeros, showing some indexes twice while never showing
+	 * others. A zero is in any case not by itself a verdict: it is a statement about the window
+	 * {@link BrowsedIndex#observedSince()} opens, and an index created a minute ago says far less by its zero than
+	 * one observed since the catalog loaded.
 	 *
 	 * **The rank is a best-effort scan reading, not an atomic snapshot.** The counters move under live traffic, and
 	 * the walk samples each candidate at a different moment, so the page describes no single instant of the
@@ -102,59 +124,35 @@ public enum IndexBrowseOrdering {
 	 * **Pages are unstable across calls, and no field of the result says otherwise.** Recording activity does not
 	 * advance the catalog version, so two pages that agree on {@link IndexBrowseResult#catalogVersion()} were still
 	 * ranked by keys that moved between them - an index can land on two pages of one paging run, or on none. That is
-	 * a property of ranking by a moving key rather than a defect to be fixed by a better tiebreaker. Ask this order
-	 * for the first page or two and act on it; a client that must enumerate the whole set pages in {@link #MAP_ORDER}
+	 * a property of ranking by a moving key rather than a defect to be fixed by a better tiebreaker. Ask this key for
+	 * the first page or two and act on it; a client that must enumerate the whole set pages in {@link #MAP_ORDER}
 	 * instead, which is stable for a given catalog version and cheaper at every depth.
 	 *
-	 * The cost class is exactly that of {@link #BY_ENTITY_COUNT_DESC}: one `O(1)` read per surviving candidate and a
-	 * bounded heap of `pageNumber * pageSize` entries, deep paging capped the same way. Nothing here is paid on the
-	 * query or the write path - the counters are maintained there whether or not anybody ever browses.
+	 * The cost class is exactly that of {@link #ENTITY_COUNT}: one `O(1)` read per surviving candidate and a bounded
+	 * heap of `pageNumber * pageSize` entries, deep paging capped the same way in both directions. Nothing here is
+	 * paid on the query or the write path - the counters are maintained there whether or not anybody ever browses.
 	 */
-	BY_QUERY_COUNT_DESC,
+	QUERY_COUNT,
 
 	/**
-	 * Least-queried first, by {@link BrowsedIndex#queryCount()}, with the same tiebreaker - the drop-candidate hunt.
+	 * {@link BrowsedIndex#updateCount()}, with ties broken deterministically by index kind, then scope, then
+	 * discriminator.
 	 *
-	 * **It is tie-dominated at zero, by the nature of what it is for.** On most catalogs the great majority of
-	 * indexes have never been chosen by a query, so the head of this order is one large block of equal zeros rather
-	 * than a ranking. The tiebreaker - index kind, then scope, then discriminator - is the whole of what makes a page
-	 * boundary drawn inside that block reproducible; ranking on the counter alone would let each request re-permute
-	 * the zeros, showing some indexes twice while never showing others.
+	 * **Descending, read beside {@link #QUERY_COUNT} descending, is what finds indexes maintained far more often than
+	 * they are read** - the ones whose write cost is not being repaid. Mind what {@link BrowsedIndex#updateCount()}
+	 * documents about the maintenance it counts before acting on the head of that direction: a `GLOBAL` index leads
+	 * it on essentially every catalog and is never a drop candidate, and maintenance driven by a cross-collection
+	 * trigger is not counted at all, so an index sitting low there may still be doing work.
 	 *
-	 * A zero is not by itself a verdict. It is a statement about the window {@link BrowsedIndex#observedSince()}
-	 * opens, and an index created a minute ago says far less by its zero than one observed since the catalog loaded.
+	 * **Ascending surfaces the indexes nothing is writing to.** It is tie-dominated at zero exactly as
+	 * {@link #QUERY_COUNT} ascending is, and reproducible inside that block for the same reason: with every count
+	 * equal, the kind-then-scope-then-discriminator tiebreaker is the only thing a page boundary drawn through the
+	 * zeros can rely on. A never-updated index is not thereby a drop candidate - it may be precisely the one every
+	 * query reads - which is why that direction is worth reading beside {@link #QUERY_COUNT} ascending rather than
+	 * acted on alone.
 	 *
-	 * The caveats documented on {@link #BY_QUERY_COUNT_DESC} apply here unchanged.
+	 * The caveats documented on {@link #QUERY_COUNT} apply here unchanged, in both directions.
 	 */
-	BY_QUERY_COUNT_ASC,
-
-	/**
-	 * Most-updated first, by {@link BrowsedIndex#updateCount()}, with ties broken deterministically by index kind,
-	 * then scope, then discriminator.
-	 *
-	 * Paired with {@link #BY_QUERY_COUNT_DESC} this is what finds indexes maintained far more often than they are
-	 * read - the ones whose write cost is not being repaid. Mind what {@link BrowsedIndex#updateCount()} documents
-	 * about the maintenance it counts before acting on the head of this order: a `GLOBAL` index leads it on
-	 * essentially every catalog and is never a drop candidate, and maintenance driven by a cross-collection trigger
-	 * is not counted at all, so an index sitting low here may still be doing work.
-	 *
-	 * The caveats documented on {@link #BY_QUERY_COUNT_DESC} apply here unchanged.
-	 */
-	BY_UPDATE_COUNT_DESC,
-
-	/**
-	 * Least-updated first, by {@link BrowsedIndex#updateCount()}, with the same tiebreaker - the order that surfaces
-	 * indexes nothing is writing to.
-	 *
-	 * Tie-dominated at zero exactly as {@link #BY_QUERY_COUNT_ASC} is, and reproducible inside that block for the
-	 * same reason: with every count equal, the kind-then-scope-then-discriminator tiebreaker is the only thing a page
-	 * boundary drawn through the zeros can rely on.
-	 *
-	 * A never-updated index is not thereby a drop candidate - it may be precisely the one every query reads - which
-	 * is why this order is worth reading beside {@link #BY_QUERY_COUNT_ASC} rather than acted on alone.
-	 *
-	 * The caveats documented on {@link #BY_QUERY_COUNT_DESC} apply here unchanged.
-	 */
-	BY_UPDATE_COUNT_ASC
+	UPDATE_COUNT
 
 }

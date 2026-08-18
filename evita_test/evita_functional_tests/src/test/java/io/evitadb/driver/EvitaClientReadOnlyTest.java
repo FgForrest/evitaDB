@@ -46,6 +46,7 @@ import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -2450,7 +2451,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			Entities.PRODUCT,
 			new IndexBrowseCriteria(
-				1, 5, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+				1, 5, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC,
 				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);
@@ -2489,7 +2490,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			Entities.PRODUCT,
 			new IndexBrowseCriteria(
-				1, 5, IndexBrowseOrdering.MAP_ORDER,
+				1, 5, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 				EnumSet.of(EntityIndexType.GLOBAL), Set.of(), Set.of()
 			)
 		);
@@ -2568,7 +2569,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			Entities.PRODUCT,
 			new IndexBrowseCriteria(
-				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);
@@ -2666,7 +2667,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			null,
 			new IndexBrowseCriteria(
-				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
+				1, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER, OrderDirection.ASC,
 				EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
 			)
 		);

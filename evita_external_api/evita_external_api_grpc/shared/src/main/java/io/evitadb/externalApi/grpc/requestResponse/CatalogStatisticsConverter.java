@@ -87,9 +87,11 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogStatisticsComponent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexType;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcOrderDirection;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toIndexBrowseOrdering;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toOrderDirection;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
 
 /**
@@ -1631,6 +1633,7 @@ public class CatalogStatisticsConverter {
 				.setPageNumber(criteria.pageNumber())
 				.setPageSize(criteria.pageSize())
 				.setOrdering(toGrpcIndexBrowseOrdering(criteria.ordering()))
+				.setDirection(toGrpcOrderDirection(criteria.direction()))
 				.addAllReferenceNames(criteria.referenceNames());
 		for (final EntityIndexType indexType : criteria.indexTypes()) {
 			builder.addIndexTypes(toGrpcEntityIndexType(indexType));
@@ -1652,9 +1655,14 @@ public class CatalogStatisticsConverter {
 	 * An empty repeated filter means that category does not filter, so it maps to an empty set rather than to "every
 	 * value" - the two are equivalent in effect, and the empty set is what the criteria document.
 	 *
+	 * The ordering key and its direction are read as the two fields they are, and the pair is validated by the
+	 * criteria rather than here - `MAP_ORDER` with `DESC` is the one combination that does not exist, and it is
+	 * rejected in exactly one place so that an embedded caller and a remote one are told the same thing.
+	 *
 	 * @param grpcRequest the received request
 	 * @return its Java form
-	 * @throws EvitaInvalidUsageException when the ordering is unspecified, or the paging is out of range
+	 * @throws EvitaInvalidUsageException when the ordering is unknown, the key and direction do not pair, or the
+	 *                                    paging is out of range
 	 */
 	@Nonnull
 	public static IndexBrowseCriteria toIndexBrowseCriteria(
@@ -1672,6 +1680,7 @@ public class CatalogStatisticsConverter {
 			grpcRequest.getPageNumber(),
 			grpcRequest.getPageSize(),
 			toIndexBrowseOrdering(grpcRequest.getOrdering()),
+			toOrderDirection(grpcRequest.getDirection()),
 			indexTypes,
 			scopes,
 			new HashSet<>(grpcRequest.getReferenceNamesList())

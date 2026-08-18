@@ -32,6 +32,7 @@ import io.evitadb.api.statistics.CatalogStatistics;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
@@ -70,20 +71,25 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
+import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexDetail;
+import io.evitadb.externalApi.grpc.generated.GrpcOrderDirection;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshot;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -91,11 +97,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -659,15 +667,18 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@ParameterizedTest
-	@EnumSource(IndexBrowseOrdering.class)
+	@MethodSource("browseOrderings")
 	@DisplayName("carry index browse criteria in both directions")
-	void shouldRoundTripIndexBrowseCriteria(@Nonnull IndexBrowseOrdering ordering)
-		throws InvalidProtocolBufferException {
-		// driven off the enum rather than a written-out list, so an ordering added later has to be given a wire value
-		// the day it is declared - an unmapped one would otherwise travel as the request's default and silently
-		// re-ask the server a different question
+	void shouldRoundTripIndexBrowseCriteria(
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull OrderDirection direction
+	) throws InvalidProtocolBufferException {
+		// driven off the enums rather than a written-out list, so an ordering key added later has to be given a wire
+		// value the day it is declared - an unmapped one would otherwise travel as the request's default and silently
+		// re-ask the server a different question. The direction is half of the order and travels as its own field, so
+		// every accepted pairing is round-tripped rather than only the keys
 		final IndexBrowseCriteria criteria = new IndexBrowseCriteria(
-			3, 25, ordering,
+			3, 25, ordering, direction,
 			EnumSet.of(EntityIndexType.REFERENCED_ENTITY, EntityIndexType.GLOBAL),
 			EnumSet.of(Scope.ARCHIVED),
 			Set.of("categories", "brands")
@@ -684,10 +695,54 @@ class CatalogStatisticsConverterTest {
 		assertEquals(criteria, roundTripped);
 	}
 
+	/**
+	 * Every key paired with every direction it accepts - which is both of them, except for the key that ranks nothing
+	 * and therefore has no ranking to reverse.
+	 *
+	 * @return the pairings a request may carry
+	 */
+	@Nonnull
+	static Stream<Arguments> browseOrderings() {
+		final List<Arguments> pairings = new ArrayList<>(
+			IndexBrowseOrdering.values().length * OrderDirection.values().length
+		);
+		for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
+			for (final OrderDirection direction : OrderDirection.values()) {
+				if (ordering != IndexBrowseOrdering.MAP_ORDER || direction == OrderDirection.ASC) {
+					pairings.add(Arguments.of(ordering, direction));
+				}
+			}
+		}
+		return pairings.stream();
+	}
+
 	@Test
-	@DisplayName("reject an unspecified browse ordering instead of choosing one")
-	void shouldRejectUnspecifiedBrowseOrdering() {
-		// defaulting would silently decide whether the client asked for "everything, cheaply" or "the largest ones"
+	@DisplayName("read an unset browse ordering as the map-order walk")
+	void shouldReadAnUnsetBrowseOrderingAsTheMapOrderWalk() {
+		// both halves of the order hold the zero slot of their enum, so a request that sets neither asks for the walk
+		// of the whole set in the map's own order - the cheapest answer, and the only one that carries no ranking a
+		// client could mistake for one it asked for
+		final IndexBrowseCriteria criteria = assertDoesNotThrow(
+			() -> CatalogStatisticsConverter.toIndexBrowseCriteria(
+				GrpcIndexBrowseRequest.newBuilder()
+					.setCatalogName("catalog")
+					.setEntityType(StringValue.of("product"))
+					.setPageNumber(1)
+					.setPageSize(10)
+					.build()
+			)
+		);
+
+		assertEquals(IndexBrowseOrdering.MAP_ORDER, criteria.ordering());
+		assertEquals(OrderDirection.ASC, criteria.direction());
+	}
+
+	@Test
+	@DisplayName("reject a map-order request read descending instead of ignoring the direction")
+	void shouldRejectMapOrderReadDescendingOffTheWire() {
+		// the one pairing that does not exist. Rejected at the same place an embedded caller is rejected - the
+		// criteria's own constructor - so the wire cannot reach a combination the engine has no answer for, and a
+		// direction the server could not honour is never silently dropped on the way in
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> CatalogStatisticsConverter.toIndexBrowseCriteria(
@@ -696,6 +751,8 @@ class CatalogStatisticsConverterTest {
 					.setEntityType(StringValue.of("product"))
 					.setPageNumber(1)
 					.setPageSize(10)
+					.setOrdering(GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER)
+					.setDirection(GrpcOrderDirection.DESC)
 					.build()
 			)
 		);
