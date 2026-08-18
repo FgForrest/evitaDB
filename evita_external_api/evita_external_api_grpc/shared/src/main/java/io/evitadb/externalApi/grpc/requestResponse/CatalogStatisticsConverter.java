@@ -71,9 +71,6 @@ import io.evitadb.externalApi.grpc.generated.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -121,17 +118,6 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toS
  * @see EntityCollectionStatistics
  */
 public class CatalogStatisticsConverter {
-	/**
-	 * Stands in for the observation window when a server predating the `observedSince` wire field answers a newer
-	 * client - the message then carries no value, and decoding the protobuf default instance would fail on its empty
-	 * zone offset.
-	 *
-	 * The epoch rather than the moment of decoding: this surface already uses an epoch instant to mean *"nothing was
-	 * recorded"*, whereas decoding to "now" would report a zero-length window and make every rate a client computes
-	 * from it infinite.
-	 */
-	private static final OffsetDateTime OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE =
-		OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
 	private CatalogStatisticsConverter() {
 	}
@@ -1348,8 +1334,7 @@ public class CatalogStatisticsConverter {
 			.setHeapSizeInBytes(detail.heapSizeInBytes())
 			.setCardinality(toGrpcIndexCardinality(detail.cardinality()))
 			.setQueryCount(detail.queryCount())
-			.setUpdateCount(detail.updateCount())
-			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(detail.observedSince()));
+			.setUpdateCount(detail.updateCount());
 		if (detail.entityType() != null) {
 			builder.setEntityType(StringValue.of(detail.entityType()));
 		}
@@ -1360,6 +1345,11 @@ public class CatalogStatisticsConverter {
 		}
 		if (detail.lastUpdatedAt() != null) {
 			builder.setLastUpdatedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(detail.lastUpdatedAt()));
+		}
+		// null only on a description that itself came from a pre-observedSince server - the absence travels onward
+		// rather than being replaced by a fabricated instant
+		if (detail.observedSince() != null) {
+			builder.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(detail.observedSince()));
 		}
 		return builder.build();
 	}
@@ -1385,12 +1375,11 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastQueriedAt()) : null,
 			grpcDetail.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastUpdatedAt()) : null,
-			// a server predating the field sends nothing - decode the epoch rather than crash on the default
-			// instance's empty zone offset, and rather than "now", which would make every client-computed rate
-			// infinite by reporting a zero-length observation window
+			// a server predating the field sends nothing, and nothing may stand in for the missing window: any
+			// substituted instant fabricates one - the epoch a decades-long window that turns "never queried in the
+			// last week" falsely true, "now" a zero-length one that turns every rate infinite. Absence is the truth
 			grpcDetail.hasObservedSince() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) :
-				OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) : null
 		);
 	}
 
@@ -1531,8 +1520,12 @@ public class CatalogStatisticsConverter {
 			.setIndexPrimaryKey(index.indexPrimaryKey())
 			.setScope(toGrpcScope(index.scope()))
 			.setQueryCount(index.queryCount())
-			.setUpdateCount(index.updateCount())
-			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(index.observedSince()));
+			.setUpdateCount(index.updateCount());
+		// null only on a row that itself came from a pre-observedSince server - the absence travels onward rather
+		// than being replaced by a fabricated instant
+		if (index.observedSince() != null) {
+			builder.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(index.observedSince()));
+		}
 		if (index.entityType() != null) {
 			builder.setEntityType(StringValue.of(index.entityType()));
 		}
@@ -1587,10 +1580,9 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastQueriedAt()) : null,
 			grpcIndex.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null,
-			// see toIndexDetail for why an old server's silence decodes to the epoch
+			// see toIndexDetail for why an old server's silence decodes to an absence rather than to any instant
 			grpcIndex.hasObservedSince() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) :
-				OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) : null
 		);
 	}
 

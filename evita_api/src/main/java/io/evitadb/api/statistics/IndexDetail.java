@@ -86,10 +86,11 @@ import java.util.Optional;
  *                         since the catalog was loaded; see {@link #lastQueriedAtIfKnown()}
  * @param lastUpdatedAt    when the last entity mutation that acquired this index finished applying, or null when none
  *                         has since the catalog was loaded; see {@link #lastUpdatedAtIfKnown()}
- * @param observedSince    when observation of this index began - the moment its activity holder was constructed.
- *                         Always present, and the denominator the two counts above are read against; see
- *                         {@link BrowsedIndex#observedSince()} for why the window is per index rather than per catalog
- *                         load
+ * @param observedSince    when observation of this index began - the moment its activity holder was constructed, and
+ *                         the denominator the two counts above are read against. Null only when this description was
+ *                         decoded from a remote server that predates the field - a current server always reports it;
+ *                         see {@link BrowsedIndex#observedSince()} for why the window is per index rather than per
+ *                         catalog load and {@link #observedSinceIfKnown()} for what a client does with an unknown one
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see BrowsedIndex
  * @see CollectionIndexCardinality
@@ -103,7 +104,7 @@ public record IndexDetail(
 	long updateCount,
 	@Nullable OffsetDateTime lastQueriedAt,
 	@Nullable OffsetDateTime lastUpdatedAt,
-	@Nonnull OffsetDateTime observedSince
+	@Nullable OffsetDateTime observedSince
 ) {
 
 	/**
@@ -133,6 +134,20 @@ public record IndexDetail(
 	@Nonnull
 	public Optional<OffsetDateTime> lastUpdatedAtIfKnown() {
 		return Optional.ofNullable(this.lastUpdatedAt);
+	}
+
+	/**
+	 * When observation of this index began - the denominator its two counts are read against.
+	 *
+	 * **Empty means the window is unknown, never that observation has not started** - see
+	 * {@link BrowsedIndex#observedSinceIfKnown()} for the one case that produces it and why no instant may stand in
+	 * for a missing window.
+	 *
+	 * @return when observation began, empty only when a remote server was too old to report it
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> observedSinceIfKnown() {
+		return Optional.ofNullable(this.observedSince);
 	}
 
 }

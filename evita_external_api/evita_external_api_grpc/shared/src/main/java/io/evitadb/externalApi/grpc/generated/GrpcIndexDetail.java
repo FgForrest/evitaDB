@@ -341,7 +341,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When observation of this index began, and therefore the window the two counters and the two stamps above are read
    * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * Unlike the two stamps this field is ALWAYS present.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -355,7 +356,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When observation of this index began, and therefore the window the two counters and the two stamps above are read
    * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * Unlike the two stamps this field is ALWAYS present.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -369,7 +371,8 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * When observation of this index began, and therefore the window the two counters and the two stamps above are read
    * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * Unlike the two stamps this field is ALWAYS present.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -1938,7 +1941,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -1951,7 +1955,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -1968,7 +1973,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -1990,7 +1996,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -2010,7 +2017,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -2037,7 +2045,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -2056,7 +2065,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -2070,7 +2080,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
@@ -2087,7 +2098,8 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * When observation of this index began, and therefore the window the two counters and the two stamps above are read
      * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-     * Unlike the two stamps this field is ALWAYS present.
+     * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+     * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>

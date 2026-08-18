@@ -618,12 +618,12 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@Test
-	@DisplayName("decode a server that predates the observation window without crashing on its silence")
-	void shouldDecodeTheEpochWhenAnOldServerSendsNoObservedSince() throws InvalidProtocolBufferException {
+	@DisplayName("decode a server that predates the observation window as not knowing it, not as any instant")
+	void shouldDecodeAnAbsentObservedSinceAsUnknown() throws InvalidProtocolBufferException {
 		// a server built before the field existed sends messages without it - a newer client must not crash there,
-		// and must not invent "now" either, which would report a zero-length window and make every rate computed
-		// from it infinite. The epoch is this surface's established "nothing was recorded" instant
-		final OffsetDateTime epoch = OffsetDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		// and no instant may stand in for the missing window either: the epoch would fabricate a decades-long window
+		// that turns "never queried in the last week" falsely true, "now" a zero-length one that turns every rate
+		// infinite. The absence is the truth, and it is what travels
 		final BrowsedIndex row = new BrowsedIndex(
 			"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
 			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
@@ -647,8 +647,10 @@ class CatalogStatisticsConverterTest {
 			)
 		);
 
-		assertEquals(epoch, rowFromOldServer.observedSince(), "An old server's silence must decode to the epoch");
-		assertEquals(epoch, detailFromOldServer.observedSince(), "An old server's silence must decode to the epoch");
+		assertNull(rowFromOldServer.observedSince(), "An old server's silence must decode to an unknown window");
+		assertNull(detailFromOldServer.observedSince(), "An old server's silence must decode to an unknown window");
+		assertTrue(rowFromOldServer.observedSinceIfKnown().isEmpty());
+		assertTrue(detailFromOldServer.observedSinceIfKnown().isEmpty());
 		// everything else the old server did send still arrives intact
 		assertEquals(LAST_QUERIED_AT, rowFromOldServer.lastQueriedAt());
 		assertEquals(LAST_UPDATED_AT, detailFromOldServer.lastUpdatedAt());

@@ -159,8 +159,14 @@ import java.util.OptionalInt;
  *                                constructed, which is catalog load for an index restored from disk and first creation
  *                                for one born later.
  *
- *                                **Always present, unlike the two stamps above** - there is no absence to decode,
- *                                because an index has been observed since the moment it came into existence.
+ *                                **Null means one thing only: a remote server too old to report it.** A current
+ *                                server always sets it - an index has been observed since the moment it came into
+ *                                existence - so unlike the two stamps above there is no "not yet" case. It is null
+ *                                solely when this row was decoded from a server that predates the field, and then the
+ *                                window is genuinely unknown: no instant could stand in for it without fabricating
+ *                                one - the epoch would invent a decades-long window that turns "never queried in the
+ *                                last week" falsely true, "now" a zero-length one that turns every rate infinite.
+ *                                See {@link #observedSinceIfKnown()}.
  *
  *                                **It is the denominator the two counts are read against.** Dividing either by the
  *                                time elapsed since this instant states a lifetime average rate, and it is what
@@ -188,14 +194,11 @@ public record BrowsedIndex(
 	long updateCount,
 	@Nullable OffsetDateTime lastQueriedAt,
 	@Nullable OffsetDateTime lastUpdatedAt,
-	@Nonnull OffsetDateTime observedSince
+	@Nullable OffsetDateTime observedSince
 ) {
 
 	public BrowsedIndex {
 		Objects.requireNonNull(scope, "Scope must not be null!");
-		// checked rather than annotated only: this is the denominator a client divides the two counts by, and a null
-		// reaching a caller would turn "how often is this index queried" into a null pointer at the reading site
-		Objects.requireNonNull(observedSince, "Observation window must not be null!");
 		// the two nulls travel together by construction - only a catalog index lacks an owning collection, and only a
 		// catalog index lacks an entity-index kind. Checked rather than assumed because a converter that dropped one
 		// field would otherwise produce a row describing an index that cannot exist
@@ -251,6 +254,21 @@ public record BrowsedIndex(
 	@Nonnull
 	public Optional<OffsetDateTime> lastUpdatedAtIfKnown() {
 		return Optional.ofNullable(this.lastUpdatedAt);
+	}
+
+	/**
+	 * When observation of this index began - the denominator its two counts are read against.
+	 *
+	 * **Empty means the window is unknown, never that observation has not started.** A current server always reports
+	 * it; only a row decoded from a server that predates the field arrives without it. A client computing a rate or a
+	 * "never in the last N days" sentence must skip a row whose window is empty rather than substitute an instant -
+	 * any stand-in fabricates a window and with it the very statement this reading exists to keep honest.
+	 *
+	 * @return when observation began, empty only when a remote server was too old to report it
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> observedSinceIfKnown() {
+		return Optional.ofNullable(this.observedSince);
 	}
 
 }

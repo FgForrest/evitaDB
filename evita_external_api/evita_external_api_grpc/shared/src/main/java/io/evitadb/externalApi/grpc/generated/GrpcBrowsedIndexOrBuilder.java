@@ -394,8 +394,10 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
-   * there is no "not yet" case for absence to express.
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
    *
    * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
    * load, while one created hours later reads its own creation, because it was not observable before it existed. That
@@ -410,8 +412,10 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
-   * there is no "not yet" case for absence to express.
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
    *
    * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
    * load, while one created hours later reads its own creation, because it was not observable before it existed. That
@@ -426,8 +430,10 @@ public interface GrpcBrowsedIndexOrBuilder extends
   /**
    * <pre>
    * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
-   * there is no "not yet" case for absence to express.
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
    *
    * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
    * load, while one created hours later reads its own creation, because it was not observable before it existed. That
