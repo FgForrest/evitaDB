@@ -71,6 +71,9 @@ import io.evitadb.externalApi.grpc.generated.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -118,6 +121,17 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toS
  * @see EntityCollectionStatistics
  */
 public class CatalogStatisticsConverter {
+	/**
+	 * Stands in for the observation window when a server predating the `observedSince` wire field answers a newer
+	 * client - the message then carries no value, and decoding the protobuf default instance would fail on its empty
+	 * zone offset.
+	 *
+	 * The epoch rather than the moment of decoding: this surface already uses an epoch instant to mean *"nothing was
+	 * recorded"*, whereas decoding to "now" would report a zero-length window and make every rate a client computes
+	 * from it infinite.
+	 */
+	private static final OffsetDateTime OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE =
+		OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
 	private CatalogStatisticsConverter() {
 	}
@@ -1371,7 +1385,12 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastQueriedAt()) : null,
 			grpcDetail.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastUpdatedAt()) : null,
-			EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince())
+			// a server predating the field sends nothing - decode the epoch rather than crash on the default
+			// instance's empty zone offset, and rather than "now", which would make every client-computed rate
+			// infinite by reporting a zero-length observation window
+			grpcDetail.hasObservedSince() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) :
+				OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE
 		);
 	}
 
@@ -1568,7 +1587,10 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastQueriedAt()) : null,
 			grpcIndex.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null,
-			EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince())
+			// see toIndexDetail for why an old server's silence decodes to the epoch
+			grpcIndex.hasObservedSince() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) :
+				OBSERVATION_WINDOW_BEFORE_THE_SERVER_REPORTED_ONE
 		);
 	}
 

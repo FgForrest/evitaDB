@@ -68,6 +68,7 @@ import io.evitadb.api.statistics.CatalogIndexCardinality;
 import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse;
@@ -614,6 +615,43 @@ class CatalogStatisticsConverterTest {
 		// says how long that has been, which is the difference between "never" and "never, in the last four minutes"
 		assertEquals(OBSERVED_SINCE, roundTripped.observedSince());
 		assertEquals(detail, roundTripped);
+	}
+
+	@Test
+	@DisplayName("decode a server that predates the observation window without crashing on its silence")
+	void shouldDecodeTheEpochWhenAnOldServerSendsNoObservedSince() throws InvalidProtocolBufferException {
+		// a server built before the field existed sends messages without it - a newer client must not crash there,
+		// and must not invent "now" either, which would report a zero-length window and make every rate computed
+		// from it infinite. The epoch is this surface's established "nothing was recorded" instant
+		final OffsetDateTime epoch = OffsetDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		final BrowsedIndex row = new BrowsedIndex(
+			"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
+			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+		);
+		final IndexDetail detail = new IndexDetail(
+			"product", 1, 4_096L,
+			new IndexCardinality(EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, new AttributeCardinality[0]),
+			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+		);
+
+		final BrowsedIndex rowFromOldServer = CatalogStatisticsConverter.toBrowsedIndex(
+			GrpcBrowsedIndex.parseFrom(
+				CatalogStatisticsConverter.toGrpcBrowsedIndex(row).toBuilder().clearObservedSince().build()
+					.toByteArray()
+			)
+		);
+		final IndexDetail detailFromOldServer = CatalogStatisticsConverter.toIndexDetail(
+			GrpcIndexDetail.parseFrom(
+				CatalogStatisticsConverter.toGrpcIndexDetail(detail).toBuilder().clearObservedSince().build()
+					.toByteArray()
+			)
+		);
+
+		assertEquals(epoch, rowFromOldServer.observedSince(), "An old server's silence must decode to the epoch");
+		assertEquals(epoch, detailFromOldServer.observedSince(), "An old server's silence must decode to the epoch");
+		// everything else the old server did send still arrives intact
+		assertEquals(LAST_QUERIED_AT, rowFromOldServer.lastQueriedAt());
+		assertEquals(LAST_UPDATED_AT, detailFromOldServer.lastUpdatedAt());
 	}
 
 	@Test
