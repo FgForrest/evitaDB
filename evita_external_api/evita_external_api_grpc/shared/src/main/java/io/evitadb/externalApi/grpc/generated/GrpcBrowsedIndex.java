@@ -558,6 +558,65 @@ private static final long serialVersionUID = 0L;
     return lastUpdatedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
   }
 
+  public static final int OBSERVEDSINCE_FIELD_NUMBER = 13;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   * @return Whether the observedSince field is set.
+   */
+  @java.lang.Override
+  public boolean hasObservedSince() {
+    return ((bitField0_ & 0x00000100) != 0);
+  }
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   * @return The observedSince.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince() {
+    return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
+  }
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder() {
+    return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -607,6 +666,9 @@ private static final long serialVersionUID = 0L;
     }
     if (((bitField0_ & 0x00000080) != 0)) {
       output.writeMessage(12, getLastUpdatedAt());
+    }
+    if (((bitField0_ & 0x00000100) != 0)) {
+      output.writeMessage(13, getObservedSince());
     }
     getUnknownFields().writeTo(output);
   }
@@ -664,6 +726,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000080) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(12, getLastUpdatedAt());
+    }
+    if (((bitField0_ & 0x00000100) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(13, getObservedSince());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -726,6 +792,11 @@ private static final long serialVersionUID = 0L;
       if (!getLastUpdatedAt()
           .equals(other.getLastUpdatedAt())) return false;
     }
+    if (hasObservedSince() != other.hasObservedSince()) return false;
+    if (hasObservedSince()) {
+      if (!getObservedSince()
+          .equals(other.getObservedSince())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -778,6 +849,10 @@ private static final long serialVersionUID = 0L;
     if (hasLastUpdatedAt()) {
       hash = (37 * hash) + LASTUPDATEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getLastUpdatedAt().hashCode();
+    }
+    if (hasObservedSince()) {
+      hash = (37 * hash) + OBSERVEDSINCE_FIELD_NUMBER;
+      hash = (53 * hash) + getObservedSince().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -941,6 +1016,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeFieldBuilder();
         getLastQueriedAtFieldBuilder();
         getLastUpdatedAtFieldBuilder();
+        getObservedSinceFieldBuilder();
       }
     }
     @java.lang.Override
@@ -986,6 +1062,11 @@ private static final long serialVersionUID = 0L;
       if (lastUpdatedAtBuilder_ != null) {
         lastUpdatedAtBuilder_.dispose();
         lastUpdatedAtBuilder_ = null;
+      }
+      observedSince_ = null;
+      if (observedSinceBuilder_ != null) {
+        observedSinceBuilder_.dispose();
+        observedSinceBuilder_ = null;
       }
       return this;
     }
@@ -1079,6 +1160,12 @@ private static final long serialVersionUID = 0L;
             : lastUpdatedAtBuilder_.build();
         to_bitField0_ |= 0x00000080;
       }
+      if (((from_bitField0_ & 0x00001000) != 0)) {
+        result.observedSince_ = observedSinceBuilder_ == null
+            ? observedSince_
+            : observedSinceBuilder_.build();
+        to_bitField0_ |= 0x00000100;
+      }
       result.bitField0_ |= to_bitField0_;
     }
 
@@ -1161,6 +1248,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasLastUpdatedAt()) {
         mergeLastUpdatedAt(other.getLastUpdatedAt());
+      }
+      if (other.hasObservedSince()) {
+        mergeObservedSince(other.getObservedSince());
       }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
@@ -1262,6 +1352,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000800;
               break;
             } // case 98
+            case 106: {
+              input.readMessage(
+                  getObservedSinceFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00001000;
+              break;
+            } // case 106
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2944,6 +3041,226 @@ private static final long serialVersionUID = 0L;
         lastUpdatedAt_ = null;
       }
       return lastUpdatedAtBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> observedSinceBuilder_;
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     * @return Whether the observedSince field is set.
+     */
+    public boolean hasObservedSince() {
+      return ((bitField0_ & 0x00001000) != 0);
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     * @return The observedSince.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince() {
+      if (observedSinceBuilder_ == null) {
+        return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
+      } else {
+        return observedSinceBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public Builder setObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (observedSinceBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        observedSince_ = value;
+      } else {
+        observedSinceBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public Builder setObservedSince(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (observedSinceBuilder_ == null) {
+        observedSince_ = builderForValue.build();
+      } else {
+        observedSinceBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public Builder mergeObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (observedSinceBuilder_ == null) {
+        if (((bitField0_ & 0x00001000) != 0) &&
+          observedSince_ != null &&
+          observedSince_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getObservedSinceBuilder().mergeFrom(value);
+        } else {
+          observedSince_ = value;
+        }
+      } else {
+        observedSinceBuilder_.mergeFrom(value);
+      }
+      if (observedSince_ != null) {
+        bitField0_ |= 0x00001000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public Builder clearObservedSince() {
+      bitField0_ = (bitField0_ & ~0x00001000);
+      observedSince_ = null;
+      if (observedSinceBuilder_ != null) {
+        observedSinceBuilder_.dispose();
+        observedSinceBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getObservedSinceBuilder() {
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return getObservedSinceFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder() {
+      if (observedSinceBuilder_ != null) {
+        return observedSinceBuilder_.getMessageOrBuilder();
+      } else {
+        return observedSince_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+     * there is no "not yet" case for absence to express.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getObservedSinceFieldBuilder() {
+      if (observedSinceBuilder_ == null) {
+        observedSinceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getObservedSince(),
+                getParentForChildren(),
+                isClean());
+        observedSince_ = null;
+      }
+      return observedSinceBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

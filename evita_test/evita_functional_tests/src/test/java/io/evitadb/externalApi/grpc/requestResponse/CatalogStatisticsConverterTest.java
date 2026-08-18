@@ -79,7 +79,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumMap;
@@ -157,10 +156,13 @@ class CatalogStatisticsConverterTest {
 	private static final OffsetDateTime LAST_UPDATED_AT =
 		OffsetDateTime.of(2026, 6, 7, 8, 9, 10, 110_000_000, ZoneOffset.UTC);
 	/**
-	 * When observation of an index began. The wire does not carry this reading yet, so the converter decodes every
-	 * index to the epoch and a fixture asserting a round trip has to state the same instant to compare like with like.
+	 * When observation of an index began - distinct from both stamps above, so a converter carrying one of them into
+	 * this slot fails rather than round-trips a matching pair. Unlike the two stamps this reading is never absent, and
+	 * it is never the epoch either: a converter substituting a placeholder would report a zero-length observation
+	 * window and make every rate a client computes from it infinite.
 	 */
-	private static final OffsetDateTime OBSERVED_SINCE = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
+	private static final OffsetDateTime OBSERVED_SINCE =
+		OffsetDateTime.of(2026, 8, 9, 10, 11, 12, 130_000_000, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -501,6 +503,12 @@ class CatalogStatisticsConverterTest {
 		assertNull(roundTripped.indexes()[4].lastUpdatedAt());
 		assertEquals(0L, roundTripped.indexes()[4].queryCount());
 		assertEquals(0L, roundTripped.indexes()[4].updateCount());
+		// the observation window every row carries, including the one that has never been queried or updated - it is
+		// what makes a zero count readable as "not once in this long" rather than as an unqualified zero, so it has to
+		// arrive as sent rather than as a stand-in the decoder made up
+		for (int i = 0; i < indexes.length; i++) {
+			assertEquals(OBSERVED_SINCE, roundTripped.indexes()[i].observedSince());
+		}
 	}
 
 	@Test
@@ -550,6 +558,7 @@ class CatalogStatisticsConverterTest {
 		assertEquals(4_000_000_000L, roundTripped.updateCount(), "A count past int range must not wrap");
 		assertEquals(LAST_QUERIED_AT, roundTripped.lastQueriedAt());
 		assertEquals(LAST_UPDATED_AT, roundTripped.lastUpdatedAt());
+		assertEquals(OBSERVED_SINCE, roundTripped.observedSince(), "The observation window must arrive as sent");
 		assertEquals(detail, roundTripped);
 	}
 
@@ -601,6 +610,9 @@ class CatalogStatisticsConverterTest {
 		assertNull(roundTripped.lastUpdatedAt(), "A never-updated index must not decode to the epoch");
 		assertTrue(roundTripped.lastQueriedAtIfKnown().isEmpty());
 		assertTrue(roundTripped.lastUpdatedAtIfKnown().isEmpty());
+		// the reading that keeps the two absences above readable: an index untouched since observation began still
+		// says how long that has been, which is the difference between "never" and "never, in the last four minutes"
+		assertEquals(OBSERVED_SINCE, roundTripped.observedSince());
 		assertEquals(detail, roundTripped);
 	}
 

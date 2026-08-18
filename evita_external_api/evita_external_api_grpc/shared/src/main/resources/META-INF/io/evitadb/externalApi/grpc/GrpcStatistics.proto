@@ -890,6 +890,15 @@ message GrpcBrowsedIndex {
   // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
   // was loaded - see `lastQueriedAt`.
   GrpcOffsetDateTime lastUpdatedAt = 12;
+  // When observation of this index began - the start of the window the two counters and the two stamps above are read
+  // against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+  // there is no "not yet" case for absence to express.
+  //
+  // It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+  // load, while one created hours later reads its own creation, because it was not observable before it existed. That
+  // is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+  // zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+  GrpcOffsetDateTime observedSince = 13;
 
 }
 
@@ -942,5 +951,9 @@ message GrpcIndexDetail {
   // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
   // was loaded.
   GrpcOffsetDateTime lastUpdatedAt = 8;
+  // When observation of this index began, and therefore the window the two counters and the two stamps above are read
+  // against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+  // Unlike the two stamps this field is ALWAYS present.
+  GrpcOffsetDateTime observedSince = 9;
 
 }

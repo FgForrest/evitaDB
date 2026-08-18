@@ -390,4 +390,52 @@ public interface GrpcBrowsedIndexOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime lastUpdatedAt = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getLastUpdatedAtOrBuilder();
+
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   * @return Whether the observedSince field is set.
+   */
+  boolean hasObservedSince();
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   * @return The observedSince.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince();
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. Unlike those two stamps this field is ALWAYS present: an index is observed from the moment it exists, so
+   * there is no "not yet" case for absence to express.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder();
 }
