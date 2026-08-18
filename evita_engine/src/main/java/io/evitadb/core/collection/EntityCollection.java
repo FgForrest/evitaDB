@@ -2988,7 +2988,8 @@ public final class EntityCollection implements
 					"No entity collection found for entity type `" + otherEntityType + "` " +
 						"while resolving schema for cross-entity expression evaluation."
 				)),
-			this.catalog
+			this.catalog,
+			this.usageRegistry
 		);
 
 		return localMutationExecutorCollector.execute(

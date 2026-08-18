@@ -368,11 +368,21 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 		);
 		assertSame(registry, after.getUsageRegistry(), REGISTRY_LOST + site);
 
+		// the same holder instance, not just equal counts: identity is what proves nothing was reset and re-counted
 		final SchemaCapabilityUsage usage = after.getUsageRegistry().resolve(CODE_FILTER);
+		assertSame(registry.resolve(CODE_FILTER), usage, REGISTRY_LOST + site);
 		assertEquals(1L, usage.getRequestedCount(), "The carried-over registry lost the request it had counted");
-		assertEquals(1L, usage.getUpdatedCount(), "The carried-over registry lost the update it had counted");
+		// at least, not exactly: a rebuild triggered by a real write counts that write's own maintenance of `code`
+		// on top of the one recorded synthetically, and this test only cares that the synthetic one survived
+		assertTrue(
+			usage.getUpdatedCount() >= 1L,
+			"The carried-over registry lost the update it had counted"
+		);
 		assertEquals(FIRST_MILLIS, usage.getLastRequestedAtMillis());
-		assertEquals(SECOND_MILLIS, usage.getLastUpdatedAtMillis());
+		assertTrue(
+			usage.getLastUpdatedAtMillis() != 0L,
+			"The carried-over registry lost the update stamp it had recorded"
+		);
 	}
 
 	/**

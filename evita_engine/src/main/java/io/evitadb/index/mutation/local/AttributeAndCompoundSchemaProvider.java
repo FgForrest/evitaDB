@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -102,5 +103,21 @@ public sealed interface AttributeAndCompoundSchemaProvider permits EntitySchemaA
 	 */
 	@Nonnull
 	Stream<SortableAttributeCompoundSchema> getCompoundAttributeSchemas(@Nonnull String attributeName);
+
+	/**
+	 * Returns the name of the reference that **declares** the elements this provider serves, or `null` when the entity
+	 * declares them directly.
+	 *
+	 * This is the only trustworthy answer to *"whose attribute is this?"* on the mutation path, and the reason it lives
+	 * here rather than being read off the `referenceSchema` argument the mutator methods already receive: an
+	 * **entity** attribute fans out into every reduced index, and those calls carry the reference schema owning the
+	 * reduced index (see `AttributeMutationFanOut`). Deriving the owner from that argument would file an entity
+	 * attribute under whichever reference happened to be indexed alongside it. The provider, by contrast, is chosen by
+	 * the caller from the schema the attribute was looked up in, so it cannot disagree with the schema.
+	 *
+	 * @return name of the declaring reference, or `null` when the entity declares the elements itself
+	 */
+	@Nullable
+	String getContainerName();
 
 }
