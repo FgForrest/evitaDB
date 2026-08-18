@@ -156,6 +156,7 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
@@ -321,6 +322,27 @@ public final class EntityCollection implements
 	 */
 	private final CacheSupervisor cacheSupervisor;
 	/**
+	 * Counts, per capability this collection's schema declares, how many queries **requested** it against how many
+	 * entity mutations **touched** it - the reading that says whether a `filterable()`, `sortable()` or `unique()` flag
+	 * earns the indexes it costs. Unlike {@link io.evitadb.index.IndexActivity}, which reports one physical index, an
+	 * entry here aggregates every index maintaining one schema element, because the remedial action - dropping the
+	 * flag - removes all of them at once.
+	 *
+	 * Three properties of the holder, all deliberate:
+	 *
+	 * - **Non-transactional.** It is shared mutable telemetry, never part of the transactional diff layer, and a reader
+	 *   may see a count advanced by a transaction that later rolls back - the maintenance work was performed anyway.
+	 * - **Shared across collection versions by reference.** Every commit that dirties this collection rebuilds it, so
+	 *   a registry allocated per instance would reset exactly on the collections worth measuring, and would do so
+	 *   silently. It therefore rides the copy constructors like {@link #pkSequence} and {@link #cacheSupervisor} do,
+	 *   and only a fresh collection or one loaded from disk mints a new one - which is what makes the counts "since
+	 *   catalog load".
+	 * - **Pruned when this collection adopts a new schema version** (see
+	 *   {@link #exchangeSchema(EntitySchema, EntitySchema)}), so a capability dropped from the schema and added back
+	 *   does not inherit the numbers accumulated before it was dropped.
+	 */
+	private final SchemaCapabilityUsageRegistry usageRegistry;
+	/**
 	 * Traffic recorder used for recording the traffic in the catalog.
 	 */
 	private final TrafficRecordingEngine trafficRecorder;
@@ -404,6 +426,9 @@ public final class EntityCollection implements
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = entityCollectionPersistenceService;
 		this.cacheSupervisor = cacheSupervisor;
+		// a collection created here is either brand new or restored from disk, and neither carries usage numbers - this
+		// is the allocation that makes the counts "since catalog load"
+		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 
 		try {
 			final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
@@ -546,6 +571,9 @@ public final class EntityCollection implements
 		);
 		this.indexPopulation = indexTuple.indexPopulation();
 		this.cacheSupervisor = previousCollection.cacheSupervisor;
+		// a catalog rename carries the same logical collection forward, so its usage numbers travel with it - the data
+		// and the indexes did not change, and neither did the question of which capabilities the workload uses
+		this.usageRegistry = previousCollection.usageRegistry;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
 			Query.query(collection(entityType)),
@@ -572,6 +600,7 @@ public final class EntityCollection implements
 		@Nonnull Map<Integer, EntityIndex> indexesByPk,
 		@Nonnull IndexPopulation indexPopulation,
 		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
 		this.trafficRecorder = trafficRecorder;
@@ -597,6 +626,10 @@ public final class EntityCollection implements
 		this.indexesByPrimaryKey = PersistentTransactionalProducerMap.withExplicitDirtyKeyMerge(indexesByPk, EntityIndex.class::cast);
 		this.indexPopulation = indexPopulation;
 		this.cacheSupervisor = cacheSupervisor;
+		// every caller of this constructor rebuilds an EXISTING collection - a commit, a compaction, a collection
+		// rename - and hands over the registry it already had. Minting one here instead would reset the counters of
+		// precisely the collections being written to, and nothing downstream would look wrong
+		this.usageRegistry = usageRegistry;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
 			Query.query(collection(entitySchema.getName())),
@@ -622,6 +655,19 @@ public final class EntityCollection implements
 	@Nonnull
 	public StoragePartPersistenceService<StorageDescriptor> getStoragePartPersistenceService() {
 		return this.persistenceService.getStoragePartPersistenceService();
+	}
+
+	/**
+	 * The per-capability usage counters of this collection - see {@link #usageRegistry} for what they mean and how long
+	 * they live. The registry is the same instance for every catalog version of one logical collection, so a caller may
+	 * hold on to it across a commit; what it must not do is assume the numbers relate to a particular catalog version,
+	 * because they do not.
+	 *
+	 * @return the registry counting this collection's schema capabilities
+	 */
+	@Nonnull
+	public SchemaCapabilityUsageRegistry getUsageRegistry() {
+		return this.usageRegistry;
 	}
 
 	@Override
@@ -2095,6 +2141,7 @@ public final class EntityCollection implements
 				indexTuple.indexesByPk(),
 				indexTuple.indexPopulation(),
 				this.cacheSupervisor,
+				this.usageRegistry,
 				this.trafficRecorder
 			);
 		} else {
@@ -2132,6 +2179,7 @@ public final class EntityCollection implements
 					indexTuple.indexesByPk(),
 					indexTuple.indexPopulation(),
 					this.cacheSupervisor,
+					this.usageRegistry,
 					this.trafficRecorder
 				);
 			} else {
@@ -2178,6 +2226,7 @@ public final class EntityCollection implements
 			// over its still-mutable buffer, and the counts must follow the collection that will be written through
 			this.indexPopulation.copy(),
 			this.cacheSupervisor,
+			this.usageRegistry,
 			this.trafficRecorder
 		);
 		// the catalog remains the same here; attach only the collection shell. The fresh copy shares this.indexes by
@@ -2211,6 +2260,7 @@ public final class EntityCollection implements
 			indexTuple.indexesByPk(),
 			indexTuple.indexPopulation(),
 			this.cacheSupervisor,
+			this.usageRegistry,
 			this.trafficRecorder
 		);
 	}
@@ -2480,7 +2530,19 @@ public final class EntityCollection implements
 
 	/**
 	 * Exchanges the schema from the original to the updated schema.
-	 * Method is public only because we need to use it in tests.
+	 *
+	 * This is the **only** place this collection adopts a new schema version - every schema mutation, whether applied
+	 * directly in warm-up or into a transaction's layer, and every reflected-reference refresh arrives here - which is
+	 * what makes it the single hook for pruning {@link #usageRegistry}. Routing a new adoption path around it would
+	 * leave the registry holding counters for capabilities the schema no longer declares.
+	 *
+	 * The prune runs against the schema the exchange has just published, so it precedes the commit of a transactional
+	 * change rather than following it. That ordering is what a rollback exposes: a schema update that drops a
+	 * capability and is then rolled back leaves the registry having discarded that capability's counters even though
+	 * the flag survived. The discard is one-directional - a stale entry can never outlive the schema that backed it,
+	 * only a live one can lose its history - which is the error worth having, since the counters are a rate over an
+	 * observation window and {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says
+	 * honestly when the surviving window began.
 	 *
 	 * @param originalSchema the original schema to be exchanged
 	 * @param updatedSchema  the updated schema to replace the original
@@ -2495,6 +2557,8 @@ public final class EntityCollection implements
 			Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
 			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
 		);
+		// only after the exchange is known to have won the race - a losing exchange changed nothing to prune against
+		this.usageRegistry.pruneFor(updatedSchema);
 		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 
