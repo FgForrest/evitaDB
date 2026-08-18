@@ -864,7 +864,7 @@ public abstract class EntityIndex implements
 	 *
 	 * {@link #activity} is charged **here, in full**, even though the holder is shared with the superseded versions of
 	 * this same logical index: only one version of an index is ever walked, and the predecessor is garbage-in-waiting,
-	 * so reporting the four longs as shared would show them belonging to nobody (accounting rule 2).
+	 * so reporting the five longs as shared would show them belonging to nobody (accounting rule 2).
 	 *
 	 * @param ownFieldBytes the field bytes the concrete subclass adds to the base's own
 	 * @return the owned heap footprint of the inherited state, in bytes, including alignment padding

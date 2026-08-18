@@ -1,7 +1,7 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-18 11:54
+updated: 2026-08-18 17:55
 status: accepted
 kind: feature
 issues: []
@@ -217,11 +217,15 @@ across catalog versions, because only one version is ever walked — the ruling 
 and would make the byte-exact JOL assertions nondeterministic. The CAS updaters are `static` fields, so
 an instance is five longs and nothing else — four volatile, plus the final `observedSinceMillis`.
 
-**The wire is additive.** `GrpcBrowsedIndex` gains tags 9-13 and `GrpcIndexDetail` tags 5-9, and
-`GrpcIndexBrowseOrdering` values 3-6. The two
-counts are `int64`; the two stamps are message-typed `GrpcOffsetDateTime` so that "never" is expressible
-as absence — a `0` sentinel would render as a date in 1970 on every never-queried index, which is most
-of them.
+**The wire is additive for the readings, reshaped for the ordering.** `GrpcBrowsedIndex` gains tags
+9-13 and `GrpcIndexDetail` tags 5-9. The two counts are `int64`; the two stamps are message-typed
+`GrpcOffsetDateTime` so that "never" is expressible as absence — a `0` sentinel would render as a date
+in 1970 on every never-queried index, which is most of them. `GrpcIndexBrowseOrdering`, by contrast,
+was **renumbered in place** to the four keys 0-3 when the direction split out into
+`GrpcOrderDirection direction = 9` on the request — a breaking wire change, taken deliberately because
+no release tag or release branch contains the old values. The one client it can bite is a `dev`
+snapshot built between the two shapes, whose old ordinals decode as a different key; a released client
+cannot be affected.
 
 ## Verification
 
