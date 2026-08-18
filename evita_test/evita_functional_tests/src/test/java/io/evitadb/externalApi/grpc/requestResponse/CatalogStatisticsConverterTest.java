@@ -79,6 +79,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.EnumMap;
@@ -155,6 +156,11 @@ class CatalogStatisticsConverterTest {
 	 */
 	private static final OffsetDateTime LAST_UPDATED_AT =
 		OffsetDateTime.of(2026, 6, 7, 8, 9, 10, 110_000_000, ZoneOffset.UTC);
+	/**
+	 * When observation of an index began. The wire does not carry this reading yet, so the converter decodes every
+	 * index to the epoch and a fixture asserting a round trip has to state the same instant to compare like with like.
+	 */
+	private static final OffsetDateTime OBSERVED_SINCE = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
 	@Test
 	@DisplayName("carry every catalog-level component back unchanged")
@@ -417,31 +423,31 @@ class CatalogStatisticsConverterTest {
 		final BrowsedIndex[] indexes = {
 			new BrowsedIndex(
 				"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
-				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT
+				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			new BrowsedIndex(
 				"product", 2, EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE,
 				"categories", "categories", null, 400,
-				0L, 12L, null, LAST_UPDATED_AT
+				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			// the case the two projections cannot express: same reference, same target, told apart only by the
 			// representative values the discriminator carries
 			new BrowsedIndex(
 				"product", 3, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
 				"categories/42/[red]", "categories", 42, 7,
-				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			new BrowsedIndex(
 				"product", 4, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
 				"categories/42/[blue]", "categories", 42, 7,
-				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			// a catalog index that has never been touched: no owning collection, and with it no kind and no entity
 			// count, plus two never-recorded stamps. Every one of those five travels as an unset wrapper or message,
 			// and every one decodes to a non-null default when read without a presence check - `""`,
 			// `INDEX_TYPE_UNSPECIFIED`, `0` and the epoch respectively - so this row is the one that catches a
 			// converter reading any of them straight
-			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null, 0L, 0L, null, null)
+			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null, 0L, 0L, null, null, OBSERVED_SINCE)
 		};
 		final GrpcIndexBrowseResponse.Builder builder =
 			GrpcIndexBrowseResponse.newBuilder()
@@ -522,7 +528,8 @@ class CatalogStatisticsConverterTest {
 			9_000_000_000L,
 			4_000_000_000L,
 			LAST_QUERIED_AT,
-			LAST_UPDATED_AT
+			LAST_UPDATED_AT,
+			OBSERVED_SINCE
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
@@ -575,7 +582,8 @@ class CatalogStatisticsConverterTest {
 			0L,
 			0L,
 			null,
-			null
+			null,
+			OBSERVED_SINCE
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(

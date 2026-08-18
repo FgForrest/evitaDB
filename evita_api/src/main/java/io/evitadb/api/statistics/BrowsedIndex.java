@@ -155,6 +155,22 @@ import java.util.OptionalInt;
  *                                chosen it since the catalog was loaded; see {@link #lastQueriedAtIfKnown()}
  * @param lastUpdatedAt           when the last entity mutation that acquired this index finished applying, or null
  *                                when none has since the catalog was loaded; see {@link #lastUpdatedAtIfKnown()}
+ * @param observedSince           when observation of **this** index began - the moment its activity holder was
+ *                                constructed, which is catalog load for an index restored from disk and first creation
+ *                                for one born later.
+ *
+ *                                **Always present, unlike the two stamps above** - there is no absence to decode,
+ *                                because an index has been observed since the moment it came into existence.
+ *
+ *                                **It is the denominator the two counts are read against.** Dividing either by the
+ *                                time elapsed since this instant states a lifetime average rate, and it is what
+ *                                qualifies a zero count into something actionable: *"not queried in the twenty
+ *                                minutes since this index was created"* is a statement an operator can act on, where
+ *                                a bare zero is not.
+ *
+ *                                **Per index, deliberately not per catalog load.** An index created hours after the
+ *                                catalog opened was not observable before it existed, so billing it the catalog's
+ *                                window would make its zero count read as a far stronger statement than it is.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see IndexBrowseCriteria
  * @see CollectionIndexSummary
@@ -171,11 +187,15 @@ public record BrowsedIndex(
 	long queryCount,
 	long updateCount,
 	@Nullable OffsetDateTime lastQueriedAt,
-	@Nullable OffsetDateTime lastUpdatedAt
+	@Nullable OffsetDateTime lastUpdatedAt,
+	@Nonnull OffsetDateTime observedSince
 ) {
 
 	public BrowsedIndex {
 		Objects.requireNonNull(scope, "Scope must not be null!");
+		// checked rather than annotated only: this is the denominator a client divides the two counts by, and a null
+		// reaching a caller would turn "how often is this index queried" into a null pointer at the reading site
+		Objects.requireNonNull(observedSince, "Observation window must not be null!");
 		// the two nulls travel together by construction - only a catalog index lacks an owning collection, and only a
 		// catalog index lacks an entity-index kind. Checked rather than assumed because a converter that dropped one
 		// field would otherwise produce a row describing an index that cannot exist

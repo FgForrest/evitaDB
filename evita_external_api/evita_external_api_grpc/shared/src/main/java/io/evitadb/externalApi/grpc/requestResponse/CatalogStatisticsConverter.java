@@ -71,6 +71,9 @@ import io.evitadb.externalApi.grpc.generated.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -118,6 +121,15 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toS
  * @see EntityCollectionStatistics
  */
 public class CatalogStatisticsConverter {
+	/**
+	 * Stands in for the observation window of an index while the wire does not carry one yet.
+	 *
+	 * The epoch rather than the moment of decoding: this surface already uses an epoch instant to mean *"nothing was
+	 * recorded"* everywhere a stamp is missing, whereas decoding to "now" would report a zero-length window and make
+	 * every rate a client computes from it infinite.
+	 */
+	private static final OffsetDateTime OBSERVATION_WINDOW_NOT_ON_THE_WIRE =
+		OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
 	private CatalogStatisticsConverter() {
 	}
@@ -1369,7 +1381,8 @@ public class CatalogStatisticsConverter {
 			grpcDetail.hasLastQueriedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastQueriedAt()) : null,
 			grpcDetail.hasLastUpdatedAt() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastUpdatedAt()) : null
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getLastUpdatedAt()) : null,
+			OBSERVATION_WINDOW_NOT_ON_THE_WIRE
 		);
 	}
 
@@ -1564,7 +1577,8 @@ public class CatalogStatisticsConverter {
 			grpcIndex.hasLastQueriedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastQueriedAt()) : null,
 			grpcIndex.hasLastUpdatedAt() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null,
+			OBSERVATION_WINDOW_NOT_ON_THE_WIRE
 		);
 	}
 

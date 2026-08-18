@@ -58,6 +58,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -295,6 +296,22 @@ class CatalogIndexProjectionTest {
 			assertNull(idleRow.lastUpdatedAt());
 		}
 
+		@Test
+		@DisplayName("states when observation of the index each row describes began")
+		void shouldReportWhenObservationOfEachDescribedIndexBegan() {
+			// the archived index is created lazily, so the two windows genuinely differ in production - a row carrying
+			// the wrong one would let a client divide a count by a window the index never had
+			final CatalogIndex live = empty(Scope.LIVE);
+			final CatalogIndex archived = empty(Scope.ARCHIVED);
+			// taken after the fixture is built, so both windows have already opened by now
+			final OffsetDateTime now = OffsetDateTime.now();
+
+			final IndexBrowseResult result = browse(List.of(live, archived), criteria(1, 10));
+
+			assertObservationWindowOf(live, rowOfScope(result, Scope.LIVE).observedSince(), now);
+			assertObservationWindowOf(archived, rowOfScope(result, Scope.ARCHIVED).observedSince(), now);
+		}
+
 	}
 
 	@Nested
@@ -340,6 +357,18 @@ class CatalogIndexProjectionTest {
 			assertEquals(1L, detail.updateCount(), "A query must not be counted as maintenance");
 			assertEquals(toTimestamp(SECOND_MILLIS), detail.lastQueriedAt(), "The stamp is the last one recorded");
 			assertEquals(toTimestamp(THIRD_MILLIS), detail.lastUpdatedAt());
+		}
+
+		@Test
+		@DisplayName("states when observation of the described index began")
+		void shouldReportWhenObservationOfTheDescribedIndexBegan() {
+			final CatalogIndex index = seeded(Scope.ARCHIVED);
+			// taken after the fixture is built, so the window has already opened by now
+			final OffsetDateTime now = OffsetDateTime.now();
+
+			final IndexDetail detail = CatalogIndexProjection.describe(index);
+
+			assertObservationWindowOf(index, detail.observedSince(), now);
 		}
 
 		@Test
@@ -415,6 +444,29 @@ class CatalogIndexProjectionTest {
 			.filter(it -> scope == it.scope())
 			.findFirst()
 			.orElseThrow(() -> new AssertionError("no row describes the catalog index of scope " + scope));
+	}
+
+	/**
+	 * Asserts that a reported observation window is the one the given index's own holder opened.
+	 *
+	 * @param index         the index the reading describes
+	 * @param observedSince the window the projection reported for it
+	 * @param now           an instant taken after the fixture was built, which the window cannot postdate
+	 */
+	private static void assertObservationWindowOf(
+		@Nonnull CatalogIndex index,
+		@Nullable OffsetDateTime observedSince,
+		@Nonnull OffsetDateTime now
+	) {
+		assertNotNull(
+			observedSince,
+			"An index has been observed since it came into existence, so there is no absence to report"
+		);
+		assertFalse(observedSince.isAfter(now), "Observation cannot have begun after the call that reports it");
+		assertEquals(
+			index.getActivity().getObservedSince(), observedSince,
+			"The reading must carry the window of the holder it describes"
+		);
 	}
 
 	/**

@@ -82,7 +82,8 @@ final class IndexDetailProjection {
 			activity.getQueryCount(),
 			activity.getUpdateCount(),
 			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt()
+			activity.getLastUpdatedAt(),
+			activity.getObservedSince()
 		);
 	}
 

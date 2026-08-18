@@ -145,7 +145,7 @@ final class IndexBrowseProjection {
 			}
 			if (matched >= offset && matched < end) {
 				// one fetch serves every reading - the identity the row is addressed by, the count it reports and the
-				// activity holder it reads its four counters off
+				// activity holder it reads its five activity readings off
 				final EntityIndex index = indexOf(indexes, key);
 				page.add(
 					describe(
@@ -305,7 +305,7 @@ final class IndexBrowseProjection {
 	 * @param key             key identifying the index
 	 * @param indexPrimaryKey identity of the index, which is what the descriptor is addressed by
 	 * @param entityCount     how many entities the index covers
-	 * @param activity        the index's activity holder, read here rather than during the walk - four `O(1)` volatile
+	 * @param activity        the index's activity holder, read here rather than during the walk - five `O(1)` field
 	 *                        reads that only the rows actually on the page pay for
 	 * @return the descriptor
 	 */
@@ -329,7 +329,8 @@ final class IndexBrowseProjection {
 			activity.getQueryCount(),
 			activity.getUpdateCount(),
 			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt()
+			activity.getLastUpdatedAt(),
+			activity.getObservedSince()
 		);
 	}
 

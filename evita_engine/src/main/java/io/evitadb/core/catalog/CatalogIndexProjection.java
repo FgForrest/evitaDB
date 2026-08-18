@@ -214,7 +214,8 @@ final class CatalogIndexProjection {
 			activity.getQueryCount(),
 			activity.getUpdateCount(),
 			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt()
+			activity.getLastUpdatedAt(),
+			activity.getObservedSince()
 		);
 	}
 
@@ -246,7 +247,7 @@ final class CatalogIndexProjection {
 	 * Renders the catalog index of one scope into its browse row.
 	 *
 	 * @param scope    scope of the index
-	 * @param activity the index's activity holder, whose four readings are `O(1)` volatile reads
+	 * @param activity the index's activity holder, whose five readings are `O(1)` field reads
 	 * @return the descriptor
 	 */
 	@Nonnull
@@ -265,7 +266,8 @@ final class CatalogIndexProjection {
 			activity.getQueryCount(),
 			activity.getUpdateCount(),
 			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt()
+			activity.getLastUpdatedAt(),
+			activity.getObservedSince()
 		);
 	}
 

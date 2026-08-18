@@ -58,7 +58,9 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -386,6 +388,48 @@ class IndexBrowseProjectionTest {
 				assertNull(idleRow.lastUpdatedAt(), "in " + ordering);
 				assertTrue(idleRow.lastQueriedAtIfKnown().isEmpty(), "in " + ordering);
 				assertTrue(idleRow.lastUpdatedAtIfKnown().isEmpty(), "in " + ordering);
+			}
+		}
+
+		/**
+		 * The window is what turns the two counts into rates and what makes a zero count readable, so a row that lost
+		 * it - or picked up a neighbour's - would leave a client with a number it cannot qualify. Both orderings are
+		 * asserted for the same reason the readings above are: they reach the holder by different routes.
+		 */
+		@Test
+		@DisplayName("Every row states when observation of the index it describes began, in either ordering")
+		void shouldReportWhenObservationOfEachDescribedIndexBegan() {
+			final Map.Entry<EntityIndexKey, EntityIndex> first = indexEntry(representativeKey(5, "a"), 20);
+			final Map.Entry<EntityIndexKey, EntityIndex> second = indexEntry(representativeKey(6, "b"), 10);
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(first, second);
+			// taken after the fixture is built, so every holder's window has already opened by now
+			final OffsetDateTime now = OffsetDateTime.now();
+
+			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
+				final IndexBrowseResult result = browse(
+					indexes, new IndexBrowseCriteria(
+						1, IndexBrowseCriteria.MAX_PAGE_SIZE, ordering,
+						EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+					)
+				);
+
+				for (final Map.Entry<EntityIndexKey, EntityIndex> entry : List.of(first, second)) {
+					final EntityIndex index = entry.getValue();
+					final BrowsedIndex row = rowOf(result, index.getPrimaryKey());
+					assertNotNull(
+						row.observedSince(),
+						"An index has been observed since it came into existence, so there is no absence to report, " +
+							"in " + ordering
+					);
+					assertFalse(
+						row.observedSince().isAfter(now),
+						"Observation cannot have begun after the browse that reports it, in " + ordering
+					);
+					assertEquals(
+						index.getActivity().getObservedSince(), row.observedSince(),
+						"The row must carry the window of the holder it describes, in " + ordering
+					);
+				}
 			}
 		}
 
