@@ -629,6 +629,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
 	 * second drain finds nothing and the second build counts nothing.
 	 *
+	 * # What that leaves standing, and why it is the honest reading
+	 *
+	 * The emptying makes the count *once per drain of what had been accumulated by then*, not *once per context*: a
+	 * capability registered **after** a build has already drained would be counted again by the next build on the same
+	 * context. Nothing a production session does can reach that, because everything that consults the schema runs
+	 * before the single build that ends {@link QueryPlanner#planQuery}. One debug-only path could:
+	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} equips each cacheable variant of
+	 * the formula with a sorter of its own *after* the preferred plan was built, and planning an ordering re-registers
+	 * what it names.
+	 *
+	 * Suppressing that with a one-way "already flushed" latch was deliberately not done, and the asymmetry is the
+	 * reason: this count exists to answer *"would dropping this flag break a query?"*, where an over-count merely
+	 * protects a flag a little too eagerly, while an under-count makes a used flag look dead and invites somebody to
+	 * drop it. A latch buys exactness under a debug mode that already multiplies every per-index reading, at the price
+	 * of silently discarding the requests of any future caller that legitimately plans further work on a context whose
+	 * plan is already built - trading a debug-only over-count for an under-count nobody would notice. The caveat
+	 * therefore reads exactly like {@link io.evitadb.index.IndexActivity}'s: exact arithmetic on these readings
+	 * requires a session with no verification debug mode enabled.
+	 *
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
 	@Nonnull

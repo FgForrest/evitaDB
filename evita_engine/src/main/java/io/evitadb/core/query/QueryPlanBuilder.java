@@ -38,6 +38,7 @@ import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -199,19 +200,36 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * miscount, and are left standing; exact arithmetic on these readings simply requires a session with no
 	 * verification debug mode enabled.
 	 *
-	 * The cost is `O(winning set)` volatile increments, bounded from below by the reads the query is about to perform
-	 * on those very indexes.
+	 * This is also where the schema capabilities the query asked for are counted as **requested**
+	 * ({@link SchemaCapabilityUsage}), and the two readings deliberately behave differently under those debug modes.
+	 * The capability side counts **once per logical query regardless**, because
+	 * {@link QueryPlanningContext#drainRequestedCapabilities()} hands the accumulator over and leaves the context
+	 * holding nothing - every further build of that same query finds an empty list. That difference is not an
+	 * inconsistency: an index counts a physical read that genuinely happened again, while a capability counts a
+	 * question the query asked, and asking it a second time to verify the answer does not make it a second question.
+	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts neither, and on the capability side it
+	 * cannot: it is taken when index selection comes back empty, which is *before* the filter is translated even once,
+	 * so nothing has been accumulated yet and there is nothing a flush could find.
+	 *
+	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
+	 * from below by the reads the query is about to perform on those very indexes.
 	 */
 	@Nonnull
 	public QueryPlan build() {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
 		final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
-		if (!winningIndexes.isEmpty()) {
-			// one instant for the whole set, so a single query cannot stamp its indexes with two different moments
+		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilities();
+		if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
+			// one instant for both readings, so a single query cannot stamp them with two different moments
 			final long now = System.currentTimeMillis();
 			for (final Index<?> index : winningIndexes) {
 				index.getActivity().recordQuery(now);
+			}
+			// the holders were resolved while the schema was being looked up anyway, so this is an increment per
+			// distinct capability the query named - no lookup, no hashing, no allocation
+			for (int i = 0; i < requestedCapabilities.size(); i++) {
+				requestedCapabilities.get(i).recordRequested(now);
 			}
 		}
 		// propagate all collected requirements to the prefetch formula visitor

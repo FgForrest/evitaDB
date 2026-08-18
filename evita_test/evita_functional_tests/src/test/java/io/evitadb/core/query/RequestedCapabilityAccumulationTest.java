@@ -30,6 +30,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -60,22 +61,26 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
-import java.util.List;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -96,10 +101,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link io.evitadb.index.IndexActivity} in `RequestedIsNotChosen`: a capability consulted on an index that then lost
  * the cost comparison still counts.
  *
- * **The accumulator is read by draining it, which is what the flush will later do.** Until the flush exists, draining
- * from the test is the only way to see what one logical query collected; once
- * {@link QueryPlanBuilder#build()} drains it, these readings move to the holders' counts and the drain here returns
- * nothing.
+ * **What one query asked for is read as the counts it moved**, because {@link QueryPlanBuilder#build()} drains the
+ * accumulator into the holders and leaves the context holding nothing. Every case therefore snapshots the collection's
+ * registry, runs one query, and asserts on the *difference* - which is what makes a case independent of the fixture's
+ * own writes and of any query a sibling case ran before it.
+ *
+ * `Flush` covers the other half: that the drain happens exactly once per logical query even when the planner is made
+ * to build the same plan several times.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see QueryPlanningContext#registerRequestedCapability(SchemaCapabilityUsage)
@@ -188,12 +196,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					"cannot tell a deduplicated count from a raw one"
 			);
 
-			final List<SchemaCapabilityUsage> requested = capabilitiesRequestedBy(query);
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(query);
 
 			assertEquals(
 				2, requested.size(),
-				"One logical query must contribute one entry per capability it names - a longer list means the " +
-					"accumulator is counting candidate plans: " + describe(requested)
+				"One logical query must move one capability's count per element it names - more entries means the " +
+					"accumulator is counting candidate plans: " + requested
 			);
 			assertRequested(requested, CODE_FILTER);
 			assertRequested(requested, PRIORITY_SORT);
@@ -212,43 +220,23 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				)
 			);
 
-			final List<SchemaCapabilityUsage> requested = capabilitiesRequestedBy(query);
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(query);
 
 			assertEquals(
 				1, requested.size(),
-				"Repeating a constraint must not repeat the request: " + describe(requested)
+				"Repeating a constraint must not repeat the request: " + requested
 			);
 			assertRequested(requested, CODE_FILTER);
 		}
 
 		@Test
-		@DisplayName("Draining twice yields nothing the second time, so a re-built plan counts nothing")
-		void shouldLeaveNothingBehindAfterDraining() {
-			// the guard the verification debug modes need: they build the preferred plan a second time, and a drain
-			// that left the list in place would count that one logical query twice
-			final QueryPlanningContext context = planningContextFor(
-				query(filterBy(attributeEquals(ATTRIBUTE_CODE, "product-3")))
-			);
-			QueryPlanner.planQuery(context);
-
-			assertFalse(
-				context.drainRequestedCapabilities().isEmpty(),
-				"The first drain must hand over what was collected"
-			);
-			assertTrue(
-				context.drainRequestedCapabilities().isEmpty(),
-				"The accumulator was not emptied by the drain - a second plan build would count the same query again"
-			);
-		}
-
-		@Test
 		@DisplayName("A query naming no attribute at all accumulates nothing")
 		void shouldAccumulateNothingForAQueryThatNamesNoAttribute() {
-			final List<SchemaCapabilityUsage> requested = capabilitiesRequestedBy(
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(
 				query(filterBy(entityPrimaryKeyInSet(1, 2, 3)))
 			);
 
-			assertTrue(requested.isEmpty(), "Nothing was named, so nothing may be requested: " + describe(requested));
+			assertTrue(requested.isEmpty(), "Nothing was named, so nothing may be requested: " + requested);
 		}
 
 	}
@@ -260,7 +248,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A sortable compound is counted as the compound, not as an attribute of the same name")
 		void shouldAccumulateTheCompoundUnderItsOwnKind() {
-			final List<SchemaCapabilityUsage> requested = capabilitiesRequestedBy(
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(
 				query(
 					filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(QUERIED_CATEGORY))),
 					orderBy(attributeNatural(COMPOUND_CODE_WITH_PRIORITY, OrderDirection.ASC))
@@ -279,7 +267,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A reference attribute is counted on its reference, not on the entity")
 		void shouldAccumulateAReferenceAttributeUnderItsReference() {
-			final List<SchemaCapabilityUsage> filtering = capabilitiesRequestedBy(
+			final Map<SchemaCapabilityKey, Long> filtering = capabilitiesRequestedBy(
 				query(
 					filterBy(
 						referenceHaving(REFERENCE_CATEGORIES, attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 1L))
@@ -294,7 +282,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					"schema keeps apart"
 			);
 
-			final List<SchemaCapabilityUsage> ordering = capabilitiesRequestedBy(
+			final Map<SchemaCapabilityKey, Long> ordering = capabilitiesRequestedBy(
 				query(
 					filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(QUERIED_CATEGORY))),
 					orderBy(
@@ -310,7 +298,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("An attribute no query names is not requested by one that names its neighbours")
 		void shouldNotRequestACapabilityTheQueryNeverNames() {
-			final List<SchemaCapabilityUsage> requested = capabilitiesRequestedBy(
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(
 				query(
 					filterBy(attributeEquals(ATTRIBUTE_CODE, "product-3")),
 					orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC))
@@ -352,8 +340,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 				)
 			);
-			final QueryPlanningContext context = planningContextFor(query);
-			QueryPlanner.planQuery(context);
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(query);
 
 			assertEquals(
 				1L, reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount(),
@@ -365,22 +352,218 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				"The global index must have lost the cost comparison, otherwise there is no discarded candidate left " +
 					"for this case to be about"
 			);
-			assertRequested(context.drainRequestedCapabilities(), CODE_FILTER);
+			assertRequested(requested, CODE_FILTER);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Flush onto the holders")
+	class Flush {
+
+		@Test
+		@DisplayName("An executed query moves the capability's request count by one and its update count by none")
+		void shouldCountOneRequestPerExecutedQuery() {
+			// end to end, through a real session: what the operator will eventually read is the collection's registry,
+			// not a context nobody outside the planner can reach
+			final SchemaCapabilityUsage holder = holderOf(CODE_FILTER);
+			final long requestedBefore = holder.getRequestedCount();
+			final long updatedBefore = holder.getUpdatedCount();
+			assertTrue(
+				updatedBefore > 0L,
+				"The fixture's upserts must already have counted maintenance on `code`, otherwise the update side " +
+					"standing still below proves nothing about the two counters being independent"
+			);
+
+			executeQuery(query(filterBy(attributeEquals(ATTRIBUTE_CODE, "product-3"))));
+
+			assertEquals(
+				requestedBefore + 1, holder.getRequestedCount(),
+				"One query filtering by `code` must land exactly one request on the registry the collection holds"
+			);
+			assertEquals(
+				updatedBefore, holder.getUpdatedCount(),
+				"Reading must not have counted as maintenance - the two sides answer different questions and a query " +
+					"that bumped both would make the comparison between them meaningless"
+			);
+			assertTrue(
+				holder.getLastRequestedAtMillis() >= holder.getObservedSinceMillis(),
+				"A requested capability must carry the stamp of it, not the `never` sentinel"
+			);
+		}
+
+		@Test
+		@DisplayName("Building the winning plan empties the accumulator, so any further build counts nothing")
+		void shouldLeaveTheAccumulatorEmptyAfterTheWinningPlanWasBuilt() {
+			final SchemaCapabilityUsage holder = holderOf(CODE_FILTER);
+			final long before = holder.getRequestedCount();
+			final QueryPlanningContext context = planningContextFor(
+				query(filterBy(attributeEquals(ATTRIBUTE_CODE, "product-3")))
+			);
+
+			QueryPlanner.planQuery(context);
+
+			assertEquals(before + 1, holder.getRequestedCount(), "The built plan must have flushed what it collected");
+			assertTrue(
+				context.drainRequestedCapabilities().isEmpty(),
+				"The build left the accumulator populated - anything building this plan again would count the same " +
+					"logical query a second time"
+			);
+		}
+
+		@Test
+		@DisplayName("A query verified against every alternative plan is still one request")
+		void shouldCountOnceUnderTheAlternativeIndexVerification() {
+			assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS);
+
+			// the same query leaves the global index at zero without this mode - see `RequestedIsNotChosen` - so a
+			// reading above zero is proof the losing candidate really was built and executed here
+			assertTrue(
+				globalIndex().getActivity().getQueryCount() > 0L,
+				"The losing candidate was never built, so this mode verified nothing and the case is vacuous"
+			);
+		}
+
+		@Test
+		@DisplayName("A query verified against its cacheable variants is still one request")
+		void shouldCountOnceUnderTheCachingTreeVerification() {
+			// what this pins is the preferred plan being built a second time to be returned. The other half of the
+			// mode - equipping each cacheable variant with a sorter of its own, which re-plans the ordering *after*
+			// that build already drained - is not reached on this fixture, whose filter formulas hold no
+			// `CacheableFormula` for `CacheableVariantsGeneratingVisitor` to vary; that residual is documented on
+			// `QueryPlanningContext#drainRequestedCapabilities` rather than asserted here
+			assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(DebugMode.VERIFY_POSSIBLE_CACHING_TREES);
+		}
+
+		@Test
+		@DisplayName("A query the planner answers without selecting any index counts nothing")
+		void shouldCountNothingWhenNoIndexIsSelected() {
+			// index selection comes back empty for a scope this catalog holds no index in, and the planner returns the
+			// empty plan before the filter is translated even once - so `code` is named by the query and still must
+			// not be counted
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(and(scope(Scope.ARCHIVED), attributeEquals(ATTRIBUTE_CODE, "product-3")))
+				)
+			);
+
+			assertTrue(
+				requested.isEmpty(),
+				"The empty-plan short-circuit counted a request: " + requested
+			);
+		}
+
+		/**
+		 * Runs one multi-candidate query under a verification debug mode and asserts the two readings part ways: the
+		 * winning index counts a query per plan built, the capability counts once.
+		 *
+		 * The per-index reading is what keeps this from passing vacuously - it proves the debug mode really did build
+		 * the winning plan more than once, which is the hazard being pinned. Without it a mode that silently stopped
+		 * verifying anything would look like a successful deduplication.
+		 *
+		 * @param debugMode the verification mode to enable
+		 */
+		private void assertCountedOnceWhileTheWinningPlanIsBuiltRepeatedly(@Nonnull DebugMode debugMode) {
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(
+						and(
+							attributeEquals(ATTRIBUTE_CODE, "product-3"),
+							referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(QUERIED_CATEGORY))
+						)
+					),
+					orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC)),
+					require(debug(debugMode))
+				)
+			);
+
+			assertTrue(
+				reducedIndexOfCategory(QUERIED_CATEGORY).getActivity().getQueryCount() > 1L,
+				"`" + debugMode + "` did not build the winning plan more than once, so this case proves nothing " +
+					"about a double flush"
+			);
+			assertRequested(requested, CODE_FILTER);
+			assertRequested(requested, PRIORITY_SORT);
 		}
 
 	}
 
 	/**
-	 * Plans one query in a context of its own and hands over everything that context collected.
+	 * Plans one query in a context of its own and reports the request counts it moved on the collection's registry.
 	 *
 	 * @param query the query to plan
-	 * @return the holders the query requested, deduplicated as the accumulator deduplicates them
+	 * @return the capabilities whose count the query moved, and by how much
 	 */
 	@Nonnull
-	private List<SchemaCapabilityUsage> capabilitiesRequestedBy(@Nonnull Query query) {
-		final QueryPlanningContext context = planningContextFor(query);
-		QueryPlanner.planQuery(context);
-		return context.drainRequestedCapabilities();
+	private Map<SchemaCapabilityKey, Long> capabilitiesRequestedBy(@Nonnull Query query) {
+		final Map<SchemaCapabilityKey, Long> before = requestedCounts();
+		QueryPlanner.planQuery(planningContextFor(query));
+		return requestedCountsSince(before);
+	}
+
+	/**
+	 * Same reading as {@link #capabilitiesRequestedBy(Query)}, but for a query that goes through a real session and is
+	 * actually executed - the only way to reach the debug modes, which execute the plans they verify.
+	 *
+	 * @param query the query to execute
+	 * @return the capabilities whose count the query moved, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> capabilitiesRequestedByExecuting(@Nonnull Query query) {
+		final Map<SchemaCapabilityKey, Long> before = requestedCounts();
+		executeQuery(query);
+		return requestedCountsSince(before);
+	}
+
+	/**
+	 * Executes one query the way a client would.
+	 *
+	 * @param query the query to execute
+	 */
+	private void executeQuery(@Nonnull Query query) {
+		this.evita.queryCatalog(
+			CATALOG,
+			session -> {
+				session.queryList(query, EntityReference.class);
+			}
+		);
+	}
+
+	/**
+	 * Reads every request count the collection's registry currently holds.
+	 *
+	 * @return the counts, keyed by capability
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCounts() {
+		final Map<SchemaCapabilityKey, Long> result = new HashMap<>();
+		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+			result.put(entry.key(), entry.usage().getRequestedCount());
+		}
+		return result;
+	}
+
+	/**
+	 * Reports how much each request count has moved since the snapshot was taken, dropping the ones that did not move.
+	 *
+	 * A difference rather than an absolute reading, so that neither the fixture's own writes nor a query an earlier
+	 * case in the same method ran can be mistaken for the query under test.
+	 *
+	 * @param before counts read before the query ran
+	 * @return the capabilities whose count moved, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCountsSince(@Nonnull Map<SchemaCapabilityKey, Long> before) {
+		final Map<SchemaCapabilityKey, Long> result = new LinkedHashMap<>();
+		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+			final long delta = entry.usage().getRequestedCount() - before.getOrDefault(entry.key(), 0L);
+			if (delta != 0L) {
+				result.put(entry.key(), delta);
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -424,50 +607,39 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts the capability is among the ones the query requested, exactly once, and that the holder is the very one
-	 * the collection's registry keeps for that key - which is what makes the flush land on the right counter.
+	 * Asserts one logical query moved the capability's request count by exactly one.
 	 *
-	 * @param requested what the query collected
-	 * @param key       the capability that must be in it
+	 * @param requested what the query moved
+	 * @param key       the capability that must have moved
 	 */
 	private void assertRequested(
-		@Nonnull List<SchemaCapabilityUsage> requested,
+		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key
 	) {
-		final SchemaCapabilityUsage holder = holderOf(key);
-		int occurrences = 0;
-		for (final SchemaCapabilityUsage candidate : requested) {
-			if (candidate == holder) {
-				occurrences++;
-			}
-		}
 		assertEquals(
-			1, occurrences,
-			"The capability " + key + " was requested " + occurrences + " times by one logical query, expected once: " +
-				describe(requested)
+			1L, (long) requested.getOrDefault(key, 0L),
+			"The capability " + key + " must be counted exactly once per logical query, whatever the planner did " +
+				"on the way there: " + requested
 		);
 	}
 
 	/**
-	 * Asserts the capability is **not** among the ones the query requested.
+	 * Asserts the query left the capability's request count where it was.
 	 *
-	 * Deliberately a statement about the query's accumulator rather than about the registry holding an entry: the
-	 * update side resolves holders of its own for every element a write touches, so the presence of an entry proves
-	 * nothing about what a query asked for.
+	 * Deliberately a statement about the count rather than about the registry holding an entry at all: the update side
+	 * resolves holders of its own for every element a write touches, so the presence of an entry proves nothing about
+	 * what a query asked for.
 	 *
-	 * @param requested what the query collected
-	 * @param key       the capability that must not be in it
-	 * @param message   what it means if it is
+	 * @param requested what the query moved
+	 * @param key       the capability that must not have moved
+	 * @param message   what it means if it did
 	 */
 	private void assertNotRequested(
-		@Nonnull List<SchemaCapabilityUsage> requested,
+		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key,
 		@Nonnull String message
 	) {
-		final SchemaCapabilityUsage holder = holderOf(key);
-		for (final SchemaCapabilityUsage candidate : requested) {
-			assertFalse(candidate == holder, message + ": " + describe(requested));
-		}
+		assertEquals(0L, (long) requested.getOrDefault(key, 0L), message + ": " + requested);
 	}
 
 	/**
@@ -483,30 +655,6 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		final SchemaCapabilityUsage holder = registry.resolve(key);
 		assertSame(holder, registry.resolve(key), "The registry hands out a different holder for the same key");
 		return holder;
-	}
-
-	/**
-	 * Renders what a query collected as the keys it stands for, so a failing assertion names the capabilities rather
-	 * than a list of holder identities.
-	 *
-	 * @param requested the holders a query collected
-	 * @return a readable description
-	 */
-	@Nonnull
-	private String describe(@Nonnull List<SchemaCapabilityUsage> requested) {
-		final StringBuilder result = new StringBuilder(128);
-		result.append('[');
-		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
-			for (final SchemaCapabilityUsage holder : requested) {
-				if (holder == entry.usage()) {
-					if (result.length() > 1) {
-						result.append(", ");
-					}
-					result.append(entry.key());
-				}
-			}
-		}
-		return result.append(']').toString();
 	}
 
 	/**
