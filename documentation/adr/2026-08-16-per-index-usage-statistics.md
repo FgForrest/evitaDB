@@ -1,7 +1,7 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-16 18:55
+updated: 2026-08-18 11:20
 status: accepted
 kind: feature
 issues: []
@@ -14,9 +14,9 @@ relates: [2026-08-10-catalog-and-collection-statistics]
 
 # An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 
-Every index now reports four readings alongside the cost figures it already carried: how many executed
-query plans **chose** it, how many entity mutations **acquired** it for modification, and when each of
-those last happened. They surface on `BrowsedIndex` (the browse row) and `IndexDetail` (the drill-down),
+Every index now reports five readings alongside the cost figures it already carried: how many executed
+query plans **chose** it, how many entity mutations **acquired** it for modification, when each of
+those last happened, and when observation of it began. They surface on `BrowsedIndex` (the browse row) and `IndexDetail` (the drill-down),
 travel over gRPC, and are counted since the catalog was loaded. The state behind them is not a field of
 the index — it is a separate `IndexActivity` object the index holds a reference to, and that reference
 is passed unchanged through every constructor that rebuilds an index.
@@ -141,12 +141,37 @@ practically every entity mutation acquires it. That is accurate rather than misl
 is never a drop candidate — and it is documented rather than special-cased. The actionable readings are
 on reduced indexes, which are acquired only when genuinely touched.
 
-**`BY_QUERY_COUNT` browse ordering is deferred, not refused.** The 2026-08-10 record forbids ordering
-the browse by a reading that must be *measured* per index, and these are O(1) volatile reads, so the
-cost argument does not reach them — an ordering by query count would be architecturally sound. It is
-left out because it is a genuinely new decision about the browse surface (what a page means when the
-sort key changes under concurrent traffic) and does not belong to the change that introduces the
-numbers.
+**Usage-counter browse orderings shipped as the follow-up this record originally deferred.** The
+open question the deferral named — what a page means when the sort key moves under concurrent
+traffic — was resolved as: a ranked page is a best-effort top-N view whose candidates each freeze
+their ranked reading exactly once during the walk. The freeze is a correctness requirement, not a
+presentation choice: a comparator reading the live holder can answer two comparisons of the same
+pair differently, a `PriorityQueue` does not reheapify a mutated element, and TimSort may detect
+the contract violation and throw — so the comparator sees only the frozen value plus the
+`EntityIndexKey` tiebreaker, and the row reports the very value that placed it. The other activity
+readings on a row stay fresh reads; only the ranked one has a position to stay consistent with.
+Pages are documented as unstable across calls (recording does not advance the catalog version), the
+deep-page bound covers every ranked ordering by naming the exempt `MAP_ORDER` so a future value is
+bounded by default, and the catalog browse stopped collapsing the counter orderings — a catalog
+index is chosen and maintained like any other; only the entity-count ordering keeps its documented
+degeneracy there.
+
+**`observedSince` joined the readings as their denominator.** A count without a window start cannot
+become a rate, and a zero count cannot be told from a short observation. The stamp is per holder —
+the moment observation of *that* index began — deliberately not per catalog load, because an index
+created hours after the catalog opened was not observable before it existed and a shared timestamp
+would make "never queried in the N days observed" dishonest for it. Plain `final`, published safely
+through the index's final `activity` field; heap formulas moved from four to five longs (48 → 56
+bytes per holder on the tested layout, ~4 MiB across the measured production catalog's 523k
+indexes). On the wire it is additive (`GrpcBrowsedIndex` tag 13, `GrpcIndexDetail` tag 9), and its
+absence is meaningful: a **new client decoding an old server** gets `null`, surfaced as
+`observedSinceIfKnown()`, never a substituted instant — the epoch fabricates a decades-long window
+that turns "never queried in the last week" falsely true, "now" a zero-length one that turns every
+rate infinite. Both substitutions were implemented and rejected in review before absence won.
+Rate sentences themselves ("a hundred times an hour") are client presentation computed as
+`count / (now - observedSince)` and labelled lifetime averages; in-engine windowed rate buckets and
+counter persistence stay rejected — memory times hundreds of thousands of indexes for the former,
+dirty persistent state for a telemetry figure for the latter.
 
 ## Key technical details
 
@@ -155,7 +180,7 @@ javadoc; `Index#getActivity()` is the contract, implemented by `EntityIndex` and
 increment sites are `QueryPlanBuilder#build` and `EntityIndexLocalMutationExecutor#applyChanges` — one
 `System.currentTimeMillis()` per site, shared by every index it stamps, so a single query or a single
 entity mutation cannot leave two different moments behind. `BrowsedIndex` carries the primary javadoc
-for all four readings; `IndexDetail` refers to it.
+for all five readings; `IndexDetail` refers to it.
 
 **`EntityIndex#getActivity()` is `final`, and that is load-bearing.** The engine builds throwing
 ByteBuddy stubs for evicted indexes (`createThrowingStub`), and ByteBuddy cannot override a final
@@ -170,14 +195,15 @@ rename. It was not in the original survey and is the reason the identity test en
 explicitly rather than testing a representative one.
 
 **Heap accounting.** `EntityIndex.getBaseHeapSizeInBytes` counts one more reference slot (`12L` → `13L`)
-and charges the holder as `sizeOfObject(4 * Long.BYTES)`; `CatalogIndex` does the same (`3L` → `4L`).
+and charges the holder as `sizeOfObject(5 * Long.BYTES)`; `CatalogIndex` does the same (`3L` → `4L`).
 The holder is charged in full by whichever index instance is being measured even though it is shared
 across catalog versions, because only one version is ever walked — the ruling is written down in
 `heap-accounting-rules.md`. `LongAdder` is deliberately not used: its cell array grows under contention
 and would make the byte-exact JOL assertions nondeterministic. The CAS updaters are `static` fields, so
-an instance is four longs and nothing else.
+an instance is five longs and nothing else — four volatile, plus the final `observedSinceMillis`.
 
-**The wire is additive.** `GrpcBrowsedIndex` gains tags 9-12 and `GrpcIndexDetail` tags 5-8. The two
+**The wire is additive.** `GrpcBrowsedIndex` gains tags 9-13 and `GrpcIndexDetail` tags 5-9, and
+`GrpcIndexBrowseOrdering` values 3-6. The two
 counts are `int64`; the two stamps are message-typed `GrpcOffsetDateTime` so that "never" is expressible
 as absence — a `0` sentinel would render as a date in 1970 on every never-queried index, which is most
 of them.
@@ -197,7 +223,7 @@ and free to change.
 reload. `EntityIndexHeapSizeTest` and `CatalogIndexHeapSizeTest` (23 tests) verify the heap arithmetic
 against JOL byte-exactly. `CatalogStatisticsConverterTest` round-trips both surfaces including a
 never-queried row, where the absent stamps must decode to `null` rather than to the epoch.
-`EvitaClientReadOnlyTest#shouldReportIndexUsageOverTheWire` proves the four readings survive the driver.
+`EvitaClientReadOnlyTest#shouldReportIndexUsageOverTheWire` proves the readings survive the driver.
 It asserts four *independent* presence flags rather than a pairing, and that is the point: a projected
 row is a non-atomic snapshot in both directions, because a projection reads the count before the stamp
 while `IndexActivity` advances the count first. Neither reading implies the other on a row, so a test
