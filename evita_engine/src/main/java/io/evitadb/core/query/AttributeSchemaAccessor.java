@@ -37,7 +37,8 @@ import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
+import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,10 +56,26 @@ import static java.util.Optional.ofNullable;
  * outside which is used for localization of attributes in "prefetched" entities of different types (i.e. when
  * {@link io.evitadb.api.query.head.Collection} constraint is not specified in the query).
  *
+ * # It is also where a query says which schema capabilities it needs
+ *
+ * Every filter and every ordering reaches its attribute or sortable compound through one of the four getters below,
+ * and each of them states in {@link AttributeTrait} *why* it wants the schema - which is exactly the
+ * `(element, capability)` pair the usage counters are keyed by. That makes this class the one place the whole query
+ * side has to be instrumented, instead of the several dozen translators that call it, and the reason the recording
+ * lives here rather than at a translator: a translator runs **once per candidate index set**, so a count taken there
+ * would measure how many alternatives the planner considered.
+ *
+ * The recording is a no-op unless the accessor was built with a {@link QueryPlanningContext}, and that context decides
+ * what it is willing to attribute - see {@link QueryPlanningContext#recordRequestedCapability}.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class AttributeSchemaAccessor {
+	/**
+	 * The trait array the two sortable-compound lookups verify against - shared rather than allocated per call,
+	 * because it is a constant and those lookups sit on the ordering path of every query that orders by anything.
+	 */
+	private static final AttributeTrait[] SORTABLE_ONLY = {AttributeTrait.SORTABLE};
 	/**
 	 * Mandatory catalog schema where the {@link GlobalAttributeSchemaContract} are stored.
 	 */
@@ -74,6 +91,13 @@ public class AttributeSchemaAccessor {
 	 * for.
 	 */
 	@Nullable private final Function<EntitySchemaContract, ReferenceSchemaContract> referenceSchemaAccessor;
+	/**
+	 * Context of the query being planned, which collects the capabilities this accessor hands out - NULL for an
+	 * accessor built outside a query plan, and for the accessors serving another collection's structures, whose
+	 * requests belong to a registry this one cannot reach. Such an accessor works exactly as before and records
+	 * nothing.
+	 */
+	@Nullable private final QueryPlanningContext queryContext;
 
 	/**
 	 * Verifies that the provided attribute schema meets the required traits and returns it.
@@ -156,19 +180,70 @@ public class AttributeSchemaAccessor {
 		return attributeSchema;
 	}
 
+	/**
+	 * Creates an accessor that records nothing - for looking a schema up outside a query plan, or for looking one up
+	 * on behalf of a collection whose usage registry the enclosing plan does not own.
+	 *
+	 * @param catalogSchema the catalog schema holding the globally defined attributes
+	 * @param entitySchema  the entity schema to resolve attributes against, NULL for a collection-less lookup
+	 */
 	public AttributeSchemaAccessor(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema
 	) {
-		this.catalogSchema = catalogSchema;
-		this.entitySchema = entitySchema;
-		this.referenceSchemaAccessor = null;
+		this(catalogSchema, entitySchema, null, null);
 	}
 
+	/**
+	 * Creates an accessor resolving attributes on one reference of the entity, recording nothing - see
+	 * {@link #AttributeSchemaAccessor(CatalogSchemaContract, EntitySchemaContract)}.
+	 *
+	 * @param catalogSchema           the catalog schema holding the globally defined attributes
+	 * @param entitySchema            the entity schema to resolve attributes against
+	 * @param referenceSchemaAccessor lambda picking the reference the attributes are looked up on
+	 */
+	public AttributeSchemaAccessor(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nullable Function<EntitySchemaContract, ReferenceSchemaContract> referenceSchemaAccessor
+	) {
+		this(catalogSchema, entitySchema, referenceSchemaAccessor, null);
+	}
+
+	/**
+	 * The complete constructor, and the only one that makes an accessor report what it hands out.
+	 *
+	 * @param catalogSchema           the catalog schema holding the globally defined attributes
+	 * @param entitySchema            the entity schema to resolve attributes against, NULL for a collection-less lookup
+	 * @param referenceSchemaAccessor lambda picking the reference the attributes are looked up on, NULL when they are
+	 *                                the entity's own
+	 * @param queryContext            the query being planned, which collects the requested capabilities - NULL turns
+	 *                                the recording off entirely
+	 */
+	public AttributeSchemaAccessor(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nullable Function<EntitySchemaContract, ReferenceSchemaContract> referenceSchemaAccessor,
+		@Nullable QueryPlanningContext queryContext
+	) {
+		this.catalogSchema = catalogSchema;
+		this.entitySchema = entitySchema;
+		this.referenceSchemaAccessor = referenceSchemaAccessor;
+		this.queryContext = queryContext;
+	}
+
+	/**
+	 * Creates the accessor a query plans with - it resolves against the queried collection's schema and reports every
+	 * capability it hands out back to the context.
+	 *
+	 * @param queryContext the query being planned
+	 */
 	public AttributeSchemaAccessor(@Nonnull QueryPlanningContext queryContext) {
 		this(
 			queryContext.getCatalogSchema(),
-			queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null
+			queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
+			null,
+			queryContext
 		);
 	}
 
@@ -192,6 +267,7 @@ public class AttributeSchemaAccessor {
 		@Nonnull AttributeTrait... requiredTrait
 	) {
 		if (this.entitySchema == null && this.referenceSchemaAccessor == null) {
+			// a lookup that knows no collection resolves against the catalog schema, and its counters live with it
 			return verifyAndReturn(
 				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
 				this.catalogSchema, null, null, requiredTrait
@@ -199,12 +275,14 @@ public class AttributeSchemaAccessor {
 		} else {
 			final ReferenceSchemaContract referenceSchema = getReferenceSchema();
 			final AttributeSchemaProvider<?> attributeSchemaProvider = Objects.requireNonNull(referenceSchema == null ? this.entitySchema : referenceSchema);
-			return verifyAndReturn(
+			final AttributeSchemaContract result = verifyAndReturn(
 				attributeName, requestedScopes, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
 				this.catalogSchema, this.entitySchema,
 				referenceSchema,
 				requiredTrait
 			);
+			recordRequestedTraits(this.entitySchema, referenceSchema, result.getName(), requestedScopes, requiredTrait);
+			return result;
 		}
 	}
 
@@ -237,9 +315,11 @@ public class AttributeSchemaAccessor {
 				.getAttribute(attributeName)
 				.orElse(null);
 		}
-		return verifyAndReturn(
+		final AttributeSchemaContract result = verifyAndReturn(
 			attributeName, requestedScopes, attributeSchema, this.catalogSchema, entitySchema, referenceSchema, requiredTrait
 		);
+		recordRequestedTraits(entitySchema, referenceSchema, result.getName(), requestedScopes, requiredTrait);
+		return result;
 	}
 
 	/**
@@ -261,9 +341,10 @@ public class AttributeSchemaAccessor {
 		if (this.entitySchema != null) {
 			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName, requestedScopes);
 		} else {
+			// a lookup that knows no collection resolves against the catalog schema, and its counters live with it
 			return verifyAndReturn(
 				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
-				this.catalogSchema, null, null, new AttributeTrait[] {AttributeTrait.SORTABLE}
+				this.catalogSchema, null, null, SORTABLE_ONLY
 			);
 		}
 	}
@@ -292,6 +373,7 @@ public class AttributeSchemaAccessor {
 			.orElse(null);
 
 		if (compoundSchema != null) {
+			recordRequestedCompound(entitySchema, referenceSchema, compoundSchema, requestedScopes);
 			return compoundSchema;
 		}
 
@@ -304,21 +386,101 @@ public class AttributeSchemaAccessor {
 				.getAttribute(attributeName)
 				.orElse(null);
 		}
-		return verifyAndReturn(
+		final AttributeSchemaContract result = verifyAndReturn(
 			attributeName, requestedScopes, resultSchema, this.catalogSchema, entitySchema, referenceSchema,
-			new AttributeTrait[] {AttributeTrait.SORTABLE}
+			SORTABLE_ONLY
 		);
+		recordRequestedTraits(entitySchema, referenceSchema, result.getName(), requestedScopes, SORTABLE_ONLY);
+		return result;
 	}
 
 	/**
 	 * Method creates new instance of the accessor with initialized lambda for retrieving {@link ReferenceSchemaContract}
 	 * from {@link EntitySchemaContract} based on the `referenceName`.
+	 *
+	 * The derived accessor keeps reporting to the same query context, which is what makes a capability of a reference
+	 * attribute countable at all - every one of them is reached through here.
 	 */
 	@Nonnull
 	public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
 		return new AttributeSchemaAccessor(
-			this.catalogSchema, this.entitySchema, entitySchema -> entitySchema.getReferenceOrThrowException(referenceName)
+			this.catalogSchema, this.entitySchema,
+			entitySchema -> entitySchema.getReferenceOrThrowException(referenceName),
+			this.queryContext
 		);
+	}
+
+	/**
+	 * Reports every capability just handed to a translator, one per requested trait and per requested scope.
+	 *
+	 * The traits are the caller's own statement of why it wanted the schema, and {@link #verifyAndReturn} has already
+	 * refused the lookup unless the attribute carries each of them **in every requested scope** - so by the time this
+	 * runs, every `(trait, scope)` pair really is a capability the schema declares and the query needs. A lookup that
+	 * passed no trait at all wanted the schema for something else (a type, a locale flag) and is not a capability
+	 * request; it records nothing.
+	 *
+	 * @param owner           the entity schema the attribute was resolved against, NULL for a collection-less lookup
+	 * @param referenceSchema the reference declaring it, NULL when the entity declares it directly
+	 * @param attributeName   canonical name of the attribute, as its schema spells it
+	 * @param requestedScopes scopes the query asked for
+	 * @param requiredTraits  what the caller needed the attribute to be able to do
+	 */
+	private void recordRequestedTraits(
+		@Nullable EntitySchemaContract owner,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull AttributeTrait[] requiredTraits
+	) {
+		if (this.queryContext == null || owner == null || requiredTraits.length == 0) {
+			return;
+		}
+		final String containerName = referenceSchema == null ? null : referenceSchema.getName();
+		for (final AttributeTrait trait : requiredTraits) {
+			// no `default` branch on purpose: a trait added later must fail to compile here rather than go uncounted
+			final Capability capability = switch (trait) {
+				case FILTERABLE -> Capability.FILTER;
+				case UNIQUE -> Capability.UNIQUE;
+				case SORTABLE -> Capability.SORT;
+			};
+			for (final Scope scope : requestedScopes) {
+				this.queryContext.recordRequestedCapability(
+					owner, containerName, ElementKind.ATTRIBUTE, attributeName, capability, scope
+				);
+			}
+		}
+	}
+
+	/**
+	 * Reports a sortable attribute compound just handed to the ordering translator.
+	 *
+	 * Unlike an attribute, a compound is returned without being verified, so the scope check has to happen here: an
+	 * entry is recorded only for a scope the compound is actually indexed in, which is the same condition the registry
+	 * prunes by. Recording it for the others would mint entries the next schema adoption throws away.
+	 *
+	 * @param owner           the entity schema the compound was resolved against
+	 * @param referenceSchema the reference declaring it, NULL when the entity declares it directly
+	 * @param compoundSchema  the compound that was handed out
+	 * @param requestedScopes scopes the query asked for
+	 */
+	private void recordRequestedCompound(
+		@Nonnull EntitySchemaContract owner,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Set<Scope> requestedScopes
+	) {
+		if (this.queryContext == null) {
+			return;
+		}
+		final String containerName = referenceSchema == null ? null : referenceSchema.getName();
+		for (final Scope scope : requestedScopes) {
+			if (compoundSchema.isIndexedInScope(scope)) {
+				this.queryContext.recordRequestedCapability(
+					owner, containerName, ElementKind.SORTABLE_COMPOUND, compoundSchema.getName(),
+					Capability.SORT, scope
+				);
+			}
+		}
 	}
 
 	/**

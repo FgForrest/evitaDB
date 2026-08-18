@@ -75,6 +75,10 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.usage.SchemaCapabilityKey;
+import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
+import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -291,6 +295,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier, long...) for more details
 	 */
 	private Map<InternalCacheKey, Formula> internalCache;
+	/**
+	 * The schema capabilities this query has asked for so far, as the **holders** counting them rather than the keys
+	 * naming them - see {@link #registerRequestedCapability(SchemaCapabilityUsage)} for why, and
+	 * {@link #drainRequestedCapabilities()} for what eventually happens to them.
+	 *
+	 * Left NULL until the first capability is registered, so a query that asks for none - by primary key, by facet, by
+	 * hierarchy placement - allocates nothing at all. It is nulled again by the drain rather than cleared, which is
+	 * what makes a second drain of the same context a no-op.
+	 */
+	@Nullable private List<SchemaCapabilityUsage> requestedCapabilities;
 
 
 	/**
@@ -516,6 +530,115 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public boolean isEntityTypeKnown() {
 		return this.entityType != null;
+	}
+
+	/**
+	 * Records that this query asked for one capability of one schema element - `filterable()` on `ean`, `sortable()` on
+	 * a compound, and so on - at the moment a translator was handed the schema it needs to build its part of the plan.
+	 *
+	 * # Requested, not chosen
+	 *
+	 * The claim recorded here is *"the query named this element and needed this flag"*, which stays true no matter
+	 * which candidate index set the planner ends up costing cheapest. That is deliberately a different question from
+	 * the one {@link io.evitadb.index.IndexActivity} answers, and {@link SchemaCapabilityUsage} states the difference
+	 * in full.
+	 *
+	 * # Attribution, and the two cases this deliberately drops
+	 *
+	 * Only elements of **this context's own collection** are recorded, which is what `owner` is checked for. Two call
+	 * sites therefore pass through without recording anything, and both are known gaps rather than oversights:
+	 *
+	 * - **a query naming no collection** reaches attribute schemas through the catalog schema, and the holder for
+	 *   a globally-unique attribute belongs to a catalog-level registry this context does not have;
+	 * - **a filter or an ordering evaluated against another collection's structures** (a nested query behind
+	 *   `referenceHaving`, an ordering by a referenced entity's property) would have to count against *that*
+	 *   collection's registry, and the context that owns it is not the one whose plan gets built.
+	 *
+	 * Counting either of them here would attribute the request to the wrong schema, which is worse than not counting
+	 * it: the number exists to decide whether a flag can be dropped, and a request attributed to the wrong element
+	 * protects the wrong flag while leaving the right one looking dead.
+	 *
+	 * @param owner         the entity schema declaring the element, as the caller resolved it - a schema of another
+	 *                      collection is silently ignored
+	 * @param containerName name of the reference declaring the element, or NULL when the entity declares it directly
+	 * @param elementKind   whether the element is an attribute or a sortable attribute compound
+	 * @param elementName   name of the element, canonical as the schema spells it
+	 * @param capability    the flag the query needed
+	 * @param scope         the scope whose indexes maintain it
+	 */
+	public void recordRequestedCapability(
+		@Nonnull EntitySchemaContract owner,
+		@Nullable String containerName,
+		@Nonnull ElementKind elementKind,
+		@Nonnull String elementName,
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		final EntityCollection collection = this.entityCollection;
+		if (collection == null || !owner.getName().equals(this.entityType)) {
+			return;
+		}
+		registerRequestedCapability(
+			collection.getUsageRegistry().resolve(
+				new SchemaCapabilityKey(elementKind, containerName, elementName, capability, scope)
+			)
+		);
+	}
+
+	/**
+	 * Adds one already-resolved holder to this query's accumulator, unless the same holder is in it already.
+	 *
+	 * **The holder is stored, never the key.** Everything after this point - the flush the winning plan performs - is
+	 * then an iterate-and-increment with no hashing, no map lookup and no allocation, which is the whole reason the
+	 * resolve happens once, here, at the moment the schema is looked up anyway.
+	 *
+	 * # Why the duplicate check is a linear scan
+	 *
+	 * The planner translates the filter **once per candidate index set**, so the same holder arrives here as many
+	 * times as there are candidate plans - and the count has to come out as one per logical query regardless. Rejecting
+	 * the duplicate on the way in rather than at the flush keeps the list bounded by the number of *distinct*
+	 * capabilities the query names, which is single digits for anything a person writes: a scan over a handful of
+	 * references beats both a hash set (which allocates a node per entry and hashes each arrival) and a deferred
+	 * deduplication (which would let a repeatedly-translated filter grow the list without bound).
+	 *
+	 * @param holder the holder counting the capability that was just requested
+	 */
+	public void registerRequestedCapability(@Nonnull SchemaCapabilityUsage holder) {
+		List<SchemaCapabilityUsage> accumulator = this.requestedCapabilities;
+		if (accumulator == null) {
+			// sized for a hand-written query - a filter and an ordering over a few attributes each
+			accumulator = new ArrayList<>(8);
+			this.requestedCapabilities = accumulator;
+		} else {
+			// identity, not equality: two holders are the same capability exactly when the registry handed back the
+			// same instance, and SchemaCapabilityUsage has no value semantics to compare by
+			for (int i = 0; i < accumulator.size(); i++) {
+				if (accumulator.get(i) == holder) {
+					return;
+				}
+			}
+		}
+		accumulator.add(holder);
+	}
+
+	/**
+	 * Hands over everything this query has requested and leaves the context holding nothing.
+	 *
+	 * **The emptying is the deduplication of last resort.** A logical query may build its preferred plan more than
+	 * once - the two verification debug modes build it again after executing every alternative - and a drain that left
+	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
+	 * second drain finds nothing and the second build counts nothing.
+	 *
+	 * @return the distinct holders this query requested, in registration order; empty when it requested none
+	 */
+	@Nonnull
+	public List<SchemaCapabilityUsage> drainRequestedCapabilities() {
+		final List<SchemaCapabilityUsage> accumulated = this.requestedCapabilities;
+		if (accumulated == null) {
+			return List.of();
+		}
+		this.requestedCapabilities = null;
+		return accumulated;
 	}
 
 	/**
