@@ -78,6 +78,8 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnaps
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
@@ -656,11 +658,16 @@ class CatalogStatisticsConverterTest {
 		assertEquals(LAST_UPDATED_AT, detailFromOldServer.lastUpdatedAt());
 	}
 
-	@Test
+	@ParameterizedTest
+	@EnumSource(IndexBrowseOrdering.class)
 	@DisplayName("carry index browse criteria in both directions")
-	void shouldRoundTripIndexBrowseCriteria() throws InvalidProtocolBufferException {
+	void shouldRoundTripIndexBrowseCriteria(@Nonnull IndexBrowseOrdering ordering)
+		throws InvalidProtocolBufferException {
+		// driven off the enum rather than a written-out list, so an ordering added later has to be given a wire value
+		// the day it is declared - an unmapped one would otherwise travel as the request's default and silently
+		// re-ask the server a different question
 		final IndexBrowseCriteria criteria = new IndexBrowseCriteria(
-			3, 25, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC,
+			3, 25, ordering,
 			EnumSet.of(EntityIndexType.REFERENCED_ENTITY, EntityIndexType.GLOBAL),
 			EnumSet.of(Scope.ARCHIVED),
 			Set.of("categories", "brands")

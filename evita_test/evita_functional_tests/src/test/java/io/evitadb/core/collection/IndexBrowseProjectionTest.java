@@ -41,6 +41,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -239,6 +241,150 @@ class IndexBrowseProjectionTest {
 			assertEquals(2, result.indexes().length);
 			assertEquals(3, result.indexes()[0].discriminatorPrimaryKey(), "Ties resolve by discriminator, ascending");
 			assertEquals(6, result.indexes()[1].discriminatorPrimaryKey());
+		}
+	}
+
+	@Nested
+	@DisplayName("Usage-counter ordering")
+	class UsageCounterOrdering {
+
+		@Test
+		@DisplayName("Rows come back ranked by the query count, in whichever direction was asked for")
+		void shouldRankRowsByTheQueryCountInBothDirections() {
+			// every index covers the same number of entities, so an implementation that ranked by the wrong counter
+			// would produce the map order rather than an order that happens to agree with this one
+			final Map.Entry<EntityIndexKey, EntityIndex> unqueried = indexEntry(representativeKey(1), 10);
+			final Map.Entry<EntityIndexKey, EntityIndex> busiest = indexEntry(representativeKey(2), 10);
+			final Map.Entry<EntityIndexKey, EntityIndex> occasional = indexEntry(representativeKey(3), 10);
+			recordQueries(busiest, 9);
+			recordQueries(occasional, 4);
+			// inserted in an order that matches neither direction
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(unqueried, busiest, occasional);
+
+			assertEquals(
+				identitiesOf(busiest, occasional, unqueried),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 3)),
+				"The most-queried index must lead a descending page"
+			);
+			assertEquals(
+				identitiesOf(unqueried, occasional, busiest),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3)),
+				"The least-queried index must lead an ascending page - the drop-candidate hunt"
+			);
+
+			final BrowsedIndex leader = browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 3).indexes()[0];
+			assertEquals(9L, leader.queryCount(), "The leading row must report the count that placed it there");
+		}
+
+		@Test
+		@DisplayName("Rows come back ranked by the update count, in whichever direction was asked for")
+		void shouldRankRowsByTheUpdateCountInBothDirections() {
+			final Map.Entry<EntityIndexKey, EntityIndex> unwritten = indexEntry(representativeKey(1), 10);
+			final Map.Entry<EntityIndexKey, EntityIndex> busiest = indexEntry(representativeKey(2), 10);
+			final Map.Entry<EntityIndexKey, EntityIndex> occasional = indexEntry(representativeKey(3), 10);
+			recordUpdates(busiest, 7);
+			recordUpdates(occasional, 2);
+			// the query counter runs the other way, so a page ranked by the wrong one of the two comes out reversed
+			recordQueries(unwritten, 100);
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(unwritten, busiest, occasional);
+
+			assertEquals(
+				identitiesOf(busiest, occasional, unwritten),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, 1, 3)),
+				"The most-updated index must lead a descending page"
+			);
+			assertEquals(
+				identitiesOf(unwritten, occasional, busiest),
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, 1, 3)),
+				"The least-updated index must lead an ascending page"
+			);
+
+			final BrowsedIndex leader = browse(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, 1, 3).indexes()[0];
+			assertEquals(7L, leader.updateCount(), "The leading row must report the count that placed it there");
+		}
+
+		/**
+		 * The order this pins is the whole of what makes the drop-candidate hunt pageable: with every count equal
+		 * there is nothing but the key left to draw a page boundary through, and a boundary that moved between two
+		 * requests would show an operator some indexes twice while never showing others at all.
+		 */
+		@Test
+		@DisplayName("A page cut through a block of never-queried indexes falls in the same place twice")
+		void shouldCutTheSamePageTwiceOutOfABlockOfEqualCounts() {
+			// nothing is ever queried here, which is the state the ascending orders were built for - the tiebreaker
+			// carries the entire ordering, across all three of its levels: kind, then scope, then discriminator
+			final Map.Entry<EntityIndexKey, EntityIndex> globalLive = globalIndexEntry(Scope.LIVE, 1);
+			final Map.Entry<EntityIndexKey, EntityIndex> globalArchived = globalIndexEntry(Scope.ARCHIVED, 1);
+			final Map.Entry<EntityIndexKey, EntityIndex> typeAlpha = referenceTypeIndexEntry("alpha", 1);
+			final Map.Entry<EntityIndexKey, EntityIndex> typeBeta = referenceTypeIndexEntry("beta", 1);
+			final Map.Entry<EntityIndexKey, EntityIndex> targetThree = indexEntry(representativeKey(3), 1);
+			final Map.Entry<EntityIndexKey, EntityIndex> targetSeven = indexEntry(representativeKey(7), 1);
+			// inserted in reverse of the order the tiebreaker imposes, so map order cannot be mistaken for key order
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(
+				targetSeven, targetThree, typeBeta, typeAlpha, globalArchived, globalLive
+			);
+
+			final List<Integer> firstPage =
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3));
+			assertEquals(
+				identitiesOf(globalLive, globalArchived, typeAlpha), firstPage,
+				"Equal counts resolve by index kind, then scope, then discriminator"
+			);
+			assertEquals(
+				firstPage, identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 1, 3)),
+				"The same page requested twice must be the same permutation of the tie block"
+			);
+
+			final List<Integer> secondPage =
+				identitiesOf(browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, 2, 3));
+			assertEquals(
+				identitiesOf(typeBeta, targetThree, targetSeven), secondPage,
+				"The second page must continue the tie block where the first one stopped"
+			);
+			final Set<Integer> paged = new HashSet<>(firstPage);
+			paged.addAll(secondPage);
+			assertEquals(
+				indexes.size(), paged.size(),
+				"Two pages of three must cover the six indexes exactly once each - a boundary that drifted would " +
+					"repeat one and drop another"
+			);
+		}
+
+		/**
+		 * The freeze this pins is a correctness requirement rather than a nicety: a comparator reading a live counter
+		 * compares a key that moves while it is being used, which a `PriorityQueue` does not reheapify for and which
+		 * the page sort is entitled to throw on.
+		 */
+		@Test
+		@DisplayName("A row reports the counter reading that placed it, not one taken after the walk")
+		void shouldReportTheFrozenReadingTheRowWasRankedBy() {
+			final Map.Entry<EntityIndexKey, EntityIndex> overtaking = indexEntry(representativeKey(1), 10);
+			final Map.Entry<EntityIndexKey, EntityIndex> leader = indexEntry(representativeKey(2), 10);
+			recordQueries(overtaking, 1);
+			recordQueries(leader, 5);
+			// traffic lands on the first index while the walk is fetching the second - after the first was read and
+			// ranked, before any row is rendered. Live readings would put it at 11 queries, ahead of the leader's 5
+			final Map<EntityIndexKey, EntityIndex> indexes = trafficDuringWalk(overtaking, leader, 10);
+
+			final IndexBrowseResult result = browse(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, 1, 2);
+
+			assertEquals(
+				identitiesOf(leader, overtaking), identitiesOf(result),
+				"The page must be ranked by the readings the walk took, not by where the counters ended up"
+			);
+			final BrowsedIndex overtakingRow = rowOf(result, overtaking.getValue().getPrimaryKey());
+			assertEquals(
+				1L, overtakingRow.queryCount(),
+				"The trailing row reported a query count larger than the leading row's - a row must never contradict " +
+					"its own position"
+			);
+			assertEquals(11L, overtaking.getValue().getActivity().getQueryCount(), "The holder did move on");
+			// the deliberate asymmetry: only the ranked counter has a position to stay consistent with, so the reading
+			// the page was not ranked by is taken fresh and does show the traffic that arrived during the walk
+			assertEquals(
+				10L, overtakingRow.updateCount(),
+				"A reading the page was not ranked by is a fresh one, and newer is simply better for it"
+			);
 		}
 	}
 
@@ -496,6 +642,115 @@ class IndexBrowseProjectionTest {
 	}
 
 	/**
+	 * Browses one unfiltered page, for the tests whose subject is the order rather than the selection.
+	 *
+	 * @param indexes    the map to browse
+	 * @param ordering   the order to impose
+	 * @param pageNumber which page to return, 1-indexed
+	 * @param pageSize   how many indexes the page holds
+	 * @return the resulting page
+	 */
+	@Nonnull
+	private static IndexBrowseResult browse(
+		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
+		@Nonnull IndexBrowseOrdering ordering,
+		int pageNumber,
+		int pageSize
+	) {
+		return browse(
+			indexes, new IndexBrowseCriteria(
+				pageNumber, pageSize, ordering, EnumSet.noneOf(EntityIndexType.class), Set.of(), Set.of()
+			)
+		);
+	}
+
+	/**
+	 * Collects the identities of a page, in the order it returned them.
+	 *
+	 * @param result the page to read
+	 * @return the primary keys of the indexes it describes
+	 */
+	@Nonnull
+	private static List<Integer> identitiesOf(@Nonnull IndexBrowseResult result) {
+		final List<Integer> identities = new ArrayList<>(result.indexes().length);
+		for (final BrowsedIndex index : result.indexes()) {
+			identities.add(index.indexPrimaryKey());
+		}
+		return identities;
+	}
+
+	/**
+	 * Spells out the identities a page is expected to hold, so an assertion names its indexes rather than the integers
+	 * the fixture happened to hand them.
+	 *
+	 * @param entries the indexes, in the expected order
+	 * @return their primary keys
+	 */
+	@SafeVarargs
+	@Nonnull
+	private static List<Integer> identitiesOf(@Nonnull Map.Entry<EntityIndexKey, EntityIndex>... entries) {
+		final List<Integer> identities = new ArrayList<>(entries.length);
+		for (final Map.Entry<EntityIndexKey, EntityIndex> entry : entries) {
+			identities.add(entry.getValue().getPrimaryKey());
+		}
+		return identities;
+	}
+
+	/**
+	 * Records the requested number of query hits against one fixture index.
+	 *
+	 * @param entry the index to record against
+	 * @param count how many hits to record
+	 */
+	private static void recordQueries(@Nonnull Map.Entry<EntityIndexKey, EntityIndex> entry, int count) {
+		final IndexActivity activity = entry.getValue().getActivity();
+		for (int hit = 0; hit < count; hit++) {
+			activity.recordQuery(FIRST_MILLIS);
+		}
+	}
+
+	/**
+	 * Records the requested number of maintenance events against one fixture index.
+	 *
+	 * @param entry the index to record against
+	 * @param count how many events to record
+	 */
+	private static void recordUpdates(@Nonnull Map.Entry<EntityIndexKey, EntityIndex> entry, int count) {
+		final IndexActivity activity = entry.getValue().getActivity();
+		for (int event = 0; event < count; event++) {
+			activity.recordUpdate(FIRST_MILLIS);
+		}
+	}
+
+	/**
+	 * Builds a two-index map that lets traffic arrive *during* the projection's walk, which is the one moment a test
+	 * cannot otherwise reach: the projection is synchronous, so a counter bumped before or after the call proves
+	 * nothing about whether the ranking value was frozen.
+	 *
+	 * The seam is the map's own `get`. The projection fetches each surviving index exactly once, in insertion order,
+	 * so recording against the *first* index at the moment the *second* one is fetched places the traffic strictly
+	 * after the first index was read and ranked, and strictly before any row is rendered.
+	 *
+	 * @param first      the index the injected traffic is recorded against, walked first
+	 * @param second     the index whose fetch triggers the injection, walked second
+	 * @param recordings how many queries and how many updates to inject
+	 * @return the map
+	 */
+	@Nonnull
+	private static Map<EntityIndexKey, EntityIndex> trafficDuringWalk(
+		@Nonnull Map.Entry<EntityIndexKey, EntityIndex> first,
+		@Nonnull Map.Entry<EntityIndexKey, EntityIndex> second,
+		int recordings
+	) {
+		final TrafficDuringWalkMap indexes = new TrafficDuringWalkMap(
+			second.getKey(), first.getValue().getActivity(), recordings
+		);
+		indexes.put(first.getKey(), first.getValue());
+		indexes.put(second.getKey(), second.getValue());
+		return indexes;
+	}
+
+	/**
 	 * Collects the discriminators of a page, in the order it returned them.
 	 *
 	 * @param result the page to read
@@ -540,6 +795,25 @@ class IndexBrowseProjectionTest {
 	) {
 		final EntityIndexKey key = new EntityIndexKey(
 			EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, discriminator
+		);
+		return Map.entry(key, populated(key, entityCount));
+	}
+
+	/**
+	 * Builds one per-reference-type index, whose discriminator is the reference name itself - the kind that sits
+	 * between the entity-level and the per-referenced-entity ones in the tiebreaker's order.
+	 *
+	 * @param referenceName name of the reference whose indexes this one aggregates
+	 * @param entityCount   how many entities it should cover
+	 * @return the map entry
+	 */
+	@Nonnull
+	private static Map.Entry<EntityIndexKey, EntityIndex> referenceTypeIndexEntry(
+		@Nonnull String referenceName,
+		int entityCount
+	) {
+		final EntityIndexKey key = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, referenceName
 		);
 		return Map.entry(key, populated(key, entityCount));
 	}
@@ -592,6 +866,41 @@ class IndexBrowseProjectionTest {
 		return new RepresentativeReferenceKey(
 			new ReferenceKey(REFERENCE_NAME, targetPrimaryKey), representativeValues
 		);
+	}
+
+	/**
+	 * An index map that records traffic against one index at the moment another is fetched from it - the seam
+	 * {@link #trafficDuringWalk} is built on. Insertion order is preserved, so the walk reaches the indexes in the
+	 * order the fixture put them in.
+	 */
+	private static final class TrafficDuringWalkMap extends LinkedHashMap<EntityIndexKey, EntityIndex> {
+		@Serial private static final long serialVersionUID = 4_726_318_495_617_213_401L;
+		/** Fetching this index is what triggers the recording. */
+		private final EntityIndexKey trigger;
+		/** The holder the recording lands on - an index the walk has already read and ranked. */
+		private final IndexActivity target;
+		/** How many queries and how many updates to record. */
+		private final int recordings;
+
+		TrafficDuringWalkMap(@Nonnull EntityIndexKey trigger, @Nonnull IndexActivity target, int recordings) {
+			super(2);
+			this.trigger = trigger;
+			this.target = target;
+			this.recordings = recordings;
+		}
+
+		@Nullable
+		@Override
+		public EntityIndex get(Object key) {
+			final EntityIndex index = super.get(key);
+			if (this.trigger.equals(key)) {
+				for (int recording = 0; recording < this.recordings; recording++) {
+					this.target.recordQuery(SECOND_MILLIS);
+					this.target.recordUpdate(SECOND_MILLIS);
+				}
+			}
+			return index;
+		}
 	}
 
 }

@@ -39,8 +39,8 @@ import java.util.Set;
  * never that nothing matches.
  *
  * Every filter reads off the index's key alone, so filtering allocates nothing and touches no index contents. That is
- * true of the *selection*; {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} additionally reads a counter from each
- * surviving index, which is an `O(1)` bitmap cardinality but not free.
+ * true of the *selection*; every ordering but {@link IndexBrowseOrdering#MAP_ORDER} additionally reads one counter
+ * from each surviving index - a bitmap cardinality or an activity reading, `O(1)` either way, but not free.
  *
  * @param pageNumber     which page to return, 1-indexed - page 1 is the first page
  * @param pageSize       how many indexes the page holds, at most {@link #MAX_PAGE_SIZE}
@@ -68,9 +68,9 @@ public record IndexBrowseCriteria(
 	 *
 	 * This surface enforces a maximum where the task-status listing deliberately does not. That listing is safe
 	 * without one because the number of tasks is small; the number of indexes is not, and both factors of the
-	 * bounded-heap cost of {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} are `pageNumber * pageSize` - i.e. wholly
-	 * client-controlled. An unbounded page size would let one request materialise the entire index set that the heap
-	 * exists to avoid holding.
+	 * bounded-heap cost every ranked ordering pays are `pageNumber * pageSize` - i.e. wholly client-controlled. An
+	 * unbounded page size would let one request materialise the entire index set that the heap exists to avoid
+	 * holding.
 	 *
 	 * Exceeding it is rejected rather than silently clamped: a clamped page looks identical to a complete one, and a
 	 * client paging by "did I get a full page back" would stop early and believe it had seen everything.
@@ -78,9 +78,9 @@ public record IndexBrowseCriteria(
 	public static final int MAX_PAGE_SIZE = 1000;
 
 	/**
-	 * How deep {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} may be paged, counted in indexes rather than pages.
+	 * How deep an ordering that ranks its candidates may be paged, counted in indexes rather than pages.
 	 *
-	 * Capping the page size alone does not bound that ordering. Its heap retains everything up to the *end* of the
+	 * Capping the page size alone does not bound such an ordering. Its heap retains everything up to the *end* of the
 	 * requested page, so the window is `pageNumber * pageSize` - and with the page number unbounded, a request for a
 	 * far-out page retains every matching index and then sorts all of them, only to return an empty page. On a
 	 * collection with hundreds of thousands of indexes that turns one cheap-looking request into a full sort and a
@@ -88,12 +88,14 @@ public record IndexBrowseCriteria(
 	 *
 	 * {@link IndexBrowseOrdering#MAP_ORDER} needs no such limit: it counts matches as it walks and materialises only
 	 * the window, so its allocation is `O(pageSize)` however deep the page is. The limit is therefore attached to the
-	 * ordering that needs it rather than to paging in general.
+	 * orderings that need it rather than to paging in general - which today is every value but that one, and stays so
+	 * for any value added later, because the check names the exempt ordering rather than the bounded ones.
 	 *
-	 * Deep paging into a size ordering is in any case the wrong question - it is a top-N access pattern, and a client
-	 * that wants everything should page in {@link IndexBrowseOrdering#MAP_ORDER}, which is cheaper at every depth.
+	 * Deep paging into a ranked ordering is in any case the wrong question - they are top-N access patterns, and a
+	 * client that wants everything should page in {@link IndexBrowseOrdering#MAP_ORDER}, which is cheaper at every
+	 * depth.
 	 */
-	public static final int MAX_SIZE_ORDERED_WINDOW = 10_000;
+	public static final int MAX_ORDERED_WINDOW = 10_000;
 
 	public IndexBrowseCriteria {
 		Objects.requireNonNull(ordering, "Ordering must not be null!");
@@ -112,15 +114,19 @@ public record IndexBrowseCriteria(
 			pageSize <= MAX_PAGE_SIZE,
 			"Page size must not exceed " + MAX_PAGE_SIZE + ", but was " + pageSize + "!"
 		);
-		if (ordering == IndexBrowseOrdering.BY_ENTITY_COUNT_DESC) {
+		// written as an exemption rather than as a list of the bounded orderings, so that an ordering added later is
+		// bounded by default: a new value that ranks its candidates is caught the day it is declared, whereas a list
+		// would silently let it through until somebody remembered to extend it. `MAP_ORDER` is the only order that
+		// materialises nothing outside the window, and therefore the only one that can be exempted
+		if (ordering != IndexBrowseOrdering.MAP_ORDER) {
 			// computed in long arithmetic because both factors are client-supplied and their product overflows int
 			// long before it reaches the limit - an overflowed window would wrap negative and pass the check
 			final long window = (long) pageNumber * pageSize;
 			Assert.isTrue(
-				window <= MAX_SIZE_ORDERED_WINDOW,
-				"Ordering by entity count retains every index up to the end of the requested page, so page " +
+				window <= MAX_ORDERED_WINDOW,
+				"Ordering by `" + ordering + "` retains every index up to the end of the requested page, so page " +
 					pageNumber + " of size " + pageSize + " would retain " + window + " indexes - more than the " +
-					MAX_SIZE_ORDERED_WINDOW + " this ordering allows. Page in `" + IndexBrowseOrdering.MAP_ORDER +
+					MAX_ORDERED_WINDOW + " this ordering allows. Page in `" + IndexBrowseOrdering.MAP_ORDER +
 					"` to walk the whole set instead; it costs the same at any depth!"
 			);
 		}

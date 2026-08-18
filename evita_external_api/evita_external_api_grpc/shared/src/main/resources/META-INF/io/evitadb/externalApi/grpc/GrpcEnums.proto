@@ -1025,8 +1025,9 @@ enum GrpcEntityIndexType {
 
 }
 
-// The order in which an index browse returns its results. Both orders walk every index of the collection; what they
-// differ in is how much of that walk has to be kept in memory to produce a page.
+// The order in which an index browse returns its results. Every order walks every index of the collection; what they
+// differ in is how much of that walk has to be kept in memory to produce a page, and what the kept entries are
+// ranked by.
 enum GrpcIndexBrowseOrdering {
 
   // Default value. Rejected rather than defaulted: an order chosen for the client would silently decide whether the
@@ -1045,6 +1046,38 @@ enum GrpcIndexBrowseOrdering {
   // is a single constant-time reading, whereas a memory estimate has to traverse an index, so ordering by it would
   // mean estimating every index in the collection on every call.
   INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC = 2;
+  // Most-queried first by `queryCount`, ties broken deterministically by index kind, then scope, then discriminator.
+  // Answers which indexes are earning the memory they occupy. Read each count against the same row's `observedSince`
+  // rather than on its own: the observation window opens per index, so two raw counts only become comparable once
+  // each has been divided by its own window. Unlike `INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC` this order is
+  // meaningful for a catalog browse too, because a catalog index is queried and maintained like any other.
+  //
+  // The rank is a best-effort reading taken as the walk passes each index, not a snapshot of one instant - the
+  // counters move under live traffic. Each index is read once, and the count a row reports for the counter it was
+  // ranked by is the reading that placed it, so no row contradicts its own position. Pages are nevertheless unstable
+  // across calls: recording activity does not advance the catalog version, so two pages agreeing on `catalogVersion`
+  // may still have been ranked by counters that moved between them, and one index can appear on two pages or on
+  // neither. This is a top-N access pattern - page in `INDEX_BROWSE_ORDERING_MAP_ORDER` to enumerate the whole set -
+  // and it is subject to the paging-depth limit documented on `GrpcIndexBrowseRequest.pageNumber`.
+  INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC = 3;
+  // Least-queried first by `queryCount`, same tiebreaker - the order for finding indexes that may be worth dropping.
+  // It is dominated by ties at zero, because on most catalogs the majority of indexes have never been chosen by a
+  // query; the kind-then-scope-then-discriminator tiebreaker is the whole of what makes a page boundary drawn inside
+  // that block of zeros reproducible. A zero is not by itself a verdict - it is a statement about the window the
+  // row's `observedSince` opens. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
+  INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC = 4;
+  // Most-updated first by `updateCount`, same tiebreaker. Paired with `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` it
+  // finds the indexes maintained far more often than they are read. Mind what `GrpcBrowsedIndex.updateCount`
+  // documents about the maintenance it counts before acting on the head of this order: a global index leads it on
+  // essentially every catalog and is never a drop candidate, and maintenance driven by a write to another collection
+  // is not counted at all. The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
+  INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC = 5;
+  // Least-updated first by `updateCount`, same tiebreaker - the order that surfaces indexes nothing is writing to.
+  // Dominated by ties at zero exactly as `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` is, and reproducible inside that
+  // block for the same reason. A never-updated index is not thereby a drop candidate: it may be precisely the one
+  // every query reads, so read it beside `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC` rather than acting on it alone.
+  // The caveats on `INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC` apply unchanged.
+  INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC = 6;
 
 }
 

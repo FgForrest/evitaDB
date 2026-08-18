@@ -252,22 +252,87 @@ class CatalogIndexProjectionTest {
 		}
 
 		@Test
-		@DisplayName("orders by handle whichever ordering is asked for")
-		void shouldOrderByHandleUnderEitherOrdering() {
-			// every catalog index reports an absent entity count, so a size ordering has nothing to discriminate on
-			// and must fall back to a total order rather than to whatever order the indexes were collected in
+		@DisplayName("falls back to the handle whenever the ordering has nothing to discriminate on")
+		void shouldFallBackToTheHandleWhenNothingDiscriminates() {
+			// nothing has been recorded on either holder and no catalog index reports an entity count, so every one of
+			// the orderings is asked to rank two indexes it cannot tell apart. Each must still yield the same total
+			// order rather than whatever order the indexes happened to be collected in
 			final List<CatalogIndex> reversed = List.of(empty(Scope.ARCHIVED), empty(Scope.LIVE));
 			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
-				final IndexBrowseResult result = browse(
-					reversed,
-					new IndexBrowseCriteria(1, 10, ordering, Set.of(), Set.of(), Set.of())
-				);
-				assertEquals(
-					List.of(0, 1),
-					Arrays.stream(result.indexes()).map(BrowsedIndex::indexPrimaryKey).toList(),
-					"ordering " + ordering + " must still yield a total order"
-				);
+				assertHandlesInOrder(reversed, ordering, List.of(0, 1));
 			}
+		}
+
+		@Test
+		@DisplayName("orders by query count, in whichever direction is asked for")
+		void shouldOrderByQueryCount() {
+			// each direction is asked of a fixture whose counter order contradicts the handle order, so neither half
+			// can be passed by a projection that quietly fell back to the handle
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 1, 0), busy(Scope.ARCHIVED, 3, 0)),
+				IndexBrowseOrdering.BY_QUERY_COUNT_DESC, List.of(1, 0)
+			);
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 3, 0), busy(Scope.ARCHIVED, 1, 0)),
+				IndexBrowseOrdering.BY_QUERY_COUNT_ASC, List.of(1, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("orders by update count, in whichever direction is asked for")
+		void shouldOrderByUpdateCount() {
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 0, 2), busy(Scope.ARCHIVED, 0, 7)),
+				IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, List.of(1, 0)
+			);
+			assertHandlesInOrder(
+				List.of(busy(Scope.LIVE, 0, 7), busy(Scope.ARCHIVED, 0, 2)),
+				IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, List.of(1, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("ranks by the counter the ordering names, and not by the other one")
+		void shouldRankByTheNamedCounterOnly() {
+			// the two counters disagree about which index leads, which is the only fixture that can tell four
+			// near-identical comparators apart - one wired to the wrong counter inverts exactly half of these
+			final List<CatalogIndex> indexes = List.of(busy(Scope.LIVE, 5, 1), busy(Scope.ARCHIVED, 1, 5));
+
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, List.of(0, 1));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_QUERY_COUNT_ASC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_DESC, List.of(1, 0));
+			assertHandlesInOrder(indexes, IndexBrowseOrdering.BY_UPDATE_COUNT_ASC, List.of(0, 1));
+		}
+
+		@Test
+		@DisplayName("reports the counter value that placed each row, not one the index reached afterwards")
+		void shouldReportTheCounterEachRowWasPlacedBy() {
+			final CatalogIndex live = busy(Scope.LIVE, 1, 0);
+			final CatalogIndex archived = busy(Scope.ARCHIVED, 3, 0);
+
+			final IndexBrowseResult result = browse(
+				List.of(live, archived),
+				new IndexBrowseCriteria(
+					1, 10, IndexBrowseOrdering.BY_QUERY_COUNT_DESC, Set.of(), Set.of(), Set.of()
+				)
+			);
+			// traffic recorded against the trailing index *after* the page was built. A row that read its holder a
+			// second time on the way out would now report nine queries from second place, behind a row reporting three
+			for (int query = 0; query < 8; query++) {
+				live.getActivity().recordQuery(SECOND_MILLIS);
+			}
+
+			final BrowsedIndex[] rows = result.indexes();
+			assertEquals(2, rows.length);
+			assertEquals(3L, rows[0].queryCount());
+			assertEquals(
+				1L, rows[1].queryCount(),
+				"The row must report the count that placed it, not the one its index has now"
+			);
+			assertTrue(
+				rows[0].queryCount() >= rows[1].queryCount(),
+				"No row may report a count that contradicts its own position in the page"
+			);
 		}
 
 		@Test
@@ -432,6 +497,31 @@ class CatalogIndexProjectionTest {
 	}
 
 	/**
+	 * Browses one unfiltered page under a given ordering and asserts which indexes it placed where.
+	 *
+	 * The rows are compared by handle rather than by scope because the handle is what an ordering has to *displace* -
+	 * every fixture here is built so that the expected order contradicts the handle order the projection falls back to.
+	 *
+	 * @param indexes         the catalog indexes to browse
+	 * @param ordering        the order to ask for
+	 * @param expectedHandles the handles the page must carry, in the order they must arrive in
+	 */
+	private static void assertHandlesInOrder(
+		@Nonnull List<CatalogIndex> indexes,
+		@Nonnull IndexBrowseOrdering ordering,
+		@Nonnull List<Integer> expectedHandles
+	) {
+		final IndexBrowseResult result = browse(
+			indexes, new IndexBrowseCriteria(1, 10, ordering, Set.of(), Set.of(), Set.of())
+		);
+		assertEquals(
+			expectedHandles,
+			Arrays.stream(result.indexes()).map(BrowsedIndex::indexPrimaryKey).toList(),
+			"ordering " + ordering + " placed the rows by something other than the counter it names"
+		);
+	}
+
+	/**
 	 * Picks the row describing the catalog index of one scope out of a page.
 	 *
 	 * @param result the page to read
@@ -504,6 +594,29 @@ class CatalogIndexProjectionTest {
 	@Nonnull
 	private static CatalogIndex empty(@Nonnull Scope scope) {
 		return new CatalogIndex(scope);
+	}
+
+	/**
+	 * Builds a catalog index that has already seen traffic, so that an ordering has something to rank it by.
+	 *
+	 * The two counters are set independently because that is what tells the four counter orderings apart - an index
+	 * leading on queries and trailing on updates cannot be placed correctly by a comparator reading the wrong one.
+	 *
+	 * @param scope   scope of the index
+	 * @param queries how many queries to record against it
+	 * @param updates how many updates to record against it
+	 * @return the index, with its holder already advanced
+	 */
+	@Nonnull
+	private static CatalogIndex busy(@Nonnull Scope scope, int queries, int updates) {
+		final CatalogIndex index = empty(scope);
+		for (int query = 0; query < queries; query++) {
+			index.getActivity().recordQuery(FIRST_MILLIS);
+		}
+		for (int update = 0; update < updates; update++) {
+			index.getActivity().recordUpdate(SECOND_MILLIS);
+		}
+		return index;
 	}
 
 	/**

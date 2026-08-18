@@ -1781,6 +1781,10 @@ public class EvitaEnumConverter {
 		return switch (grpcOrdering) {
 			case INDEX_BROWSE_ORDERING_MAP_ORDER -> IndexBrowseOrdering.MAP_ORDER;
 			case INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC -> IndexBrowseOrdering.BY_ENTITY_COUNT_DESC;
+			case INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC -> IndexBrowseOrdering.BY_QUERY_COUNT_DESC;
+			case INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC -> IndexBrowseOrdering.BY_QUERY_COUNT_ASC;
+			case INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC -> IndexBrowseOrdering.BY_UPDATE_COUNT_DESC;
+			case INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC -> IndexBrowseOrdering.BY_UPDATE_COUNT_ASC;
 			case INDEX_BROWSE_ORDERING_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized index browse ordering: " + grpcOrdering);
 		};
@@ -1797,6 +1801,10 @@ public class EvitaEnumConverter {
 		return switch (ordering) {
 			case MAP_ORDER -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER;
 			case BY_ENTITY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_ENTITY_COUNT_DESC;
+			case BY_QUERY_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_DESC;
+			case BY_QUERY_COUNT_ASC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_QUERY_COUNT_ASC;
+			case BY_UPDATE_COUNT_DESC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_DESC;
+			case BY_UPDATE_COUNT_ASC -> GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_BY_UPDATE_COUNT_ASC;
 		};
 	}
 

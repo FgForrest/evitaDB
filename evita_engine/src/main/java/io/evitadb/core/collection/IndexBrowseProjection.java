@@ -67,16 +67,34 @@ import java.util.Set;
 final class IndexBrowseProjection {
 
 	/**
-	 * {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} as a comparator: entity count descending, ties broken by the
-	 * index key.
+	 * Every descending ranked ordering as one comparator: the reading frozen on the candidate, largest first, ties
+	 * broken by the index key.
 	 *
-	 * The tiebreaker exists because the data is tie-dominated - most per-referenced-entity indexes cover a handful of
-	 * entities each - and an unstable order silently corrupts pagination, repeating some indexes across pages while
+	 * One comparator serves all three because the reading they differ in has already been resolved - each candidate
+	 * carries the value its own ordering ranks by, taken once during the walk - so what is left to compare is the same
+	 * `long` whichever counter it came from.
+	 *
+	 * The tiebreaker is not a nicety. Every one of these orders is tie-dominated: entity counts because most
+	 * per-referenced-entity indexes cover a handful of entities each, activity counts because most indexes are never
+	 * touched at all - and an unstable order silently corrupts pagination, repeating some indexes across pages while
 	 * omitting others. {@link EntityIndexKey} already compares by type, then scope, then discriminator, which is a
 	 * total order over the keys of one collection and therefore leaves no ties for chance to resolve.
 	 */
-	private static final Comparator<BrowseCandidate> ENTITY_COUNT_ORDER =
-		Comparator.comparingInt(BrowseCandidate::entityCount).reversed()
+	private static final Comparator<BrowseCandidate> RANKED_DESC =
+		Comparator.comparingLong(BrowseCandidate::rankedValue).reversed()
+			.thenComparing(BrowseCandidate::key);
+	/**
+	 * The ascending ranked orderings - {@link IndexBrowseOrdering#BY_QUERY_COUNT_ASC} and
+	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_ASC} - as one comparator: smallest first, ties broken by the same key
+	 * ordering {@link #RANKED_DESC} uses.
+	 *
+	 * The tiebreaker running ascending under a descending rank as well is deliberate rather than an oversight: it is
+	 * what a page boundary drawn inside a tie block relies on, and it has no direction of its own to reverse. These two
+	 * orders need it most, because the block of never-touched indexes they lead with is where nearly every page
+	 * boundary falls.
+	 */
+	private static final Comparator<BrowseCandidate> RANKED_ASC =
+		Comparator.comparingLong(BrowseCandidate::rankedValue)
 			.thenComparing(BrowseCandidate::key);
 
 	private IndexBrowseProjection() {
@@ -103,7 +121,7 @@ final class IndexBrowseProjection {
 		long catalogVersion
 	) {
 		// both factors are client-supplied and `pageNumber` is unbounded in `MAP_ORDER` - the only ordering that can
-		// reach this, since a size-ordered window is capped in the criteria - so an int multiplication could wrap and
+		// reach this, since every ranked window is capped in the criteria - so an int multiplication could wrap and
 		// silently serve some unrelated window as the one asked for; the offset is therefore computed in long
 		final long offset = (long) (criteria.pageNumber() - 1) * criteria.pageSize();
 		return switch (criteria.ordering()) {
@@ -112,10 +130,18 @@ final class IndexBrowseProjection {
 				final int matchCount = collectInMapOrder(entityType, indexes, criteria, offset, page);
 				yield toResult(criteria, catalogVersion, matchCount, page);
 			}
-			case BY_ENTITY_COUNT_DESC -> {
-				final PriorityQueue<BrowseCandidate> heap = new PriorityQueue<>(ENTITY_COUNT_ORDER.reversed());
-				final int matchCount = collectByEntityCount(indexes, criteria, offset, heap);
-				yield toResult(criteria, catalogVersion, matchCount, cutPage(entityType, heap, criteria, offset));
+			// every other ordering ranks its candidates, and they differ only in which reading is ranked and in which
+			// direction - both resolved once here, so one walk and one page cut serve all five of them
+			case BY_ENTITY_COUNT_DESC, BY_QUERY_COUNT_DESC, BY_QUERY_COUNT_ASC, BY_UPDATE_COUNT_DESC,
+				BY_UPDATE_COUNT_ASC -> {
+				final RankedCounter rankedCounter = rankedCounterOf(criteria.ordering());
+				final Comparator<BrowseCandidate> order = comparatorOf(criteria.ordering());
+				final PriorityQueue<BrowseCandidate> heap = new PriorityQueue<>(order.reversed());
+				final int matchCount = collectRanked(indexes, criteria, offset, heap, order, rankedCounter);
+				yield toResult(
+					criteria, catalogVersion, matchCount,
+					cutPage(entityType, heap, criteria, offset, order, rankedCounter)
+				);
 			}
 		};
 	}
@@ -145,11 +171,14 @@ final class IndexBrowseProjection {
 			}
 			if (matched >= offset && matched < end) {
 				// one fetch serves every reading - the identity the row is addressed by, the count it reports and the
-				// activity holder it reads its five activity readings off
+				// activity holder it reads its five activity readings off. Nothing is ranked here, so all five are
+				// taken at the same moment and none of them has a position to stay consistent with
 				final EntityIndex index = indexOf(indexes, key);
+				final IndexActivity activity = index.getActivity();
 				page.add(
 					describe(
-						entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(), index.getActivity()
+						entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(),
+						activity.getQueryCount(), activity.getUpdateCount(), activity
 					)
 				);
 			}
@@ -165,19 +194,30 @@ final class IndexBrowseProjection {
 	 * The heap is ordered *against* the requested order, so its head is the weakest entry retained and eviction is an
 	 * `O(log k)` comparison against that head. This is what keeps a shallow page over a large collection from sorting
 	 * hundreds of thousands of entries; the advantage narrows as `pageNumber` grows, which is why the surface
-	 * documents size ordering as a top-N access pattern.
+	 * documents every ranked ordering as a top-N access pattern.
 	 *
-	 * @param indexes  the sealed index map to walk
-	 * @param criteria the selection to apply
-	 * @param offset   how many matches precede the requested page
-	 * @param heap     accumulator retaining the best candidates
+	 * **The ranked reading is taken here and nowhere else.** A comparator that read a live {@link IndexActivity}
+	 * instead would be comparing a key that moves while it is being used: a {@link PriorityQueue} does not reheapify
+	 * when the priority of an element it already holds changes, two comparisons of one pair can disagree, and the sort
+	 * in {@link #cutPage} is entitled to throw on the contract violation that follows. Freezing the value on the
+	 * candidate makes the comparator a pure function of immutable data, and the ranking merely *stale* - which is what
+	 * the ordering's own documentation promises a client.
+	 *
+	 * @param indexes       the sealed index map to walk
+	 * @param criteria      the selection to apply
+	 * @param offset        how many matches precede the requested page
+	 * @param heap          accumulator retaining the best candidates
+	 * @param order         the requested order, used to decide which retained candidate an arrival evicts
+	 * @param rankedCounter the reading the order ranks by, resolved once by the caller
 	 * @return how many indexes matched in total
 	 */
-	private static int collectByEntityCount(
+	private static int collectRanked(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull IndexBrowseCriteria criteria,
 		long offset,
-		@Nonnull PriorityQueue<BrowseCandidate> heap
+		@Nonnull PriorityQueue<BrowseCandidate> heap,
+		@Nonnull Comparator<BrowseCandidate> order,
+		@Nonnull RankedCounter rankedCounter
 	) {
 		final long retained = offset + criteria.pageSize();
 		int matched = 0;
@@ -186,16 +226,24 @@ final class IndexBrowseProjection {
 				continue;
 			}
 			matched++;
-			// the count is read here rather than in the page cut, because ordering needs it for every match - it is
-			// an O(1) cardinality of the index's primary-key bitmap, never a walk of the index contents. The identity
-			// comes off the same fetch, so retaining it costs a comparison-free int rather than a second lookup
+			// the readings are taken here rather than in the page cut, because ordering needs one for every match -
+			// the entity count is an O(1) cardinality of the index's primary-key bitmap, never a walk of the index
+			// contents, and an activity count is a single volatile field read. The identity comes off the same fetch,
+			// so retaining it costs a comparison-free int rather than a second lookup
 			final EntityIndex index = indexOf(indexes, key);
+			final IndexActivity activity = index.getActivity();
+			final int entityCount = index.getAllPrimaryKeys().size();
+			final long rankedValue = switch (rankedCounter) {
+				case ENTITY_COUNT -> entityCount;
+				case QUERY_COUNT -> activity.getQueryCount();
+				case UPDATE_COUNT -> activity.getUpdateCount();
+			};
 			final BrowseCandidate candidate = new BrowseCandidate(
-				key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(), index.getActivity()
+				key, index.getPrimaryKey(), entityCount, rankedValue, activity
 			);
 			if (heap.size() < retained) {
 				heap.offer(candidate);
-			} else if (ENTITY_COUNT_ORDER.compare(candidate, heap.peek()) < 0) {
+			} else if (order.compare(candidate, heap.peek()) < 0) {
 				heap.poll();
 				heap.offer(candidate);
 			}
@@ -206,10 +254,12 @@ final class IndexBrowseProjection {
 	/**
 	 * Drains the heap into the requested order and cuts the page out of it.
 	 *
-	 * @param entityType name of the collection whose indexes these are
-	 * @param heap     the retained candidates, in no useful order of their own
-	 * @param criteria the page to cut
-	 * @param offset   how many matches precede the requested page
+	 * @param entityType    name of the collection whose indexes these are
+	 * @param heap          the retained candidates, in no useful order of their own
+	 * @param criteria      the page to cut
+	 * @param offset        how many matches precede the requested page
+	 * @param order         the requested order to drain the heap into
+	 * @param rankedCounter the reading that order ranks by, which is the one column the row reports from the walk
 	 * @return the page's descriptors, in the requested order
 	 */
 	@Nonnull
@@ -217,10 +267,12 @@ final class IndexBrowseProjection {
 		@Nonnull String entityType,
 		@Nonnull PriorityQueue<BrowseCandidate> heap,
 		@Nonnull IndexBrowseCriteria criteria,
-		long offset
+		long offset,
+		@Nonnull Comparator<BrowseCandidate> order,
+		@Nonnull RankedCounter rankedCounter
 	) {
 		final List<BrowseCandidate> ordered = new ArrayList<>(heap);
-		ordered.sort(ENTITY_COUNT_ORDER);
+		ordered.sort(order);
 
 		// the heap retained everything up to the end of the requested page, so the page starts at `offset` within it
 		// - and `offset` is safe to narrow here because the heap never holds more than `offset + pageSize` entries
@@ -228,18 +280,61 @@ final class IndexBrowseProjection {
 		final int to = Math.min(from + criteria.pageSize(), ordered.size());
 		final List<BrowsedIndex> page = new ArrayList<>(to - from);
 		for (int i = from; i < to; i++) {
-			// the count carried from the walk, not a fresh reading: it is the one this row was *ordered* by, and an
-			// index mutated between the walk and here would otherwise be reported with a count that contradicts its
-			// own position in the page
+			// the ranked count carried from the walk, not a fresh reading: it is the one this row was *ordered* by, and
+			// an index whose traffic moved between the walk and here would otherwise be reported with a count that
+			// contradicts its own position in the page. The asymmetry with the readings below is deliberate - only the
+			// ranked counter has a position to stay consistent with, so the others are taken fresh, where newer is
+			// simply better
 			final BrowseCandidate candidate = ordered.get(i);
+			final IndexActivity activity = candidate.activity();
+			final long queryCount = rankedCounter == RankedCounter.QUERY_COUNT ?
+				candidate.rankedValue() : activity.getQueryCount();
+			final long updateCount = rankedCounter == RankedCounter.UPDATE_COUNT ?
+				candidate.rankedValue() : activity.getUpdateCount();
 			page.add(
 				describe(
 					entityType, candidate.key(), candidate.indexPrimaryKey(), candidate.entityCount(),
-					candidate.activity()
+					queryCount, updateCount, activity
 				)
 			);
 		}
 		return page;
+	}
+
+	/**
+	 * Which reading a ranked ordering places its candidates by, resolved once per browse rather than per candidate.
+	 *
+	 * @param ordering the ordering to resolve, which must be one that ranks
+	 * @return the reading it ranks by
+	 */
+	@Nonnull
+	private static RankedCounter rankedCounterOf(@Nonnull IndexBrowseOrdering ordering) {
+		return switch (ordering) {
+			case BY_ENTITY_COUNT_DESC -> RankedCounter.ENTITY_COUNT;
+			case BY_QUERY_COUNT_DESC, BY_QUERY_COUNT_ASC -> RankedCounter.QUERY_COUNT;
+			case BY_UPDATE_COUNT_DESC, BY_UPDATE_COUNT_ASC -> RankedCounter.UPDATE_COUNT;
+			case MAP_ORDER -> throw new GenericEvitaInternalError(
+				"Ordering `" + ordering + "` ranks nothing and must never reach the ranked page build!"
+			);
+		};
+	}
+
+	/**
+	 * The comparator one ranked ordering imposes - which is its direction alone, the reading having already been
+	 * resolved onto the candidates by {@link #rankedCounterOf(IndexBrowseOrdering)}.
+	 *
+	 * @param ordering the ordering to resolve, which must be one that ranks
+	 * @return its comparator
+	 */
+	@Nonnull
+	private static Comparator<BrowseCandidate> comparatorOf(@Nonnull IndexBrowseOrdering ordering) {
+		return switch (ordering) {
+			case BY_ENTITY_COUNT_DESC, BY_QUERY_COUNT_DESC, BY_UPDATE_COUNT_DESC -> RANKED_DESC;
+			case BY_QUERY_COUNT_ASC, BY_UPDATE_COUNT_ASC -> RANKED_ASC;
+			case MAP_ORDER -> throw new GenericEvitaInternalError(
+				"Ordering `" + ordering + "` imposes no ranking and must never reach the ranked page build!"
+			);
+		};
 	}
 
 	/**
@@ -301,11 +396,16 @@ final class IndexBrowseProjection {
 	/**
 	 * Renders one index into its descriptor.
 	 *
+	 * The two counts are handed in rather than read off the holder here, because a ranked page reports the one it was
+	 * ranked by from the reading that placed the row - see {@link #cutPage}.
+	 *
 	 * @param entityType      name of the collection whose index this is
 	 * @param key             key identifying the index
 	 * @param indexPrimaryKey identity of the index, which is what the descriptor is addressed by
 	 * @param entityCount     how many entities the index covers
-	 * @param activity        the index's activity holder, read here rather than during the walk - five `O(1)` field
+	 * @param queryCount      how many executed query plans have chosen the index
+	 * @param updateCount     how many entity mutations have acquired the index for modification
+	 * @param activity        the index's activity holder, read here rather than during the walk - three `O(1)` field
 	 *                        reads that only the rows actually on the page pay for
 	 * @return the descriptor
 	 */
@@ -315,6 +415,8 @@ final class IndexBrowseProjection {
 		@Nonnull EntityIndexKey key,
 		int indexPrimaryKey,
 		int entityCount,
+		long queryCount,
+		long updateCount,
 		@Nonnull IndexActivity activity
 	) {
 		return new BrowsedIndex(
@@ -326,8 +428,8 @@ final class IndexBrowseProjection {
 			key.referenceName(),
 			discriminatorPrimaryKeyOf(key),
 			entityCount,
-			activity.getQueryCount(),
-			activity.getUpdateCount(),
+			queryCount,
+			updateCount,
 			activity.getLastQueriedAt(),
 			activity.getLastUpdatedAt(),
 			activity.getObservedSince()
@@ -453,14 +555,44 @@ final class IndexBrowseProjection {
 	 * @param key             key identifying the index
 	 * @param indexPrimaryKey identity of the index, carried through to the descriptor
 	 * @param entityCount     how many entities the index covers
+	 * @param rankedValue     the reading this candidate is ranked by, frozen at the moment the walk reached it - the
+	 *                        entity count above for {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC}, an activity
+	 *                        counter for the four orders that rank by one. It is duplicated rather than derived on
+	 *                        demand precisely so that no comparison can ever reach a value that moves
 	 * @param activity        the index's activity holder, read only if this candidate makes it onto the page
 	 */
 	private record BrowseCandidate(
 		@Nonnull EntityIndexKey key,
 		int indexPrimaryKey,
 		int entityCount,
+		long rankedValue,
 		@Nonnull IndexActivity activity
 	) {
+	}
+
+	/**
+	 * The reading a ranked ordering places its candidates by.
+	 *
+	 * Collapsing the five ranked orderings onto three readings and two directions is what lets one walk and one page
+	 * cut serve all of them. Nothing downstream of the walk needs to know which counter a candidate's
+	 * {@link BrowseCandidate#rankedValue()} came from, except the page cut - which has to report it back in the right
+	 * column.
+	 */
+	private enum RankedCounter {
+
+		/**
+		 * The cardinality of the index's primary-key bitmap.
+		 */
+		ENTITY_COUNT,
+		/**
+		 * {@link IndexActivity#getQueryCount()}.
+		 */
+		QUERY_COUNT,
+		/**
+		 * {@link IndexActivity#getUpdateCount()}.
+		 */
+		UPDATE_COUNT
+
 	}
 
 }

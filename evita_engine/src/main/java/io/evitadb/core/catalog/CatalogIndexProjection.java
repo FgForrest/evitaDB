@@ -71,10 +71,11 @@ import java.util.Set;
 final class CatalogIndexProjection {
 
 	/**
-	 * Orders browse rows by their handle, which is the only total order over catalog indexes that exists.
+	 * Orders browse rows by their handle - the only total order over catalog indexes that exists, and therefore the
+	 * tiebreaker every counter ordering here ends in.
 	 *
-	 * Both {@link IndexBrowseOrdering} values collapse to this one. {@link IndexBrowseOrdering#MAP_ORDER} has no map to
-	 * follow - the indexes are addressed by scope, so their handles *are* their natural order - and
+	 * Two {@link IndexBrowseOrdering} values collapse to it outright. {@link IndexBrowseOrdering#MAP_ORDER} has no map
+	 * to follow - the indexes are addressed by scope, so their handles *are* their natural order - and
 	 * {@link IndexBrowseOrdering#BY_ENTITY_COUNT_DESC} has nothing to discriminate on, because every catalog index
 	 * reports an absent entity count. Applied explicitly rather than left to the order the indexes happened to be
 	 * collected in: an unstable order silently corrupts pagination, repeating some rows across pages while omitting
@@ -82,6 +83,37 @@ final class CatalogIndexProjection {
 	 */
 	private static final Comparator<BrowsedIndex> BY_HANDLE =
 		Comparator.comparingInt(BrowsedIndex::indexPrimaryKey);
+	/**
+	 * {@link IndexBrowseOrdering#BY_QUERY_COUNT_DESC} as a comparator: most queried first, ties broken by handle.
+	 *
+	 * **It compares the rendered row and never the index's activity holder, which is a correctness requirement rather
+	 * than a convenience.** A counter advances under live traffic, so a comparator that read one could answer two
+	 * comparisons of the same pair differently and leave the sort with no consistent order to produce at all. The row
+	 * *is* the snapshot: {@link #describeRow} reads each counter exactly once into an immutable record, and every row
+	 * is rendered before any of them is compared - which is also what makes the count a row reports the very count that
+	 * placed it.
+	 */
+	private static final Comparator<BrowsedIndex> MOST_QUERIED_FIRST =
+		Comparator.comparingLong(BrowsedIndex::queryCount).reversed().thenComparing(BY_HANDLE);
+	/**
+	 * {@link IndexBrowseOrdering#BY_QUERY_COUNT_ASC} as a comparator: least queried first, ties broken by handle. Over
+	 * indexes nothing has ever queried the tiebreaker is the whole of the order - see {@link #MOST_QUERIED_FIRST} for
+	 * why the comparison is over the row rather than over the holder.
+	 */
+	private static final Comparator<BrowsedIndex> LEAST_QUERIED_FIRST =
+		Comparator.comparingLong(BrowsedIndex::queryCount).thenComparing(BY_HANDLE);
+	/**
+	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_DESC} as a comparator: most updated first, ties broken by handle - see
+	 * {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
+	 */
+	private static final Comparator<BrowsedIndex> MOST_UPDATED_FIRST =
+		Comparator.comparingLong(BrowsedIndex::updateCount).reversed().thenComparing(BY_HANDLE);
+	/**
+	 * {@link IndexBrowseOrdering#BY_UPDATE_COUNT_ASC} as a comparator: least updated first, ties broken by handle - see
+	 * {@link #MOST_QUERIED_FIRST} for why the comparison is over the row rather than over the holder.
+	 */
+	private static final Comparator<BrowsedIndex> LEAST_UPDATED_FIRST =
+		Comparator.comparingLong(BrowsedIndex::updateCount).thenComparing(BY_HANDLE);
 
 	private CatalogIndexProjection() {
 		throw new UnsupportedOperationException("This class cannot be instantiated!");
@@ -146,7 +178,11 @@ final class CatalogIndexProjection {
 				matched.add(describeRow(scope, catalogIndex.getActivity()));
 			}
 		}
-		matched.sort(BY_HANDLE);
+		// a plain sort of a list holding at most one row per scope. The collection-level browse pays for a bounded heap
+		// because it ranks a map of up to hundreds of thousands of indexes and must not retain them all; here the whole
+		// candidate set is the page, so rendering every row up front and sorting the result is both cheaper and what
+		// freezes the ranking counter - see `MOST_QUERIED_FIRST`
+		matched.sort(comparatorOf(criteria.ordering()));
 
 		// the offset is computed in long arithmetic for the same reason the collection-level browse does it - both
 		// factors are client-supplied and their product overflows int long before it reaches any bound - even though
@@ -161,6 +197,32 @@ final class CatalogIndexProjection {
 			matched.size(),
 			matched.subList(from, to).toArray(BrowsedIndex[]::new)
 		);
+	}
+
+	/**
+	 * Picks the comparator that imposes one requested ordering over rows that have already been rendered.
+	 *
+	 * **Two orderings degenerate here, and the other four do not.** A catalog index reports no entity count, so ranking
+	 * by size has nothing to read; but it is chosen by queries and maintained by writes exactly as a collection's index
+	 * is, so both activity counters rank it meaningfully - which is why a catalog browse answers the counter orderings
+	 * rather than quietly collapsing them too.
+	 *
+	 * Written as an exhaustive switch with no `default`, so a value added to {@link IndexBrowseOrdering} fails the
+	 * build here instead of silently degenerating to the handle order. The degeneracy of the two that do collapse is a
+	 * documented property of those two, never a fallback for whatever is declared next.
+	 *
+	 * @param ordering the order the client asked for
+	 * @return the comparator imposing it
+	 */
+	@Nonnull
+	private static Comparator<BrowsedIndex> comparatorOf(@Nonnull IndexBrowseOrdering ordering) {
+		return switch (ordering) {
+			case MAP_ORDER, BY_ENTITY_COUNT_DESC -> BY_HANDLE;
+			case BY_QUERY_COUNT_DESC -> MOST_QUERIED_FIRST;
+			case BY_QUERY_COUNT_ASC -> LEAST_QUERIED_FIRST;
+			case BY_UPDATE_COUNT_DESC -> MOST_UPDATED_FIRST;
+			case BY_UPDATE_COUNT_ASC -> LEAST_UPDATED_FIRST;
+		};
 	}
 
 	/**
@@ -245,6 +307,10 @@ final class CatalogIndexProjection {
 
 	/**
 	 * Renders the catalog index of one scope into its browse row.
+	 *
+	 * Called for every match before anything is ordered, which is what makes the row the snapshot a counter ordering
+	 * ranks by: each reading is taken once here, and the comparator that follows sees only the record - see
+	 * {@link #MOST_QUERIED_FIRST}.
 	 *
 	 * @param scope    scope of the index
 	 * @param activity the index's activity holder, whose five readings are `O(1)` field reads

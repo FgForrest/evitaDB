@@ -631,29 +631,36 @@ class IndexBrowseTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("Paging deep into a size ordering is refused, but the same depth in map order is not")
-		void shouldRefuseOnlyTheSizeOrderedDeepPage() {
-			// capping the page size alone does not bound the size ordering: its heap retains everything up to the end
-			// of the requested page, so an unbounded page number retains and sorts every matching index only to
+		@DisplayName("Paging deep into a sorted ordering is refused, but the same depth in map order is not")
+		void shouldRefuseOnlyTheHeapOrderedDeepPage() {
+			// capping the page size alone does not bound an ordering that sorts: its heap retains everything up to the
+			// end of the requested page, so an unbounded page number retains and sorts every matching index only to
 			// return an empty page - a full sort and a proportional allocation from one cheap-looking request
-			final int tooDeep = (IndexBrowseCriteria.MAX_SIZE_ORDERED_WINDOW / 10) + 1;
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> criteria(tooDeep, 10, IndexBrowseOrdering.BY_ENTITY_COUNT_DESC),
-				"A size-ordered page beyond the retention window must be refused"
-			);
-			// the same depth in map order costs O(pageSize) whatever the page number, so it is deliberately allowed -
-			// the limit belongs to the ordering that needs it, not to paging in general
-			assertDoesNotThrow(
-				() -> criteria(tooDeep, 10, IndexBrowseOrdering.MAP_ORDER),
-				"Map order materialises only the window, so depth costs it nothing and must not be limited"
-			);
-			// and the boundary itself is allowed, so the limit is off-by-one safe in the permissive direction
-			assertDoesNotThrow(
-				() -> criteria(IndexBrowseCriteria.MAX_SIZE_ORDERED_WINDOW / 10, 10,
-					IndexBrowseOrdering.BY_ENTITY_COUNT_DESC),
-				"A window exactly at the maximum is within the limit"
-			);
+			final int tooDeep = (IndexBrowseCriteria.MAX_ORDERED_WINDOW / 10) + 1;
+			final int atTheLimit = IndexBrowseCriteria.MAX_ORDERED_WINDOW / 10;
+			// walked over every declared value rather than a written-out list of them, so an ordering added later is
+			// covered the day it is declared instead of the day somebody remembers to extend this test
+			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
+				if (ordering == IndexBrowseOrdering.MAP_ORDER) {
+					// map order costs O(pageSize) whatever the page number, so the depth is deliberately allowed - the
+					// limit belongs to the orderings that need it, not to paging in general
+					assertDoesNotThrow(
+						() -> criteria(tooDeep, 10, ordering),
+						"Map order materialises only the window, so depth costs it nothing and must not be limited"
+					);
+				} else {
+					assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> criteria(tooDeep, 10, ordering),
+						"A page beyond the retention window must be refused when ordering by " + ordering
+					);
+					// and the boundary itself is allowed, so the limit is off-by-one safe in the permissive direction
+					assertDoesNotThrow(
+						() -> criteria(atTheLimit, 10, ordering),
+						"A window exactly at the maximum is within the limit when ordering by " + ordering
+					);
+				}
+			}
 		}
 	}
 
