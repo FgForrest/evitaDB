@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * index earns the maintenance it costs.
  *
  * An index browse already reports what an index *costs* ({@link io.evitadb.api.statistics.IndexDetail#heapSizeInBytes},
- * entity count, cardinality). These four readings say what it *earns*: an index with heavy write traffic and no query
+ * entity count, cardinality). These five readings say what it *earns*: an index with heavy write traffic and no query
  * hits is a direct candidate for dropping a `filterable()` / `sortable()` / faceted flag, or for rethinking a reference
  * setup. They surface on {@link io.evitadb.api.statistics.BrowsedIndex} and
  * {@link io.evitadb.api.statistics.IndexDetail}.
@@ -54,6 +54,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  *   to its isolated layer, once as {@link io.evitadb.core.transaction.TransactionManager} replays it from the
  *   write-ahead log onto the trunk - because the index does the work both times. Compare indexes against each other,
  *   never against an expected mutation count.
+ * - **Observed since** is the window the two counts were accumulated over - the moment observation of **this** index
+ *   began, which is the denominator a client divides them by to state a lifetime average rate. It is deliberately per
+ *   index and not per catalog load: an index created hours after the catalog opened was not observable before it
+ *   existed, and billing it the catalog's window would make "never queried in the six hours observed" a false
+ *   statement about it.
  *
  * # Lifetime, and why this is a separate object
  *
@@ -68,7 +73,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * exactly on the indexes most worth measuring. This object is therefore passed **by reference** through every
  * merge-copy constructor - like the index's `primaryKey`, unlike its recomputed `version` - so one instance spans every
  * catalog version of one logical index. Reload from disk and fresh creation allocate a new one, which is what makes the
- * counters "since catalog load".
+ * counters "since catalog load" and what restamps {@link #getObservedSince()} along with them.
  *
  * It also holds no back-reference to its index, so retaining a holder (as an index browse does while it pages) cannot
  * keep index contents alive.
@@ -96,7 +101,7 @@ public final class IndexActivity {
 
 	/**
 	 * CAS handle advancing {@link #queryCount} - a static field of the class, so an instance carries no extra state and
-	 * the heap arithmetic stays four longs.
+	 * the heap arithmetic stays five longs.
 	 */
 	private static final AtomicLongFieldUpdater<IndexActivity> QUERY_COUNT_UPDATER =
 		AtomicLongFieldUpdater.newUpdater(IndexActivity.class, "queryCount");
@@ -126,6 +131,22 @@ public final class IndexActivity {
 	 * catalog was loaded - see {@link #lastQueriedAtMillis} for the sentinel.
 	 */
 	private volatile long lastUpdatedAtMillis;
+	/**
+	 * Epoch millis of the moment observation of this index began - when this holder was constructed. Unlike the two
+	 * stamps above there is no "never" sentinel, because the value is always set.
+	 *
+	 * Plain `final` rather than volatile: the holder is reached through the index's own final `activity` field, and
+	 * final-field safe publication already guarantees that every thread which can see the index sees this value.
+	 */
+	private final long observedSinceMillis;
+
+	/**
+	 * Opens the observation window at the moment the holder is constructed - catalog load for an index restored from
+	 * disk, first creation for an index born later.
+	 */
+	public IndexActivity() {
+		this.observedSinceMillis = System.currentTimeMillis();
+	}
 
 	/**
 	 * Records that an executed query plan chose this index.
@@ -184,6 +205,29 @@ public final class IndexActivity {
 	}
 
 	/**
+	 * The window the two counts were accumulated over, as raw epoch millis - the arithmetic form, for a caller dividing
+	 * a count by an elapsed duration rather than rendering a date.
+	 *
+	 * @return when observation of this index began
+	 */
+	public long getObservedSinceMillis() {
+		return this.observedSinceMillis;
+	}
+
+	/**
+	 * Unlike the two "last at" readings this one is never null: an index has been observed since the moment it came
+	 * into existence, so there is nothing for an absence to mean. That is what makes a zero count reportable rather
+	 * than merely unknown - "not queried in the twenty minutes since this index was created" is a statement an
+	 * operator can act on, where a bare zero is not.
+	 *
+	 * @return when observation of this index began, never null
+	 */
+	@Nonnull
+	public OffsetDateTime getObservedSince() {
+		return atSystemZone(this.observedSinceMillis);
+	}
+
+	/**
 	 * Decodes one stamp, turning the "never" sentinel into an explicit absence rather than an epoch-zero instant a
 	 * client would render as a date in 1970.
 	 *
@@ -192,14 +236,27 @@ public final class IndexActivity {
 	 */
 	@Nullable
 	private static OffsetDateTime toTimestamp(long millis) {
-		return millis == 0L ? null : OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+		return millis == 0L ? null : atSystemZone(millis);
+	}
+
+	/**
+	 * Renders epoch millis in the JVM's own zone - the conversion the two stamps share with
+	 * {@link #getObservedSince()}, which reaches it directly because it has no sentinel to decode first.
+	 *
+	 * @param millis the instant to render
+	 * @return the timestamp
+	 */
+	@Nonnull
+	private static OffsetDateTime atSystemZone(long millis) {
+		return OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
 	}
 
 	@Nonnull
 	@Override
 	public String toString() {
 		return "IndexActivity{queries=" + this.queryCount + " (last at " + this.lastQueriedAtMillis +
-			"), updates=" + this.updateCount + " (last at " + this.lastUpdatedAtMillis + ")}";
+			"), updates=" + this.updateCount + " (last at " + this.lastUpdatedAtMillis +
+			"), observed since " + this.observedSinceMillis + "}";
 	}
 
 }

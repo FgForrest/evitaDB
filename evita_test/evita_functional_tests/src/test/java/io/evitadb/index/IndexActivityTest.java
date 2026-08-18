@@ -117,6 +117,29 @@ class IndexActivityTest {
 		}
 
 		@Test
+		@DisplayName("A fresh holder stamps the moment observation of its index began")
+		void shouldRecordWhenObservationBegan() {
+			final long before = System.currentTimeMillis();
+			final IndexActivity activity = new IndexActivity();
+			final long after = System.currentTimeMillis();
+
+			// unlike the two "last at" stamps there is no "never" sentinel here - the reading is always set, and it is
+			// what lets a client qualify a zero count ("never queried in the N minutes observed") honestly
+			assertTrue(
+				activity.getObservedSinceMillis() >= before,
+				"Observation cannot have begun before the holder was constructed"
+			);
+			assertTrue(
+				activity.getObservedSinceMillis() <= after,
+				"Observation cannot have begun after the holder was constructed"
+			);
+			assertEquals(
+				toTimestamp(activity.getObservedSinceMillis()), activity.getObservedSince(),
+				"The timestamp must render the very millis the holder recorded"
+			);
+		}
+
+		@Test
 		@DisplayName("Recording a query advances only the query side")
 		void shouldAdvanceOnlyTheQuerySideOnRecordQuery() {
 			final IndexActivity activity = new IndexActivity();

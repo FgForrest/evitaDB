@@ -199,7 +199,7 @@ public class CatalogIndex implements
 	 * rather than to anything polled.
 	 *
 	 * {@link #activity} is charged in full even though it is shared with the superseded versions of this same logical
-	 * index - only one version is ever walked, and the predecessor is garbage-in-waiting, so reporting the four longs
+	 * index - only one version is ever walked, and the predecessor is garbage-in-waiting, so reporting the five longs
 	 * as shared would show them belonging to nobody (accounting rule 2).
 	 *
 	 * @return the owned heap footprint in bytes, including alignment padding
@@ -211,8 +211,8 @@ public class CatalogIndex implements
 		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 4L * layout.referenceSize())
 			// the key record holds a single reference, to a JVM-shared enum constant
 			+ layout.sizeOfObject(layout.referenceSize())
-			// the activity holder: four longs and nothing else, since its CAS updaters are static
-			+ layout.sizeOfObject(4L * Long.BYTES)
+			// the activity holder: five longs and nothing else, since its CAS updaters are static
+			+ layout.sizeOfObject(5L * Long.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.uniqueIndex.getHeapSizeInBytes(
 				key -> attributeKey, GlobalUniqueIndex::getHeapSizeInBytes

@@ -879,8 +879,8 @@ public abstract class EntityIndex implements
 		long size = layout.sizeOfObject(
 			Long.BYTES + 2L * Integer.BYTES + 2L + 13L * layout.referenceSize() + ownFieldBytes
 		);
-		// the activity holder: four longs and nothing else, since its CAS updaters are static
-		size += layout.sizeOfObject(4L * Long.BYTES);
+		// the activity holder: five longs and nothing else, since its CAS updaters are static
+		size += layout.sizeOfObject(5L * Long.BYTES);
 		size += this.dirty.getHeapSizeInBytes();
 		size += this.entityIds.getHeapSizeInBytes();
 		size += this.entityIdsByLanguage.getHeapSizeInBytes(
