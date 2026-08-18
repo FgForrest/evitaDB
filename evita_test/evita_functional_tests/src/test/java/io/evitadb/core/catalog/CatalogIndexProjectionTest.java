@@ -322,8 +322,8 @@ class CatalogIndexProjectionTest {
 		}
 
 		@Test
-		@DisplayName("reports the counter value that placed each row, not one the index reached afterwards")
-		void shouldReportTheCounterEachRowWasPlacedBy() {
+		@DisplayName("returns a snapshot whose counts never move with traffic recorded after the browse")
+		void shouldReturnAnImmutableSnapshotOfTheCounters() {
 			final CatalogIndex live = busy(Scope.LIVE, 1, 0);
 			final CatalogIndex archived = busy(Scope.ARCHIVED, 3, 0);
 
@@ -334,8 +334,10 @@ class CatalogIndexProjectionTest {
 					Set.of(), Set.of(), Set.of()
 				)
 			);
-			// traffic recorded against the trailing index *after* the page was built. A row that read its holder a
-			// second time on the way out would now report nine queries from second place, behind a row reporting three
+			// traffic recorded against the trailing index *after* browse returned. This proves the rows are value
+			// snapshots rather than live views of the holder; it cannot exercise a mutation *between* ranking and
+			// rendering, because this projection sorts already-rendered rows - rank and render read the holder once,
+			// so no such window exists here by construction
 			for (int query = 0; query < 8; query++) {
 				live.getActivity().recordQuery(SECOND_MILLIS);
 			}
@@ -345,7 +347,7 @@ class CatalogIndexProjectionTest {
 			assertEquals(3L, rows[0].queryCount());
 			assertEquals(
 				1L, rows[1].queryCount(),
-				"The row must report the count that placed it, not the one its index has now"
+				"The row must report the count read during the browse, not the one its index has now"
 			);
 			assertTrue(
 				rows[0].queryCount() >= rows[1].queryCount(),
