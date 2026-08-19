@@ -92,6 +92,12 @@ import java.util.Optional;
  * A capability nobody touches is therefore reported as `requestedCount == 0`, `updatedCount == 0` and both stamps
  * absent - not omitted.
  *
+ * The one exception runs the other way, and is transient: a schema mutation that **added** a capability and was then
+ * rolled back leaves its row behind until the owner next adopts any schema version, because the rows are aligned when
+ * a version is published rather than when the transaction that published it commits. Such a row reads `0 / 0`, which
+ * is the reading a flag nobody uses would give - and acting on it is harmless, since the flag it names does not exist
+ * to be dropped.
+ *
  * This is what makes a zero readable. **A zero count means the capability was genuinely unused over the window
  * {@link #observedSince()} states**, not merely that nothing has been observed yet - so *"idle"* and *"not declared"*
  * are two different answers rather than the same missing row, and an operator can act on the first without diffing the

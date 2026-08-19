@@ -2552,12 +2552,27 @@ public final class EntityCollection implements
 	 * leave the registry holding counters for capabilities the schema no longer declares, and leave a newly declared
 	 * capability without the row whose observation window is supposed to open at this very mutation.
 	 *
+	 * # What a rollback leaves behind, in both directions
+	 *
 	 * The alignment runs against the schema the exchange has just published, so it precedes the commit of a
-	 * transactional change rather than following it. That ordering is what a rollback exposes: a schema update that
-	 * drops a capability and is then rolled back leaves the registry having discarded that capability's counters even
-	 * though the flag survived. That is the error worth having, since the counters are a rate over an observation
-	 * window and {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says honestly when the
-	 * surviving window began.
+	 * transactional change rather than following it. A rollback therefore leaves the registry describing a schema
+	 * version that never became real, and since the alignment both drops and mints, it does so in both directions:
+	 *
+	 * - a schema update that **dropped** a capability leaves the registry having discarded that capability's counters
+	 *   even though the flag survived - the window reopens at the next adoption, and
+	 *   {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says honestly when it did;
+	 * - a schema update that **added** one leaves a row for a capability the schema does not declare, reading `0 / 0`
+	 *   because nothing can ever file against a flag that does not exist.
+	 *
+	 * The second is the newer and the more misleading of the two, because this surface teaches an operator that a
+	 * zero-count row is a flag worth dropping - and here there is no flag to drop, so acting on it is a no-op rather
+	 * than a mistake. Both are self-healing: the next adoption of any schema version realigns the registry against it,
+	 * and a phantom row disappears at that point.
+	 *
+	 * Neither is corrected on rollback, for the same reason the ordering is what it is: this is the single hook every
+	 * adoption path already passes through, whereas the commit boundary is not one place but several, and threading
+	 * telemetry through a transaction's own lifecycle would buy an exactly-correct row on a surface whose counters are
+	 * explicitly approximate, non-transactional and never persisted.
 	 *
 	 * # The re-insertion window, which is accepted rather than closed
 	 *
