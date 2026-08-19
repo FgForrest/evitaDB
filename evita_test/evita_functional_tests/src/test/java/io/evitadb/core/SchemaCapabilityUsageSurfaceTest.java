@@ -279,6 +279,65 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 
 	}
 
+	@Nested
+	@DisplayName("Schema evolution resets the reading")
+	class SchemaEvolution {
+
+		@Test
+		@DisplayName("A dropped and re-added attribute reports fresh counters and a window that moved")
+		void shouldStartOverWhenAnAttributeIsDroppedAndReAdded() {
+			// a real query rather than a synthetic recording, so what the drop discards is a count the full
+			// planning path produced - the registry-level twin of this test seeds its counters by hand and can
+			// therefore not notice a resolve site that survives pruning by re-minting the entry it just lost
+			filterByEan();
+			final SchemaCapabilityUsageSnapshot before = rowOf(
+				SchemaCapabilityUsageSurfaceTest.this.evita
+					.management()
+					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
+				ATTRIBUTE_EAN, Capability.FILTER
+			);
+			assertEquals(
+				1L, before.requestedCount(),
+				"The query must land before the drop, otherwise this test proves nothing about what the drop discards"
+			);
+
+			dropEanAttribute();
+
+			for (final SchemaCapabilityUsageSnapshot row : SchemaCapabilityUsageSurfaceTest.this.evita
+				.management()
+				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT)) {
+				assertTrue(
+					!ATTRIBUTE_EAN.equals(row.elementName()),
+					"The schema no longer declares `" + ATTRIBUTE_EAN + "`, yet the surface still reports it - a row " +
+						"no schema backs sends an operator to a mutation that cannot exist: " + row
+				);
+			}
+
+			addEanAttribute();
+			filterByEan();
+
+			final SchemaCapabilityUsageSnapshot after = rowOf(
+				SchemaCapabilityUsageSurfaceTest.this.evita
+					.management()
+					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
+				ATTRIBUTE_EAN, Capability.FILTER
+			);
+			assertEquals(
+				1L, after.requestedCount(),
+				"The re-added attribute must count only the query issued after its return - two means the dropped " +
+					"entry survived the schema adoption and was found again instead of being minted fresh"
+			);
+			assertEquals(0L, after.updatedCount(), "Nothing ever wrote `" + ATTRIBUTE_EAN + "`: " + after);
+			assertTrue(
+				!after.observedSince().isBefore(before.observedSince()),
+				"The observation window of the re-added attribute must open no earlier than the one it replaced - " +
+					"an older window would stretch the denominator over an interval the capability was not " +
+					"maintained in, and understate every rate computed from it"
+			);
+		}
+
+	}
+
 	/**
 	 * Finds the row describing one capability of an entity-declared element, failing with a sentence rather than a
 	 * `NoSuchElement` when it is missing.
@@ -373,6 +432,36 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 					"The fixture's entity must be found through the catalog's global unique index, otherwise the " +
 						"query never took the path this test is about"
 				);
+			}
+		);
+	}
+
+	/**
+	 * Drops the query-only attribute from the product schema - the schema adoption the evolution test turns on.
+	 */
+	private void dropEanAttribute() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+					.openForWrite()
+					.withoutAttribute(ATTRIBUTE_EAN)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Declares the query-only attribute again, exactly as the fixture originally did.
+	 */
+	private void addEanAttribute() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().nullable())
+					.updateVia(session);
 			}
 		);
 	}
