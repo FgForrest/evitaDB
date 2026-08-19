@@ -867,8 +867,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * must not be conflated.
 	 *
 	 * Which capabilities are counted follows the attribute's flags in **that** scope, and matches
-	 * {@link SchemaCapabilityUsageRegistry#pruneFor(EntitySchemaContract)} exactly - notably `unique()` counts as
-	 * `FILTER` too, because a unique attribute is filterable by that fact alone.
+	 * {@link SchemaCapabilityUsageRegistry#alignWith(EntitySchemaContract)} exactly - notably `unique()` counts as
+	 * `FILTER` too, because a unique attribute is filterable by that fact alone. That agreement is what makes the
+	 * registry's eager seeding honest: every row alignment mints for this collection is one this method can raise.
 	 *
 	 * Nothing is incremented here: the holders are only collected, and {@link #applyChanges()} increments them once,
 	 * with the instant it stamps the touched indexes with.

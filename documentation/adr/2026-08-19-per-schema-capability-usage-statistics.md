@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-19 17:40
+updated: 2026-08-19 23:05
 status: accepted
 kind: feature
 issues: [1429]
@@ -54,7 +54,8 @@ sibling reduced index, or arriving through queries whose winning plan used a dif
 second-coarsened volatile stamps + a final `observedSinceMillis`. Holders are resolved once (at
 query-context creation / per executor instance) and hot paths keep the reference — no allocation, no
 hashing, no `computeIfAbsent` per event. The registry rides the collection's copy constructors by
-reference, exactly like its atomic sequences, and is pruned when the collection adopts a new schema.
+reference, exactly like its atomic sequences, and is realigned with the schema when the collection is created
+and whenever it adopts a new schema version.
 
 - **Pros:** cardinality is bounded by the schema (dozens of entries), not the data; the count matches
   the granularity of the remedial action; the registry survives commits/compaction by the same
@@ -82,8 +83,8 @@ Hang the counters off `EntitySchema`/`AttributeSchema`, which already have the r
 - **Pros:** identity comes for free; no separate key type.
 - **Rejected because:** `EntitySchema` is immutable, version-replaced on every evolution, and
   participates in serialization and equality — telemetry there either vanishes on schema replacement or
-  contaminates the declarative model. The registry instead lives beside the schema's *owner* and prunes
-  on schema adoption.
+  contaminates the declarative model. The registry instead lives beside the schema's *owner* and realigns
+  itself on schema adoption.
 
 ## Rejected outright
 
@@ -96,6 +97,8 @@ Hang the counters off `EntitySchema`/`AttributeSchema`, which already have the r
 | `everRequested` one-way latch (skip recording after first request) | Prepared as the fallback if the adversarial JMH case regressed. It did not regress, so the extra state and branch were never bought. Counting, not existence, is what the rate-over-window reading needs. | The adversarial benchmark regresses on future hardware or a hotter query path. |
 | Uncoarsened last-seen stamps | One volatile store per event on a hot attribute. Skipping the store while the resident value falls in the same second turns thousands of stores per second into one, and second granularity is ample for "last used three weeks ago". | — |
 | Columns on `IndexDetail`/`BrowsedIndex` | Pairing a collection-wide aggregate with one physical index's cost on the same row invites exactly the wrong reading — a flag reported dead being dropped while a query still depends on it. The surfaces are read side by side, never merged. | — |
+| Lazy holder creation (resolve on first use) | The original shape. `observedSince` then said *"first requested"* while the public contract promised *"declared"*, so a capability first queried a month after load reported a millisecond-wide window and turned one request into an enormous rate — and a capability with no traffic produced no row at all, leaving an operator unable to tell "idle" from "not declared". | Never — eager alignment costs one map lookup per declared capability, on schema adoption only. |
+| Seeding the catalog registry from its survival rule verbatim | It admits `SORT` of a global attribute and the flags of a global attribute that is not globally unique. No site can file either against the catalog (its only index is the `GlobalUniqueIndex`), so both would be permanently-zero rows — worse than the late window they would fix. They stay reachable lazily and droppable. | A catalog-level index maintains one of them. |
 | Persisting the counters | The operational use is a rate over an observation window; persistence would not improve it. Same contract and reasoning as `ActivityStatistics` (since catalog load, `observedSince` as denominator). | — |
 
 ## Decision
@@ -116,7 +119,8 @@ side.
   debug-mode caveat, lifetime) — it is the reference text.
 - Engine core: `io.evitadb.index.usage` — `SchemaCapabilityKey`, `SchemaCapabilityUsage` (holder),
   `SchemaCapabilityUsageRegistry` (`resolve(key)` at setup time, `listUsages()` for the surface,
-  `pruneFor(schema)` on adoption), `SchemaCapabilityUsageProjection` (rows, ordering, 0-stamp → null).
+  `alignWith(schema)` on creation and adoption), `SchemaCapabilityUsageProjection` (rows, ordering, 0-stamp
+  → null).
 - Query side: `AttributeSchemaAccessor.recordRequestedTraits(...)` is the choke point translators
   already pass through; it appends **resolved holders** to `QueryPlanningContext`'s accumulator.
   `QueryPlanBuilder.build()` drains and increments once per logical query — the drain empties the
@@ -131,26 +135,65 @@ side.
   names no collection records through `QueryPlanningContext.recordRequestedGlobalCapability`; a mutation
   of a globally-unique attribute files FILTER+UNIQUE into **both** registries (one element, two owners
   of its consequences), deduplicated by the same `markTouched`.
-- **Counter-intuitive but correct:** the catalog registry's `pruneFor(CatalogSchemaContract)` never
+- **Counter-intuitive but correct:** the catalog registry's survival rule never
   tests global uniqueness separately. `GlobalAttributeSchema.verifyAndAlterUniquenessTypes` folds
   global uniqueness into the collection-level flags (`UNIQUE_WITHIN_CATALOG` implies
   `UNIQUE_WITHIN_COLLECTION` — "global attribute setting has always precedence"), so the shared
   `declaresCapability` rule judges catalog entries correctly. A Codex review flagged this as a bug; it
-  is pinned as correct by `SchemaCapabilityUsageRegistryTest.CatalogPruningTest`.
+  is pinned as correct by `SchemaCapabilityUsageRegistryTest.CatalogAlignmentTest`.
+- **The catalog registry carries only what `CatalogIndex` physically maintains** — the global uniqueness
+  of a `uniqueGlobally()` attribute, and nothing else. Both sides are held to it: the update side files
+  only `FILTER`+`UNIQUE` there (`reportAttributeTouched`), and the request side now drops `SORT` on the
+  `owner == null` route in `AttributeSchemaAccessor#recordRequestedTraits`. Without that filter a
+  collection-less `orderBy` on an attribute that is both `uniqueGlobally()` and `sortable()` minted a
+  catalog row with requests against an update count that is zero *by construction* — a sortable global
+  attribute's sort index lives in every collection declaring it, never in the catalog — which reads as
+  *"nothing maintains this flag, drop it"* about a flag that is actively maintained. The request is
+  dropped rather than re-attributed, the same trade-off `recordRequestedCapability` makes for a filter
+  evaluated against another collection's structures: a number attributed to the wrong owner is worse
+  than one missing. A query that **names** its collection is unaffected and records the `SORT` there,
+  which is also where its maintenance is counted. Pinned by
+  `CatalogUsageRegistryTest.Attribution#shouldNotCountSortOnTheCatalog`.
+- **Holders are seeded eagerly, and seeding is deliberately narrower than dropping.** `alignWith` both
+  mints and drops, so `observedSince` is literally the instant the capability was declared and an
+  untouched flag is reported with honest zeros instead of being absent — an absence an operator cannot
+  tell apart from "not declared". The two halves share `declaresCapability` as the single predicate,
+  which is what stops the enumeration seeding something the survival rule would immediately drop. But
+  **dropping only removes, while seeding creates**, so the asymmetry is intentional: a seeded row nothing
+  can ever increment is permanently `0/0` and reads as *"unused, drop it"* — the exact misreading this
+  surface exists to prevent — whereas an over-permissive survival rule only costs a stale row until the
+  next adoption. Two consequences, each carrying its reason at the site: the collection enumeration
+  guards on `reference.isIndexedInScope(scope)` although the survival rule does not, because
+  `ReflectedReferenceSchema#shouldValidate` exempts **inherited** attributes from the validation that
+  would otherwise make the guard redundant; and the catalog enumeration seeds only `FILTER`+`UNIQUE` of
+  `uniqueGloballyInScope` attributes, which after the suppression above is exactly what *both* recording
+  sites can file into that registry.
+- **The re-insertion window is accepted, not closed.** `alignWith`'s removal pass is weakly consistent
+  and `resolve` is lock-free, so a query still planning against the pre-exchange schema version can
+  re-insert a key the alignment just dropped; it then survives until the next adoption, and if the
+  capability is re-declared in the meantime that adoption keeps it. The "dropped and re-added starts
+  over" guarantee therefore has a race window. Closing it needs a lock or a generation check on the one
+  path the design keeps allocation-free and lock-free (the JMH gate below is what protects it), for one
+  stale row on a capability that was being queried at the instant it was dropped. Documented on
+  `EntityCollection#exchangeSchema`.
 - Invariants: no allocation per increment; the registry parameter must ride every new
   collection/catalog copy constructor (the lifecycle tests enumerate the sites by name — a forgotten
-  site compiles and silently resets); an element dropped and re-added starts with fresh counters and a
-  fresh `observedSince`.
+  site compiles and silently resets); alignment must **resolve** rather than replace, or every schema
+  mutation would reset every counter in the collection; an element dropped and re-added starts with fresh
+  counters and a fresh `observedSince`.
 
 ## Verification
 
 Functional: `SchemaCapabilityUsageTest` (holder: cross-thread exactness, stamp coarsening),
-`SchemaCapabilityKeyTest`, `SchemaCapabilityUsageRegistryTest` (identity, pruning incl. the
-catalog-pruning pin above), `RequestedCapabilityAccumulationTest` (once per logical query across
+`SchemaCapabilityKeyTest`, `SchemaCapabilityUsageRegistryTest` (identity; alignment seeds the declared set
+exactly, preserves surviving holders and drops the rest, incl. the catalog pin above),
+`RequestedCapabilityAccumulationTest` (once per logical query across
 candidate plans; debug modes cannot double-flush; empty plan flushes nothing),
 `EntityCollectionUsageRegistryTest` (copy sites enumerated), `CatalogUsageRegistryTest` (collection-less
-query lands on the catalog, one update per entity mutation, restart resets, adoption prunes),
-`SchemaCapabilityUsageSurfaceTest` (end to end incl. drop/re-add starting over),
+query lands on the catalog, one update per entity mutation, restart resets and re-seeds, adoption realigns),
+`SchemaCapabilityUsageSurfaceTest` (end to end incl. drop/re-add starting over, an untouched declared
+capability reported with zeros, and an observation window at or before the first query — all three verified
+to fail with seeding disabled),
 `CatalogStatisticsConverterTest` round-trips (four owner shapes, int64-scale counts, absence decoding),
 `EvitaClientReadOnlyTest#shouldReportSchemaCapabilityUsageOverTheWire` (real server, epoch/empty-string
 decode traps).

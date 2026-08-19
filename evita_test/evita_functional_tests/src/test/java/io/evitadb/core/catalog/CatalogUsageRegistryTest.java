@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
@@ -49,7 +50,10 @@ import java.util.concurrent.TimeUnit;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeNatural;
+import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -91,7 +95,7 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	/** Globally unique, and used by the product collection - the attribute both live sides of the test go through. */
 	private static final String ATTRIBUTE_CODE = "code";
 	/**
-	 * Globally unique and used by nothing, so the pruning test can take it away from the catalog schema without
+	 * Globally unique and used by nothing, so the adoption test can take it away from the catalog schema without
 	 * arguing with a collection that depends on it.
 	 */
 	private static final String ATTRIBUTE_LEGACY_URL = "legacyUrl";
@@ -103,7 +107,14 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	private static final SchemaCapabilityKey CODE_UNIQUE = SchemaCapabilityKey.entityAttribute(
 		ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE
 	);
-	/** The entry the pruning test takes away. */
+	/**
+	 * The capability the catalog must **never** carry: `code` is sortable as well as globally unique, and its sort
+	 * index lives in each collection declaring it rather than in {@link io.evitadb.index.CatalogIndex}.
+	 */
+	private static final SchemaCapabilityKey CODE_SORT = SchemaCapabilityKey.entityAttribute(
+		ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE
+	);
+	/** The entry the adoption test takes away. */
 	private static final SchemaCapabilityKey LEGACY_URL_UNIQUE = SchemaCapabilityKey.entityAttribute(
 		ATTRIBUTE_LEGACY_URL, Capability.UNIQUE, Scope.LIVE
 	);
@@ -189,14 +200,23 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A restart starts the counters over, because they count since the catalog was loaded")
+		@DisplayName("A restart starts the counters over, with the reloaded schema's capabilities already seeded")
 		void shouldStartOverAfterARestart() {
 			recordUsageOn(catalogOf(CATALOG));
 
 			restart();
 
-			final SchemaCapabilityUsage usage = catalogOf(CATALOG).getUsageRegistry().resolve(CODE_FILTER);
+			final SchemaCapabilityUsageRegistry registry = catalogOf(CATALOG).getUsageRegistry();
+			// the entry is there before anybody asks for it, because the catalog's load constructor aligns its fresh
+			// registry against the schema it has just deserialized. Reopening runs no schema mutation, so that call is
+			// the only thing standing between a reopened catalog and an observation window that opens at whenever a
+			// query first names the capability
+			assertTrue(
+				holdsEntryFor(registry, CODE_FILTER),
+				"A reopened catalog holds no entry for a globally-unique attribute its schema declares"
+			);
 
+			final SchemaCapabilityUsage usage = registry.resolve(CODE_FILTER);
 			assertEquals(0L, usage.getRequestedCount(), "The counters are not persisted, by design");
 			assertEquals(0L, usage.getUpdatedCount());
 		}
@@ -273,10 +293,64 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 			);
 		}
 
+		@Test
+		@DisplayName("A collection-less order-by leaves no SORT row on the catalog, and the collection counts it")
+		void shouldNotCountSortOnTheCatalog() {
+			// the catalog registry must describe exactly what CatalogIndex maintains, and its global unique index is
+			// the whole of that. A `sortable()` global attribute's sort index lives in every collection declaring it,
+			// so no write can ever file SORT here - a request recorded against the catalog would sit next to an update
+			// count that is zero by construction and read as "nothing maintains this flag, drop it"
+			upsertProduct(1);
+			final SchemaCapabilityUsageRegistry catalogRegistry = catalogOf(CATALOG).getUsageRegistry();
+
+			CatalogUsageRegistryTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					session.queryOneEntityReference(
+						query(
+							filterBy(attributeEquals(ATTRIBUTE_CODE, "product-1")),
+							orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.ASC))
+						)
+					);
+				}
+			);
+
+			assertTrue(
+				!holdsEntryFor(catalogRegistry, CODE_SORT),
+				"A collection-less order-by minted a catalog SORT row, which nothing can ever increment on the " +
+					"update side: " + catalogRegistry.listUsages()
+			);
+			// the same query's filter did land, which is what proves the ordering really reached the recording site
+			// rather than the query having failed short of it
+			assertEquals(
+				1L, catalogRegistry.resolve(CODE_FILTER).getRequestedCount(),
+				"The query never reached the recording site at all, so the assertion above proves nothing"
+			);
+
+			// and the very same ordering, issued against the collection that declares the attribute, is counted there
+			CatalogUsageRegistryTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					session.queryListOfEntityReferences(
+						query(
+							collection(ENTITY_PRODUCT),
+							orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.ASC))
+						)
+					);
+				}
+			);
+
+			assertEquals(
+				1L, productCollection().getUsageRegistry().resolve(CODE_SORT).getRequestedCount(),
+				"Suppressing the catalog's SORT row also suppressed the collection's, which is the owner that does " +
+					"maintain the sort index and must keep counting requests for it"
+			);
+		}
+
 	}
 
 	@Nested
-	@DisplayName("Catalog schema adoption prunes")
+	@DisplayName("Catalog schema adoption realigns")
 	class SchemaAdoption {
 
 		@Test
@@ -299,11 +373,11 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 			);
 			assertTrue(
 				holdsEntryFor(registry, CODE_FILTER),
-				"Pruning took a global attribute the new schema still declares with it"
+				"Aligning took a global attribute the new schema still declares with it"
 			);
 			assertEquals(
 				1L, registry.resolve(CODE_FILTER).getRequestedCount(),
-				"The surviving entry lost its counts, so pruning replaced the holder instead of keeping it"
+				"The surviving entry lost its counts, so aligning replaced the holder instead of keeping it"
 			);
 		}
 
@@ -512,7 +586,9 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 					.openForWrite()
 					.withAttribute(
 						ATTRIBUTE_CODE, String.class,
-						whichIs -> whichIs.uniqueGloballyInScope(Scope.LIVE).nullable()
+						// sortable as well as globally unique, which is the combination that lets a collection-less
+						// query ask the catalog for a capability the catalog does not maintain
+						whichIs -> whichIs.uniqueGloballyInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
 					)
 					.withAttribute(
 						ATTRIBUTE_LEGACY_URL, String.class,

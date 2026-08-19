@@ -126,6 +126,13 @@ public final class SchemaCapabilityUsage {
 	/**
 	 * Opens the observation window at the moment the holder is constructed - catalog load for a capability the schema
 	 * already declared, the schema mutation itself for one declared later.
+	 *
+	 * That reading is true only because {@link SchemaCapabilityUsageRegistry} mints holders **eagerly**, at the moment
+	 * a schema version is adopted, rather than on first use. Were they created on first use, this stamp would say
+	 * *"first queried"* while the public contract on
+	 * {@link io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot#observedSince()} promises *"declared"* - and a
+	 * capability first touched a month after load would report a millisecond-wide window, turning one request into an
+	 * enormous rate.
 	 */
 	public SchemaCapabilityUsage() {
 		this.observedSinceMillis = System.currentTimeMillis();

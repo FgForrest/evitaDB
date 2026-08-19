@@ -388,6 +388,13 @@ public final class Catalog
 	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} inside {@link CatalogIndex}, so neither its request nor the
 	 * maintenance an upsert pays for that index can be attributed to any single collection.
 	 *
+	 * **It holds exactly what this catalog physically maintains, and nothing else** - the `FILTER` and `UNIQUE` of a
+	 * `uniqueGlobally()` attribute, which is what its global unique index costs. Both recording sides are held to that:
+	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files only those
+	 * two here, and {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits} drops a collection-less
+	 * `SORT` request rather than minting a row whose maintenance count could never leave zero. A sortable global
+	 * attribute's sort index belongs to each collection declaring it, and is counted there.
+	 *
 	 * Its three properties are those of the collection-level registry, for the same reasons stated there:
 	 * non-transactional shared telemetry, **carried by reference across catalog versions** (only a brand-new catalog
 	 * and one loaded from disk mint their own, which is what makes the counts "since catalog load"), and pruned when
@@ -685,8 +692,11 @@ public final class Catalog
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
 		// a catalog created here has no history to carry - this allocation is what makes the counts "since catalog
-		// load"
+		// load", and the alignment against the schema published above is what opens each capability's observation
+		// window there rather than at first use. A brand-new catalog declares no attribute yet, so the call mints
+		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
+		this.usageRegistry.alignWith(internalCatalogSchema);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -773,8 +783,10 @@ public final class Catalog
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
 		// nothing about the usage counters is persisted, so a catalog read back from disk starts its observation
-		// window here
+		// window here - aligned against the schema just deserialized, so that every globally-unique attribute already
+		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
+		this.usageRegistry.alignWith(catalogSchema);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -2699,11 +2711,12 @@ public final class Catalog
 	 * that it doesn't affect parallel clients until committed.
 	 *
 	 * This is also the **only** place this catalog adopts a new catalog schema version - every catalog schema mutation
-	 * and the rename handover arrive here - which is what makes it the single hook for pruning {@link #usageRegistry}.
-	 * The prune runs only after the exchange has won its race, and the one-directional error it accepts is the one
-	 * {@link EntityCollection#exchangeSchema} accepts: a rolled-back schema change that dropped a global attribute
-	 * leaves the registry having discarded that attribute's counters, while a stale entry can never outlive the schema
-	 * that backed it.
+	 * and the rename handover arrive here - which is what makes it the single hook for realigning
+	 * {@link #usageRegistry}. The alignment runs only after the exchange has won its race, and it carries the same two
+	 * accepted errors `EntityCollection#exchangeSchema` documents in full: a rolled-back schema change that dropped a
+	 * global attribute leaves the registry having discarded that attribute's counters, and a query planning against the
+	 * pre-exchange schema version can re-insert a key the alignment has just dropped, which then survives until the
+	 * next adoption.
 	 *
 	 * @param updatedSchema updated schema
 	 * @param currentSchema current schema
@@ -2736,9 +2749,9 @@ public final class Catalog
 				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
-			// only after the exchange is known to have won the race - a losing exchange changed nothing to prune
+			// only after the exchange is known to have won the race - a losing exchange changed nothing to align
 			// against
-			this.usageRegistry.pruneFor(updatedInternalSchema);
+			this.usageRegistry.alignWith(updatedInternalSchema);
 		}
 		return updatedInternalSchema;
 	}

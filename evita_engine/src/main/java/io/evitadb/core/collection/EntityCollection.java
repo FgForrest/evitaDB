@@ -429,7 +429,8 @@ public final class EntityCollection implements
 		this.persistenceService = entityCollectionPersistenceService;
 		this.cacheSupervisor = cacheSupervisor;
 		// a collection created here is either brand new or restored from disk, and neither carries usage numbers - this
-		// is the allocation that makes the counts "since catalog load"
+		// is the allocation that makes the counts "since catalog load". It is seeded further down, once the schema
+		// naming the capabilities to seed has been read
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 
 		try {
@@ -470,6 +471,9 @@ public final class EntityCollection implements
 						throw new SchemaNotFoundException(catalogName, entityHeader.entityType());
 					}
 				});
+			// the schema is only now known, and this is the call that opens the observation window of every capability
+			// it declares at catalog load rather than at whenever a query first happens to name one
+			this.usageRegistry.alignWith(this.initialSchema);
 			// init entity indexes
 			if (entityHeader.globalEntityIndexPrimaryKey() == null) {
 				Assert.isPremiseValid(
@@ -2544,16 +2548,30 @@ public final class EntityCollection implements
 	 *
 	 * This is the **only** place this collection adopts a new schema version - every schema mutation, whether applied
 	 * directly in warm-up or into a transaction's layer, and every reflected-reference refresh arrives here - which is
-	 * what makes it the single hook for pruning {@link #usageRegistry}. Routing a new adoption path around it would
-	 * leave the registry holding counters for capabilities the schema no longer declares.
+	 * what makes it the single hook for realigning {@link #usageRegistry}. Routing a new adoption path around it would
+	 * leave the registry holding counters for capabilities the schema no longer declares, and leave a newly declared
+	 * capability without the row whose observation window is supposed to open at this very mutation.
 	 *
-	 * The prune runs against the schema the exchange has just published, so it precedes the commit of a transactional
-	 * change rather than following it. That ordering is what a rollback exposes: a schema update that drops a
-	 * capability and is then rolled back leaves the registry having discarded that capability's counters even though
-	 * the flag survived. The discard is one-directional - a stale entry can never outlive the schema that backed it,
-	 * only a live one can lose its history - which is the error worth having, since the counters are a rate over an
-	 * observation window and {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says
-	 * honestly when the surviving window began.
+	 * The alignment runs against the schema the exchange has just published, so it precedes the commit of a
+	 * transactional change rather than following it. That ordering is what a rollback exposes: a schema update that
+	 * drops a capability and is then rolled back leaves the registry having discarded that capability's counters even
+	 * though the flag survived. That is the error worth having, since the counters are a rate over an observation
+	 * window and {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says honestly when the
+	 * surviving window began.
+	 *
+	 * # The re-insertion window, which is accepted rather than closed
+	 *
+	 * The alignment's removal pass is weakly consistent and {@link SchemaCapabilityUsageRegistry#resolve} is lock-free,
+	 * so a query still planning against the **pre-exchange** schema version can resolve - and thereby re-insert - a key
+	 * the alignment has just dropped. Such an entry then survives until the next adoption, and if the capability is
+	 * re-declared in the meantime that adoption keeps it: the *"a dropped and re-added capability starts over"*
+	 * guarantee has a window in which it does not hold.
+	 *
+	 * It is left open on purpose. The surface is non-transactional, never persisted and explicitly approximate, and the
+	 * only ways to close the window - a lock around resolve, or a generation stamp checked on every resolve - would put
+	 * coordination on the one path the design keeps allocation-free and lock-free, which the JMH gate exists to
+	 * protect. The cost of leaving it is one stale row, for one schema version, on a capability that was being queried
+	 * at the exact moment it was dropped.
 	 *
 	 * @param originalSchema the original schema to be exchanged
 	 * @param updatedSchema  the updated schema to replace the original
@@ -2568,8 +2586,8 @@ public final class EntityCollection implements
 			Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
 			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
 		);
-		// only after the exchange is known to have won the race - a losing exchange changed nothing to prune against
-		this.usageRegistry.pruneFor(updatedSchema);
+		// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
+		this.usageRegistry.alignWith(updatedSchema);
 		this.catalog.entitySchemaUpdated(updatedSchema);
 	}
 

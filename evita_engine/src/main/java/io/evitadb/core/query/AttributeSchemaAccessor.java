@@ -435,6 +435,26 @@ public class AttributeSchemaAccessor {
 	 * The second case is not a lesser one - a global attribute's flags are declared on the catalog schema and dropped
 	 * by a catalog schema mutation, so the catalog is where the number an operator would act on belongs.
 	 *
+	 * # The catalog counts only what the catalog maintains, so `SORT` is dropped there
+	 *
+	 * The rule that keeps both halves of the catalog's numbers coherent: **a catalog-registry row exists only for a
+	 * capability {@link io.evitadb.index.CatalogIndex} physically maintains**, which is the global uniqueness of a
+	 * `uniqueGlobally()` attribute and nothing else. That is why
+	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files only
+	 * `FILTER` and `UNIQUE` into that registry, and the request side has to agree with it.
+	 *
+	 * A `sortable()` global attribute is the case where they would otherwise disagree. Its sort index lives in **every
+	 * collection that declares the attribute**, never in the catalog, so a write maintaining it is counted on that
+	 * collection - while a collection-less `orderBy` resolves the attribute against the catalog schema alone and
+	 * arrives here with `owner == null`. Recording it would produce a catalog row with requests against an update count
+	 * that is zero *by construction*, which reads as *"nothing maintains this flag, drop it"* about a flag that is
+	 * actively maintained - the exact misreading this whole surface exists to prevent.
+	 *
+	 * The request is therefore not counted anywhere, rather than counted somewhere wrong. That is the same trade-off
+	 * {@link QueryPlanningContext#recordRequestedCapability} makes for a filter evaluated against another collection's
+	 * structures, and it costs nothing in the ordinary case: a query that **names** its collection records the `SORT`
+	 * on that collection, which is also where its maintenance is counted.
+	 *
 	 * @param queryContext    the query being planned, NULL outside a plan - which turns the whole recording off
 	 * @param owner           the entity schema the attribute was resolved against, NULL when it was resolved against
 	 *                        the catalog schema alone
@@ -470,6 +490,12 @@ public class AttributeSchemaAccessor {
 				case UNIQUE -> Capability.UNIQUE;
 				case SORTABLE -> Capability.SORT;
 			};
+			if (owner == null && capability == Capability.SORT) {
+				// a deliberate attribution rule rather than a swallowed case - see the section above. A collection-less
+				// `orderBy` is the only lookup that reaches here with SORT and no owner, and the catalog maintains no
+				// sort structure to attribute it to; the collection that declares the attribute does, and counts it
+				continue;
+			}
 			for (final Scope scope : requestedScopes) {
 				if (owner == null) {
 					queryContext.recordRequestedGlobalCapability(attributeName, capability, scope);

@@ -104,7 +104,7 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 	private static final SchemaCapabilityKey CODE_FILTER = SchemaCapabilityKey.entityAttribute(
 		ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
 	);
-	/** The capability the pruning tests take away - filtering by `ean`, in the live scope. */
+	/** The capability the adoption tests take away - filtering by `ean`, in the live scope. */
 	private static final SchemaCapabilityKey EAN_FILTER = SchemaCapabilityKey.entityAttribute(
 		ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
 	);
@@ -250,18 +250,25 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A restart starts the counters over, because they count since the catalog was loaded")
+		@DisplayName("A restart starts the counters over, with the reloaded schema's capabilities already seeded")
 		void shouldStartOverAfterARestart() {
 			recordUsageOn(collectionOf(CATALOG, ENTITY_PRODUCT));
 
 			restart();
 
-			// the other half of the contract: a collection loaded from disk mints a registry of its own, which is what
-			// makes the counts "since catalog load" rather than "since this schema element was declared"
-			final SchemaCapabilityUsage usage = collectionOf(CATALOG, ENTITY_PRODUCT)
-				.getUsageRegistry()
-				.resolve(CODE_FILTER);
+			final SchemaCapabilityUsageRegistry registry = collectionOf(CATALOG, ENTITY_PRODUCT).getUsageRegistry();
+			// the entry is there before anybody asks for it, because the collection's load constructor aligns its
+			// fresh registry against the schema it has just read. Reopening a catalog runs no schema mutation, so
+			// that call is the only thing standing between a reopened collection and an observation window that opens
+			// at whenever a query first names the capability - which is the whole defect this seeding fixes
+			assertTrue(
+				holdsEntryFor(registry, CODE_FILTER),
+				"A reopened collection holds no entry for a capability its own schema declares"
+			);
 
+			// the other half of the contract: the registry is a fresh one, which is what makes the counts "since
+			// catalog load" rather than something that outlives the process
+			final SchemaCapabilityUsage usage = registry.resolve(CODE_FILTER);
 			assertEquals(0L, usage.getRequestedCount(), "The counters are not persisted, by design");
 			assertEquals(0L, usage.getUpdatedCount());
 		}
@@ -269,7 +276,7 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 	}
 
 	@Nested
-	@DisplayName("Schema adoption prunes")
+	@DisplayName("Schema adoption realigns")
 	class SchemaAdoption {
 
 		@Test
@@ -290,11 +297,11 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 			);
 			assertTrue(
 				holdsEntryFor(registry, CODE_FILTER),
-				"Pruning took an element the new schema still declares with it"
+				"Aligning took an element the new schema still declares with it"
 			);
 			assertEquals(
 				1L, registry.resolve(CODE_FILTER).getRequestedCount(),
-				"The surviving entry lost its counts, so pruning replaced the holder instead of keeping it"
+				"The surviving entry lost its counts, so aligning replaced the holder instead of keeping it"
 			);
 		}
 

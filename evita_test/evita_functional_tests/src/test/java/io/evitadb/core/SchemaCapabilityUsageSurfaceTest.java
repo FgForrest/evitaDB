@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.time.Instant;
 import java.util.List;
 
 import static io.evitadb.api.query.Query.query;
@@ -65,9 +66,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * count on the row of the capability it belongs to, that a row names its owner, and that the two owners are reachable
  * through the one call that distinguishes them by entity type.
  *
- * The fixture is shaped so that **no row can pass by accident**: one attribute is only ever queried and one only ever
- * written, so a projection crossing the two counts, or reporting one capability's numbers against another's, produces
- * a failure rather than a plausible-looking table.
+ * The fixture is shaped so that **no row can pass by accident**: one attribute is only ever queried, one only ever
+ * written and one never touched at all, so a projection crossing two counts, or reporting one capability's numbers
+ * against another's, produces a failure rather than a plausible-looking table.
+ *
+ * The never-touched attribute is what pins the property only an end-to-end test can reach: **a listing is complete
+ * with respect to the schema**. Every declared capability has a row from catalog load onwards, with zeros and an
+ * observation window that opened then - not from whenever a query first happened to name it. Both halves matter
+ * separately, and each has its own test: without the row an operator cannot tell *"unused"* from *"not declared"*,
+ * and without the early window a capability first queried a month after load reports a millisecond-wide denominator
+ * that turns one request into an enormous rate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see SchemaCapabilityUsageSnapshot
@@ -199,15 +207,67 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("An untouched catalog reports nothing rather than failing")
-		void shouldReportNothingBeforeAnythingHappens() {
-			assertTrue(
+		@DisplayName("A declared capability nothing has touched is reported with honest zeros")
+		void shouldReportADeclaredCapabilityNothingHasTouched() {
+			// the headline case. `name` is declared filterable by the fixture and this test neither queries nor writes
+			// it, so before the fix it had no holder and no row at all - and an operator reading the listing could not
+			// tell "nobody uses this flag" from "this flag is not declared" without diffing the schema by hand
+			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+				.management()
+				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
+
+			final SchemaCapabilityUsageSnapshot untouched = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTER);
+			assertEquals(0L, untouched.requestedCount(), "Nothing queried `" + ATTRIBUTE_NAME + "`: " + untouched);
+			assertEquals(0L, untouched.updatedCount(), "Nothing wrote `" + ATTRIBUTE_NAME + "`: " + untouched);
+			assertNull(untouched.lastRequestedAt(), "An untouched capability carries a request stamp: " + untouched);
+			assertNull(untouched.lastUpdatedAt(), "An untouched capability carries an update stamp: " + untouched);
+		}
+
+		@Test
+		@DisplayName("The observation window opens at catalog load, not at first use")
+		void shouldOpenTheObservationWindowAtCatalogLoadRatherThanAtFirstUse() {
+			// the defect this fixes: with holders minted on first resolve, a capability first queried long after the
+			// catalog was loaded reported a window a few milliseconds wide, turning one request into an enormous rate.
+			// The window is therefore asserted against the moment the *query* ran, which is the only clock this test
+			// can read - it must sit at or before it, never after
+			final long beforeTheFirstQuery = System.currentTimeMillis();
+			filterByEan();
+
+			final SchemaCapabilityUsageSnapshot queried = rowOf(
 				SchemaCapabilityUsageSurfaceTest.this.evita
 					.management()
-					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT)
-					.isEmpty(),
-				"A capability nothing has ever asked for or maintained has no holder yet, and an empty list is the " +
-					"honest answer - the row would otherwise report an observation window that never opened"
+					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
+				ATTRIBUTE_EAN, Capability.FILTER
+			);
+
+			assertEquals(1L, queried.requestedCount(), "The query did not land, so this proves nothing: " + queried);
+			assertTrue(
+				!queried.observedSince().toInstant().isAfter(Instant.ofEpochMilli(beforeTheFirstQuery)),
+				"The observation window opened at the first query rather than when the schema declared the flag - " +
+					"every rate computed from it is then divided by an interval far shorter than the real one: " +
+					queried
+			);
+		}
+
+		@Test
+		@DisplayName("A collection the catalog holds reports its capabilities before anything happens")
+		void shouldReportEveryDeclaredCapabilityBeforeAnythingHappens() {
+			// stated as an exact set rather than as "not empty": a row nothing can ever increment stays at zero
+			// forever and reads as a flag nobody uses, so over-seeding is the failure worth guarding against here
+			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+				.management()
+				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
+
+			// `code` is globally unique, which implies both collection-level uniqueness and filterability
+			assertEquals(
+				List.of(
+					ATTRIBUTE_CODE + "/" + Capability.FILTER,
+					ATTRIBUTE_CODE + "/" + Capability.UNIQUE,
+					ATTRIBUTE_EAN + "/" + Capability.FILTER,
+					ATTRIBUTE_NAME + "/" + Capability.FILTER
+				),
+				rows.stream().map(row -> row.elementName() + "/" + row.capability()).toList(),
+				"The listing does not match what the fixture's schema declares"
 			);
 		}
 

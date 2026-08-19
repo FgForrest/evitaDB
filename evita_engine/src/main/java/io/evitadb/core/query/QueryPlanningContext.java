@@ -595,8 +595,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * deduplication, the accumulator, the flush - is shared with the collection-level path, because where the holder
 	 * was resolved is the only difference between the two.
 	 *
+	 * # Callers must pass only a capability the catalog itself maintains
+	 *
+	 * In practice `FILTER` and `UNIQUE`, both of which the catalog's global unique index costs. Passing `SORT` would
+	 * mint a row whose update count can never leave zero - no write files `SORT` into this registry, because a global
+	 * attribute's sort index belongs to each collection declaring it - and a permanently-zero maintenance count reads
+	 * as *"drop this flag"* about a flag that is actively maintained. The filter that enforces this lives at the sole
+	 * caller, {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits}, which is where the
+	 * `(trait, owner)` pair being translated makes the reason legible; a second caller has to honour the same rule.
+	 *
 	 * @param attributeName name of the global attribute, canonical as the catalog schema spells it
-	 * @param capability    the flag the query needed
+	 * @param capability    the flag the query needed - `FILTER` or `UNIQUE`, never `SORT`
 	 * @param scope         the scope whose indexes maintain it
 	 */
 	public void recordRequestedGlobalCapability(

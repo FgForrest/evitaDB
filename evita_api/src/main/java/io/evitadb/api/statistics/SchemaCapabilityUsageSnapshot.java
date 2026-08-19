@@ -85,6 +85,27 @@ import java.util.Optional;
  * a flag reported as dead being dropped while a query still depends on it. The two surfaces are read side by side, not
  * merged.
  *
+ * # Every declared capability has a row, including one nothing has touched
+ *
+ * A listing is **complete with respect to the schema**: it carries one row per capability the schema declares and the
+ * owner's indexes maintain, from the moment it is declared, whether or not anything has ever queried or written it.
+ * A capability nobody touches is therefore reported as `requestedCount == 0`, `updatedCount == 0` and both stamps
+ * absent - not omitted.
+ *
+ * This is what makes a zero readable. **A zero count means the capability was genuinely unused over the window
+ * {@link #observedSince()} states**, not merely that nothing has been observed yet - so *"idle"* and *"not declared"*
+ * are two different answers rather than the same missing row, and an operator can act on the first without diffing the
+ * schema by hand to rule out the second.
+ *
+ * The completeness is stated over *maintained* capabilities rather than over every flag a schema mentions, and the one
+ * place the two differ is the catalog-owned listing: **it carries only what the catalog itself physically maintains**,
+ * which is the `FILTER` and `UNIQUE` of the globally-unique attributes its uniqueness index costs, and nothing else.
+ * A global attribute's `sortable()`, and the flags of a global attribute that is not globally unique, are maintained by
+ * the collections declaring it and are reported in *their* listings. `sortable()` in particular never appears on a
+ * catalog row at all, not even after a collection-less `orderBy` names it - the row's update count could never leave
+ * zero, and a maintenance count of zero beside a live request count is precisely the *"drop this flag"* misreading this
+ * surface exists to prevent.
+ *
  * # Lifetime
  *
  * **Since the catalog was loaded, and never persisted** - the same contract {@link ActivityStatistics} carries, for the
@@ -120,7 +141,11 @@ import java.util.Optional;
  * @param lastUpdatedAt   when the last entity mutation touching the element finished applying, or null when none has
  *                        since the catalog was loaded; coarsened exactly like {@link #lastRequestedAt()}
  * @param observedSince   when observation of **this capability** began - catalog load for one the schema already
- *                        declared, the schema mutation itself for one declared later.
+ *                        declared, the schema mutation itself for one declared later. It is the instant the capability
+ *                        came into existence for this server, **not** the instant something first touched it: the
+ *                        counters exist from the declaration onwards, so a capability first queried a month after the
+ *                        catalog was loaded still reports a month-wide window and a rate computed over it is the real
+ *                        one.
  *
  *                        **Never absent**, unlike the two stamps above: a capability has been observed from the moment
  *                        it came into existence, so there is no "not yet" case for an absence to mean. It is the

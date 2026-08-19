@@ -70,14 +70,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the two things {@link SchemaCapabilityUsageRegistry} promises and nothing else in the suite checks:
- * **one key means one holder**, however many threads ask for it at once, and **a capability the schema stopped
- * declaring loses its holder** so that re-declaring it later starts a fresh observation window.
+ * Verifies the three things {@link SchemaCapabilityUsageRegistry} promises and nothing else in the suite checks:
+ * **one key means one holder**, however many threads ask for it at once; **every capability the schema declares has a
+ * holder from the moment it is declared**; and **a capability the schema stopped declaring loses its holder**, so that
+ * re-declaring it later starts a fresh observation window.
  *
  * The first is what lets every hot path resolve once and then increment a bare reference - if two threads could ever
  * receive two different holders for one key, half the recordings would land in an object nobody reads again.
  *
- * The second is the whole reason the registry has an opinion about schemas at all. Counters that outlived the flag they
+ * The second is what makes `observedSince` mean *"declared"* rather than *"first queried"*, and what lets an untouched
+ * flag be reported with honest zeros instead of being absent - an absence an operator cannot tell apart from a flag
+ * the schema never declared. Its dangerous direction is over-seeding: a row nothing can ever increment is permanently
+ * zero and reads as *"unused, drop it"*, so the tests below assert the seeded set **exactly**, never merely that it
+ * contains what they expect.
+ *
+ * The third is the whole reason the registry has an opinion about schemas at all. Counters that outlived the flag they
  * were counting would report a dropped-and-re-added attribute as busy for traffic that happened before it was
  * re-added, which is precisely the misreading this surface exists to prevent.
  *
@@ -92,7 +99,7 @@ class SchemaCapabilityUsageRegistryTest {
 
 	/** Entity attribute declared `unique()` and `sortable()` - and therefore filterable too, implicitly. */
 	private static final String ATTRIBUTE_CODE = "code";
-	/** Entity attribute carrying only `filterable()` - the one the pruning tests take away and give back. */
+	/** Entity attribute carrying only `filterable()` - the one the alignment tests take away and give back. */
 	private static final String ATTRIBUTE_EAN = "ean";
 	/** Sortable compound the entity declares directly. */
 	private static final String COMPOUND_CODE_WITH_EAN = "codeWithEan";
@@ -112,6 +119,27 @@ class SchemaCapabilityUsageRegistryTest {
 		thread.setDaemon(true);
 		return thread;
 	};
+	/**
+	 * Exactly what {@link #fullSchema()} declares - the set an alignment against it must end up holding, no more and
+	 * no less. Written out by hand rather than derived from the schema, because a set computed the way the production
+	 * code computes it would agree with any bug the production code has.
+	 *
+	 * Two entries are worth pointing at, since both are what a rule written against the wrong flag gets wrong:
+	 * `code` never declares `filterable()` explicitly - it is unique, which implies it - and `warehouse` contributes
+	 * only `SORT`, so a rule that seeded a capability per flag *name* rather than per flag *held* would add entries
+	 * here that nothing could ever increment.
+	 */
+	private static final List<SchemaCapabilityKey> EVERY_CAPABILITY_OF_THE_FULL_SCHEMA = List.of(
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE),
+		SchemaCapabilityKey.sortableCompound(null, COMPOUND_CODE_WITH_EAN, Scope.LIVE),
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE),
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.SORT, Scope.LIVE),
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_WAREHOUSE, Capability.SORT, Scope.LIVE),
+		SchemaCapabilityKey.sortableCompound(REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE)
+	);
 
 	private EntitySchema emptySchema;
 	private CatalogSchema catalogSchema;
@@ -157,7 +185,7 @@ class SchemaCapabilityUsageRegistryTest {
 	}
 
 	/**
-	 * The schema every pruning test starts from - one element of each of the three kinds the phase covers, each
+	 * The schema every alignment test starts from - one element of each of the three kinds the phase covers, each
 	 * declaring its capabilities in the live scope only.
 	 *
 	 * @return the full schema
@@ -207,7 +235,7 @@ class SchemaCapabilityUsageRegistryTest {
 
 	/**
 	 * Answers whether the registry currently holds an entry for the given key - without resolving it, which would
-	 * create the very entry the pruning tests are asserting the absence of.
+	 * create the very entry the alignment tests are asserting the absence of.
 	 *
 	 * @param key the capability to look for
 	 * @return true when the registry holds a holder for it
@@ -382,41 +410,87 @@ class SchemaCapabilityUsageRegistryTest {
 	}
 
 	@Nested
-	@DisplayName("Pruning")
-	class PruningTest {
+	@DisplayName("Aligning with an entity schema")
+	class AlignmentTest {
+
+		@Test
+		@DisplayName("Every capability the schema declares gets a holder, even one nothing has touched")
+		void shouldSeedEveryCapabilityTheSchemaDeclares() {
+			// the whole reason alignment seeds rather than waiting for a resolve: a holder minted here is what makes
+			// `observedSince` say "declared" instead of "first queried", and what lets an untouched flag be reported
+			// with honest zeros rather than be invisible - which an operator cannot tell apart from "not declared"
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			final long beforeAlignment = System.currentTimeMillis();
+
+			theRegistry.alignWith(fullSchema());
+
+			assertEquals(
+				EVERY_CAPABILITY_OF_THE_FULL_SCHEMA.size(), theRegistry.size(),
+				"The registry holds a different number of capabilities than the schema declares - a seeded row " +
+					"nothing can ever increment reads as `unused, drop it`, which is the one action this surface " +
+					"exists to prevent. What it holds: " + theRegistry.listUsages()
+			);
+			for (final SchemaCapabilityKey key : EVERY_CAPABILITY_OF_THE_FULL_SCHEMA) {
+				assertTrue(holds(key), "Capability " + key + " was declared by the schema but never seeded");
+			}
+			for (final UsageEntry entry : theRegistry.listUsages()) {
+				assertEquals(0L, entry.usage().getRequestedCount(), "A seeded holder started with a request: " + entry);
+				assertEquals(0L, entry.usage().getUpdatedCount(), "A seeded holder started with an update: " + entry);
+				assertEquals(0L, entry.usage().getLastRequestedAtMillis(), entry.toString());
+				assertEquals(0L, entry.usage().getLastUpdatedAtMillis(), entry.toString());
+				assertTrue(
+					entry.usage().getObservedSinceMillis() >= beforeAlignment,
+					"The observation window opened before the schema was adopted: " + entry
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("Re-aligning keeps the holder of a surviving capability, counters and window included")
+		void shouldNotReplaceHoldersOfSurvivingCapabilities() {
+			// the failure this rules out is silent and total: alignment runs on every schema mutation, so a version
+			// that replaced surviving holders would reset every counter in the collection each time anything about
+			// the schema changed, and nothing downstream would look wrong
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			theRegistry.alignWith(fullSchema());
+			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
+				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+			);
+			final SchemaCapabilityUsage seeded = theRegistry.resolve(eanFilter);
+			seeded.recordRequested(System.currentTimeMillis());
+			seeded.recordUpdated(System.currentTimeMillis());
+			final long observedSince = seeded.getObservedSinceMillis();
+
+			// a second adoption of a schema that changed nothing about `ean` - the common case by far
+			theRegistry.alignWith(fullSchema());
+
+			final SchemaCapabilityUsage afterRealignment = theRegistry.resolve(eanFilter);
+			assertSame(seeded, afterRealignment, "Re-aligning replaced the holder of a capability that never changed");
+			assertEquals(1L, afterRealignment.getRequestedCount(), "Re-aligning reset the request count");
+			assertEquals(1L, afterRealignment.getUpdatedCount(), "Re-aligning reset the update count");
+			assertEquals(
+				observedSince, afterRealignment.getObservedSinceMillis(),
+				"Re-aligning moved the observation window forward, which would understate every rate read from it"
+			);
+		}
 
 		@Test
 		@DisplayName("Everything the new schema still declares survives - attribute, reference attribute and compound")
 		void shouldKeepEveryCapabilityTheSchemaStillDeclares() {
-			// all three element kinds in one pass, because a prune predicate that handled only the entity's own
-			// attributes would pass a test that exercised only those and quietly wipe the other two in production
+			// all three element kinds in one pass, because an alignment that handled only the entity's own attributes
+			// would pass a test that exercised only those and quietly wipe the other two in production
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
-			final List<SchemaCapabilityKey> declared = List.of(
-				// `code` never declares `filterable()` explicitly - it is unique, which implies it. This entry is what
-				// pins that: prune it and the capability every filter on a unique attribute uses loses its counters
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE),
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE),
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE),
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE),
-				SchemaCapabilityKey.sortableCompound(null, COMPOUND_CODE_WITH_EAN, Scope.LIVE),
-				SchemaCapabilityKey.referenceAttribute(
-					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE
-				),
-				SchemaCapabilityKey.referenceAttribute(
-					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.SORT, Scope.LIVE
-				),
-				SchemaCapabilityKey.sortableCompound(
-					REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE
-				)
-			);
-			for (final SchemaCapabilityKey key : declared) {
+			for (final SchemaCapabilityKey key : EVERY_CAPABILITY_OF_THE_FULL_SCHEMA) {
 				theRegistry.resolve(key).recordRequested(System.currentTimeMillis());
 			}
 
-			theRegistry.pruneFor(fullSchema());
+			theRegistry.alignWith(fullSchema());
 
-			assertEquals(declared.size(), theRegistry.size(), "Pruning dropped a capability the schema still declares");
-			for (final SchemaCapabilityKey key : declared) {
+			assertEquals(
+				EVERY_CAPABILITY_OF_THE_FULL_SCHEMA.size(), theRegistry.size(),
+				"Aligning dropped a capability the schema still declares"
+			);
+			for (final SchemaCapabilityKey key : EVERY_CAPABILITY_OF_THE_FULL_SCHEMA) {
 				assertTrue(holds(key), "Capability " + key + " was dropped although the schema still declares it");
 			}
 		}
@@ -434,10 +508,13 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.resolve(eanFilter);
 			theRegistry.resolve(codeFilter);
 
-			theRegistry.pruneFor(schemaWithoutEan());
+			theRegistry.alignWith(schemaWithoutEan());
 
-			assertEquals(1, theRegistry.size());
-			assertTrue(holds(codeFilter), "Pruning took the surviving attribute's holder with it");
+			assertTrue(!holds(eanFilter), "The schema stopped declaring `ean`, yet its holder survived");
+			assertTrue(holds(codeFilter), "Aligning took the surviving attribute's holder with it");
+			// `code` is unique and sortable in the live scope and the reduced schema declares nothing else, so those
+			// three capabilities - uniqueness implying filterability - are the whole of what may be left standing
+			assertEquals(3, theRegistry.size(), "What it holds: " + theRegistry.listUsages());
 		}
 
 		@Test
@@ -451,7 +528,7 @@ class SchemaCapabilityUsageRegistryTest {
 			);
 			theRegistry.resolve(eanFilter);
 
-			theRegistry.pruneFor(
+			theRegistry.alignWith(
 				schemaWith(
 					builder -> builder.withAttribute(
 						ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nonFilterable()
@@ -476,10 +553,17 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.resolve(archivedFilter);
 
 			// the full schema declares `ean` filterable in the live scope only
-			theRegistry.pruneFor(fullSchema());
+			theRegistry.alignWith(fullSchema());
 
 			assertTrue(holds(liveFilter));
-			assertEquals(1, theRegistry.size(), "The archive's holder survived a schema that never declared it there");
+			assertTrue(
+				!holds(archivedFilter),
+				"The archive's holder survived a schema that never declared it there"
+			);
+			assertEquals(
+				EVERY_CAPABILITY_OF_THE_FULL_SCHEMA.size(), theRegistry.size(),
+				"What it holds: " + theRegistry.listUsages()
+			);
 		}
 
 		@Test
@@ -503,7 +587,7 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.resolve(survivor);
 
 			// the reference is simply absent from this schema version
-			theRegistry.pruneFor(
+			theRegistry.alignWith(
 				schemaWith(
 					builder -> builder.withAttribute(
 						ATTRIBUTE_EAN, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE)
@@ -523,7 +607,7 @@ class SchemaCapabilityUsageRegistryTest {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			theRegistry.resolve(SchemaCapabilityKey.sortableCompound(null, COMPOUND_CODE_WITH_EAN, Scope.LIVE));
 
-			theRegistry.pruneFor(
+			theRegistry.alignWith(
 				schemaWith(
 					builder -> builder
 						.withAttribute(ATTRIBUTE_CODE, String.class)
@@ -543,10 +627,12 @@ class SchemaCapabilityUsageRegistryTest {
 		}
 
 		@Test
-		@DisplayName("A re-added attribute resolves a brand new holder starting at zero")
+		@DisplayName("A re-added attribute gets a brand new holder starting at zero")
 		void shouldGiveAReAddedAttributeAFreshHolder() {
-			// Decision 7 in one test: counters must not survive the interval during which the capability was not
-			// maintained, because a rate computed over the old window would describe traffic the flag never served
+			// counters must not survive the interval during which the capability was not maintained, because a rate
+			// computed over the old window would describe traffic the flag never served. The holder read back at the
+			// end is the one the re-declaring alignment seeded, so this also pins where the new window opens: at the
+			// schema mutation that brought the capability back, not at the next query that happens to name it
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
 				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
@@ -555,9 +641,9 @@ class SchemaCapabilityUsageRegistryTest {
 			before.recordRequested(System.currentTimeMillis());
 			before.recordUpdated(System.currentTimeMillis());
 
-			theRegistry.pruneFor(schemaWithoutEan());
+			theRegistry.alignWith(schemaWithoutEan());
 			final long reAddedAtMillis = System.currentTimeMillis();
-			theRegistry.pruneFor(fullSchema());
+			theRegistry.alignWith(fullSchema());
 			final SchemaCapabilityUsage after = theRegistry.resolve(eanFilter);
 
 			assertNotSame(before, after, "The re-added attribute inherited the holder it had before it was dropped");
@@ -575,10 +661,10 @@ class SchemaCapabilityUsageRegistryTest {
 
 		@Test
 		@DisplayName("A compound key claiming a capability no compound can have is reported, not swallowed")
-		void shouldRefuseToPruneACompoundKeyThatCannotExist() {
+		void shouldRefuseToAlignACompoundKeyThatCannotExist() {
 			// only the canonical record constructor can mint this - SchemaCapabilityKey#sortableCompound fixes the
 			// capability at SORT precisely because a compound has nothing to filter or be unique by. Dropping such a
-			// key quietly would look exactly like a legitimate prune and hide whoever built it
+			// key quietly would look exactly like an ordinary alignment and hide whoever built it
 			final SchemaCapabilityKey impossible = new SchemaCapabilityKey(
 				ElementKind.SORTABLE_COMPOUND, null, COMPOUND_CODE_WITH_EAN, Capability.FILTER, Scope.LIVE
 			);
@@ -586,14 +672,49 @@ class SchemaCapabilityUsageRegistryTest {
 
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> SchemaCapabilityUsageRegistryTest.this.registry.pruneFor(fullSchema())
+				() -> SchemaCapabilityUsageRegistryTest.this.registry.alignWith(fullSchema())
 			);
 		}
 
 		@Test
-		@DisplayName("Pruning an empty registry against an empty schema is a no-op")
-		void shouldPruneNothingWhenNothingWasResolved() {
-			SchemaCapabilityUsageRegistryTest.this.registry.pruneFor(
+		@DisplayName("A reflected reference that is not attached yet is skipped rather than asked")
+		void shouldSkipAReflectedReferenceThatIsNotAttachedYet() {
+			// a reflection may be declared before the reference it mirrors exists, and until it is attached it can
+			// answer nothing - asking for an inherited flag throws outright. Alignment runs on every schema adoption,
+			// so an enumeration that asked anyway would abort the very mutation declaring the reflection, and the
+			// failure would surface as a rolled-back transaction with nothing in it pointing back here
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
+				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+			);
+
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder
+						.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE))
+						// `product` is the only entity type this fixture's catalog knows and it declares no reference
+						// at all, so this reflection has nothing to attach to
+						.withReflectedReferenceToEntity(
+							REFERENCE_STOCKS, Entities.PRODUCT, REFERENCE_STOCKS,
+							thatIs -> thatIs.withAttributesInherited()
+						)
+				)
+			);
+
+			assertTrue(holds(eanFilter), "The alignment did not get past the unattached reflection");
+			assertEquals(
+				1, theRegistry.size(),
+				"An unattached reflected reference contributed rows of its own - nothing is known about what it will " +
+					"inherit, so every one of them would be a row nothing could increment: " + theRegistry.listUsages()
+			);
+		}
+
+		@Test
+		@DisplayName("A schema declaring no capability leaves the registry empty")
+		void shouldHoldNothingWhenTheSchemaDeclaresNothing() {
+			// the eager seeding must be driven by what the schema *declares*, not by what it *contains* - a schema with
+			// attributes none of which carry an indexed flag has nothing to report and must not manufacture rows
+			SchemaCapabilityUsageRegistryTest.this.registry.alignWith(
 				SchemaCapabilityUsageRegistryTest.this.emptySchema
 			);
 
@@ -621,14 +742,59 @@ class SchemaCapabilityUsageRegistryTest {
 	}
 
 	@Nested
-	@DisplayName("Pruning a catalog registry")
-	class CatalogPruningTest {
+	@DisplayName("Aligning with a catalog schema")
+	class CatalogAlignmentTest {
+
+		@Test
+		@DisplayName("A globally-unique attribute is seeded with the two capabilities the catalog maintains")
+		void shouldSeedFilterAndUniqueOfAGloballyUniqueAttribute() {
+			// exactly the pair EntityIndexLocalMutationExecutor#reportAttributeTouched files into a catalog registry,
+			// and exactly what the catalog's own GlobalUniqueIndex costs - so both rows can be raised by any upsert
+			// writing the attribute, and neither is a row stuck at zero by construction
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(catalogSchemaWithGlobalCode());
+
+			assertTrue(
+				holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE)),
+				"A globally-unique attribute was not seeded with the FILTER entry its uniqueness implies"
+			);
+			assertTrue(
+				holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE)),
+				"A globally-unique attribute was not seeded with its UNIQUE entry"
+			);
+			assertEquals(2, theRegistry.size(), "What it holds: " + theRegistry.listUsages());
+		}
+
+		@Test
+		@DisplayName("A global attribute the catalog keeps no index for is not seeded at all")
+		void shouldNotSeedAGlobalAttributeTheCatalogMaintainsNoIndexFor() {
+			// the one place seeding is deliberately narrower than the survival rule. `filterable()` and `sortable()` on
+			// a global attribute are maintained by every collection declaring it and are seeded in *their* registries;
+			// no site can ever file either against the catalog, so a row here would sit at zero forever and read to an
+			// operator as a flag nothing uses - the misreading this whole surface exists to prevent
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				new InternalCatalogSchemaBuilder(SchemaCapabilityUsageRegistryTest.this.catalogSchema)
+					.withAttribute(
+						ATTRIBUTE_EAN, String.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE)
+					)
+					.toInstance()
+			);
+
+			assertEquals(
+				0, theRegistry.size(),
+				"The catalog registry seeded a capability no catalog-level index maintains: " + theRegistry.listUsages()
+			);
+		}
 
 		@Test
 		@DisplayName("A globally-unique attribute the catalog schema still declares keeps every entry it has")
 		void shouldKeepTheCapabilitiesOfAGloballyUniqueAttribute() {
 			// `uniqueGlobally()` never declares `filterable()` or collection-level `unique()` explicitly - it implies
-			// both - so these two entries are exactly the ones a prune rule written against the wrong flag drops
+			// both - so these two entries are exactly the ones a survival rule written against the wrong flag drops
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey codeFilter = SchemaCapabilityKey.entityAttribute(
 				ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
@@ -639,7 +805,7 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.resolve(codeFilter).recordRequested(System.currentTimeMillis());
 			theRegistry.resolve(codeUnique).recordUpdated(System.currentTimeMillis());
 
-			theRegistry.pruneFor(catalogSchemaWithGlobalCode());
+			theRegistry.alignWith(catalogSchemaWithGlobalCode());
 
 			assertTrue(holds(codeFilter), "A globally-unique attribute lost the FILTER entry its uniqueness implies");
 			assertTrue(holds(codeUnique), "A globally-unique attribute lost its UNIQUE entry");
@@ -655,7 +821,7 @@ class SchemaCapabilityUsageRegistryTest {
 			);
 			theRegistry.resolve(eanUnique).recordRequested(System.currentTimeMillis());
 
-			theRegistry.pruneFor(catalogSchemaWithGlobalCode());
+			theRegistry.alignWith(catalogSchemaWithGlobalCode());
 
 			assertTrue(
 				!holds(eanUnique),
@@ -665,9 +831,9 @@ class SchemaCapabilityUsageRegistryTest {
 
 		@Test
 		@DisplayName("An entry no catalog schema could ever back is reported, not swallowed")
-		void shouldRefuseToPruneAnEntryNoCatalogCanDeclare() {
+		void shouldRefuseToAlignAnEntryNoCatalogCanDeclare() {
 			// a catalog declares neither references nor compounds, so both of these keys could only have been minted
-			// by a resolve site aiming at the wrong registry - and a silent drop would look like an ordinary prune
+			// by a resolve site aiming at the wrong registry - and a silent drop would look like an ordinary alignment
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			theRegistry.resolve(
 				SchemaCapabilityKey.referenceAttribute(
@@ -677,7 +843,7 @@ class SchemaCapabilityUsageRegistryTest {
 
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> theRegistry.pruneFor(catalogSchemaWithGlobalCode())
+				() -> theRegistry.alignWith(catalogSchemaWithGlobalCode())
 			);
 
 			final SchemaCapabilityUsageRegistry compoundRegistry = new SchemaCapabilityUsageRegistry();
@@ -685,7 +851,7 @@ class SchemaCapabilityUsageRegistryTest {
 
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> compoundRegistry.pruneFor(catalogSchemaWithGlobalCode())
+				() -> compoundRegistry.alignWith(catalogSchemaWithGlobalCode())
 			);
 		}
 

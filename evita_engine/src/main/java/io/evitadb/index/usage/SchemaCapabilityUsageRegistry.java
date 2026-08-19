@@ -26,7 +26,9 @@ package io.evitadb.index.usage;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
@@ -36,6 +38,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
@@ -71,17 +74,37 @@ import java.util.concurrent.ConcurrentHashMap;
  * frozen - two counters of the same row may be read a nanosecond apart and the reading is still the one the operator
  * asked for.
  *
- * # Pruning
+ * # Alignment
  *
- * {@link #pruneFor(EntitySchemaContract)} implements the rule that **a capability dropped from the schema and added
- * back does not inherit the old numbers**: it takes the new schema version, and every key whose element, capability or
- * scope that schema no longer declares loses its holder. A later {@link #resolve(SchemaCapabilityKey)} of the same key
- * therefore mints a fresh holder with a fresh observation window - which is the honest reading, since the capability
- * was genuinely not maintained for the interval in between.
+ * {@link #alignWith(EntitySchemaContract)} makes the registry **agree with a schema version**: it mints a holder for
+ * every capability that schema declares and this owner's recording sites can report, and drops every key the schema no
+ * longer backs. It runs when the owner comes into existence and again whenever the owner adopts a new schema version.
  *
- * Which overload applies is decided by the owner, not by the caller's convenience: a collection prunes against the
- * entity schema it has just adopted, a catalog against its {@link #pruneFor(CatalogSchemaContract) catalog schema}.
+ * Two properties follow, and both are contractual:
+ *
+ * - **A declared capability has a row from the moment it is declared.** That is what makes
+ *   {@link SchemaCapabilityUsage#getObservedSinceMillis()} literally true - the window opens at catalog load for a
+ *   capability the schema already declared, and at the schema mutation for one declared later, rather than at whenever
+ *   somebody first happened to query it. It is also what lets a capability with no traffic at all be *reported* with
+ *   honest zeros instead of being invisible, so that "idle" and "not declared" stop looking the same to an operator.
+ * - **A capability dropped from the schema and added back does not inherit the old numbers.** The drop takes the
+ *   holder; the re-declaration mints a fresh one with a fresh window - the honest reading, since the capability was
+ *   genuinely not maintained in between.
+ *
+ * Surviving keys keep the holder they already had, counters and window included: alignment resolves rather than
+ * replaces, so re-aligning on every schema change costs nothing but a map lookup per declared capability.
+ *
+ * Which overload applies is decided by the owner, not by the caller's convenience: a collection aligns against the
+ * entity schema it has just adopted, a catalog against its {@link #alignWith(CatalogSchemaContract) catalog schema}.
  * A registry only ever sees one of the two, because only one kind of owner ever resolves keys into it.
+ *
+ * # Seeding is narrower than dropping, deliberately
+ *
+ * Dropping only ever removes, so a rule that is too permissive there costs a stale row until the next adoption.
+ * Seeding *creates*, and a row nothing can ever increment is worse than the gap it fills: permanently `0 / 0` reads to
+ * an operator as *"nothing uses this flag, drop it"*, which is the one action this whole surface exists to prevent.
+ * The enumerations below therefore mint exactly what this owner's recording sites can file, which for the catalog is
+ * strictly less than its own survival rule would let stand. Each exclusion carries its reason at the site.
  *
  * # Concurrency
  *
@@ -110,8 +133,8 @@ public final class SchemaCapabilityUsageRegistry {
 	 * those.
 	 *
 	 * @param key the capability to count against
-	 * @return the holder for that capability - the same instance for every caller resolving the same key, until a
-	 * {@link #pruneFor(EntitySchemaContract)} removes it
+	 * @return the holder for that capability - the same instance for every caller resolving the same key, until an
+	 * {@link #alignWith(EntitySchemaContract)} removes it
 	 */
 	@Nonnull
 	public SchemaCapabilityUsage resolve(@Nonnull SchemaCapabilityKey key) {
@@ -122,12 +145,14 @@ public final class SchemaCapabilityUsageRegistry {
 	}
 
 	/**
-	 * Every capability observed so far, together with its live holder - the input the diagnostic surface turns into
-	 * rows.
+	 * Every capability the owner's schema declares, together with its live holder - the input the diagnostic surface
+	 * turns into rows. A capability nothing has ever queried or written is in here too, with zero counts and no stamps;
+	 * that is the point of aligning eagerly rather than resolving lazily.
 	 *
 	 * Order is unspecified: the map is a hash map, and the surface that presents these decides how to order them.
 	 *
-	 * @return an unmodifiable list of the registry's entries, empty when nothing has been resolved yet
+	 * @return an unmodifiable list of the registry's entries, empty only while the owner's schema declares no
+	 * capability at all
 	 */
 	@Nonnull
 	public List<UsageEntry> listUsages() {
@@ -139,7 +164,8 @@ public final class SchemaCapabilityUsageRegistry {
 	}
 
 	/**
-	 * How many capabilities the registry currently holds - bounded by the schema, not by the data.
+	 * How many capabilities the registry currently holds - bounded by the schema, not by the data, and after an
+	 * {@link #alignWith(EntitySchemaContract)} equal to the number the schema declares.
 	 *
 	 * @return the number of entries
 	 */
@@ -148,12 +174,16 @@ public final class SchemaCapabilityUsageRegistry {
 	}
 
 	/**
-	 * Drops every holder whose capability the given schema version no longer declares.
+	 * Makes the registry agree with the given entity schema version: **every capability that schema declares gets a
+	 * holder, and every key it no longer backs loses one**.
 	 *
-	 * Deliberately stated as *"here is the new truth, discard what disagrees with it"* rather than as a reaction to a
+	 * Deliberately stated as *"here is the new truth, hold exactly what it declares"* rather than as a reaction to a
 	 * particular schema mutation: the caller does not have to work out what changed, and no combination of mutations
-	 * can leave the registry holding a key the schema does not back. The cost is a full pass over the entries, which is
-	 * irrelevant - this runs when a collection adopts a new schema version, not on any path a query or a write takes.
+	 * can leave the registry disagreeing with the schema. The cost is a full pass over the entries plus a map lookup
+	 * per declared capability, which is irrelevant - this runs when a collection is created and when it adopts a new
+	 * schema version, not on any path a query or a write takes.
+	 *
+	 * # Which keys survive
 	 *
 	 * A key survives only when **all** of the following hold in the new schema:
 	 *
@@ -163,37 +193,188 @@ public final class SchemaCapabilityUsageRegistry {
 	 *   {@link SchemaCapabilityKey#scope()}, as
 	 *   {@link io.evitadb.core.query.AttributeSchemaAccessor} understands that word.
 	 *
-	 * There is deliberately **no separate check that the container reference is still indexed** in the scope. Schema
-	 * validation already refuses to let a reference that is not indexed in a scope carry a filterable, sortable or
-	 * unique attribute there, so the condition can never change the outcome for a schema the engine would accept - and
-	 * a branch that no valid input can reach is a branch no test can pin.
+	 * # Which keys are minted
 	 *
-	 * @param entitySchema the schema version the owner has just adopted
+	 * The same predicate - {@link #declaresCapability} - applied to every element the schema enumerates, so that
+	 * seeding and dropping cannot disagree about what a *declared* capability is. Everything the enumeration yields is
+	 * reachable from a recording site: an entity or reference attribute's `FILTER`, `SORT` and `UNIQUE` are filed by
+	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} on any write that
+	 * touches it and requested through `AttributeSchemaAccessor`, and a compound's `SORT` by
+	 * `reportSortableCompoundTouched`. The one condition the enumeration adds on top of the predicate is on the
+	 * *container* rather than on the element - see {@link #maintainsElementsIn} for why a reference has to be asked
+	 * separately, and why a reflected reference that is not attached yet is skipped.
+	 *
+	 * A **surviving key keeps the holder it already had**, because the mint goes through
+	 * {@link #resolve(SchemaCapabilityKey)}. Replacing holders here instead would reset every counter in the collection
+	 * on every schema change, which is to say on precisely the collections worth measuring.
+	 *
+	 * @param entitySchema the schema version the owner has just adopted, or the one it was created with
 	 */
-	public void pruneFor(@Nonnull EntitySchemaContract entitySchema) {
+	public void alignWith(@Nonnull EntitySchemaContract entitySchema) {
 		Objects.requireNonNull(entitySchema, "Entity schema is mandatory.");
 		this.usages.keySet().removeIf(key -> !isDeclaredBy(entitySchema, key));
+		for (final Scope scope : Scope.values()) {
+			seedAttributes(entitySchema.getAttributes().values(), null, scope);
+			seedCompounds(entitySchema.getSortableAttributeCompounds().values(), null, scope);
+			for (final ReferenceSchemaContract reference : entitySchema.getReferences().values()) {
+				if (maintainsElementsIn(reference, scope)) {
+					final String referenceName = reference.getName();
+					seedAttributes(reference.getAttributes().values(), referenceName, scope);
+					seedCompounds(reference.getSortableAttributeCompounds().values(), referenceName, scope);
+				}
+			}
+		}
 	}
 
 	/**
-	 * The catalog-owner's counterpart of {@link #pruneFor(EntitySchemaContract)} - *"here is the catalog schema version
-	 * just adopted, discard what disagrees with it"*.
+	 * The catalog-owner's counterpart of {@link #alignWith(EntitySchemaContract)} - *"here is the catalog schema
+	 * version just adopted, hold exactly what it declares"*.
 	 *
 	 * A catalog registry counts exactly one kind of element: **an attribute the catalog schema itself declares**, which
-	 * is why this overload asks the catalog schema for the attribute and nothing else. Whether the attribute still
-	 * carries the key's capability in the key's scope is then decided by the very same rule an entity attribute is
-	 * judged by, deliberately: a global attribute's `filterable()`, `sortable()` and `unique()` flags are declared on
-	 * the catalog schema and inherited by every collection using it, so *"does the schema still declare this flag"* is
-	 * the same question here as there. Global uniqueness is not tested separately for that reason - it already implies
-	 * uniqueness within the collection, so the `UNIQUE` and `FILTER` entries of a globally-unique attribute survive.
+	 * is why this overload asks the catalog schema for the attribute and nothing else. Whether an existing key survives
+	 * is then decided by the very same rule an entity attribute is judged by, deliberately: a global attribute's
+	 * `filterable()`, `sortable()` and `unique()` flags are declared on the catalog schema and inherited by every
+	 * collection using it, so *"does the schema still declare this flag"* is the same question here as there. Global
+	 * uniqueness is not tested separately for that reason - it already implies uniqueness within the collection, so the
+	 * `UNIQUE` and `FILTER` entries of a globally-unique attribute survive.
 	 *
-	 * @param catalogSchema the catalog schema version the catalog has just adopted
+	 * # What is minted, and what is deliberately not
+	 *
+	 * Only **`FILTER` and `UNIQUE` of an attribute that is `uniqueGloballyInScope`**, which is exactly the pair
+	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files into this
+	 * registry, and exactly the capabilities the catalog's own
+	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} maintains. Two things the survival rule above would tolerate
+	 * are therefore **not** seeded, because nothing could ever increment them:
+	 *
+	 * - **`SORT` of a global attribute.** Nothing can file it from either side. No write does - a global attribute's
+	 *   sort index lives in each collection that declares the attribute, never in the catalog - and the request side
+	 *   drops it deliberately too, in
+	 *   {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits}, so that a collection-less
+	 *   `orderBy` cannot mint a row whose maintenance count is zero by construction. This registry and the catalog's
+	 *   physical indexes therefore describe the same set.
+	 * - **`FILTER` / `UNIQUE` of a global attribute that is not globally unique.** The catalog keeps no index for it;
+	 *   its filter and uniqueness indexes belong to the collections declaring it, and are seeded in *their* registries
+	 *   by {@link #alignWith(EntitySchemaContract)} - a global attribute is a member of the entity schema of every
+	 *   collection that uses it.
+	 *
+	 * Unlike `SORT`, that second one stays *reachable* rather than forbidden: a collection-less filter naming such an
+	 * attribute still resolves a holder lazily, and the survival rule keeps it, which costs a late-opened observation
+	 * window on a row an operator asked for by issuing that query. Seeding it instead would trade that transient cost
+	 * for a permanently-zero row on every catalog that never issues such a query.
+	 *
+	 * @param catalogSchema the catalog schema version the catalog has just adopted, or the one it was created with
 	 * @throws GenericEvitaInternalError when the registry holds a key no catalog schema could ever back - a reference
 	 *                                   attribute or a sortable compound, neither of which the catalog declares
 	 */
-	public void pruneFor(@Nonnull CatalogSchemaContract catalogSchema) {
+	public void alignWith(@Nonnull CatalogSchemaContract catalogSchema) {
 		Objects.requireNonNull(catalogSchema, "Catalog schema is mandatory.");
 		this.usages.keySet().removeIf(key -> !isDeclaredBy(catalogSchema, key));
+		for (final GlobalAttributeSchemaContract attributeSchema : catalogSchema.getAttributes().values()) {
+			final String attributeName = attributeSchema.getName();
+			for (final Scope scope : Scope.values()) {
+				if (attributeSchema.isUniqueGloballyInScope(scope)) {
+					resolve(
+						new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.FILTER, scope)
+					);
+					resolve(
+						new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.UNIQUE, scope)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Decides whether a reference's own elements may be seeded in the given scope - the enumeration's counterpart of
+	 * the check {@link #declaresCapability} performs on each element.
+	 *
+	 * # Why seeding tests this and the survival rule does not
+	 *
+	 * A reference the scope does not index has no reduced index there, so nothing can ever file one of its elements:
+	 * a write never reaches {@link io.evitadb.index.mutation.local.AttributeIndexMutator} for an index that does not
+	 * exist, and a query is refused by `AttributeSchemaAccessor#verifyAndReturn` with a
+	 * {@link io.evitadb.core.exception.ReferenceNotIndexedException}. For an ordinary reference schema validation
+	 * already guarantees this, by rejecting a filterable, sortable or unique attribute on a reference that is not
+	 * indexed in that scope - which is why the survival rule can omit the condition without ever changing its own
+	 * outcome. It deliberately exempts the **inherited** attributes of a reflected reference, though
+	 * (`ReflectedReferenceSchema#shouldValidate`), and those are exactly the elements that would otherwise be seeded
+	 * as rows nothing could ever increment.
+	 *
+	 * # An unattached reflected reference is skipped whole
+	 *
+	 * A {@link ReflectedReferenceSchemaContract} is a description of a reference on *another* entity schema, and until
+	 * it has been attached to that reference it can answer nothing: `isIndexedInScope` throws outright when the
+	 * inherited flag is asked for and the mirrored reference is not there. That state is ordinary rather than
+	 * exceptional - a schema mutation may declare the reflection before the reference it mirrors exists - so the
+	 * enumeration skips such a reference instead of guessing at it.
+	 *
+	 * Nothing is lost by waiting: every path that attaches one goes through `EntityCollection#exchangeSchema`
+	 * (`initSchema` on catalog load, `notifyAboutExternalReferenceUpdate` when the mirrored reference changes), and
+	 * that is the same hook which realigns this registry. A reflection whose target never appears stays unseeded,
+	 * which is the honest outcome: it has no reduced index either.
+	 *
+	 * @param referenceSchema the reference whose elements are candidates for seeding
+	 * @param scope           the scope being seeded
+	 * @return true when the reference is known to be indexed in that scope
+	 */
+	private static boolean maintainsElementsIn(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
+		if (referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable()
+		) {
+			return false;
+		}
+		return referenceSchema.isIndexedInScope(scope);
+	}
+
+	/**
+	 * Mints a holder for every capability the given attributes declare in the given scope, leaving the ones that
+	 * already exist - and their counters - exactly as they were.
+	 *
+	 * @param attributeSchemas the attributes one container declares
+	 * @param containerName    name of the reference declaring them, or null when the entity declares them directly
+	 * @param scope            the scope whose declarations are being seeded
+	 */
+	private void seedAttributes(
+		@Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
+		@Nullable String containerName,
+		@Nonnull Scope scope
+	) {
+		for (final AttributeSchemaContract attributeSchema : attributeSchemas) {
+			for (final Capability capability : Capability.values()) {
+				// tested before the key is built, so the enumeration allocates one key per capability the attribute
+				// really carries rather than one per capability that exists
+				if (declaresCapability(attributeSchema, capability, scope)) {
+					resolve(
+						new SchemaCapabilityKey(
+							ElementKind.ATTRIBUTE, containerName, attributeSchema.getName(), capability, scope
+						)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Mints a holder for every compound indexed in the given scope - one key each, since
+	 * {@link SchemaCapabilityKey#sortableCompound} fixes the capability at {@link Capability#SORT}.
+	 *
+	 * @param compoundSchemas the compounds one container declares
+	 * @param containerName   name of the reference declaring them, or null when the entity declares them directly
+	 * @param scope           the scope whose declarations are being seeded
+	 */
+	private void seedCompounds(
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> compoundSchemas,
+		@Nullable String containerName,
+		@Nonnull Scope scope
+	) {
+		for (final SortableAttributeCompoundSchemaContract compoundSchema : compoundSchemas) {
+			final SchemaCapabilityKey key = SchemaCapabilityKey.sortableCompound(
+				containerName, compoundSchema.getName(), scope
+			);
+			if (declaresCapability(compoundSchema, key)) {
+				resolve(key);
+			}
+		}
 	}
 
 	/**
@@ -216,7 +397,9 @@ public final class SchemaCapabilityUsageRegistry {
 					" - only attributes the catalog schema declares itself."
 			);
 		}
-		return declaresCapability(catalogSchema.getAttribute(key.elementName()).orElse(null), key);
+		return declaresCapability(
+			catalogSchema.getAttribute(key.elementName()).orElse(null), key.capability(), key.scope()
+		);
 	}
 
 	/**
@@ -231,7 +414,7 @@ public final class SchemaCapabilityUsageRegistry {
 		if (containerName == null) {
 			return switch (key.elementKind()) {
 				case ATTRIBUTE -> declaresCapability(
-					entitySchema.getAttribute(key.elementName()).orElse(null), key
+					entitySchema.getAttribute(key.elementName()).orElse(null), key.capability(), key.scope()
 				);
 				case SORTABLE_COMPOUND -> declaresCapability(
 					entitySchema.getSortableAttributeCompound(key.elementName()).orElse(null), key
@@ -244,7 +427,9 @@ public final class SchemaCapabilityUsageRegistry {
 			return false;
 		}
 		return switch (key.elementKind()) {
-			case ATTRIBUTE -> declaresCapability(reference.getAttribute(key.elementName()).orElse(null), key);
+			case ATTRIBUTE -> declaresCapability(
+				reference.getAttribute(key.elementName()).orElse(null), key.capability(), key.scope()
+			);
 			case SORTABLE_COMPOUND -> declaresCapability(
 				reference.getSortableAttributeCompound(key.elementName()).orElse(null), key
 			);
@@ -252,23 +437,30 @@ public final class SchemaCapabilityUsageRegistry {
 	}
 
 	/**
-	 * Decides whether an attribute schema still carries the key's capability in the key's scope.
+	 * Decides whether an attribute schema carries the given capability in the given scope - **the single source of
+	 * truth** both halves of {@link #alignWith(EntitySchemaContract)} consult, so that a capability the enumeration
+	 * seeds can never be one the survival rule would immediately drop.
 	 *
-	 * @param attributeSchema the attribute as the new schema version declares it, or null when it declares none
-	 * @param key             the capability in question
+	 * Stated over a loose `(capability, scope)` pair rather than over a {@link SchemaCapabilityKey} for that reason:
+	 * the seeding side asks the question *before* it has a key to ask it with, and building one per candidate would
+	 * allocate an object per capability an attribute does not carry.
+	 *
+	 * @param attributeSchema the attribute as the schema version declares it, or null when it declares none
+	 * @param capability      the capability in question
+	 * @param scope           the scope the capability would be maintained in
 	 * @return true when the attribute exists and carries the capability in that scope
 	 */
 	private static boolean declaresCapability(
 		@Nullable AttributeSchemaContract attributeSchema,
-		@Nonnull SchemaCapabilityKey key
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
 	) {
 		if (attributeSchema == null) {
 			return false;
 		}
-		final Scope scope = key.scope();
 		// no `default` branch on purpose: an exhaustive switch over Capability makes a future value a compile error
 		// here, which catches the omission earlier and more loudly than any runtime throw could
-		return switch (key.capability()) {
+		return switch (capability) {
 			// `unique()` implies `filterable()` - the schema even refuses to let both be declared explicitly, and
 			// AttributeSchemaAccessor lets a filter reach a unique-only attribute on exactly that basis. Testing only
 			// the `filterable()` flag here would therefore prune a live capability the moment a schema was re-adopted
