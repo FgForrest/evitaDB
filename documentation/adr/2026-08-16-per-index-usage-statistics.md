@@ -1,7 +1,7 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-18 17:55
+updated: 2026-08-19 17:45
 status: accepted
 kind: feature
 issues: []
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_api/api/statistics, evita_engine/index, evita_engine/core/query, evita_engine/core/catalog, evita_engine/core/collection, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-catalog-and-collection-statistics]
+relates: [2026-08-10-catalog-and-collection-statistics, 2026-08-19-per-schema-capability-usage-statistics]
 ---
 
 # An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
@@ -288,6 +288,9 @@ path for a telemetry figure.
   surface these readings were added to, and the source of the constraint they had to respect: a browse
   row may carry `O(1)` readings and may never be *ordered* by one that has to be measured. It is also
   where the heap-accounting rules this change extends are kept.
+- [Per-schema-capability usage statistics](2026-08-19-per-schema-capability-usage-statistics.md) — the
+  logical-demand complement of these physical-earning counters: per schema flag rather than per index,
+  counting requested-by-any-plan rather than chosen-by-the-winner, read side by side with this surface.
 
 ## Timeline
 
