@@ -203,6 +203,11 @@ public final class GrpcStatistics {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexDetail_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -467,8 +472,25 @@ public final class GrpcStatistics {
       " \001(\01329.io.evitadb.externalApi.grpc.gener" +
       "ated.GrpcOffsetDateTime\022P\n\robservedSince" +
       "\030\t \001(\01329.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcOffsetDateTimeB\014P\001\252\002\007EvitaDBb" +
-      "\006proto3"
+      "erated.GrpcOffsetDateTime\"\250\005\n\031GrpcSchema" +
+      "CapabilityUsage\0220\n\nentityType\030\001 \001(\0132\034.go" +
+      "ogle.protobuf.StringValue\022Q\n\013elementKind" +
+      "\030\002 \001(\0162<.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcSchemaElementKind\0223\n\rcontaine" +
+      "rName\030\003 \001(\0132\034.google.protobuf.StringValu" +
+      "e\022\023\n\013elementName\030\004 \001(\t\022O\n\ncapability\030\005 \001" +
+      "(\0162;.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcSchemaCapability\022E\n\005scope\030\006 \001(\01626" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcEntityScope\022\026\n\016requestedCount\030\007 \001(\003\022\024" +
+      "\n\014updatedCount\030\010 \001(\003\022R\n\017lastRequestedAt\030" +
+      "\t \001(\01329.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcOffsetDateTime\022P\n\rlastUpdatedA" +
+      "t\030\n \001(\01329.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcOffsetDateTime\022P\n\robservedSi" +
+      "nce\030\013 \001(\01329.io.evitadb.externalApi.grpc." +
+      "generated.GrpcOffsetDateTimeB\014P\001\252\002\007Evita" +
+      "DBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -675,6 +697,12 @@ public final class GrpcStatistics {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexDetail_descriptor,
         new java.lang.String[] { "IndexPrimaryKey", "HeapSizeInBytes", "Cardinality", "EntityType", "QueryCount", "UpdateCount", "LastQueriedAt", "LastUpdatedAt", "ObservedSince", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_descriptor =
+      getDescriptor().getMessageTypes().get(33);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_descriptor,
+        new java.lang.String[] { "EntityType", "ElementKind", "ContainerName", "ElementName", "Capability", "Scope", "RequestedCount", "UpdatedCount", "LastRequestedAt", "LastUpdatedAt", "ObservedSince", });
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();

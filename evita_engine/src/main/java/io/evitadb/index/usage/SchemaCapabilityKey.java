@@ -23,6 +23,9 @@
 
 package io.evitadb.index.usage;
 
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -59,6 +62,13 @@ import java.util.Objects;
  *
  * Conflating either pair would pool a well-used capability's traffic with an unused one and produce the one failure
  * this whole surface exists to prevent: a flag reported as dead being dropped while a query still depends on it.
+ *
+ * # Where the vocabulary lives
+ *
+ * {@link ElementKind} and {@link Capability} are declared on {@link SchemaCapabilityUsageSnapshot}, the row this key is
+ * eventually reported as, rather than here. One enum is spoken by the key, by the public surface and by the wire, so no
+ * two of them can drift apart - the same reason the engine names indexes with
+ * {@link io.evitadb.api.index.EntityIndexType} instead of mirroring it.
  *
  * @param elementKind   what kind of schema element this is - the only thing telling an attribute apart from a sortable
  *                      compound carrying the same name
@@ -145,53 +155,6 @@ public record SchemaCapabilityKey(
 		return new SchemaCapabilityKey(
 			ElementKind.SORTABLE_COMPOUND, referenceName, compoundName, Capability.SORT, scope
 		);
-	}
-
-	/**
-	 * What kind of schema element a key names. Deliberately **not** split by owner - an entity attribute and a
-	 * reference attribute are the same kind of thing declared in two places, and {@link #containerName()} already says
-	 * which place. What this enum separates is the two things that would otherwise be indistinguishable: an attribute
-	 * and a sortable compound may carry the same name in the same container.
-	 */
-	public enum ElementKind {
-
-		/**
-		 * An attribute, of the entity or of one of its references.
-		 */
-		ATTRIBUTE,
-
-		/**
-		 * A sortable attribute compound, of the entity or of one of its references.
-		 */
-		SORTABLE_COMPOUND
-
-	}
-
-	/**
-	 * One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
-	 *
-	 * The values are exactly the flags this phase can attribute a request to; prices, facets and hierarchy are
-	 * maintained by their own structures and reached through their own query paths, so they get their own values when
-	 * the accumulation sites that can report them exist - not before.
-	 */
-	public enum Capability {
-
-		/**
-		 * The element can be filtered by - `filterable()`, and the inverted indexes it costs.
-		 */
-		FILTER,
-
-		/**
-		 * The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
-		 */
-		SORT,
-
-		/**
-		 * The element's values are unique - `unique()`, whether within the entity collection or globally, and the
-		 * uniqueness index it costs.
-		 */
-		UNIQUE
-
 	}
 
 }

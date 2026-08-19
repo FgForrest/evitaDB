@@ -43,6 +43,7 @@ import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
@@ -146,6 +147,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
@@ -1688,6 +1690,14 @@ public final class Catalog
 			throw new IndexNotFoundException(null, indexPrimaryKey);
 		}
 		return CatalogIndexProjection.describe(catalogIndex);
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage() {
+		// null owner rather than this catalog's name: the field names the entity collection a row belongs to, and these
+		// rows belong to none - they describe attributes the catalog schema declares itself
+		return SchemaCapabilityUsageProjection.project(null, this.usageRegistry);
 	}
 
 	/**

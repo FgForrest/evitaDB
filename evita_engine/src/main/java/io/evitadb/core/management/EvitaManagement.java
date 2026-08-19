@@ -45,6 +45,7 @@ import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -581,6 +582,20 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		return entityType == null ?
 			catalog.describeIndex(indexPrimaryKey) :
 			catalog.getCollectionForEntityOrThrowException(entityType).describeIndex(indexPrimaryKey);
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage(
+		@Nonnull String catalogName,
+		@Nullable String entityType
+	) throws CatalogNotFoundException, CollectionNotFoundException {
+		// the same dispatch `browseIndexes` makes, for the same reason: the entity type selects the owner and nothing
+		// else, and both branches answer with the same rows
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		return entityType == null ?
+			catalog.listCapabilityUsage() :
+			catalog.getCollectionForEntityOrThrowException(entityType).listCapabilityUsage();
 	}
 
 	@Override

@@ -46,12 +46,14 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -526,6 +528,26 @@ public interface EntityCollectionContract {
 	 */
 	@Nonnull
 	IndexDetail describeIndex(int indexPrimaryKey) throws IndexNotFoundException;
+
+	/**
+	 * Returns how often each capability this collection's schema declares was asked for by queries, against how often
+	 * mutations had to maintain it.
+	 *
+	 * Where {@link #browseIndexes(IndexBrowseCriteria)} describes the *physical* indexes and what each of them costs,
+	 * this describes the *schema flags* those indexes exist to serve - the reading an operator acts on, because
+	 * dropping a flag is one schema mutation that removes every index maintaining it at once. The two are deliberately
+	 * separate surfaces rather than extra columns on a browse row; {@link SchemaCapabilityUsageSnapshot} explains why,
+	 * and what its counts do and do not mean.
+	 *
+	 * **A plain list, and no criteria**: the response is bounded by the schema - dozens of rows - rather than by the
+	 * data, so there is nothing for paging or ordering to protect. It reports only what this collection's schema
+	 * declares; the capabilities of globally-unique attributes are the catalog's, and are reported by
+	 * {@link CatalogContract#listCapabilityUsage()}.
+	 *
+	 * @return one row per observed capability, empty when nothing has been observed since the catalog was loaded
+	 */
+	@Nonnull
+	List<SchemaCapabilityUsageSnapshot> listCapabilityUsage();
 
 	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to

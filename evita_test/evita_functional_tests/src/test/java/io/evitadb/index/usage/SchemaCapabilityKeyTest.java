@@ -23,9 +23,9 @@
 
 package io.evitadb.index.usage;
 
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
-import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;

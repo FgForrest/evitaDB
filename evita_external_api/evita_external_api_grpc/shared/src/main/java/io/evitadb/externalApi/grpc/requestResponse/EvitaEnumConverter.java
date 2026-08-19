@@ -61,6 +61,8 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -1834,6 +1836,73 @@ public class EvitaEnumConverter {
 			case UNIQUE -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_UNIQUE;
 			case FILTER -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_FILTER;
 			case SORT -> GrpcAttributeIndexType.ATTRIBUTE_INDEX_TYPE_SORT;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaElementKind} to {@link ElementKind}.
+	 *
+	 * @param grpcElementKind the kind of schema element to convert
+	 * @return the corresponding schema element kind
+	 * @throws EvitaInvalidUsageException when the kind is unknown to this client
+	 */
+	@Nonnull
+	public static ElementKind toSchemaElementKind(@Nonnull GrpcSchemaElementKind grpcElementKind) {
+		return switch (grpcElementKind) {
+			case SCHEMA_ELEMENT_KIND_ATTRIBUTE -> ElementKind.ATTRIBUTE;
+			case SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND -> ElementKind.SORTABLE_COMPOUND;
+			case SCHEMA_ELEMENT_KIND_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema element kind: " + grpcElementKind);
+		};
+	}
+
+	/**
+	 * Converts {@link ElementKind} to {@link GrpcSchemaElementKind}.
+	 *
+	 * @param elementKind the kind of schema element to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaElementKind toGrpcSchemaElementKind(@Nonnull ElementKind elementKind) {
+		return switch (elementKind) {
+			case ATTRIBUTE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE;
+			case SORTABLE_COMPOUND -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcSchemaCapability} to {@link Capability}.
+	 *
+	 * Not interchangeable with {@link #toAttributeIndexType(GrpcAttributeIndexType)} despite the matching value names:
+	 * that one names a physical index structure, this one a schema flag an operator can drop.
+	 *
+	 * @param grpcCapability the schema capability to convert
+	 * @return the corresponding schema capability
+	 * @throws EvitaInvalidUsageException when the capability is unknown to this client
+	 */
+	@Nonnull
+	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
+		return switch (grpcCapability) {
+			case SCHEMA_CAPABILITY_FILTER -> Capability.FILTER;
+			case SCHEMA_CAPABILITY_SORT -> Capability.SORT;
+			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
+			case SCHEMA_CAPABILITY_UNSPECIFIED, UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized schema capability: " + grpcCapability);
+		};
+	}
+
+	/**
+	 * Converts {@link Capability} to {@link GrpcSchemaCapability}.
+	 *
+	 * @param capability the schema capability to convert
+	 * @return its gRPC form
+	 */
+	@Nonnull
+	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
+		return switch (capability) {
+			case FILTER -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTER;
+			case SORT -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORT;
+			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
 		};
 	}
 }

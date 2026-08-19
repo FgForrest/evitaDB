@@ -53,6 +53,8 @@ import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.query.Query;
@@ -2709,6 +2711,146 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			notFound.getMessage().contains("The catalog holds no index with primary key"),
 			"The rejection reason did not survive the wire: " + notFound.getMessage()
 		);
+	}
+
+	/**
+	 * Verifies that the schema-capability listing reaches a remote client for both owners.
+	 *
+	 * The counting is covered by the engine-side tests and the translation by
+	 * `CatalogStatisticsConverterTest`; what only this test can prove is that the two survive together over a real
+	 * server. The ways it can fail quietly are the same ones the index surface has, plus one of its own: the counts
+	 * are plain `int64`s, so a dropped one arrives as a plausible "this flag is cold"; the two stamps are
+	 * message-typed precisely so absence is expressible, and reading one without a presence check yields the epoch;
+	 * and the **owner** is an unset wrapper on a catalog-owned row, which decodes to `""` rather than to null when
+	 * read straight - a row that would then claim to belong to a collection whose schema cannot drop the flag.
+	 *
+	 * The same wrapper carries the owner in the *request* direction, where an unset entity type has to select the
+	 * catalog rather than be looked up as a collection named by the empty string.
+	 */
+	@Test
+	@DisplayName("read schema capability usage of a collection and of the catalog")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldReportSchemaCapabilityUsageOverTheWire(
+		EvitaClient evitaClient,
+		Map<Integer, SealedEntity> products
+	) {
+		// traffic of our own, so what is asserted below does not rest on whatever other tests happened to run first.
+		// It filters by an *attribute* rather than by a primary key, which is what this surface counts at all - a
+		// primary-key lookup names no capability and would leave every request count at zero
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.queryListOfEntityReferences(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(attributeEquals(DataGenerator.ATTRIBUTE_ALIAS, true))
+					)
+				);
+			}
+		);
+
+		final List<SchemaCapabilityUsageSnapshot> collectionRows = evitaClient.management().listCapabilityUsage(
+			TEST_CATALOG, Entities.PRODUCT
+		);
+
+		assertFalse(
+			collectionRows.isEmpty(),
+			"The product collection has been queried and written, so it cannot report no capability at all"
+		);
+		boolean someRowCountedARequest = false;
+		boolean someRowStampedARequest = false;
+		boolean someRowCountedAnUpdate = false;
+		boolean someRowStampedAnUpdate = false;
+		SchemaCapabilityUsageSnapshot aliasFilter = null;
+		for (final SchemaCapabilityUsageSnapshot row : collectionRows) {
+			if (DataGenerator.ATTRIBUTE_ALIAS.equals(row.elementName()) && row.capability() == Capability.FILTER
+				&& row.containerName() == null) {
+				aliasFilter = row;
+			}
+			// each reading is looked for independently of the others, exactly as `shouldReportIndexUsageOverTheWire`
+			// does and for the same reason: a count is advanced before its stamp is written, and the stamp is skipped
+			// while the resident value already falls in the current second, so no row guarantees both
+			someRowCountedARequest |= row.requestedCount() > 0;
+			someRowStampedARequest |= row.lastRequestedAt() != null;
+			someRowCountedAnUpdate |= row.updatedCount() > 0;
+			someRowStampedAnUpdate |= row.lastUpdatedAt() != null;
+			assertEquals(
+				Entities.PRODUCT, row.entityType(),
+				"A row of a collection's own schema must name that collection: " + row
+			);
+			assertNotNull(row.elementKind(), "An unset kind must not decode to a real enum value: " + row);
+			assertNotNull(row.capability(), row.toString());
+			assertNotNull(row.scope(), row.toString());
+			assertNotNull(
+				row.observedSince(),
+				"Without its observation window a zero count cannot be read as anything at all: " + row
+			);
+			// the epoch is what an unset `GrpcOffsetDateTime` decodes to when read without `hasX()`, and it is the one
+			// wrong value here that still looks like a timestamp rather than like a failure
+			assertTrue(
+				row.observedSince().getYear() > 2000,
+				"The observation window arrived as the epoch, so its presence was never checked: " + row
+			);
+			assertEquals(row.lastRequestedAt(), row.lastRequestedAtIfKnown().orElse(null));
+			assertEquals(row.lastUpdatedAt(), row.lastUpdatedAtIfKnown().orElse(null));
+		}
+		// what proves no field was dropped: each reading arrives populated on some row rather than uniformly empty,
+		// which is what a converter that never wrote it would produce
+		assertTrue(someRowCountedARequest, "The query above named an attribute, so some row has to count a request");
+		assertTrue(someRowStampedARequest, "The query above named an attribute, so some row has to carry a stamp");
+		assertTrue(someRowCountedAnUpdate, "The dataset was written, so some row has to report maintenance");
+		assertTrue(someRowStampedAnUpdate, "The dataset was written, so some row has to carry an update stamp");
+		// and the row it has to be: the request must land on the capability the query actually named, not merely
+		// somewhere in the listing
+		assertNotNull(
+			aliasFilter,
+			"The collection reports no filter capability for the attribute the query named: " + collectionRows
+		);
+		assertTrue(aliasFilter.requestedCount() > 0, "The query landed on no row of its own: " + aliasFilter);
+
+		// the catalog form, reached by leaving the entity type unset. The query below names no collection at all, so
+		// it is served from the catalog's global unique index and its request belongs to the catalog - a value taken
+		// from a real product rather than invented, because a lookup that finds nothing never reaches that path
+		final String someProductCode = products.get(1).getAttribute(ATTRIBUTE_CODE);
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(
+					session.queryOneEntityReference(
+						query(filterBy(attributeEquals(ATTRIBUTE_CODE, someProductCode)))
+					).isPresent(),
+					"The product must be found through the catalog's global unique index, otherwise the query never " +
+						"took the path the catalog-owned rows come from"
+				);
+			}
+		);
+
+		final List<SchemaCapabilityUsageSnapshot> catalogRows = evitaClient.management().listCapabilityUsage(
+			TEST_CATALOG, null
+		);
+
+		assertFalse(
+			catalogRows.isEmpty(),
+			"The query above filtered by a globally-unique attribute without naming a collection, so the catalog has " +
+				"to report it - an empty listing here means the unset entity type did not select the catalog"
+		);
+		SchemaCapabilityUsageSnapshot codeFilter = null;
+		for (final SchemaCapabilityUsageSnapshot row : catalogRows) {
+			assertNull(
+				row.entityType(),
+				"A capability the catalog schema declares belongs to no collection, and an empty string is what an " +
+					"unset wrapper decodes to when its presence is not checked: " + row
+			);
+			assertNull(row.containerName(), "A catalog schema declares no references: " + row);
+			if (ATTRIBUTE_CODE.equals(row.elementName()) && row.capability() == Capability.FILTER) {
+				codeFilter = row;
+			}
+		}
+		assertNotNull(
+			codeFilter,
+			"The catalog reports no filter capability for its globally-unique attribute: " + catalogRows
+		);
+		assertTrue(codeFilter.requestedCount() > 0, "The collection-less query was not counted: " + codeFilter);
 	}
 
 	/**

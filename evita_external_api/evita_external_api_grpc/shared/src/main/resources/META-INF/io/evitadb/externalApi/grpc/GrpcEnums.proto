@@ -1113,3 +1113,43 @@ enum GrpcAttributeIndexType {
   ATTRIBUTE_INDEX_TYPE_SORT = 3;
 
 }
+
+// What kind of schema element one schema-capability usage row describes. Deliberately not split by owner - an entity
+// attribute and a reference attribute are the same kind of thing declared in two places, and
+// `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the two things that would
+// otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container.
+enum GrpcSchemaElementKind {
+
+  // Default value, never sent by the server. Every reported row carries an explicit kind.
+  SCHEMA_ELEMENT_KIND_UNSPECIFIED = 0;
+  // An attribute, of the entity, of one of its references, or of the catalog schema itself.
+  SCHEMA_ELEMENT_KIND_ATTRIBUTE = 1;
+  // A sortable attribute compound, of the entity or of one of its references.
+  SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;
+
+}
+
+// One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
+//
+// Not to be confused with `GrpcAttributeIndexType`, whose three values carry the same names. That one names a physical
+// index structure a cardinality reading came from; this one names a schema flag an operator can drop, whose removal
+// takes every physical structure maintaining it with it. Keeping the two apart is the whole point of the
+// schema-capability surface - see `GrpcSchemaCapabilityUsage`.
+//
+// The values are exactly the flags a request can currently be attributed to. Prices, facets and hierarchy are
+// maintained by their own structures and reached through their own query paths, so they get their own values when the
+// server can report them - not before.
+enum GrpcSchemaCapability {
+
+  // Default value, never sent by the server. Every reported row carries an explicit capability.
+  SCHEMA_CAPABILITY_UNSPECIFIED = 0;
+  // The element can be filtered by - `filterable()`, and the inverted indexes it costs. A unique attribute carries
+  // this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
+  SCHEMA_CAPABILITY_FILTER = 1;
+  // The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
+  SCHEMA_CAPABILITY_SORT = 2;
+  // The element's values are unique - `unique()`, whether within the entity collection or globally, and the
+  // uniqueness index it costs.
+  SCHEMA_CAPABILITY_UNIQUE = 3;
+
+}

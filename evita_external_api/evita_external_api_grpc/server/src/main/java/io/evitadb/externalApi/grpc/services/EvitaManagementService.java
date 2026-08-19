@@ -45,6 +45,7 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -542,6 +543,42 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						.setIndexDetail(CatalogStatisticsConverter.toGrpcIndexDetail(detail))
 						.build()
 				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.context
+		);
+	}
+
+	/**
+	 * Reports how often each schema capability of one owner was asked for by queries, against how often mutations had
+	 * to maintain it.
+	 *
+	 * @param request          names the catalog and the owner whose capabilities to report
+	 * @param responseObserver the observer for receiving the rows
+	 * @see EvitaManagementContract#listCapabilityUsage(String, String)
+	 */
+	@Override
+	public void listSchemaCapabilityUsage(
+		GrpcSchemaCapabilityUsageRequest request,
+		StreamObserver<GrpcSchemaCapabilityUsageResponse> responseObserver
+	) {
+		executeWithClientContext(
+			() -> {
+				final List<SchemaCapabilityUsageSnapshot> usages = this.management.listCapabilityUsage(
+					request.getCatalogName(),
+					// see `browseIndexes` above - unset selects what the catalog schema declares itself
+					request.hasEntityType() ? request.getEntityType().getValue() : null
+				);
+				final GrpcSchemaCapabilityUsageResponse.Builder builder =
+					GrpcSchemaCapabilityUsageResponse.newBuilder();
+				for (int i = 0; i < usages.size(); i++) {
+					builder.addCapabilities(
+						CatalogStatisticsConverter.toGrpcSchemaCapabilityUsage(usages.get(i))
+					);
+				}
+				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),

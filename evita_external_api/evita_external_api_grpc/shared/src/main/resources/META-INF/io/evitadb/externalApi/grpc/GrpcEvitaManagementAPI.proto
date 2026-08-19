@@ -294,6 +294,38 @@ message GrpcIndexDetailResponse {
 
 }
 
+// Request listing how often each schema capability of one owner was asked for by queries, against how often mutations
+// had to maintain it.
+//
+// `entityType` chooses the owner and is the only thing that does, exactly as it is for an index browse - which is why
+// this request carries no paging, no filters and no ordering: the response is bounded by the schema, dozens of rows
+// per owner, rather than by the data.
+message GrpcSchemaCapabilityUsageRequest {
+
+  // Name of the catalog holding the schema. A catalog the server does not know is an error.
+  string catalogName = 1;
+  // Name of the entity collection whose capabilities to report, i.e. its entity type. A collection the catalog does
+  // not hold is an error, not an empty list - an empty list would be indistinguishable from a collection nothing has
+  // queried.
+  //
+  // Unset reports the capabilities the catalog schema declares itself - those of its globally-unique attributes, which
+  // live there because a query filtering by one may name no collection at all. Both forms answer with the same rows,
+  // and every row names its owner, so a client wanting the whole picture issues one call per owner and concatenates
+  // the results.
+  google.protobuf.StringValue entityType = 2;
+
+}
+
+// Response carrying every schema capability one owner has observed so far.
+message GrpcSchemaCapabilityUsageResponse {
+
+  // The rows, ordered by container, then element name, then element kind, then capability, then scope - a stable order
+  // so that two polls of an unchanged catalog do not reshuffle a table an operator is reading, and so that the rows of
+  // one element arrive together. Empty when nothing has been observed since the server loaded the catalog.
+  repeated GrpcSchemaCapabilityUsage capabilities = 1;
+
+}
+
 // Response carrying the component-selected statistics snapshot of one entity collection.
 message GrpcEntityCollectionStatisticsSnapshotResponse {
   // Statistics of the requested entity collection.
@@ -597,6 +629,20 @@ service EvitaManagementService {
   // and sums the results.
   rpc GetIndexDetail(GrpcIndexDetailRequest)
     returns (GrpcIndexDetailResponse);
+  // Procedure used to report how often each schema capability of one owner was asked for by queries, against how often
+  // mutations had to maintain it - the "you never filter by EAN, so why are you paying to keep its filter index up to
+  // date?" reading. Which owner is reported is chosen by `GrpcSchemaCapabilityUsageRequest.entityType`.
+  //
+  // Where `BrowseIndexes` enumerates the physical indexes and what each of them costs, this reports the schema flags
+  // those indexes exist to serve. That is the granularity an operator can act on, since dropping a flag is one schema
+  // mutation that removes every index maintaining it at once - and it is why the two are separate procedures rather
+  // than extra fields on a browse row. Read `GrpcSchemaCapabilityUsage` before acting on either count; in particular
+  // the request count is not physical index usage.
+  //
+  // Unlike the collection form of `BrowseIndexes` this one is cheap and may be polled: the response is bounded by the
+  // schema rather than by the data, and there is no index walk behind it.
+  rpc ListSchemaCapabilityUsage(GrpcSchemaCapabilityUsageRequest)
+    returns (GrpcSchemaCapabilityUsageResponse);
   // Procedure used to restore a catalog from a client-uploaded backup via true gRPC client
   // streaming; see `RestoreCatalogUnary` for the chunked-unary alternative.
   rpc RestoreCatalog(stream GrpcRestoreCatalogRequest) returns (GrpcRestoreCatalogResponse);

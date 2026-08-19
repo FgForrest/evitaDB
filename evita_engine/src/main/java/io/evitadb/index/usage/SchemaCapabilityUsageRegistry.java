@@ -28,10 +28,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
-import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

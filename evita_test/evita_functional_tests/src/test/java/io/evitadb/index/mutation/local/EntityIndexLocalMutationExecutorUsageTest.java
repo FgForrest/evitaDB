@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -44,7 +45,6 @@ import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataF
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.usage.SchemaCapabilityKey;
-import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry.UsageEntry;
 import io.evitadb.test.Entities;

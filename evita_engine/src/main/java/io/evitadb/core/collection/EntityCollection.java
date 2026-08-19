@@ -38,6 +38,7 @@ import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -156,6 +157,7 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
@@ -1191,6 +1193,15 @@ public final class EntityCollection implements
 			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
 		}
 		return IndexDetailProjection.describe(getEntityType(), index);
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage() {
+		// no snapshot and no seal, unlike the index browse above: the registry is a map bounded by the schema rather
+		// than by the data, and it is read while the counters it holds keep moving - a reading that is current is what
+		// the operator asked for, and there is no second reading here for it to be inconsistent with
+		return SchemaCapabilityUsageProjection.project(getEntityType(), this.usageRegistry);
 	}
 
 	/**

@@ -60,6 +60,9 @@ import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -69,8 +72,10 @@ import io.evitadb.api.statistics.CatalogIndexCardinality;
 import io.evitadb.api.statistics.CatalogIndexCardinality.GlobalUniqueIndexCardinality;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsComponent;
+import io.evitadb.externalApi.grpc.generated.GrpcEntityScope;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse;
@@ -78,6 +83,10 @@ import io.evitadb.externalApi.grpc.generated.GrpcIndexDetail;
 import io.evitadb.externalApi.grpc.generated.GrpcOrderDirection;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshot;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsSnapshot;
+import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapability;
+import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsage;
+import io.evitadb.externalApi.grpc.generated.GrpcSchemaCapabilityUsageResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcSchemaElementKind;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -753,6 +762,99 @@ class CatalogStatisticsConverterTest {
 					.setPageSize(10)
 					.setOrdering(GrpcIndexBrowseOrdering.INDEX_BROWSE_ORDERING_MAP_ORDER)
 					.setDirection(GrpcOrderDirection.DESC)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("carry a schema-capability usage listing back unchanged, catalog-owned rows included")
+	void shouldRoundTripSchemaCapabilityUsage() throws InvalidProtocolBufferException {
+		// the four owner shapes a row takes, chosen so that every nullable field is absent on some row and present on
+		// another - an unset `StringValue` decodes to the empty string when read without a presence check, and an
+		// unset `GrpcOffsetDateTime` to the epoch, so an absence asserted only where it happens to be populated
+		// proves nothing
+		final List<SchemaCapabilityUsageSnapshot> usages = List.of(
+			// an entity attribute, requested and maintained: nothing absent, which is the baseline the rest deviate
+			// from
+			new SchemaCapabilityUsageSnapshot(
+				"product", ElementKind.ATTRIBUTE, null, "ean", Capability.FILTER, Scope.LIVE,
+				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+			),
+			// a reference attribute - the container is the only thing telling it apart from an entity attribute of the
+			// same name, so losing it would silently pool two different elements' traffic into one row
+			new SchemaCapabilityUsageSnapshot(
+				"product", ElementKind.ATTRIBUTE, "categories", "priority", Capability.SORT, Scope.ARCHIVED,
+				3L, 0L, LAST_QUERIED_AT, null, OBSERVED_SINCE
+			),
+			// a sortable compound carrying the *same* container and name as the row above: only the kind separates
+			// them, which is the one collision no other field can resolve
+			new SchemaCapabilityUsageSnapshot(
+				"product", ElementKind.SORTABLE_COMPOUND, "categories", "priority", Capability.SORT, Scope.ARCHIVED,
+				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE
+			),
+			// a capability the catalog owns, never requested and never maintained: no owning collection, no container
+			// and neither stamp, so this row is the one that catches a converter reading any of the four straight
+			new SchemaCapabilityUsageSnapshot(
+				null, ElementKind.ATTRIBUTE, null, "code", Capability.UNIQUE, Scope.LIVE,
+				0L, 0L, null, null, OBSERVED_SINCE
+			)
+		);
+		final GrpcSchemaCapabilityUsageResponse.Builder builder = GrpcSchemaCapabilityUsageResponse.newBuilder();
+		for (final SchemaCapabilityUsageSnapshot usage : usages) {
+			builder.addCapabilities(CatalogStatisticsConverter.toGrpcSchemaCapabilityUsage(usage));
+		}
+
+		final List<SchemaCapabilityUsageSnapshot> roundTripped = CatalogStatisticsConverter.toSchemaCapabilityUsages(
+			GrpcSchemaCapabilityUsageResponse.parseFrom(builder.build().toByteArray())
+		);
+
+		assertEquals(usages, roundTripped);
+		// the server's order is the client's order: the rows of one element belong together, and a listing that
+		// arrived reshuffled would make two polls of an unchanged catalog look like a moving table
+		for (int i = 0; i < usages.size(); i++) {
+			assertEquals(usages.get(i).elementName(), roundTripped.get(i).elementName());
+		}
+		// the absences, stated one by one rather than left to record equality - each of them decodes to a plausible
+		// non-null value when its presence is not checked, so each is a mistake that produces an answer rather than a
+		// failure
+		assertNull(roundTripped.get(0).containerName(), "An entity attribute is declared on no reference");
+		assertNull(roundTripped.get(3).entityType(), "A capability the catalog owns belongs to no collection");
+		assertNull(roundTripped.get(3).containerName(), "A catalog schema declares no references");
+		assertNull(roundTripped.get(1).lastUpdatedAt(), "A never-maintained capability must not decode to the epoch");
+		assertNull(roundTripped.get(2).lastRequestedAt(), "A never-requested capability must not decode to the epoch");
+		assertTrue(roundTripped.get(3).lastRequestedAtIfKnown().isEmpty());
+		assertTrue(roundTripped.get(3).lastUpdatedAtIfKnown().isEmpty());
+		// the two counts are plain int64s, so a dropped one arrives as a perfectly plausible "this flag is cold"
+		assertEquals(9_000_000_000L, roundTripped.get(0).requestedCount(), "A count past int range must not wrap");
+		assertEquals(4_000_000_000L, roundTripped.get(0).updatedCount(), "A count past int range must not wrap");
+		// the kind is what keeps rows 1 and 2 apart - they agree on owner, container, name, capability and scope
+		assertEquals(roundTripped.get(1).elementName(), roundTripped.get(2).elementName());
+		assertEquals(roundTripped.get(1).containerName(), roundTripped.get(2).containerName());
+		assertNotEquals(roundTripped.get(1).elementKind(), roundTripped.get(2).elementKind());
+		assertNotEquals(roundTripped.get(1), roundTripped.get(2));
+		// the observation window every row carries, including the one that has never been requested or maintained: it
+		// is what makes a zero count readable as "not once in this long" rather than as an unqualified zero
+		for (final SchemaCapabilityUsageSnapshot usage : roundTripped) {
+			assertEquals(OBSERVED_SINCE, usage.observedSince());
+		}
+	}
+
+	@Test
+	@DisplayName("reject a usage row that arrived without its observation window")
+	void shouldRejectSchemaCapabilityUsageWithoutItsObservationWindow() {
+		// unlike a browsed index's window - a field added to a message older servers already spoke - this whole
+		// procedure is new, so any server able to answer it sets the window. A missing one is a broken sender, and no
+		// instant may be substituted for it: the epoch would fabricate a decades-long window that turns "never
+		// requested in the last week" falsely true, and "now" a zero-length one that turns every rate infinite
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> CatalogStatisticsConverter.toSchemaCapabilityUsage(
+				GrpcSchemaCapabilityUsage.newBuilder()
+					.setElementKind(GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE)
+					.setElementName("ean")
+					.setCapability(GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTER)
+					.setScope(GrpcEntityScope.SCOPE_LIVE)
 					.build()
 			)
 		);

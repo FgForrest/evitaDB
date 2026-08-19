@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -679,6 +680,29 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 			);
 		}
 		return CatalogStatisticsConverter.toIndexDetail(response.getIndexDetail());
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage(
+		@Nonnull String catalogName,
+		@Nullable String entityType
+	) {
+		this.evitaClient.assertActive();
+
+		final GrpcSchemaCapabilityUsageRequest.Builder requestBuilder = GrpcSchemaCapabilityUsageRequest.newBuilder()
+			.setCatalogName(catalogName);
+		// unset reports what the catalog schema declares itself; an empty string would name a collection that cannot
+		// exist, which is why absence travels as an unset wrapper rather than as a sentinel
+		if (entityType != null) {
+			requestBuilder.setEntityType(StringValue.of(entityType));
+		}
+		final GrpcSchemaCapabilityUsageRequest request = requestBuilder.build();
+		final GrpcSchemaCapabilityUsageResponse response = executeWithEvitaService(
+			evitaService -> evitaService.listSchemaCapabilityUsage(request)
+		);
+
+		return CatalogStatisticsConverter.toSchemaCapabilityUsages(response);
 	}
 
 	@Override

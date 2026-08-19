@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -53,6 +54,7 @@ import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -541,5 +543,41 @@ public interface EvitaManagementContract {
 		@Nullable String entityType,
 		int indexPrimaryKey
 	) throws CatalogNotFoundException, CollectionNotFoundException, IndexNotFoundException;
+
+	/**
+	 * Returns how often each schema capability of one owner was asked for by queries, against how often mutations had
+	 * to maintain it - the *"you never filter by EAN, so why are you paying to keep its filter index up to date?"*
+	 * reading.
+	 *
+	 * Where {@link #browseIndexes(String, String, IndexBrowseCriteria)} enumerates the *physical* indexes and what each
+	 * of them costs, this reports the *schema flags* those indexes exist to serve. That is the granularity an operator
+	 * can act on, since dropping a flag is one schema mutation that removes every index maintaining it at once - and it
+	 * is why the two are separate surfaces rather than extra columns on a browse row. Read
+	 * {@link SchemaCapabilityUsageSnapshot} before acting on either count; in particular the request count is **not**
+	 * physical index usage and must never be presented as such.
+	 *
+	 * **`entityType` chooses the owner, exactly as it does for an index browse.** Naming a collection reports what its
+	 * schema declares; passing null reports what the catalog schema declares itself - the capabilities of its
+	 * globally-unique attributes, which live there because a query filtering by one may name no collection at all. A
+	 * client wanting the whole picture issues one call per owner and concatenates the rows, which is unambiguous
+	 * because every row names its owner.
+	 *
+	 * **This one is cheap, and may be polled.** The response is bounded by the schema - dozens of rows per owner -
+	 * rather than by the data, and producing it walks a map of that size; there is no index walk behind it and
+	 * therefore no reason for the paging, filtering and ordering an index browse needs.
+	 *
+	 * @param catalogName name of the catalog holding the schema
+	 * @param entityType  name of the entity collection whose capabilities to report, or null to report the ones the
+	 *                    catalog schema declares itself
+	 * @return one row per observed capability, empty when nothing has been observed since the catalog was loaded
+	 * @throws CatalogNotFoundException    when no catalog of that name exists
+	 * @throws CollectionNotFoundException when an entity type is named and the catalog holds no such collection; an
+	 *                                     empty list would be indistinguishable from a collection nothing has queried
+	 */
+	@Nonnull
+	List<SchemaCapabilityUsageSnapshot> listCapabilityUsage(
+		@Nonnull String catalogName,
+		@Nullable String entityType
+	) throws CatalogNotFoundException, CollectionNotFoundException;
 
 }

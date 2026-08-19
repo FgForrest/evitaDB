@@ -59,6 +59,7 @@ import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
+import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -68,9 +69,11 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -88,10 +91,14 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toG
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcComponentAvailability;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcEntityIndexType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcOrderDirection;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcSchemaCapability;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcSchemaElementKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScope;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toIndexBrowseOrdering;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toOrderDirection;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toSchemaCapability;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toSchemaElementKind;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScope;
 
 /**
@@ -1685,6 +1692,102 @@ public class CatalogStatisticsConverter {
 			scopes,
 			new HashSet<>(grpcRequest.getReferenceNamesList())
 		);
+	}
+
+	/**
+	 * Converts one schema-capability usage row to its gRPC form.
+	 *
+	 * @param usage the row to convert
+	 * @return its gRPC form, with the entity type left unset for a row the catalog owns and the container name left
+	 * unset for an element its owner declares directly
+	 */
+	@Nonnull
+	public static GrpcSchemaCapabilityUsage toGrpcSchemaCapabilityUsage(
+		@Nonnull SchemaCapabilityUsageSnapshot usage
+	) {
+		final GrpcSchemaCapabilityUsage.Builder builder = GrpcSchemaCapabilityUsage.newBuilder()
+			.setElementKind(toGrpcSchemaElementKind(usage.elementKind()))
+			.setElementName(usage.elementName())
+			.setCapability(toGrpcSchemaCapability(usage.capability()))
+			.setScope(toGrpcScope(usage.scope()))
+			.setRequestedCount(usage.requestedCount())
+			.setUpdatedCount(usage.updatedCount())
+			// never absent - a capability is observed from the moment it exists, which is what makes a zero count
+			// readable as "not once in this long" rather than as an unqualified zero
+			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.observedSince()));
+		// both absences are statements about the owner, and an unset wrapper is what keeps them apart from an owner
+		// genuinely named by the empty string
+		if (usage.entityType() != null) {
+			builder.setEntityType(StringValue.of(usage.entityType()));
+		}
+		if (usage.containerName() != null) {
+			builder.setContainerName(StringValue.of(usage.containerName()));
+		}
+		// the stamps are message-typed rather than a zero sentinel, so "never since the catalog was loaded" is
+		// expressible - an epoch-zero instant would render as a date in 1970
+		if (usage.lastRequestedAt() != null) {
+			builder.setLastRequestedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.lastRequestedAt()));
+		}
+		if (usage.lastUpdatedAt() != null) {
+			builder.setLastUpdatedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.lastUpdatedAt()));
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Reads one schema-capability usage row back from the wire.
+	 *
+	 * @param grpcUsage the received row
+	 * @return its Java form, with every unset optional field left null
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the observation window is missing - see below
+	 */
+	@Nonnull
+	public static SchemaCapabilityUsageSnapshot toSchemaCapabilityUsage(
+		@Nonnull GrpcSchemaCapabilityUsage grpcUsage
+	) {
+		// unlike the per-index rows, whose observation window was added to an existing message and is therefore absent
+		// from an older server's answer, this whole procedure is new: any server able to answer it at all sets the
+		// window. A missing one is a broken sender rather than an old one, and it is rejected rather than substituted,
+		// because no instant can stand in for an unknown window - the epoch would fabricate a decades-long one that
+		// turns "never requested in the last week" falsely true, "now" a zero-length one that turns every rate infinite
+		Assert.isPremiseValid(
+			grpcUsage.hasObservedSince(),
+			() -> "Schema capability usage of `" + grpcUsage.getElementName() + "` arrived without its observation " +
+				"window, which no instant may stand in for."
+		);
+		return new SchemaCapabilityUsageSnapshot(
+			grpcUsage.hasEntityType() ? grpcUsage.getEntityType().getValue() : null,
+			toSchemaElementKind(grpcUsage.getElementKind()),
+			grpcUsage.hasContainerName() ? grpcUsage.getContainerName().getValue() : null,
+			grpcUsage.getElementName(),
+			toSchemaCapability(grpcUsage.getCapability()),
+			toScope(grpcUsage.getScope()),
+			grpcUsage.getRequestedCount(),
+			grpcUsage.getUpdatedCount(),
+			grpcUsage.hasLastRequestedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getLastRequestedAt()) : null,
+			grpcUsage.hasLastUpdatedAt() ?
+				EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getLastUpdatedAt()) : null,
+			EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getObservedSince())
+		);
+	}
+
+	/**
+	 * Reads a whole schema-capability usage listing back from the wire, keeping the order the server sent it in.
+	 *
+	 * @param grpcResponse the received listing
+	 * @return its Java form
+	 */
+	@Nonnull
+	public static List<SchemaCapabilityUsageSnapshot> toSchemaCapabilityUsages(
+		@Nonnull GrpcSchemaCapabilityUsageResponse grpcResponse
+	) {
+		final List<GrpcSchemaCapabilityUsage> grpcUsages = grpcResponse.getCapabilitiesList();
+		final List<SchemaCapabilityUsageSnapshot> usages = new ArrayList<>(grpcUsages.size());
+		for (int i = 0; i < grpcUsages.size(); i++) {
+			usages.add(toSchemaCapabilityUsage(grpcUsages.get(i)));
+		}
+		return usages;
 	}
 
 }
