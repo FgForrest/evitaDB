@@ -94,9 +94,11 @@ import java.util.Optional;
  *
  * The one exception runs the other way, and is transient: a schema mutation that **added** a capability and was then
  * rolled back leaves its row behind until the owner next adopts any schema version, because the rows are aligned when
- * a version is published rather than when the transaction that published it commits. Such a row reads `0 / 0`, which
- * is the reading a flag nobody uses would give - and acting on it is harmless, since the flag it names does not exist
- * to be dropped.
+ * a version is published rather than when the transaction that published it commits. Such a row commonly reads
+ * `0 / 0` - the reading a flag nobody uses would give - but it need not: counts measure work **performed** rather than
+ * work committed, as stated above, so a transaction that declared the flag and wrote entities touching it before
+ * rolling back leaves that maintenance on the row. Acting on such a row is harmless either way, since the flag it
+ * names does not exist to be dropped.
  *
  * This is what makes a zero readable. **A zero count means the capability was genuinely unused over the window
  * {@link #observedSince()} states**, not merely that nothing has been observed yet - so *"idle"* and *"not declared"*

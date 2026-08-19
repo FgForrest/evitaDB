@@ -2561,13 +2561,15 @@ public final class EntityCollection implements
 	 * - a schema update that **dropped** a capability leaves the registry having discarded that capability's counters
 	 *   even though the flag survived - the window reopens at the next adoption, and
 	 *   {@link io.evitadb.index.usage.SchemaCapabilityUsage#getObservedSinceMillis()} says honestly when it did;
-	 * - a schema update that **added** one leaves a row for a capability the schema does not declare, reading `0 / 0`
-	 *   because nothing can ever file against a flag that does not exist.
+	 * - a schema update that **added** one leaves a row for a capability the schema does not declare. It commonly reads
+	 *   `0 / 0`, but that is not guaranteed: the counters measure work *performed* rather than work committed, so a
+	 *   transaction that declared the flag and then wrote entities touching it before rolling back leaves that
+	 *   maintenance recorded on the phantom row.
 	 *
 	 * The second is the newer and the more misleading of the two, because this surface teaches an operator that a
 	 * zero-count row is a flag worth dropping - and here there is no flag to drop, so acting on it is a no-op rather
-	 * than a mistake. Both are self-healing: the next adoption of any schema version realigns the registry against it,
-	 * and a phantom row disappears at that point.
+	 * than a mistake whichever counts it carries. Both are self-healing: the next adoption of any schema version
+	 * realigns the registry against it, and a phantom row disappears at that point.
 	 *
 	 * Neither is corrected on rollback, for the same reason the ordering is what it is: this is the single hook every
 	 * adoption path already passes through, whereas the commit boundary is not one place but several, and threading
