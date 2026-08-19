@@ -84,6 +84,12 @@ abstract class AbstractMutatorTestBase {
 	 * exposed so a test can read the counts back.
 	 */
 	@Nonnull protected final SchemaCapabilityUsageRegistry usageRegistry = new SchemaCapabilityUsageRegistry();
+	/**
+	 * The catalog's own registry, which is where the executor files the capabilities of a globally-unique attribute -
+	 * kept separate here for the same reason it is separate in the engine: a test asserting on one of them must not be
+	 * able to pass because the other was written to.
+	 */
+	@Nonnull protected final SchemaCapabilityUsageRegistry catalogUsageRegistry = new SchemaCapabilityUsageRegistry();
 
 	{
 		this.catalog = Mockito.mock(Catalog.class);
@@ -151,7 +157,8 @@ abstract class AbstractMutatorTestBase {
 			null,
 			null,
 			this.classifierResolver,
-			this.usageRegistry
+			this.usageRegistry,
+			this.catalogUsageRegistry
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

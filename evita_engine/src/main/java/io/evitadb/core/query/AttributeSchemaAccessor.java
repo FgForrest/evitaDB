@@ -37,6 +37,7 @@ import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
 import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
 
@@ -268,10 +269,14 @@ public class AttributeSchemaAccessor {
 	) {
 		if (this.entitySchema == null && this.referenceSchemaAccessor == null) {
 			// a lookup that knows no collection resolves against the catalog schema, and its counters live with it
-			return verifyAndReturn(
+			final AttributeSchemaContract result = verifyAndReturn(
 				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
 				this.catalogSchema, null, null, requiredTrait
 			);
+			recordRequestedTraits(
+				this.queryContext, null, null, result.getName(), requestedScopes, requiredTrait
+			);
+			return result;
 		} else {
 			final ReferenceSchemaContract referenceSchema = getReferenceSchema();
 			final AttributeSchemaProvider<?> attributeSchemaProvider = Objects.requireNonNull(referenceSchema == null ? this.entitySchema : referenceSchema);
@@ -342,10 +347,14 @@ public class AttributeSchemaAccessor {
 			return getAttributeSchemaOrSortableAttributeCompound(this.entitySchema, attributeName, requestedScopes);
 		} else {
 			// a lookup that knows no collection resolves against the catalog schema, and its counters live with it
-			return verifyAndReturn(
+			final AttributeSchemaContract result = verifyAndReturn(
 				attributeName, requestedScopes, this.catalogSchema.getAttribute(attributeName).orElse(null),
 				this.catalogSchema, null, null, SORTABLE_ONLY
 			);
+			recordRequestedTraits(
+				this.queryContext, null, null, result.getName(), requestedScopes, SORTABLE_ONLY
+			);
+			return result;
 		}
 	}
 
@@ -419,7 +428,68 @@ public class AttributeSchemaAccessor {
 	 * passed no trait at all wanted the schema for something else (a type, a locale flag) and is not a capability
 	 * request; it records nothing.
 	 *
-	 * @param owner           the entity schema the attribute was resolved against, NULL for a collection-less lookup
+	 * # Which registry counts it
+	 *
+	 * `owner` decides, and it says nothing more than *what the lookup resolved against*: an attribute found on an
+	 * entity schema counts on that collection, an attribute found on the catalog schema alone counts on the catalog.
+	 * The second case is not a lesser one - a global attribute's flags are declared on the catalog schema and dropped
+	 * by a catalog schema mutation, so the catalog is where the number an operator would act on belongs.
+	 *
+	 * @param queryContext    the query being planned, NULL outside a plan - which turns the whole recording off
+	 * @param owner           the entity schema the attribute was resolved against, NULL when it was resolved against
+	 *                        the catalog schema alone
+	 * @param containerName   name of the reference declaring it, NULL when the entity (or the catalog) declares it
+	 *                        directly
+	 * @param attributeName   canonical name of the attribute, as its schema spells it
+	 * @param requestedScopes scopes the query asked for
+	 * @param requiredTraits  what the caller needed the attribute to be able to do
+	 */
+	public static void recordRequestedTraits(
+		@Nullable QueryPlanningContext queryContext,
+		@Nullable EntitySchemaContract owner,
+		@Nullable String containerName,
+		@Nonnull String attributeName,
+		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull AttributeTrait[] requiredTraits
+	) {
+		if (queryContext == null || requiredTraits.length == 0) {
+			return;
+		}
+		if (owner == null && containerName != null) {
+			// a catalog declares no references, so such a pair describes an element no schema can correspond to -
+			// recording it would mint an entry the next catalog schema adoption throws away, loudly
+			throw new GenericEvitaInternalError(
+				"Attribute `" + attributeName + "` of reference `" + containerName +
+					"` cannot be resolved against a catalog schema."
+			);
+		}
+		for (final AttributeTrait trait : requiredTraits) {
+			// no `default` branch on purpose: a trait added later must fail to compile here rather than go uncounted
+			final Capability capability = switch (trait) {
+				case FILTERABLE -> Capability.FILTER;
+				case UNIQUE -> Capability.UNIQUE;
+				case SORTABLE -> Capability.SORT;
+			};
+			for (final Scope scope : requestedScopes) {
+				if (owner == null) {
+					queryContext.recordRequestedGlobalCapability(attributeName, capability, scope);
+				} else {
+					queryContext.recordRequestedCapability(
+						owner, containerName, ElementKind.ATTRIBUTE, attributeName, capability, scope
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reports every capability an entity-schema lookup handed out - the instance form of
+	 * {@link #recordRequestedTraits(QueryPlanningContext, EntitySchemaContract, String, String, Set, AttributeTrait[])}
+	 * for the getters that resolved the attribute against a collection.
+	 *
+	 * @param owner           the entity schema the attribute was resolved against, NULL when the getter had none - in
+	 *                        which case nothing is recorded, because such a getter has already resolved against the
+	 *                        catalog schema on a branch that reports for itself
 	 * @param referenceSchema the reference declaring it, NULL when the entity declares it directly
 	 * @param attributeName   canonical name of the attribute, as its schema spells it
 	 * @param requestedScopes scopes the query asked for
@@ -432,23 +502,13 @@ public class AttributeSchemaAccessor {
 		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait[] requiredTraits
 	) {
-		if (this.queryContext == null || owner == null || requiredTraits.length == 0) {
+		if (owner == null) {
 			return;
 		}
-		final String containerName = referenceSchema == null ? null : referenceSchema.getName();
-		for (final AttributeTrait trait : requiredTraits) {
-			// no `default` branch on purpose: a trait added later must fail to compile here rather than go uncounted
-			final Capability capability = switch (trait) {
-				case FILTERABLE -> Capability.FILTER;
-				case UNIQUE -> Capability.UNIQUE;
-				case SORTABLE -> Capability.SORT;
-			};
-			for (final Scope scope : requestedScopes) {
-				this.queryContext.recordRequestedCapability(
-					owner, containerName, ElementKind.ATTRIBUTE, attributeName, capability, scope
-				);
-			}
-		}
+		recordRequestedTraits(
+			this.queryContext, owner, referenceSchema == null ? null : referenceSchema.getName(),
+			attributeName, requestedScopes, requiredTraits
+		);
 	}
 
 	/**

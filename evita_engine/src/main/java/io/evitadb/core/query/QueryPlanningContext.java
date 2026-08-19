@@ -543,20 +543,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the one {@link io.evitadb.index.IndexActivity} answers, and {@link SchemaCapabilityUsage} states the difference
 	 * in full.
 	 *
-	 * # Attribution, and the two cases this deliberately drops
+	 * # Attribution, and the case this deliberately drops
 	 *
-	 * Only elements of **this context's own collection** are recorded, which is what `owner` is checked for. Two call
-	 * sites therefore pass through without recording anything, and both are known gaps rather than oversights:
+	 * Only elements of **this context's own collection** are recorded, which is what `owner` is checked for. A lookup
+	 * that resolved against the catalog schema alone belongs elsewhere and has its own method -
+	 * {@link #recordRequestedGlobalCapability(String, Capability, Scope)} - so one call site is left passing through
+	 * without recording anything, and it is a known gap rather than an oversight: **a filter or an ordering evaluated
+	 * against another collection's structures** (a nested query behind `referenceHaving`, an ordering by a referenced
+	 * entity's property) would have to count against *that* collection's registry, and the context that owns it is not
+	 * the one whose plan gets built.
 	 *
-	 * - **a query naming no collection** reaches attribute schemas through the catalog schema, and the holder for
-	 *   a globally-unique attribute belongs to a catalog-level registry this context does not have;
-	 * - **a filter or an ordering evaluated against another collection's structures** (a nested query behind
-	 *   `referenceHaving`, an ordering by a referenced entity's property) would have to count against *that*
-	 *   collection's registry, and the context that owns it is not the one whose plan gets built.
-	 *
-	 * Counting either of them here would attribute the request to the wrong schema, which is worse than not counting
-	 * it: the number exists to decide whether a flag can be dropped, and a request attributed to the wrong element
-	 * protects the wrong flag while leaving the right one looking dead.
+	 * Counting it here would attribute the request to the wrong schema, which is worse than not counting it: the
+	 * number exists to decide whether a flag can be dropped, and a request attributed to the wrong element protects
+	 * the wrong flag while leaving the right one looking dead.
 	 *
 	 * @param owner         the entity schema declaring the element, as the caller resolved it - a schema of another
 	 *                      collection is silently ignored
@@ -581,6 +580,33 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		registerRequestedCapability(
 			collection.getUsageRegistry().resolve(
 				new SchemaCapabilityKey(elementKind, containerName, elementName, capability, scope)
+			)
+		);
+	}
+
+	/**
+	 * Records that this query asked for one capability of an attribute the **catalog schema** declares - the
+	 * counterpart of {@link #recordRequestedCapability} for the lookups that never reach an entity schema at all.
+	 *
+	 * A query naming no collection resolves its attributes against the catalog schema and is answered from the
+	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} the catalog keeps, so the request cannot be attributed to
+	 * any one collection: it is the catalog's schema that declares the flag and a catalog schema mutation that would
+	 * drop it. The holder therefore comes from the catalog's own registry, and everything after that - the
+	 * deduplication, the accumulator, the flush - is shared with the collection-level path, because where the holder
+	 * was resolved is the only difference between the two.
+	 *
+	 * @param attributeName name of the global attribute, canonical as the catalog schema spells it
+	 * @param capability    the flag the query needed
+	 * @param scope         the scope whose indexes maintain it
+	 */
+	public void recordRequestedGlobalCapability(
+		@Nonnull String attributeName,
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		registerRequestedCapability(
+			this.catalog.getUsageRegistry().resolve(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, capability, scope)
 			)
 		);
 	}

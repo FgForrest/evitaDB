@@ -24,12 +24,14 @@
 package io.evitadb.index.usage;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.usage.SchemaCapabilityKey.Capability;
+import io.evitadb.index.usage.SchemaCapabilityKey.ElementKind;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,6 +78,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * scope that schema no longer declares loses its holder. A later {@link #resolve(SchemaCapabilityKey)} of the same key
  * therefore mints a fresh holder with a fresh observation window - which is the honest reading, since the capability
  * was genuinely not maintained for the interval in between.
+ *
+ * Which overload applies is decided by the owner, not by the caller's convenience: a collection prunes against the
+ * entity schema it has just adopted, a catalog against its {@link #pruneFor(CatalogSchemaContract) catalog schema}.
+ * A registry only ever sees one of the two, because only one kind of owner ever resolves keys into it.
  *
  * # Concurrency
  *
@@ -167,6 +173,50 @@ public final class SchemaCapabilityUsageRegistry {
 	public void pruneFor(@Nonnull EntitySchemaContract entitySchema) {
 		Objects.requireNonNull(entitySchema, "Entity schema is mandatory.");
 		this.usages.keySet().removeIf(key -> !isDeclaredBy(entitySchema, key));
+	}
+
+	/**
+	 * The catalog-owner's counterpart of {@link #pruneFor(EntitySchemaContract)} - *"here is the catalog schema version
+	 * just adopted, discard what disagrees with it"*.
+	 *
+	 * A catalog registry counts exactly one kind of element: **an attribute the catalog schema itself declares**, which
+	 * is why this overload asks the catalog schema for the attribute and nothing else. Whether the attribute still
+	 * carries the key's capability in the key's scope is then decided by the very same rule an entity attribute is
+	 * judged by, deliberately: a global attribute's `filterable()`, `sortable()` and `unique()` flags are declared on
+	 * the catalog schema and inherited by every collection using it, so *"does the schema still declare this flag"* is
+	 * the same question here as there. Global uniqueness is not tested separately for that reason - it already implies
+	 * uniqueness within the collection, so the `UNIQUE` and `FILTER` entries of a globally-unique attribute survive.
+	 *
+	 * @param catalogSchema the catalog schema version the catalog has just adopted
+	 * @throws GenericEvitaInternalError when the registry holds a key no catalog schema could ever back - a reference
+	 *                                   attribute or a sortable compound, neither of which the catalog declares
+	 */
+	public void pruneFor(@Nonnull CatalogSchemaContract catalogSchema) {
+		Objects.requireNonNull(catalogSchema, "Catalog schema is mandatory.");
+		this.usages.keySet().removeIf(key -> !isDeclaredBy(catalogSchema, key));
+	}
+
+	/**
+	 * Decides whether the given catalog schema version still backs the capability the key names.
+	 *
+	 * @param catalogSchema the schema version to check against
+	 * @param key           the capability in question
+	 * @return true when the catalog schema still declares it and the entry may stay
+	 */
+	private static boolean isDeclaredBy(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull SchemaCapabilityKey key
+	) {
+		if (key.elementKind() != ElementKind.ATTRIBUTE || key.containerName() != null) {
+			// dropping such a key silently would hide whoever minted it: a catalog declares no references and no
+			// compounds, so this key could never have matched any catalog schema and is a bug at its resolve site
+			throw new GenericEvitaInternalError(
+				"A catalog usage registry cannot hold " + key.elementKind() + " `" + key.elementName() + "`" +
+					(key.containerName() == null ? "" : " of container `" + key.containerName() + "`") +
+					" - only attributes the catalog schema declares itself."
+			);
+		}
+		return declaresCapability(catalogSchema.getAttribute(key.elementName()).orElse(null), key);
 	}
 
 	/**

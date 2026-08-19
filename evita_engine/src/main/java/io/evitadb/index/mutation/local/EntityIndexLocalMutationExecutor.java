@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -232,6 +233,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
+	 * The usage counters of the **catalog** this executor writes into, which is where a globally-unique attribute's
+	 * numbers live: the index a write of one maintains is the catalog's {@link CatalogIndex}, and the query that reads
+	 * it may name no collection at all, so neither side of that attribute's reading belongs to any single collection.
+	 * Held by reference for the same reason the collection's registry is - it outlives every catalog version.
+	 */
+	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
+	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
 	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
@@ -373,7 +381,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier,
 		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
-		@Nonnull SchemaCapabilityUsageRegistry usageRegistry
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
+		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -388,6 +397,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.crossEntitySchemaResolver = crossEntitySchemaResolver;
 		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
 		this.usageRegistry = usageRegistry;
+		this.catalogUsageRegistry = catalogUsageRegistry;
 	}
 
 	/**
@@ -863,6 +873,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Nothing is incremented here: the holders are only collected, and {@link #applyChanges()} increments them once,
 	 * with the instant it stamps the touched indexes with.
 	 *
+	 * # The globally-unique attribute is counted twice, on purpose
+	 *
+	 * A globally-unique attribute is maintained in the collection's own indexes **and** in the catalog's
+	 * {@link CatalogIndex}, and it is declared by the catalog schema rather than by this collection's. It therefore
+	 * lands in both registries: the collection's, because writing this entity did maintain that collection's indexes,
+	 * and the catalog's, because that is where a reader asking *"is this global attribute worth its uniqueness
+	 * index?"* looks - and where the request of a query that named no collection at all was counted.
+	 *
 	 * @param containerName   name of the reference declaring the attribute, or null when the entity declares it - take
 	 *                        this from {@link AttributeAndCompoundSchemaProvider#getContainerName()} and never from
 	 *                        the reference schema of the index being written, which for an entity attribute is
@@ -893,6 +911,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (unique) {
 			rememberCapability(
 				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.UNIQUE, scope)
+			);
+		}
+		if (containerName == null && attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema
+			&& globalAttributeSchema.isUniqueGloballyInScope(scope)
+		) {
+			// the catalog's copy of the same event - resolved from the catalog registry and deduplicated by the very
+			// same `markTouched` call above, since a global attribute is one element however many indexes carry it
+			rememberCatalogCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.FILTER, scope)
+			);
+			rememberCatalogCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.UNIQUE, scope)
 			);
 		}
 	}
@@ -962,6 +992,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.touchedCapabilities = new ArrayList<>(16);
 		}
 		this.touchedCapabilities.add(this.usageRegistry.resolve(key));
+	}
+
+	/**
+	 * The catalog-registry counterpart of {@link #rememberCapability}, for the capabilities of a globally-unique
+	 * attribute. The queue and the flush are shared - a holder is a holder, and which registry handed it over stops
+	 * mattering the moment it has been resolved.
+	 *
+	 * @param key the capability that was maintained, always an attribute the catalog schema declares itself
+	 */
+	private void rememberCatalogCapability(@Nonnull SchemaCapabilityKey key) {
+		if (this.touchedCapabilities == null) {
+			this.touchedCapabilities = new ArrayList<>(16);
+		}
+		this.touchedCapabilities.add(this.catalogUsageRegistry.resolve(key));
 	}
 
 	/**

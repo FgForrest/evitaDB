@@ -146,6 +146,7 @@ import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.reference.TransactionalReference;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
@@ -378,6 +379,20 @@ public final class Catalog
 	 * upon by the copy and persistence paths.
 	 */
 	private final AtomicReference<CatalogIndex> archiveCatalogIndex = new AtomicReference<>();
+	/**
+	 * The catalog-level twin of {@link EntityCollection#getUsageRegistry()}: it counts the capabilities of the
+	 * attributes the **catalog schema** declares, which is where a globally-unique attribute's numbers belong. A query
+	 * that names no collection resolves its attributes against the catalog schema and is served by the
+	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} inside {@link CatalogIndex}, so neither its request nor the
+	 * maintenance an upsert pays for that index can be attributed to any single collection.
+	 *
+	 * Its three properties are those of the collection-level registry, for the same reasons stated there:
+	 * non-transactional shared telemetry, **carried by reference across catalog versions** (only a brand-new catalog
+	 * and one loaded from disk mint their own, which is what makes the counts "since catalog load"), and pruned when
+	 * this catalog adopts a new catalog schema version - see {@link #exchangeCatalogSchema(CatalogSchemaContract,
+	 * CatalogSchema)}.
+	 */
+	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -667,6 +682,9 @@ public final class Catalog
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
+		// a catalog created here has no history to carry - this allocation is what makes the counts "since catalog
+		// load"
+		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -752,6 +770,9 @@ public final class Catalog
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
+		// nothing about the usage counters is persisted, so a catalog read back from disk starts its observation
+		// window here
+		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -824,6 +845,10 @@ public final class Catalog
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
+		// every caller of this constructor rebuilds an EXISTING catalog - a commit, going live, a catalog rename - and
+		// the registry travels with it exactly as the catalog index's own activity holder does. Minting one here would
+		// reset the counters on every commit, which is to say on precisely the catalogs worth measuring
+		this.usageRegistry = previousCatalogVersion.usageRegistry;
 		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
@@ -1998,6 +2023,19 @@ public final class Catalog
 	}
 
 	/**
+	 * The per-capability usage counters of the **catalog schema's own attributes** - see {@link #usageRegistry} for
+	 * what they mean and how long they live. Like the collection-level registries, this is the same instance for every
+	 * version of one logical catalog, so a caller may hold on to it across a commit; what it must not do is read the
+	 * numbers as belonging to a particular catalog version.
+	 *
+	 * @return the registry counting the capabilities of this catalog's global attributes
+	 */
+	@Nonnull
+	public SchemaCapabilityUsageRegistry getUsageRegistry() {
+		return this.usageRegistry;
+	}
+
+	/**
 	 * Returns {@link EntitySchema} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
 	 * this type is not yet known.
 	 */
@@ -2650,6 +2688,13 @@ public final class Catalog
 	 * Replaces reference to the catalog in this instance. The reference is stored in transactional data structure so
 	 * that it doesn't affect parallel clients until committed.
 	 *
+	 * This is also the **only** place this catalog adopts a new catalog schema version - every catalog schema mutation
+	 * and the rename handover arrive here - which is what makes it the single hook for pruning {@link #usageRegistry}.
+	 * The prune runs only after the exchange has won its race, and the one-directional error it accepts is the one
+	 * {@link EntityCollection#exchangeSchema} accepts: a rolled-back schema change that dropped a global attribute
+	 * leaves the registry having discarded that attribute's counters, while a stale entry can never outlive the schema
+	 * that backed it.
+	 *
 	 * @param updatedSchema updated schema
 	 * @param currentSchema current schema
 	 * @return updated schema
@@ -2681,6 +2726,9 @@ public final class Catalog
 				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
+			// only after the exchange is known to have won the race - a losing exchange changed nothing to prune
+			// against
+			this.usageRegistry.pruneFor(updatedInternalSchema);
 		}
 		return updatedInternalSchema;
 	}

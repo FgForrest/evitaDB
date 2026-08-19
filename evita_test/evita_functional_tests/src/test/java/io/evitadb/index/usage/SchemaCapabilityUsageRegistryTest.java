@@ -26,9 +26,11 @@ package io.evitadb.index.usage;
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -614,6 +616,92 @@ class SchemaCapabilityUsageRegistryTest {
 					thatIs -> thatIs.sortableInScope(Scope.LIVE).uniqueInScope(Scope.LIVE)
 				)
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Pruning a catalog registry")
+	class CatalogPruningTest {
+
+		@Test
+		@DisplayName("A globally-unique attribute the catalog schema still declares keeps every entry it has")
+		void shouldKeepTheCapabilitiesOfAGloballyUniqueAttribute() {
+			// `uniqueGlobally()` never declares `filterable()` or collection-level `unique()` explicitly - it implies
+			// both - so these two entries are exactly the ones a prune rule written against the wrong flag drops
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			final SchemaCapabilityKey codeFilter = SchemaCapabilityKey.entityAttribute(
+				ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+			);
+			final SchemaCapabilityKey codeUnique = SchemaCapabilityKey.entityAttribute(
+				ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE
+			);
+			theRegistry.resolve(codeFilter).recordRequested(System.currentTimeMillis());
+			theRegistry.resolve(codeUnique).recordUpdated(System.currentTimeMillis());
+
+			theRegistry.pruneFor(catalogSchemaWithGlobalCode());
+
+			assertTrue(holds(codeFilter), "A globally-unique attribute lost the FILTER entry its uniqueness implies");
+			assertTrue(holds(codeUnique), "A globally-unique attribute lost its UNIQUE entry");
+			assertEquals(1L, theRegistry.resolve(codeFilter).getRequestedCount(), "The surviving entry was replaced");
+		}
+
+		@Test
+		@DisplayName("An attribute the catalog schema no longer declares loses its holder")
+		void shouldDropTheEntryOfARemovedGlobalAttribute() {
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			final SchemaCapabilityKey eanUnique = SchemaCapabilityKey.entityAttribute(
+				ATTRIBUTE_EAN, Capability.UNIQUE, Scope.LIVE
+			);
+			theRegistry.resolve(eanUnique).recordRequested(System.currentTimeMillis());
+
+			theRegistry.pruneFor(catalogSchemaWithGlobalCode());
+
+			assertTrue(
+				!holds(eanUnique),
+				"The catalog adopted a schema declaring no `ean`, yet the registry still counts it"
+			);
+		}
+
+		@Test
+		@DisplayName("An entry no catalog schema could ever back is reported, not swallowed")
+		void shouldRefuseToPruneAnEntryNoCatalogCanDeclare() {
+			// a catalog declares neither references nor compounds, so both of these keys could only have been minted
+			// by a resolve site aiming at the wrong registry - and a silent drop would look like an ordinary prune
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			theRegistry.resolve(
+				SchemaCapabilityKey.referenceAttribute(
+					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE
+				)
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> theRegistry.pruneFor(catalogSchemaWithGlobalCode())
+			);
+
+			final SchemaCapabilityUsageRegistry compoundRegistry = new SchemaCapabilityUsageRegistry();
+			compoundRegistry.resolve(SchemaCapabilityKey.sortableCompound(null, COMPOUND_CODE_WITH_EAN, Scope.LIVE));
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> compoundRegistry.pruneFor(catalogSchemaWithGlobalCode())
+			);
+		}
+
+		/**
+		 * A catalog schema declaring one globally-unique attribute and nothing else.
+		 *
+		 * @return the catalog schema
+		 */
+		@Nonnull
+		private CatalogSchemaContract catalogSchemaWithGlobalCode() {
+			return new InternalCatalogSchemaBuilder(SchemaCapabilityUsageRegistryTest.this.catalogSchema)
+				.withAttribute(
+					ATTRIBUTE_CODE, String.class,
+					thatIs -> thatIs.uniqueGloballyInScope(Scope.LIVE)
+				)
+				.toInstance();
 		}
 
 	}

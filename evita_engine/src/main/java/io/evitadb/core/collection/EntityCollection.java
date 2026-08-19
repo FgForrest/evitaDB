@@ -2989,7 +2989,10 @@ public final class EntityCollection implements
 						"while resolving schema for cross-entity expression evaluation."
 				)),
 			this.catalog,
-			this.usageRegistry
+			this.usageRegistry,
+			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
+			// their counters belong to the catalog rather than to whichever collection happened to write one
+			this.catalog.getUsageRegistry()
 		);
 
 		return localMutationExecutorCollector.execute(
