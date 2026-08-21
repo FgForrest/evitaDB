@@ -27,6 +27,7 @@ import io.evitadb.api.exception.EntityHasNoPricesException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.exception.PriceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -151,6 +152,11 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 			Assert.isTrue(
 				processingScope.getScopes().stream().allMatch(schema::isPriceIndexedInScope),
 				() -> new PriceNotIndexedException(schema)
+			);
+			// recorded only past the assertion, so the count means "a query depended on this flag being on" rather
+			// than "a query mentioned prices" - the former is what makes dropping the flag a breaking change
+			filterByVisitor.getQueryContext().recordRequestedEntityCapability(
+				schema, Capability.PRICE_INDEXED, processingScope.getScopes()
 			);
 		}
 	}

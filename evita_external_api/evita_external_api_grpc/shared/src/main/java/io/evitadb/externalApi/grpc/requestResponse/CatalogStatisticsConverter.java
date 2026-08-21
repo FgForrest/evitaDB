@@ -59,7 +59,7 @@ import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -1703,7 +1703,7 @@ public class CatalogStatisticsConverter {
 	 */
 	@Nonnull
 	public static GrpcSchemaCapabilityUsage toGrpcSchemaCapabilityUsage(
-		@Nonnull SchemaCapabilityUsageSnapshot usage
+		@Nonnull SchemaCapabilityUsageStatistics usage
 	) {
 		final GrpcSchemaCapabilityUsage.Builder builder = GrpcSchemaCapabilityUsage.newBuilder()
 			.setElementKind(toGrpcSchemaElementKind(usage.elementKind()))
@@ -1742,7 +1742,7 @@ public class CatalogStatisticsConverter {
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the observation window is missing - see below
 	 */
 	@Nonnull
-	public static SchemaCapabilityUsageSnapshot toSchemaCapabilityUsage(
+	public static SchemaCapabilityUsageStatistics toSchemaCapabilityUsage(
 		@Nonnull GrpcSchemaCapabilityUsage grpcUsage
 	) {
 		// unlike the per-index rows, whose observation window was added to an existing message and is therefore absent
@@ -1755,7 +1755,7 @@ public class CatalogStatisticsConverter {
 			() -> "Schema capability usage of `" + grpcUsage.getElementName() + "` arrived without its observation " +
 				"window, which no instant may stand in for."
 		);
-		return new SchemaCapabilityUsageSnapshot(
+		return new SchemaCapabilityUsageStatistics(
 			grpcUsage.hasEntityType() ? grpcUsage.getEntityType().getValue() : null,
 			toSchemaElementKind(grpcUsage.getElementKind()),
 			grpcUsage.hasContainerName() ? grpcUsage.getContainerName().getValue() : null,
@@ -1779,11 +1779,11 @@ public class CatalogStatisticsConverter {
 	 * @return its Java form
 	 */
 	@Nonnull
-	public static List<SchemaCapabilityUsageSnapshot> toSchemaCapabilityUsages(
+	public static List<SchemaCapabilityUsageStatistics> toSchemaCapabilityUsages(
 		@Nonnull GrpcSchemaCapabilityUsageResponse grpcResponse
 	) {
 		final List<GrpcSchemaCapabilityUsage> grpcUsages = grpcResponse.getCapabilitiesList();
-		final List<SchemaCapabilityUsageSnapshot> usages = new ArrayList<>(grpcUsages.size());
+		final List<SchemaCapabilityUsageStatistics> usages = new ArrayList<>(grpcUsages.size());
 		for (int i = 0; i < grpcUsages.size(); i++) {
 			usages.add(toSchemaCapabilityUsage(grpcUsages.get(i)));
 		}

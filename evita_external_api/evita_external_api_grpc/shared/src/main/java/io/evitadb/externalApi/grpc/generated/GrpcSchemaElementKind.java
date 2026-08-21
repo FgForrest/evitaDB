@@ -31,8 +31,9 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * What kind of schema element one schema-capability usage row describes. Deliberately not split by owner - an entity
  * attribute and a reference attribute are the same kind of thing declared in two places, and
- * `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the two things that would
- * otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container.
+ * `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the things that would
+ * otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container,
+ * and a reference is both a container of elements and an element in its own right.
  * </pre>
  *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcSchemaElementKind}
@@ -63,6 +64,26 @@ public enum GrpcSchemaElementKind
    * <code>SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;</code>
    */
   SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND(2),
+  /**
+   * <pre>
+   * A reference itself rather than something declared on it - the element carrying `indexed()`, `faceted()` and
+   * `bucketed()`. `containerName` is empty on such a row and `elementName` holds the reference name, because a
+   * reference is declared by the entity schema directly and has no container of its own. Not to be confused with a
+   * row about an attribute *of* that reference, which names it in `containerName` instead.
+   * </pre>
+   *
+   * <code>SCHEMA_ELEMENT_KIND_REFERENCE = 3;</code>
+   */
+  SCHEMA_ELEMENT_KIND_REFERENCE(3),
+  /**
+   * <pre>
+   * The entity itself - the element carrying `withHierarchy()` and `withPrice()`. Both are declared on the entity
+   * schema rather than on anything inside it, so `containerName` is empty and `elementName` repeats the entity type.
+   * </pre>
+   *
+   * <code>SCHEMA_ELEMENT_KIND_ENTITY = 4;</code>
+   */
+  SCHEMA_ELEMENT_KIND_ENTITY(4),
   UNRECOGNIZED(-1),
   ;
 
@@ -90,6 +111,26 @@ public enum GrpcSchemaElementKind
    * <code>SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;</code>
    */
   public static final int SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND_VALUE = 2;
+  /**
+   * <pre>
+   * A reference itself rather than something declared on it - the element carrying `indexed()`, `faceted()` and
+   * `bucketed()`. `containerName` is empty on such a row and `elementName` holds the reference name, because a
+   * reference is declared by the entity schema directly and has no container of its own. Not to be confused with a
+   * row about an attribute *of* that reference, which names it in `containerName` instead.
+   * </pre>
+   *
+   * <code>SCHEMA_ELEMENT_KIND_REFERENCE = 3;</code>
+   */
+  public static final int SCHEMA_ELEMENT_KIND_REFERENCE_VALUE = 3;
+  /**
+   * <pre>
+   * The entity itself - the element carrying `withHierarchy()` and `withPrice()`. Both are declared on the entity
+   * schema rather than on anything inside it, so `containerName` is empty and `elementName` repeats the entity type.
+   * </pre>
+   *
+   * <code>SCHEMA_ELEMENT_KIND_ENTITY = 4;</code>
+   */
+  public static final int SCHEMA_ELEMENT_KIND_ENTITY_VALUE = 4;
 
 
   public final int getNumber() {
@@ -119,6 +160,8 @@ public enum GrpcSchemaElementKind
       case 0: return SCHEMA_ELEMENT_KIND_UNSPECIFIED;
       case 1: return SCHEMA_ELEMENT_KIND_ATTRIBUTE;
       case 2: return SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND;
+      case 3: return SCHEMA_ELEMENT_KIND_REFERENCE;
+      case 4: return SCHEMA_ELEMENT_KIND_ENTITY;
       default: return null;
     }
   }

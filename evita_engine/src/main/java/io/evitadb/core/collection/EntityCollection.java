@@ -38,7 +38,7 @@ import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -1201,7 +1201,7 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage() {
+	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage() {
 		// no snapshot and no seal, unlike the index browse above: the registry is a map bounded by the schema rather
 		// than by the data, and it is read while the counters it holds keep moving - a reading that is current is what
 		// the operator asked for, and there is no second reading here for it to be inconsistent with

@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
@@ -59,6 +59,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -101,7 +102,7 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_LEGACY_URL = "legacyUrl";
 	/** What a collection-less filter on `code` asks for - the flag its global uniqueness implies. */
 	private static final SchemaCapabilityKey CODE_FILTER = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+		ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 	);
 	/** What maintaining the global unique index of `code` costs. */
 	private static final SchemaCapabilityKey CODE_UNIQUE = SchemaCapabilityKey.entityAttribute(
@@ -112,7 +113,7 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	 * index lives in each collection declaring it rather than in {@link io.evitadb.index.CatalogIndex}.
 	 */
 	private static final SchemaCapabilityKey CODE_SORT = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE
+		ATTRIBUTE_CODE, Capability.SORTABLE, Scope.LIVE
 	);
 	/** The entry the adoption test takes away. */
 	private static final SchemaCapabilityKey LEGACY_URL_UNIQUE = SchemaCapabilityKey.entityAttribute(
@@ -278,7 +279,7 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 			);
 			assertEquals(
 				1L, catalogRegistry.resolve(CODE_FILTER).getUpdatedCount(),
-				"The FILTER entry a globally-unique attribute implies was not maintained alongside its UNIQUE one"
+				"The FILTERABLE entry a globally-unique attribute implies was not maintained alongside its UNIQUE one"
 			);
 			assertEquals(
 				0L, catalogRegistry.resolve(CODE_UNIQUE).getRequestedCount(),
@@ -294,11 +295,12 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A collection-less order-by leaves no SORT row on the catalog, and the collection counts it")
+		@DisplayName("A collection-less order-by leaves no SORTABLE row on the catalog, and the collection counts it")
 		void shouldNotCountSortOnTheCatalog() {
 			// the catalog registry must describe exactly what CatalogIndex maintains, and its global unique index is
 			// the whole of that. A `sortable()` global attribute's sort index lives in every collection declaring it,
-			// so no write can ever file SORT here - a request recorded against the catalog would sit next to an update
+			// so no write can ever file SORTABLE here - a request recorded against the catalog would sit next to an
+			// update
 			// count that is zero by construction and read as "nothing maintains this flag, drop it"
 			upsertProduct(1);
 			final SchemaCapabilityUsageRegistry catalogRegistry = catalogOf(CATALOG).getUsageRegistry();
@@ -315,9 +317,9 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 				}
 			);
 
-			assertTrue(
-				!holdsEntryFor(catalogRegistry, CODE_SORT),
-				"A collection-less order-by minted a catalog SORT row, which nothing can ever increment on the " +
+			assertFalse(
+				holdsEntryFor(catalogRegistry, CODE_SORT),
+				"A collection-less order-by minted a catalog SORTABLE row, which nothing can ever increment on the " +
 					"update side: " + catalogRegistry.listUsages()
 			);
 			// the same query's filter did land, which is what proves the ordering really reached the recording site
@@ -342,8 +344,8 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 
 			assertEquals(
 				1L, productCollection().getUsageRegistry().resolve(CODE_SORT).getRequestedCount(),
-				"Suppressing the catalog's SORT row also suppressed the collection's, which is the owner that does " +
-					"maintain the sort index and must keep counting requests for it"
+				"Suppressing the catalog's SORTABLE row also suppressed the collection's, which is the owner that " +
+					"does maintain the sort index and must keep counting requests for it"
 			);
 		}
 
@@ -366,8 +368,8 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 
 			dropLegacyUrlAttribute();
 
-			assertTrue(
-				!holdsEntryFor(registry, LEGACY_URL_UNIQUE),
+			assertFalse(
+				holdsEntryFor(registry, LEGACY_URL_UNIQUE),
 				"The catalog adopted a schema that no longer declares `legacyUrl`, yet the registry still counts " +
 					"it - an entry no schema backs can never be reported against anything an operator could act on"
 			);
@@ -477,8 +479,9 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Looks the live catalog object up behind the public API - the registry is engine-internal state, and the
-	 * diagnostic surface that will report it is later work.
+	 * Looks the live catalog object up behind the public API, and reads the registry it holds directly rather than
+	 * through the diagnostic surface that reports it: this class is about the registry's **lifetime**, and going
+	 * through the reporting path would make it fail for reasons that have nothing to do with that.
 	 *
 	 * @param catalogName name of the catalog
 	 * @return the catalog

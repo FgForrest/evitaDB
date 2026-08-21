@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -198,6 +199,7 @@ public interface PriceIndexMutator {
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
+			executor.reportEntityCapabilityTouched(Capability.PRICE_INDEXED, scope);
 			// resolved once per upsert: both branches below write through the same scope's GLOBAL price index, which owns
 			// the shared price records the reduced indexes only reference
 			final PriceSuperIndex globalPriceIndex = executor.getGlobalPriceIndex(scope);
@@ -309,6 +311,7 @@ public interface PriceIndexMutator {
 
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
+			executor.reportEntityCapabilityTouched(Capability.PRICE_INDEXED, scope);
 			if (formerPrice != null) {
 				if (formerPrice.exists() && formerPrice.indexed()) {
 					final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.EXISTING);

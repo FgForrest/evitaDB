@@ -31,14 +31,18 @@ package io.evitadb.externalApi.grpc.generated;
  * <pre>
  * One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
  *
- * Not to be confused with `GrpcAttributeIndexType`, whose three values carry the same names. That one names a physical
- * index structure a cardinality reading came from; this one names a schema flag an operator can drop, whose removal
- * takes every physical structure maintaining it with it. Keeping the two apart is the whole point of the
- * schema-capability surface - see `GrpcSchemaCapabilityUsage`.
+ * The values are named after the schema flags they report - `filterable()`, `sortable()`, `unique()` - which is what
+ * separates them from `GrpcAttributeIndexType`, whose values name the physical index structure a cardinality reading
+ * came from. Dropping a flag here takes every physical structure maintaining it with it, and the two axes do not
+ * correspond even where their names meet: a unique attribute that is not filterable carries
+ * `SCHEMA_CAPABILITY_FILTERABLE`, because a filter against it is served from its uniqueness index - while no filter
+ * index exists for it at all. Keeping the two apart is the whole point of the schema-capability surface - see
+ * `GrpcSchemaCapabilityUsage`.
  *
- * The values are exactly the flags a request can currently be attributed to. Prices, facets and hierarchy are
- * maintained by their own structures and reached through their own query paths, so they get their own values when the
- * server can report them - not before.
+ * The values span every schema flag whose maintenance a physical index pays for, and which of them a row can carry is
+ * fixed by its `GrpcSchemaElementKind`: an attribute has three, a sortable compound exactly one, a reference three of
+ * its own, and the entity two. Nothing outside that set is reported, because a flag no index maintains costs nothing
+ * to keep and is therefore not a thing an operator would act on.
  * </pre>
  *
  * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcSchemaCapability}
@@ -59,17 +63,17 @@ public enum GrpcSchemaCapability
    * this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_FILTER = 1;</code>
+   * <code>SCHEMA_CAPABILITY_FILTERABLE = 1;</code>
    */
-  SCHEMA_CAPABILITY_FILTER(1),
+  SCHEMA_CAPABILITY_FILTERABLE(1),
   /**
    * <pre>
    * The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_SORT = 2;</code>
+   * <code>SCHEMA_CAPABILITY_SORTABLE = 2;</code>
    */
-  SCHEMA_CAPABILITY_SORT(2),
+  SCHEMA_CAPABILITY_SORTABLE(2),
   /**
    * <pre>
    * The element's values are unique - `unique()`, whether within the entity collection or globally, and the
@@ -79,6 +83,56 @@ public enum GrpcSchemaCapability
    * <code>SCHEMA_CAPABILITY_UNIQUE = 3;</code>
    */
   SCHEMA_CAPABILITY_UNIQUE(3),
+  /**
+   * <pre>
+   * The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried by a
+   * `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_FACETED = 4;</code>
+   */
+  SCHEMA_CAPABILITY_FACETED(4),
+  /**
+   * <pre>
+   * The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   *
+   * This is the widest flag reported here, and the one to read most carefully: dropping it takes the whole reduced
+   * index family for that reference with it, so every filter, ordering and fetch path reaching *through* the
+   * reference stops being answerable - not merely slower. A low request count means far less here than the same
+   * number on an attribute's `filterable()`.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_INDEXED = 5;</code>
+   */
+  SCHEMA_CAPABILITY_INDEXED(5),
+  /**
+   * <pre>
+   * The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+   * maintenance. Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_BUCKETED = 6;</code>
+   */
+  SCHEMA_CAPABILITY_BUCKETED(6),
+  /**
+   * <pre>
+   * The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index it
+   * costs. Carried by a `SCHEMA_ELEMENT_KIND_ENTITY` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_HIERARCHY_INDEXED = 7;</code>
+   */
+  SCHEMA_CAPABILITY_HIERARCHY_INDEXED(7),
+  /**
+   * <pre>
+   * The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
+   * `SCHEMA_ELEMENT_KIND_ENTITY` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_PRICE_INDEXED = 8;</code>
+   */
+  SCHEMA_CAPABILITY_PRICE_INDEXED(8),
   UNRECOGNIZED(-1),
   ;
 
@@ -96,17 +150,17 @@ public enum GrpcSchemaCapability
    * this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_FILTER = 1;</code>
+   * <code>SCHEMA_CAPABILITY_FILTERABLE = 1;</code>
    */
-  public static final int SCHEMA_CAPABILITY_FILTER_VALUE = 1;
+  public static final int SCHEMA_CAPABILITY_FILTERABLE_VALUE = 1;
   /**
    * <pre>
    * The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
    * </pre>
    *
-   * <code>SCHEMA_CAPABILITY_SORT = 2;</code>
+   * <code>SCHEMA_CAPABILITY_SORTABLE = 2;</code>
    */
-  public static final int SCHEMA_CAPABILITY_SORT_VALUE = 2;
+  public static final int SCHEMA_CAPABILITY_SORTABLE_VALUE = 2;
   /**
    * <pre>
    * The element's values are unique - `unique()`, whether within the entity collection or globally, and the
@@ -116,6 +170,56 @@ public enum GrpcSchemaCapability
    * <code>SCHEMA_CAPABILITY_UNIQUE = 3;</code>
    */
   public static final int SCHEMA_CAPABILITY_UNIQUE_VALUE = 3;
+  /**
+   * <pre>
+   * The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried by a
+   * `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_FACETED = 4;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_FACETED_VALUE = 4;
+  /**
+   * <pre>
+   * The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it costs.
+   * Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   *
+   * This is the widest flag reported here, and the one to read most carefully: dropping it takes the whole reduced
+   * index family for that reference with it, so every filter, ordering and fetch path reaching *through* the
+   * reference stops being answerable - not merely slower. A low request count means far less here than the same
+   * number on an attribute's `filterable()`.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_INDEXED = 5;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_INDEXED_VALUE = 5;
+  /**
+   * <pre>
+   * The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+   * maintenance. Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_BUCKETED = 6;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_BUCKETED_VALUE = 6;
+  /**
+   * <pre>
+   * The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index it
+   * costs. Carried by a `SCHEMA_ELEMENT_KIND_ENTITY` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_HIERARCHY_INDEXED = 7;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_HIERARCHY_INDEXED_VALUE = 7;
+  /**
+   * <pre>
+   * The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
+   * `SCHEMA_ELEMENT_KIND_ENTITY` row.
+   * </pre>
+   *
+   * <code>SCHEMA_CAPABILITY_PRICE_INDEXED = 8;</code>
+   */
+  public static final int SCHEMA_CAPABILITY_PRICE_INDEXED_VALUE = 8;
 
 
   public final int getNumber() {
@@ -143,9 +247,14 @@ public enum GrpcSchemaCapability
   public static GrpcSchemaCapability forNumber(int value) {
     switch (value) {
       case 0: return SCHEMA_CAPABILITY_UNSPECIFIED;
-      case 1: return SCHEMA_CAPABILITY_FILTER;
-      case 2: return SCHEMA_CAPABILITY_SORT;
+      case 1: return SCHEMA_CAPABILITY_FILTERABLE;
+      case 2: return SCHEMA_CAPABILITY_SORTABLE;
       case 3: return SCHEMA_CAPABILITY_UNIQUE;
+      case 4: return SCHEMA_CAPABILITY_FACETED;
+      case 5: return SCHEMA_CAPABILITY_INDEXED;
+      case 6: return SCHEMA_CAPABILITY_BUCKETED;
+      case 7: return SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
+      case 8: return SCHEMA_CAPABILITY_PRICE_INDEXED;
       default: return null;
     }
   }

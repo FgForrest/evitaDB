@@ -1116,8 +1116,9 @@ enum GrpcAttributeIndexType {
 
 // What kind of schema element one schema-capability usage row describes. Deliberately not split by owner - an entity
 // attribute and a reference attribute are the same kind of thing declared in two places, and
-// `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the two things that would
-// otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container.
+// `GrpcSchemaCapabilityUsage.containerName` already says which place. What this separates is the things that would
+// otherwise be indistinguishable: an attribute and a sortable compound may carry the same name in the same container,
+// and a reference is both a container of elements and an element in its own right.
 enum GrpcSchemaElementKind {
 
   // Default value, never sent by the server. Every reported row carries an explicit kind.
@@ -1126,30 +1127,62 @@ enum GrpcSchemaElementKind {
   SCHEMA_ELEMENT_KIND_ATTRIBUTE = 1;
   // A sortable attribute compound, of the entity or of one of its references.
   SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND = 2;
+  // A reference itself rather than something declared on it - the element carrying `indexed()`, `faceted()` and
+  // `bucketed()`. `containerName` is empty on such a row and `elementName` holds the reference name, because a
+  // reference is declared by the entity schema directly and has no container of its own. Not to be confused with a
+  // row about an attribute *of* that reference, which names it in `containerName` instead.
+  SCHEMA_ELEMENT_KIND_REFERENCE = 3;
+  // The entity itself - the element carrying `withHierarchy()` and `withPrice()`. Both are declared on the entity
+  // schema rather than on anything inside it, so `containerName` is empty and `elementName` repeats the entity type.
+  SCHEMA_ELEMENT_KIND_ENTITY = 4;
 
 }
 
 // One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
 //
-// Not to be confused with `GrpcAttributeIndexType`, whose three values carry the same names. That one names a physical
-// index structure a cardinality reading came from; this one names a schema flag an operator can drop, whose removal
-// takes every physical structure maintaining it with it. Keeping the two apart is the whole point of the
-// schema-capability surface - see `GrpcSchemaCapabilityUsage`.
+// The values are named after the schema flags they report - `filterable()`, `sortable()`, `unique()` - which is what
+// separates them from `GrpcAttributeIndexType`, whose values name the physical index structure a cardinality reading
+// came from. Dropping a flag here takes every physical structure maintaining it with it, and the two axes do not
+// correspond even where their names meet: a unique attribute that is not filterable carries
+// `SCHEMA_CAPABILITY_FILTERABLE`, because a filter against it is served from its uniqueness index - while no filter
+// index exists for it at all. Keeping the two apart is the whole point of the schema-capability surface - see
+// `GrpcSchemaCapabilityUsage`.
 //
-// The values are exactly the flags a request can currently be attributed to. Prices, facets and hierarchy are
-// maintained by their own structures and reached through their own query paths, so they get their own values when the
-// server can report them - not before.
+// The values span every schema flag whose maintenance a physical index pays for, and which of them a row can carry is
+// fixed by its `GrpcSchemaElementKind`: an attribute has three, a sortable compound exactly one, a reference three of
+// its own, and the entity two. Nothing outside that set is reported, because a flag no index maintains costs nothing
+// to keep and is therefore not a thing an operator would act on.
 enum GrpcSchemaCapability {
 
   // Default value, never sent by the server. Every reported row carries an explicit capability.
   SCHEMA_CAPABILITY_UNSPECIFIED = 0;
   // The element can be filtered by - `filterable()`, and the inverted indexes it costs. A unique attribute carries
   // this capability too, because uniqueness implies filterability and a filter is served from the uniqueness index.
-  SCHEMA_CAPABILITY_FILTER = 1;
+  SCHEMA_CAPABILITY_FILTERABLE = 1;
   // The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
-  SCHEMA_CAPABILITY_SORT = 2;
+  SCHEMA_CAPABILITY_SORTABLE = 2;
   // The element's values are unique - `unique()`, whether within the entity collection or globally, and the
   // uniqueness index it costs.
   SCHEMA_CAPABILITY_UNIQUE = 3;
+  // The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_FACETED = 4;
+  // The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it costs.
+  // Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  //
+  // This is the widest flag reported here, and the one to read most carefully: dropping it takes the whole reduced
+  // index family for that reference with it, so every filter, ordering and fetch path reaching *through* the
+  // reference stops being answerable - not merely slower. A low request count means far less here than the same
+  // number on an attribute's `filterable()`.
+  SCHEMA_CAPABILITY_INDEXED = 5;
+  // The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+  // maintenance. Carried by a `SCHEMA_ELEMENT_KIND_REFERENCE` row.
+  SCHEMA_CAPABILITY_BUCKETED = 6;
+  // The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index it
+  // costs. Carried by a `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_HIERARCHY_INDEXED = 7;
+  // The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried by a
+  // `SCHEMA_ELEMENT_KIND_ENTITY` row.
+  SCHEMA_CAPABILITY_PRICE_INDEXED = 8;
 
 }

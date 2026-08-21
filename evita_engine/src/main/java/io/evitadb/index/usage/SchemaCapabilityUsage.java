@@ -130,7 +130,7 @@ public final class SchemaCapabilityUsage {
 	 * That reading is true only because {@link SchemaCapabilityUsageRegistry} mints holders **eagerly**, at the moment
 	 * a schema version is adopted, rather than on first use. Were they created on first use, this stamp would say
 	 * *"first queried"* while the public contract on
-	 * {@link io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot#observedSince()} promises *"declared"* - and a
+	 * {@link io.evitadb.api.statistics.SchemaCapabilityUsageStatistics#observedSince()} promises *"declared"* - and a
 	 * capability first touched a month after load would report a millisecond-wide window, turning one request into an
 	 * enormous rate.
 	 */

@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-19 23:05
+updated: 2026-08-20 21:35
 status: accepted
 kind: feature
 issues: [1429]
@@ -63,8 +63,9 @@ and whenever it adopts a new schema version.
   dedup-per-entity-mutation are enforceable at the two flush points and nowhere else.
 - **Cons:** two accumulator mechanisms (query context list, executor set) exist solely to defer
   incrementing until the dedup boundary is known; a future copy site that forgets the registry
-  parameter silently resets the counters (the same failure mode Phase A has, caught the same way — the
-  lifecycle tests enumerate the copy sites by name).
+  parameter silently resets the counters (the same failure mode the per-index registry of
+  [2026-08-16](2026-08-16-per-index-usage-statistics.md) has, caught the same way — the lifecycle tests
+  enumerate the copy sites by name).
 
 ### Option B — per-sub-index holders, aggregated on read (declined)
 
@@ -98,7 +99,7 @@ Hang the counters off `EntitySchema`/`AttributeSchema`, which already have the r
 | Uncoarsened last-seen stamps | One volatile store per event on a hot attribute. Skipping the store while the resident value falls in the same second turns thousands of stores per second into one, and second granularity is ample for "last used three weeks ago". | — |
 | Columns on `IndexDetail`/`BrowsedIndex` | Pairing a collection-wide aggregate with one physical index's cost on the same row invites exactly the wrong reading — a flag reported dead being dropped while a query still depends on it. The surfaces are read side by side, never merged. | — |
 | Lazy holder creation (resolve on first use) | The original shape. `observedSince` then said *"first requested"* while the public contract promised *"declared"*, so a capability first queried a month after load reported a millisecond-wide window and turned one request into an enormous rate — and a capability with no traffic produced no row at all, leaving an operator unable to tell "idle" from "not declared". | Never — eager alignment costs one map lookup per declared capability, on schema adoption only. |
-| Seeding the catalog registry from its survival rule verbatim | It admits `SORT` of a global attribute and the flags of a global attribute that is not globally unique. No site can file either against the catalog (its only index is the `GlobalUniqueIndex`), so both would be permanently-zero rows — worse than the late window they would fix. They stay reachable lazily and droppable. | A catalog-level index maintains one of them. |
+| Seeding the catalog registry from its survival rule verbatim | It admits `SORTABLE` of a global attribute and the flags of a global attribute that is not globally unique. No site can file either against the catalog (its only index is the `GlobalUniqueIndex`), so both would be permanently-zero rows — worse than the late window they would fix. They stay reachable lazily and droppable. | A catalog-level index maintains one of them. |
 | Persisting the counters | The operational use is a rate over an observation window; persistence would not improve it. Same contract and reasoning as `ActivityStatistics` (since catalog load, `observedSince` as denominator). | — |
 
 ## Decision
@@ -113,7 +114,7 @@ side.
 
 ## Key technical details
 
-- Vocabulary: `SchemaCapabilityUsageSnapshot` (evita_api, `api/statistics`) hosts the `ElementKind` and
+- Vocabulary: `SchemaCapabilityUsageStatistics` (evita_api, `api/statistics`) hosts the `ElementKind` and
   `Capability` enums; the engine key `SchemaCapabilityKey` and the wire speak the same enums so no two
   can drift. The snapshot's JavaDoc carries the full semantics (requested ≠ physical earning, dedup,
   debug-mode caveat, lifetime) — it is the reference text.
@@ -143,7 +144,7 @@ side.
   is pinned as correct by `SchemaCapabilityUsageRegistryTest.CatalogAlignmentTest`.
 - **The catalog registry carries only what `CatalogIndex` physically maintains** — the global uniqueness
   of a `uniqueGlobally()` attribute, and nothing else. Both sides are held to it: the update side files
-  only `FILTER`+`UNIQUE` there (`reportAttributeTouched`), and the request side now drops `SORT` on the
+  only `FILTERABLE`+`UNIQUE` there (`reportAttributeTouched`), and the request side now drops `SORTABLE` on the
   `owner == null` route in `AttributeSchemaAccessor#recordRequestedTraits`. Without that filter a
   collection-less `orderBy` on an attribute that is both `uniqueGlobally()` and `sortable()` minted a
   catalog row with requests against an update count that is zero *by construction* — a sortable global
@@ -151,7 +152,7 @@ side.
   *"nothing maintains this flag, drop it"* about a flag that is actively maintained. The request is
   dropped rather than re-attributed, the same trade-off `recordRequestedCapability` makes for a filter
   evaluated against another collection's structures: a number attributed to the wrong owner is worse
-  than one missing. A query that **names** its collection is unaffected and records the `SORT` there,
+  than one missing. A query that **names** its collection is unaffected and records the `SORTABLE` there,
   which is also where its maintenance is counted. Pinned by
   `CatalogUsageRegistryTest.Attribution#shouldNotCountSortOnTheCatalog`.
 - **Holders are seeded eagerly, and seeding is deliberately narrower than dropping.** `alignWith` both
@@ -165,7 +166,7 @@ side.
   next adoption. Two consequences, each carrying its reason at the site: the collection enumeration
   guards on `reference.isIndexedInScope(scope)` although the survival rule does not, because
   `ReflectedReferenceSchema#shouldValidate` exempts **inherited** attributes from the validation that
-  would otherwise make the guard redundant; and the catalog enumeration seeds only `FILTER`+`UNIQUE` of
+  would otherwise make the guard redundant; and the catalog enumeration seeds only `FILTERABLE`+`UNIQUE` of
   `uniqueGloballyInScope` attributes, which after the suppression above is exactly what *both* recording
   sites can file into that registry.
 - **The re-insertion window is accepted, not closed.** `alignWith`'s removal pass is weakly consistent
@@ -182,6 +183,84 @@ side.
   mutation would reset every counter in the collection; an element dropped and re-added starts with fresh
   counters and a fresh `observedSince`.
 
+### Extending to the non-attribute flags (2026-08-20)
+
+- **Accumulating at a translator site is not the thing the *Rejected outright* table forbids.** That row
+  rejects *incrementing* there, because the planner re-translates the filter once per candidate plan and a
+  counter raised at translation would measure how many alternatives were weighed. Attributes avoid it by
+  having one accessor to funnel through; the non-attribute flags have no such choke point, so their dozen
+  sites call `QueryPlanningContext#recordRequestedEntityCapability` /
+  `#recordRequestedReferenceCapability`, which **accumulate** into the same per-query list the winning
+  build flushes. Once-per-logical-query is preserved, so no supersession is needed — but a future site
+  that increments directly would break it silently, which is why both helpers live on the context rather
+  than being open-coded at each translator.
+- **Every request is recorded *past* the assertion that verifies the flag.** The count therefore means
+  *"a query depended on this flag being on"* rather than *"a query mentioned facets"* — only the former
+  makes dropping the flag a breaking change, which is the question the surface answers.
+- **Passing that assertion licenses the request, not the scope set it is filed under.** Recording sites take
+  a `Set<Scope>` but the assertions guarding them are not uniform: most demand *every* named scope declare
+  the flag, while `facetHaving`'s demands only that *one* does (`anyMatch`, so a `scope(LIVE, ARCHIVED)`
+  query is legal against a reference faceted in `LIVE` alone). Filing the whole requested set behind an
+  `anyMatch` guard mints a row in a scope that declares nothing, where no write can ever file a matching
+  update — which reads as *"a capability nothing maintains"* about a flag that is simply not there, the one
+  misreading this surface exists to prevent. Under an `allMatch` guard the two forms coincide, which is why
+  the defect survived review of the seven sites where they do. A recording site must therefore gate per
+  scope on the same predicate the seeding and update sides use, rather than inherit the assertion's verdict
+  for the whole set; `FacetHavingTranslator` and `ReferenceHistogramStatisticsTranslator` do this
+  explicitly, and `RequestedCapabilityAccumulationTest` pins it with the mixed-scope query shape that is
+  the only one able to tell the two apart.
+- **Reflected-reference readability is per flag, not per reference.** `ReflectedReferenceSchema` overrides
+  exactly `isIndexedInScope` and `isFacetedInScope`, and each throws only when *its own* property is
+  inherited and the mirrored reference is not attached; `isBucketedInScope` is not overridden and never
+  throws. A blanket *"skip any detached reflected reference"* guard therefore drops a reflection that
+  states its own `faceted()` — a live capability made invisible. `SchemaCapabilityUsageRegistry#isReadable`
+  takes the inheritance test as a parameter for that reason. The seeding enumeration
+  (`maintainsElementsIn`) stays deliberately blunter: skipping too much there costs a row that reappears at
+  the next adoption, whereas dropping too much on the survival side loses counters already accumulated.
+  This one caught three separate review findings — treat it as the trap of this area.
+  **`reportReferenceTouched` reads nothing that can throw, and each of its three tests is chosen for that.**
+  Its callers do not all arrive the same way: the single-mutation path comes through
+  `ReferenceMutationFanOut#apply`, which has already called `isIndexedInScope`, while the bulk
+  `indexAllReferences` / `unindexReferences` paths do **not** go through the fan-out and guard with
+  `ReferenceIndexMutator#isIndexedReferenceForFiltering` instead. Those two decide the same fact, but only
+  the first can throw, so this site uses the second. `FACETED` is tested behind `isReadable`, because the
+  bulk paths will happily hand it a reflected reference whose faceting cannot be determined. `BUCKETED` goes
+  through `maintainsHistogramIn`, whose `isBucketedInScope` is not overridden and cannot throw. Relying on
+  *"some caller already read this, so it must be safe"* is what made the first two attempts here wrong —
+  the reachability argument has to hold for every path, and there were more paths than the obvious one.
+- **`BUCKETED`'s request site never names the flag.** Nothing in the planner reads `isBucketedInScope`;
+  histograms are reached through their declared definition in `ReferenceHistogramStatisticsTranslator`.
+  Recording there is what stops the row reporting maintenance nobody asked for and reading as safely
+  droppable while those queries depend on it.
+- **`isBucketedInScope` is not sufficient to seed `BUCKETED`, and this is the sharpest permanently-zero trap
+  in the surface.** The flag means only *"a histogram is declared for this scope"* — it is literally
+  `bucketedInScopes.containsKey(scope)`. A histogram declared **without** a `valueExpression` (a *count
+  histogram*, allowed by the public builder as `bucketed(name, null)`) yields no
+  `HistogramExpressionTrigger` at all: `HistogramExpressionTriggerFactory` skips it explicitly, and every
+  maintenance site in `ReferenceIndexMutator` is gated on the trigger collection being non-empty. Such a
+  histogram is therefore never added to, removed from or re-evaluated on any mutation, so its update count
+  could never leave zero on a perfectly valid schema. `maintainsHistogramIn` requires at least one histogram
+  in the scope to carry a value expression before the row is minted. Found by a Codex advisory during
+  review, after the first version of the test had itself been written with a count-only histogram and so
+  would have pinned the bug as correct.
+- **A capability's condition must be shared by *three* sites, not two.** Seeding and pruning agreeing is the
+  rule the attribute predicate was built around, but a recording site using a looser test defeats both: it
+  lazily mints the row the other two refuse to seed, with an update count for maintenance that never
+  happened, which the next alignment then drops again. `maintainsHistogramIn` is therefore public and
+  consulted by `reportReferenceTouched` as well. Any future capability whose condition is subtler than a
+  single flag inherits this requirement.
+- **An `ENTITY` row repeats the entity type in `elementName`**, which the reported row also carries in
+  `entityType`. Deliberate: the key must name a schema element without depending on which registry holds
+  it, and the entity *is* the element `withHierarchy()` and `withPrice()` belong to.
+- **Entity-level rows deduplicate per capability, every other kind per element.** Hierarchy and price share
+  one element — the entity — but are maintained by different mutators reacting to different mutations, so a
+  shared element-level entry would let whichever ran first swallow the other's count. See
+  `EntityIndexLocalMutationExecutor.TouchedSchemaElement`.
+- **Seeding loops must enumerate an element's own flags, never `Capability.values()`.** The predicate throws
+  on a flag its element cannot carry — correctly, since such a key matches no schema — so a loop over the
+  whole enum turns every added value into a runtime failure on the first attribute of every schema. Pinned
+  by `ATTRIBUTE_CAPABILITIES`.
+
 ## Verification
 
 Functional: `SchemaCapabilityUsageTest` (holder: cross-thread exactness, stamp coarsening),
@@ -197,6 +276,19 @@ to fail with seeding disabled),
 `CatalogStatisticsConverterTest` round-trips (four owner shapes, int64-scale counts, absence decoding),
 `EvitaClientReadOnlyTest#shouldReportSchemaCapabilityUsageOverTheWire` (real server, epoch/empty-string
 decode traps).
+
+For the non-attribute flags (2026-08-20):
+`SchemaCapabilityUsageRegistryTest.ReferenceAndEntityCapabilityTest` — each of the five seeded from a schema
+that declares it, including `BUCKETED` on its own rather than riding along with `faceted()`, since it is the
+one flag no query path consults by name and therefore the easiest to wire in one direction only; a reference
+that is not `indexed()` seeding nothing at all; a hierarchy seeded only in the scope that indexes it; and
+dropping `faceted()` leaving the `indexed()` holder — and its counters — untouched. A count-only histogram
+seeding **no** `BUCKETED` row while still seeding the reference's own `INDEXED` row is pinned separately by
+`shouldNotSeedACountOnlyHistogram` — that pair is what keeps the suppression from over-reaching.
+`CatalogStatisticsConverterTest#shouldRoundTripEverySchemaCapabilityAndElementKind` walks both enums value by
+value and asserts the wire constants stay **distinct**: the converter switches are exhaustive, so a missing
+value cannot compile, but two capabilities mapped onto one constant compiles fine and would silently pool two
+flags' traffic into a single reported row.
 
 JMH gate (`SchemaCapabilityUsageBenchmark`, evita_performance_tests): before = `b6d181bc3` (pre-
 instrumentation), after = branch tip; identical public-API-only benchmark sources built into both jars.
@@ -218,9 +310,13 @@ the `everRequested` fallback stays unimplemented.**
 
 ## Consequences & open follow-ups
 
-- **B2 breadth is deliberately not started.** Prices (per price list × currency), facets, hierarchy and
-  histogram/extra-result paths are the same architecture applied wider; the `Capability` enum grows a
-  value only when an accumulation site exists to feed it, not before.
+- **Non-attribute flag breadth landed on 2026-08-20**, extending the same architecture to the flags an
+  attribute does not own: `FACETED`, `INDEXED` and `BUCKETED` on a reference, `HIERARCHY_INDEXED` and
+  `PRICE_INDEXED` on the entity, with `ElementKind` gaining `REFERENCE` and `ENTITY` to carry them.
+  See *Extending to the non-attribute flags* below for the three things that were not obvious.
+- **Per price list × currency granularity is still not started.** `PRICE_INDEXED` reports the *flag*, which
+  is what a schema mutation drops; splitting it per price list would report something no single mutation
+  can remove, and the counting site does not distinguish them anyway.
 - **Cross-collection trigger maintenance is not counted**, inherited from the per-index gap: index work
   dispatched through `IndexMutationExecutorRegistry` never reaches
   `EntityIndexLocalMutationExecutor`, so `updatedCount` is a floor. Same direction of error, same
@@ -230,7 +326,7 @@ the `everRequested` fallback stays unimplemented.**
   carries for `IndexActivity`; extending the enumerated lifecycle tests is the check.
 - **No user-facing documentation page exists**, because the management surface it extends
   (`browseIndexes` and friends) still has none; whoever writes that page should present this surface
-  and the per-index one side by side, with the prose lifted from `SchemaCapabilityUsageSnapshot`.
+  and the per-index one side by side, with the prose lifted from `SchemaCapabilityUsageStatistics`.
 
 ## Related work
 
@@ -244,3 +340,6 @@ the `everRequested` fallback stays unimplemented.**
 - **2026-08-17** — design adjudicated with Johnny and a Codex design advisory; plan fixed
 - **2026-08-18** — registry, both accumulation sides, catalog twin implemented
 - **2026-08-19** — diagnostic surface incl. gRPC, evolution pruning proven, JMH gate passed
+- **2026-08-20** — vocabulary renamed to match the flags it reports (`FILTERABLE`/`SORTABLE`, and
+  `…Statistics` rather than `…Snapshot`, which is the transaction layer's word); breadth extended to the
+  reference and entity flags

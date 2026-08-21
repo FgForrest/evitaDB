@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -435,13 +435,13 @@ public class AttributeSchemaAccessor {
 	 * The second case is not a lesser one - a global attribute's flags are declared on the catalog schema and dropped
 	 * by a catalog schema mutation, so the catalog is where the number an operator would act on belongs.
 	 *
-	 * # The catalog counts only what the catalog maintains, so `SORT` is dropped there
+	 * # The catalog counts only what the catalog maintains, so `SORTABLE` is dropped there
 	 *
 	 * The rule that keeps both halves of the catalog's numbers coherent: **a catalog-registry row exists only for a
 	 * capability {@link io.evitadb.index.CatalogIndex} physically maintains**, which is the global uniqueness of a
 	 * `uniqueGlobally()` attribute and nothing else. That is why
 	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files only
-	 * `FILTER` and `UNIQUE` into that registry, and the request side has to agree with it.
+	 * `FILTERABLE` and `UNIQUE` into that registry, and the request side has to agree with it.
 	 *
 	 * A `sortable()` global attribute is the case where they would otherwise disagree. Its sort index lives in **every
 	 * collection that declares the attribute**, never in the catalog, so a write maintaining it is counted on that
@@ -452,8 +452,8 @@ public class AttributeSchemaAccessor {
 	 *
 	 * The request is therefore not counted anywhere, rather than counted somewhere wrong. That is the same trade-off
 	 * {@link QueryPlanningContext#recordRequestedCapability} makes for a filter evaluated against another collection's
-	 * structures, and it costs nothing in the ordinary case: a query that **names** its collection records the `SORT`
-	 * on that collection, which is also where its maintenance is counted.
+	 * structures, and it costs nothing in the ordinary case: a query that **names** its collection records the
+	 * `SORTABLE` on that collection, which is also where its maintenance is counted.
 	 *
 	 * @param queryContext    the query being planned, NULL outside a plan - which turns the whole recording off
 	 * @param owner           the entity schema the attribute was resolved against, NULL when it was resolved against
@@ -486,14 +486,15 @@ public class AttributeSchemaAccessor {
 		for (final AttributeTrait trait : requiredTraits) {
 			// no `default` branch on purpose: a trait added later must fail to compile here rather than go uncounted
 			final Capability capability = switch (trait) {
-				case FILTERABLE -> Capability.FILTER;
+				case FILTERABLE -> Capability.FILTERABLE;
 				case UNIQUE -> Capability.UNIQUE;
-				case SORTABLE -> Capability.SORT;
+				case SORTABLE -> Capability.SORTABLE;
 			};
-			if (owner == null && capability == Capability.SORT) {
+			if (owner == null && capability == Capability.SORTABLE) {
 				// a deliberate attribution rule rather than a swallowed case - see the section above. A collection-less
-				// `orderBy` is the only lookup that reaches here with SORT and no owner, and the catalog maintains no
-				// sort structure to attribute it to; the collection that declares the attribute does, and counts it
+				// `orderBy` is the only lookup that reaches here with SORTABLE and no owner, and the catalog
+				// maintains no sort structure to attribute it to; the collection that declares the attribute does,
+				// and counts it
 				continue;
 			}
 			for (final Scope scope : requestedScopes) {
@@ -505,6 +506,16 @@ public class AttributeSchemaAccessor {
 					);
 				}
 			}
+		}
+
+		if (owner != null && containerName != null) {
+			// reaching an attribute *of* a reference depends on the reference being `indexed()` - the lookup above
+			// throws `ReferenceNotIndexedException` before it can succeed otherwise - so the request is a genuine
+			// dependency on the reference's own flag and not merely on the attribute's. Recorded once for the whole
+			// trait loop because it is a property of the container, not of any one trait
+			queryContext.recordRequestedReferenceCapability(
+				owner, containerName, Capability.INDEXED, requestedScopes
+			);
 		}
 	}
 
@@ -563,7 +574,7 @@ public class AttributeSchemaAccessor {
 			if (compoundSchema.isIndexedInScope(scope)) {
 				this.queryContext.recordRequestedCapability(
 					owner, containerName, ElementKind.SORTABLE_COMPOUND, compoundSchema.getName(),
-					Capability.SORT, scope
+					Capability.SORTABLE, scope
 				);
 			}
 		}

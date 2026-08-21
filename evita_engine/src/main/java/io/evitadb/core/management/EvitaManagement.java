@@ -45,7 +45,7 @@ import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -586,7 +586,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 
 	@Nonnull
 	@Override
-	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage(
+	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage(
 		@Nonnull String catalogName,
 		@Nullable String entityType
 	) throws CatalogNotFoundException, CollectionNotFoundException {

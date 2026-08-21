@@ -23,8 +23,8 @@
 
 package io.evitadb.index.usage;
 
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -68,13 +68,13 @@ class SchemaCapabilityKeyTest {
 		@DisplayName("An entity attribute sits in no container")
 		void shouldDescribeAnEntityAttribute() {
 			final SchemaCapabilityKey key = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE
 			);
 
 			assertEquals(ElementKind.ATTRIBUTE, key.elementKind());
 			assertNull(key.containerName(), "An entity attribute is owned by the entity itself, not by a reference");
 			assertEquals(ATTRIBUTE_NAME, key.elementName());
-			assertEquals(Capability.FILTER, key.capability());
+			assertEquals(Capability.FILTERABLE, key.capability());
 			assertEquals(Scope.LIVE, key.scope());
 		}
 
@@ -82,13 +82,13 @@ class SchemaCapabilityKeyTest {
 		@DisplayName("A reference attribute names its reference as its container")
 		void shouldDescribeAReferenceAttribute() {
 			final SchemaCapabilityKey key = SchemaCapabilityKey.referenceAttribute(
-				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.SORT, Scope.ARCHIVED
+				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.SORTABLE, Scope.ARCHIVED
 			);
 
 			assertEquals(ElementKind.ATTRIBUTE, key.elementKind());
 			assertEquals(REFERENCE_NAME, key.containerName());
 			assertEquals(ATTRIBUTE_NAME, key.elementName());
-			assertEquals(Capability.SORT, key.capability());
+			assertEquals(Capability.SORTABLE, key.capability());
 			assertEquals(Scope.ARCHIVED, key.scope());
 		}
 
@@ -104,7 +104,9 @@ class SchemaCapabilityKeyTest {
 
 			assertEquals(ElementKind.SORTABLE_COMPOUND, entityLevel.elementKind());
 			assertNull(entityLevel.containerName());
-			assertEquals(Capability.SORT, entityLevel.capability(), "A compound exists to be ordered by, nothing else");
+			assertEquals(
+				Capability.SORTABLE, entityLevel.capability(), "A compound exists to be ordered by, nothing else"
+			);
 
 			assertEquals(REFERENCE_NAME, referenceLevel.containerName());
 			assertNotEquals(
@@ -118,11 +120,11 @@ class SchemaCapabilityKeyTest {
 		void shouldRejectMissingParts() {
 			assertThrows(
 				NullPointerException.class,
-				() -> SchemaCapabilityKey.entityAttribute(null, Capability.FILTER, Scope.LIVE)
+				() -> SchemaCapabilityKey.entityAttribute(null, Capability.FILTERABLE, Scope.LIVE)
 			);
 			assertThrows(
 				NullPointerException.class,
-				() -> SchemaCapabilityKey.referenceAttribute(null, ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE)
+				() -> SchemaCapabilityKey.referenceAttribute(null, ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE)
 			);
 			assertThrows(
 				NullPointerException.class,
@@ -130,7 +132,7 @@ class SchemaCapabilityKeyTest {
 			);
 			assertThrows(
 				NullPointerException.class,
-				() -> SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTER, null)
+				() -> SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTERABLE, null)
 			);
 		}
 
@@ -144,10 +146,10 @@ class SchemaCapabilityKeyTest {
 		@DisplayName("Two keys describing the same element are the same map key")
 		void shouldTreatEqualDescriptionsAsOneKey() {
 			final SchemaCapabilityKey first = SchemaCapabilityKey.referenceAttribute(
-				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE
+				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityKey second = SchemaCapabilityKey.referenceAttribute(
-				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE
+				REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE
 			);
 
 			assertEquals(first, second);
@@ -161,8 +163,10 @@ class SchemaCapabilityKeyTest {
 		@DisplayName("The container tells an entity attribute apart from a reference attribute of the same name")
 		void shouldNotConflateAnEntityAttributeWithAReferenceAttribute() {
 			assertNotEquals(
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE),
-				SchemaCapabilityKey.referenceAttribute(REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE)
+				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE),
+				SchemaCapabilityKey.referenceAttribute(
+					REFERENCE_NAME, ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE
+				)
 			);
 		}
 
@@ -171,7 +175,7 @@ class SchemaCapabilityKeyTest {
 		void shouldNotConflateAnAttributeWithASortableCompound() {
 			// the two share a name space in the key and nothing but `elementKind` separates them
 			assertNotEquals(
-				SchemaCapabilityKey.entityAttribute(COMPOUND_NAME, Capability.SORT, Scope.LIVE),
+				SchemaCapabilityKey.entityAttribute(COMPOUND_NAME, Capability.SORTABLE, Scope.LIVE),
 				SchemaCapabilityKey.sortableCompound(null, COMPOUND_NAME, Scope.LIVE)
 			);
 		}
@@ -180,7 +184,7 @@ class SchemaCapabilityKeyTest {
 		@DisplayName("Each capability and each scope of one element counts separately")
 		void shouldSeparateCapabilitiesAndScopes() {
 			final SchemaCapabilityKey filterInLive = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_NAME, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.LIVE
 			);
 
 			// dropping `filterable()` and dropping `unique()` are different schema mutations, and the archive is
@@ -189,7 +193,7 @@ class SchemaCapabilityKeyTest {
 				filterInLive, SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.UNIQUE, Scope.LIVE)
 			);
 			assertNotEquals(
-				filterInLive, SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTER, Scope.ARCHIVED)
+				filterInLive, SchemaCapabilityKey.entityAttribute(ATTRIBUTE_NAME, Capability.FILTERABLE, Scope.ARCHIVED)
 			);
 		}
 

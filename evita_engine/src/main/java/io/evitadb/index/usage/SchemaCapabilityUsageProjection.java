@@ -23,7 +23,8 @@
 
 package io.evitadb.index.usage;
 
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry.UsageEntry;
 
 import javax.annotation.Nonnull;
@@ -36,7 +37,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Projects one owner's {@link SchemaCapabilityUsageRegistry} into the {@link SchemaCapabilityUsageSnapshot} rows the
+ * Projects one owner's {@link SchemaCapabilityUsageRegistry} into the {@link SchemaCapabilityUsageStatistics} rows the
  * diagnostic surface reports.
  *
  * **One projection serves both owners**, unlike the index projections it sits beside - an entity collection's registry
@@ -50,7 +51,7 @@ import java.util.List;
  * this runs when an operator asks a question rather than on any path a query or a write takes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
- * @see SchemaCapabilityUsageSnapshot
+ * @see SchemaCapabilityUsageStatistics
  * @see SchemaCapabilityUsageRegistry
  */
 public final class SchemaCapabilityUsageProjection {
@@ -60,21 +61,58 @@ public final class SchemaCapabilityUsageProjection {
 	 *
 	 * Ordered at all - rather than handed over in the registry's hash order - because two polls of the same unchanged
 	 * registry would otherwise reshuffle a table an operator is reading, and because the rows a reader compares are
-	 * the ones of a single element: the `FILTER` and `SORT` entries of one attribute belong next to each other, not
-	 * scattered by a hash. The element's own name therefore ranks before the capability, and the container before
-	 * both, so a reference's attributes arrive grouped under it.
+	 * the ones of a single element: the `FILTERABLE` and `SORTABLE` entries of one attribute belong next to each
+	 * other, not scattered by a hash. The element's own name therefore ranks before the capability, and the container
+	 * before both, so a reference's attributes arrive grouped under it.
 	 *
 	 * The kind participates only as a tiebreaker between an attribute and a sortable compound sharing a name, which is
 	 * the one collision the fields above cannot resolve.
+	 *
+	 * The rows describing an element that *is* a container - a reference's own `INDEXED` and `FACETED` - are grouped
+	 * by {@link #groupingContainer} rather than by their own null container, and ranked ahead of the rows inside that
+	 * container by {@link #withinGroupRank}. Sorting them on `containerName` alone would strand a reference's own
+	 * flags among the entity-level rows while its attributes sat elsewhere, which is the grouping this order exists
+	 * to provide.
 	 */
-	private static final Comparator<SchemaCapabilityUsageSnapshot> ROW_ORDER =
+	private static final Comparator<SchemaCapabilityUsageStatistics> ROW_ORDER =
 		Comparator.comparing(
-				SchemaCapabilityUsageSnapshot::containerName, Comparator.nullsFirst(Comparator.naturalOrder())
+				SchemaCapabilityUsageProjection::groupingContainer, Comparator.nullsFirst(Comparator.naturalOrder())
 			)
-			.thenComparing(SchemaCapabilityUsageSnapshot::elementName)
-			.thenComparing(SchemaCapabilityUsageSnapshot::elementKind)
-			.thenComparing(SchemaCapabilityUsageSnapshot::capability)
-			.thenComparing(SchemaCapabilityUsageSnapshot::scope);
+			.thenComparingInt(SchemaCapabilityUsageProjection::withinGroupRank)
+			.thenComparing(SchemaCapabilityUsageStatistics::elementName)
+			.thenComparing(SchemaCapabilityUsageStatistics::elementKind)
+			.thenComparing(SchemaCapabilityUsageStatistics::capability)
+			.thenComparing(SchemaCapabilityUsageStatistics::scope);
+
+	/**
+	 * The container a row is rendered *under* - the reference owning it, or null for the entity level.
+	 *
+	 * This is {@link SchemaCapabilityUsageStatistics#containerName()} for every kind but one. A
+	 * {@link ElementKind#REFERENCE} row describes the reference itself, so its name lives in `elementName` and its
+	 * `containerName` is null; grouping it by that null would file it among the entity's own rows instead of at the
+	 * head of the reference it names.
+	 *
+	 * @param row the row being ordered
+	 * @return name of the reference the row belongs under, or null when it belongs at the entity level
+	 */
+	@Nullable
+	private static String groupingContainer(@Nonnull SchemaCapabilityUsageStatistics row) {
+		return row.elementKind() == ElementKind.REFERENCE ? row.elementName() : row.containerName();
+	}
+
+	/**
+	 * Ranks a row within its group, so that the flags of the container itself precede the flags of what it contains.
+	 *
+	 * @param row the row being ordered
+	 * @return 0 for a row describing the container itself, 1 for one describing an element inside it
+	 */
+	private static int withinGroupRank(@Nonnull SchemaCapabilityUsageStatistics row) {
+		// no `default` branch on purpose: a future element kind must fail to compile here rather than sort arbitrarily
+		return switch (row.elementKind()) {
+			case REFERENCE, ENTITY -> 0;
+			case ATTRIBUTE, SORTABLE_COMPOUND -> 1;
+		};
+	}
 
 	/**
 	 * Renders everything one owner has observed so far.
@@ -89,18 +127,18 @@ public final class SchemaCapabilityUsageProjection {
 	 * @return the rows, ordered as {@link #ROW_ORDER} describes, empty when nothing has been observed yet
 	 */
 	@Nonnull
-	public static List<SchemaCapabilityUsageSnapshot> project(
+	public static List<SchemaCapabilityUsageStatistics> project(
 		@Nullable String entityType,
 		@Nonnull SchemaCapabilityUsageRegistry registry
 	) {
 		final List<UsageEntry> entries = registry.listUsages();
-		final List<SchemaCapabilityUsageSnapshot> rows = new ArrayList<>(entries.size());
+		final List<SchemaCapabilityUsageStatistics> rows = new ArrayList<>(entries.size());
 		for (int i = 0; i < entries.size(); i++) {
 			final UsageEntry entry = entries.get(i);
 			final SchemaCapabilityKey key = entry.key();
 			final SchemaCapabilityUsage usage = entry.usage();
 			rows.add(
-				new SchemaCapabilityUsageSnapshot(
+				new SchemaCapabilityUsageStatistics(
 					entityType,
 					key.elementKind(),
 					key.containerName(),

@@ -107,12 +107,12 @@ import java.util.Optional;
  *
  * The completeness is stated over *maintained* capabilities rather than over every flag a schema mentions, and the one
  * place the two differ is the catalog-owned listing: **it carries only what the catalog itself physically maintains**,
- * which is the `FILTER` and `UNIQUE` of the globally-unique attributes its uniqueness index costs, and nothing else.
- * A global attribute's `sortable()`, and the flags of a global attribute that is not globally unique, are maintained by
- * the collections declaring it and are reported in *their* listings. `sortable()` in particular never appears on a
- * catalog row at all, not even after a collection-less `orderBy` names it - the row's update count could never leave
- * zero, and a maintenance count of zero beside a live request count is precisely the *"drop this flag"* misreading this
- * surface exists to prevent.
+ * which is the `FILTERABLE` and `UNIQUE` of the globally-unique attributes its uniqueness index costs, and nothing
+ * else. A global attribute's `sortable()`, and the flags of a global attribute that is not globally unique, are
+ * maintained by the collections declaring it and are reported in *their* listings. `sortable()` in particular never
+ * appears on a catalog row at all, not even after a collection-less `orderBy` names it - the row's update count
+ * could never leave zero, and a maintenance count of zero beside a live request count is precisely the *"drop this
+ * flag"* misreading this surface exists to prevent.
  *
  * # Lifetime
  *
@@ -165,7 +165,7 @@ import java.util.Optional;
  * @see BrowsedIndex
  * @see IndexDetail
  */
-public record SchemaCapabilityUsageSnapshot(
+public record SchemaCapabilityUsageStatistics(
 	@Nullable String entityType,
 	@Nonnull ElementKind elementKind,
 	@Nullable String containerName,
@@ -183,7 +183,7 @@ public record SchemaCapabilityUsageSnapshot(
 	 * Rejects a half-described row rather than letting it reach an operator - only the two stamps and the two
 	 * owner-shaped fields may be absent, and each of those absences carries a meaning of its own.
 	 */
-	public SchemaCapabilityUsageSnapshot {
+	public SchemaCapabilityUsageStatistics {
 		Objects.requireNonNull(elementKind, "Element kind must not be null!");
 		Objects.requireNonNull(elementName, "Element name must not be null!");
 		Objects.requireNonNull(capability, "Capability must not be null!");
@@ -240,20 +240,38 @@ public record SchemaCapabilityUsageSnapshot(
 		/**
 		 * A sortable attribute compound, of the entity or of one of its references.
 		 */
-		SORTABLE_COMPOUND
+		SORTABLE_COMPOUND,
+
+		/**
+		 * A reference itself, rather than something declared on it - the element whose `indexed()`, `faceted()` and
+		 * `bucketed()` flags cost the reduced entity indexes, the facet index and the bucketed histogram index.
+		 * {@link #containerName()} is null on such a row and {@link #elementName()} carries the reference name: a
+		 * reference is declared by the entity schema directly, so it has no container of its own.
+		 */
+		REFERENCE,
+
+		/**
+		 * The entity itself - the element whose `withHierarchy()` and `withPrice()` flags cost the hierarchy index and
+		 * the price indexes. Both are declared on the entity schema rather than on anything inside it, so
+		 * {@link #containerName()} is null and {@link #elementName()} carries the entity type.
+		 */
+		ENTITY
 
 	}
 
 	/**
 	 * One flag of a schema element, and one line of maintenance cost the workload either justifies or does not.
 	 *
-	 * **Not to be confused with {@link AttributeIndexType}**, whose three values carry the same names. That one names a
-	 * *physical structure* a cardinality reading came from; this one names a *schema flag* an operator can drop. The
-	 * distinction is the whole point of this surface - see the record documentation.
+	 * The values are named after the schema flags they report - `filterable()`, `sortable()`, `unique()` - which is
+	 * what separates them from {@link AttributeIndexType}, whose values name the *physical structure* a cardinality
+	 * reading came from. The two axes are not interchangeable even where their names meet: a `unique()` attribute that
+	 * is not `filterable()` carries {@link #FILTERABLE} here, because a filter against it is served from its
+	 * uniqueness index - while no filter index exists for it at all.
 	 *
-	 * The values are exactly the flags a request can currently be attributed to; prices, facets and hierarchy are
-	 * maintained by their own structures and reached through their own query paths, so they get their own values when
-	 * the accumulation sites that can report them exist - not before.
+	 * The values span every schema flag whose maintenance a physical index pays for, and which of them a row can carry
+	 * is fixed by its {@link ElementKind}: an attribute has three, a sortable compound exactly one, a reference three
+	 * of its own, and the entity two. Nothing outside that set is reported, because a flag no index maintains costs
+	 * nothing to keep and is therefore not a thing an operator would act on.
 	 */
 	public enum Capability {
 
@@ -262,18 +280,53 @@ public record SchemaCapabilityUsageSnapshot(
 		 * carries this capability too, because uniqueness implies filterability and a filter is served from the
 		 * uniqueness index.
 		 */
-		FILTER,
+		FILTERABLE,
 
 		/**
 		 * The element can be ordered by - `sortable()`, and the sorted record arrays it costs.
 		 */
-		SORT,
+		SORTABLE,
 
 		/**
 		 * The element's values are unique - `unique()`, whether within the entity collection or globally, and the
 		 * uniqueness index it costs.
 		 */
-		UNIQUE
+		UNIQUE,
+
+		/**
+		 * The reference can be filtered and summarised as a facet - `faceted()`, and the facet index it costs. Carried
+		 * by a {@link ElementKind#REFERENCE} row.
+		 */
+		FACETED,
+
+		/**
+		 * The reference is indexed - `indexed()`, and the reduced entity indexes and reference cardinality index it
+		 * costs. Carried by a {@link ElementKind#REFERENCE} row.
+		 *
+		 * **This is the widest flag the enum reports, and the one to read most carefully.** Dropping it takes the
+		 * whole reduced-index family for that reference with it, so every filter, ordering and fetch path that reaches
+		 * *through* the reference stops being answerable - not merely slower. A low request count here means far less
+		 * than the same number on an attribute's `filterable()`.
+		 */
+		INDEXED,
+
+		/**
+		 * The reference's referenced-entity counts are kept in a bucketed histogram - `bucketed()`, and that index's
+		 * maintenance. Carried by a {@link ElementKind#REFERENCE} row.
+		 */
+		BUCKETED,
+
+		/**
+		 * The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index
+		 * it costs. Carried by an {@link ElementKind#ENTITY} row.
+		 */
+		HIERARCHY_INDEXED,
+
+		/**
+		 * The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried
+		 * by an {@link ElementKind#ENTITY} row.
+		 */
+		PRICE_INDEXED
 
 	}
 

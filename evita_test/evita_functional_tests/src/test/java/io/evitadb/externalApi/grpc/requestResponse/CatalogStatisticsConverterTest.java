@@ -60,9 +60,9 @@ import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -99,6 +99,7 @@ import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -774,38 +775,38 @@ class CatalogStatisticsConverterTest {
 		// another - an unset `StringValue` decodes to the empty string when read without a presence check, and an
 		// unset `GrpcOffsetDateTime` to the epoch, so an absence asserted only where it happens to be populated
 		// proves nothing
-		final List<SchemaCapabilityUsageSnapshot> usages = List.of(
+		final List<SchemaCapabilityUsageStatistics> usages = List.of(
 			// an entity attribute, requested and maintained: nothing absent, which is the baseline the rest deviate
 			// from
-			new SchemaCapabilityUsageSnapshot(
-				"product", ElementKind.ATTRIBUTE, null, "ean", Capability.FILTER, Scope.LIVE,
+			new SchemaCapabilityUsageStatistics(
+				"product", ElementKind.ATTRIBUTE, null, "ean", Capability.FILTERABLE, Scope.LIVE,
 				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			// a reference attribute - the container is the only thing telling it apart from an entity attribute of the
 			// same name, so losing it would silently pool two different elements' traffic into one row
-			new SchemaCapabilityUsageSnapshot(
-				"product", ElementKind.ATTRIBUTE, "categories", "priority", Capability.SORT, Scope.ARCHIVED,
+			new SchemaCapabilityUsageStatistics(
+				"product", ElementKind.ATTRIBUTE, "categories", "priority", Capability.SORTABLE, Scope.ARCHIVED,
 				3L, 0L, LAST_QUERIED_AT, null, OBSERVED_SINCE
 			),
 			// a sortable compound carrying the *same* container and name as the row above: only the kind separates
 			// them, which is the one collision no other field can resolve
-			new SchemaCapabilityUsageSnapshot(
-				"product", ElementKind.SORTABLE_COMPOUND, "categories", "priority", Capability.SORT, Scope.ARCHIVED,
+			new SchemaCapabilityUsageStatistics(
+				"product", ElementKind.SORTABLE_COMPOUND, "categories", "priority", Capability.SORTABLE, Scope.ARCHIVED,
 				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE
 			),
 			// a capability the catalog owns, never requested and never maintained: no owning collection, no container
 			// and neither stamp, so this row is the one that catches a converter reading any of the four straight
-			new SchemaCapabilityUsageSnapshot(
+			new SchemaCapabilityUsageStatistics(
 				null, ElementKind.ATTRIBUTE, null, "code", Capability.UNIQUE, Scope.LIVE,
 				0L, 0L, null, null, OBSERVED_SINCE
 			)
 		);
 		final GrpcSchemaCapabilityUsageResponse.Builder builder = GrpcSchemaCapabilityUsageResponse.newBuilder();
-		for (final SchemaCapabilityUsageSnapshot usage : usages) {
+		for (final SchemaCapabilityUsageStatistics usage : usages) {
 			builder.addCapabilities(CatalogStatisticsConverter.toGrpcSchemaCapabilityUsage(usage));
 		}
 
-		final List<SchemaCapabilityUsageSnapshot> roundTripped = CatalogStatisticsConverter.toSchemaCapabilityUsages(
+		final List<SchemaCapabilityUsageStatistics> roundTripped = CatalogStatisticsConverter.toSchemaCapabilityUsages(
 			GrpcSchemaCapabilityUsageResponse.parseFrom(builder.build().toByteArray())
 		);
 
@@ -835,9 +836,42 @@ class CatalogStatisticsConverterTest {
 		assertNotEquals(roundTripped.get(1), roundTripped.get(2));
 		// the observation window every row carries, including the one that has never been requested or maintained: it
 		// is what makes a zero count readable as "not once in this long" rather than as an unqualified zero
-		for (final SchemaCapabilityUsageSnapshot usage : roundTripped) {
+		for (final SchemaCapabilityUsageStatistics usage : roundTripped) {
 			assertEquals(OBSERVED_SINCE, usage.observedSince());
 		}
+	}
+
+	@Test
+	@DisplayName("every capability and element kind survives the wire, none collapsing onto another")
+	void shouldRoundTripEverySchemaCapabilityAndElementKind() {
+		// The switches converting these are exhaustive, so a *missing* value fails to compile. What the compiler
+		// cannot catch is a value mapped onto the wrong gRPC constant - two capabilities sharing one wire value
+		// still compiles, and silently pools two flags' traffic into one row on the client. Hence value-by-value.
+		for (final Capability capability : Capability.values()) {
+			assertEquals(
+				capability,
+				EvitaEnumConverter.toSchemaCapability(EvitaEnumConverter.toGrpcSchemaCapability(capability)),
+				"Capability " + capability + " did not survive the round trip intact"
+			);
+		}
+		assertEquals(
+			Capability.values().length,
+			Arrays.stream(Capability.values()).map(EvitaEnumConverter::toGrpcSchemaCapability).distinct().count(),
+			"Two capabilities share one gRPC constant, which pools their traffic into a single reported row"
+		);
+
+		for (final ElementKind elementKind : ElementKind.values()) {
+			assertEquals(
+				elementKind,
+				EvitaEnumConverter.toSchemaElementKind(EvitaEnumConverter.toGrpcSchemaElementKind(elementKind)),
+				"Element kind " + elementKind + " did not survive the round trip intact"
+			);
+		}
+		assertEquals(
+			ElementKind.values().length,
+			Arrays.stream(ElementKind.values()).map(EvitaEnumConverter::toGrpcSchemaElementKind).distinct().count(),
+			"Two element kinds share one gRPC constant, and the kind is what keeps same-named elements apart"
+		);
 	}
 
 	@Test
@@ -853,7 +887,7 @@ class CatalogStatisticsConverterTest {
 				GrpcSchemaCapabilityUsage.newBuilder()
 					.setElementKind(GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE)
 					.setElementName("ean")
-					.setCapability(GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTER)
+					.setCapability(GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE)
 					.setScope(GrpcEntityScope.SCOPE_LIVE)
 					.build()
 			)

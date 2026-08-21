@@ -62,11 +62,12 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -868,7 +869,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * Which capabilities are counted follows the attribute's flags in **that** scope, and matches
 	 * {@link SchemaCapabilityUsageRegistry#alignWith(EntitySchemaContract)} exactly - notably `unique()` counts as
-	 * `FILTER` too, because a unique attribute is filterable by that fact alone. That agreement is what makes the
+	 * `FILTERABLE` too, because a unique attribute is filterable by that fact alone. That agreement is what makes the
 	 * registry's eager seeding honest: every row alignment mints for this collection is one this method can raise.
 	 *
 	 * Nothing is incremented here: the holders are only collected, and {@link #applyChanges()} increments them once,
@@ -895,18 +896,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Scope scope
 	) {
 		final String attributeName = attributeSchema.getName();
-		if (!markTouched(ElementKind.ATTRIBUTE, containerName, attributeName, scope)) {
+		if (!markTouched(ElementKind.ATTRIBUTE, containerName, attributeName, null, scope)) {
 			return;
 		}
 		final boolean unique = attributeSchema.isUniqueInScope(scope);
 		if (unique || attributeSchema.isFilterableInScope(scope)) {
 			rememberCapability(
-				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTER, scope)
+				new SchemaCapabilityKey(
+					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTERABLE, scope
+				)
 			);
 		}
 		if (attributeSchema.isSortableInScope(scope)) {
 			rememberCapability(
-				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SORT, scope)
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SORTABLE, scope)
 			);
 		}
 		if (unique) {
@@ -920,7 +923,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			// the catalog's copy of the same event - resolved from the catalog registry and deduplicated by the very
 			// same `markTouched` call above, since a global attribute is one element however many indexes carry it
 			rememberCatalogCapability(
-				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.FILTER, scope)
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.FILTERABLE, scope)
 			);
 			rememberCatalogCapability(
 				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.UNIQUE, scope)
@@ -943,8 +946,95 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String compoundName,
 		@Nonnull Scope scope
 	) {
-		if (markTouched(ElementKind.SORTABLE_COMPOUND, containerName, compoundName, scope)) {
+		if (markTouched(ElementKind.SORTABLE_COMPOUND, containerName, compoundName, null, scope)) {
 			rememberCapability(SchemaCapabilityKey.sortableCompound(containerName, compoundName, scope));
+		}
+	}
+
+	/**
+	 * Reports that this entity mutation maintained the indexes a **reference's own** flags cost, in the given scope -
+	 * the reduced entity indexes `indexed()` creates, the facet index `faceted()` adds to them, and the bucketed
+	 * histogram `bucketed()` adds on top.
+	 *
+	 * Deduplicated per entity mutation exactly like {@link #reportAttributeTouched}, which matters here for the same
+	 * reason it matters for a compound: a single upsert may write several references of the same name - one per
+	 * referenced entity - and each of them maintains the same schema flags.
+	 *
+	 * Nothing is reported for a reference that is not indexed in this scope, because then none of the three indexes
+	 * exists to be maintained. That is also why `INDEXED` needs no flag test of its own once past the guard.
+	 *
+	 * `BUCKETED` is tested through {@link SchemaCapabilityUsageRegistry#maintainsHistogramIn} rather than through the
+	 * bare `bucketed()` flag, so that this site agrees with the two that seed and prune the same row.
+	 *
+	 * @param referenceSchema the reference whose indexes were maintained
+	 * @param scope           the scope of the index that was maintained
+	 */
+	public void reportReferenceTouched(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		// `isIndexedReferenceForFiltering` rather than `isIndexedInScope`: the two decide the same fact, but the
+		// former reads `getReferenceIndexType`, which `ReflectedReferenceSchema` does not override and so cannot
+		// throw for a reflected reference whose target is not attached yet. The bulk indexing paths guard with the
+		// same accessor, so this site cannot fail on a reference they were willing to hand it
+		if (!ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
+			return;
+		}
+		final String referenceName = referenceSchema.getName();
+		if (!markTouched(ElementKind.REFERENCE, null, referenceName, null, scope)) {
+			return;
+		}
+		rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.INDEXED, scope));
+		// readability checked rather than assumed: `isFacetedInScope` throws for a reflected reference that inherits
+		// the flag from a target not attached yet, and the bulk unindex path reaches here guarded only by an
+		// index-type test that tolerates exactly that state. Reporting nothing is the right answer for a reference
+		// whose faceting cannot even be determined
+		if (SchemaCapabilityUsageRegistry.isReadable(
+				referenceSchema, ReflectedReferenceSchemaContract::isFacetedInherited
+			) && referenceSchema.isFacetedInScope(scope)
+		) {
+			rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.FACETED, scope));
+		}
+		// the same predicate the registry seeds and prunes by, deliberately shared rather than restated: a histogram
+		// declared without a value expression is never maintained, so filing it here would mint a row claiming
+		// maintenance that never happened - and one the next alignment would then drop again
+		if (SchemaCapabilityUsageRegistry.maintainsHistogramIn(referenceSchema, scope)) {
+			rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.BUCKETED, scope));
+		}
+	}
+
+	/**
+	 * Reports that this entity mutation maintained one of the two indexes the **entity itself** declares - its
+	 * hierarchy placement or its prices.
+	 *
+	 * Unlike every other reporting method here this deduplicates **per capability**, not per element: both flags
+	 * belong to the same element - the entity - but are maintained by different mutators reacting to different
+	 * mutations, so an element-level entry would let whichever ran first swallow the other. See
+	 * {@link TouchedSchemaElement}.
+	 *
+	 * @param capability which of the entity's own flags was maintained - `HIERARCHY_INDEXED` or `PRICE_INDEXED`
+	 * @param scope      the scope of the index that was maintained
+	 */
+	public void reportEntityCapabilityTouched(
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		final EntitySchema entitySchema = getEntitySchema();
+		// no `default` branch on purpose: a future entity-level flag must fail to compile here rather than go
+		// uncounted, and a flag that belongs to some other element must not be silently accepted
+		final boolean maintained = switch (capability) {
+			case HIERARCHY_INDEXED -> entitySchema.isHierarchyIndexedInScope(scope);
+			case PRICE_INDEXED -> entitySchema.isPriceIndexedInScope(scope);
+			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
+				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
+			);
+		};
+		if (!maintained) {
+			return;
+		}
+		final String entityType = entitySchema.getName();
+		if (markTouched(ElementKind.ENTITY, null, entityType, capability, scope)) {
+			rememberCapability(SchemaCapabilityKey.entity(entityType, capability, scope));
 		}
 	}
 
@@ -955,6 +1045,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param kind          what kind of element it is - an attribute and a compound may share a name
 	 * @param containerName name of the declaring reference, or null when the entity declares the element
 	 * @param elementName   name of the element
+	 * @param capability    the single flag to deduplicate, or null to deduplicate the element as a whole - see
+	 *                      {@link TouchedSchemaElement} for which kinds need which
 	 * @param scope         the scope the element was maintained in
 	 * @return true when this is the first report of that element in this entity mutation
 	 */
@@ -962,6 +1054,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ElementKind kind,
 		@Nullable String containerName,
 		@Nonnull String elementName,
+		@Nullable Capability capability,
 		@Nonnull Scope scope
 	) {
 		if (this.touchedElements == null) {
@@ -971,13 +1064,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				final TouchedSchemaElement touched = this.touchedElements.get(i);
 				if (touched.kind() == kind && touched.scope() == scope &&
 					touched.elementName().equals(elementName) &&
-					Objects.equals(touched.containerName(), containerName)
+					Objects.equals(touched.containerName(), containerName) &&
+					touched.capability() == capability
 				) {
 					return false;
 				}
 			}
 		}
-		this.touchedElements.add(new TouchedSchemaElement(kind, containerName, elementName, scope));
+		this.touchedElements.add(new TouchedSchemaElement(kind, containerName, elementName, capability, scope));
 		return true;
 	}
 
@@ -3672,15 +3766,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * It is not a {@link SchemaCapabilityKey}: an element is reported once and yields up to three capabilities, so
 	 * deduplicating at the element level performs one scan where a capability-level one would perform three.
 	 *
+	 * `capability` is the exception that keeps that true. An attribute, a compound and a reference each have **one**
+	 * reporting site that files all of their capabilities together, so they deduplicate at the element level and leave
+	 * it null. The entity does not: its `withHierarchy()` and `withPrice()` flags are maintained by different mutators
+	 * reacting to different mutations, so a shared element-level entry would let whichever ran first swallow the
+	 * other. Those rows therefore carry the capability and deduplicate per flag.
+	 *
 	 * @param kind          what kind of element it is - an attribute and a sortable compound may carry the same name
 	 * @param containerName name of the reference declaring the element, or null when the entity declares it
 	 * @param elementName   name of the element
+	 * @param capability    the single flag being deduplicated, or null to deduplicate the element as a whole
 	 * @param scope         the scope whose indexes were maintained
 	 */
 	private record TouchedSchemaElement(
 		@Nonnull ElementKind kind,
 		@Nullable String containerName,
 		@Nonnull String elementName,
+		@Nullable Capability capability,
 		@Nonnull Scope scope
 	) {
 	}

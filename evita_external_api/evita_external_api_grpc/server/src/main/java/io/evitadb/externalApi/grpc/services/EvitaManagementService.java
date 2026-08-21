@@ -45,7 +45,7 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
@@ -566,7 +566,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	) {
 		executeWithClientContext(
 			() -> {
-				final List<SchemaCapabilityUsageSnapshot> usages = this.management.listCapabilityUsage(
+				final List<SchemaCapabilityUsageStatistics> usages = this.management.listCapabilityUsage(
 					request.getCatalogName(),
 					// see `browseIndexes` above - unset selects what the catalog schema declares itself
 					request.hasEntityType() ? request.getEntityType().getValue() : null

@@ -24,6 +24,7 @@
 package io.evitadb.index.usage;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -35,9 +36,10 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry.UsageEntry;
 import io.evitadb.test.Entities;
@@ -64,6 +66,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -105,6 +108,12 @@ class SchemaCapabilityUsageRegistryTest {
 	private static final String COMPOUND_CODE_WITH_EAN = "codeWithEan";
 	/** Reference whose attributes stand in for the "declared on a reference" half of the key space. */
 	private static final String REFERENCE_STOCKS = "stocks";
+	private static final String HISTOGRAM_QUANTITY = "quantityHistogram";
+	/**
+	 * A histogram value expression, which is what separates a maintained histogram from a count-only one - see
+	 * `SchemaCapabilityUsageRegistry#maintainsHistogramIn`. Its content is irrelevant here; only its presence is.
+	 */
+	private static final Expression VALUE_EXPRESSION = ExpressionFactory.parse("$reference.referencedPrimaryKey");
 	/** Entity type the reference points at - external, so no second schema has to exist for it. */
 	private static final String EXTERNAL_STOCK_TYPE = "stock";
 	/** Reference attribute carrying `filterable()` and `sortable()`. */
@@ -126,19 +135,23 @@ class SchemaCapabilityUsageRegistryTest {
 	 *
 	 * Two entries are worth pointing at, since both are what a rule written against the wrong flag gets wrong:
 	 * `code` never declares `filterable()` explicitly - it is unique, which implies it - and `warehouse` contributes
-	 * only `SORT`, so a rule that seeded a capability per flag *name* rather than per flag *held* would add entries
+	 * only `SORTABLE`, so a rule that seeded a capability per flag *name* rather than per flag *held* would add entries
 	 * here that nothing could ever increment.
 	 */
 	private static final List<SchemaCapabilityKey> EVERY_CAPABILITY_OF_THE_FULL_SCHEMA = List.of(
-		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE),
-		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORTABLE, Scope.LIVE),
 		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE),
-		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE),
+		SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE),
 		SchemaCapabilityKey.sortableCompound(null, COMPOUND_CODE_WITH_EAN, Scope.LIVE),
-		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE),
-		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.SORT, Scope.LIVE),
-		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_WAREHOUSE, Capability.SORT, Scope.LIVE),
-		SchemaCapabilityKey.sortableCompound(REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE)
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTERABLE, Scope.LIVE),
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.SORTABLE, Scope.LIVE),
+		SchemaCapabilityKey.referenceAttribute(REFERENCE_STOCKS, ATTRIBUTE_WAREHOUSE, Capability.SORTABLE, Scope.LIVE),
+		SchemaCapabilityKey.sortableCompound(REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE),
+		// the reference's own flag, not one of its attributes' - `stocks` is `indexed()`, which costs the reduced
+		// entity index family the attribute rows above are maintained in. Neither `faceted()` nor `bucketed()`
+		// appears because this schema declares neither, and the entity declares no hierarchy and no prices
+		SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE)
 	);
 
 	private EntitySchema emptySchema;
@@ -259,7 +272,7 @@ class SchemaCapabilityUsageRegistryTest {
 			// this is what makes "resolve once, keep the reference" a safe contract rather than an optimisation: a
 			// caller that resolved early and a caller that resolved late are incrementing the same object
 			final SchemaCapabilityKey key = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 
 			final SchemaCapabilityUsage first = SchemaCapabilityUsageRegistryTest.this.registry.resolve(key);
@@ -277,17 +290,17 @@ class SchemaCapabilityUsageRegistryTest {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 
 			final SchemaCapabilityUsage filterOnEntity = theRegistry.resolve(
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE)
+				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE)
 			);
 			final SchemaCapabilityUsage sortOnEntity = theRegistry.resolve(
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORT, Scope.LIVE)
+				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.SORTABLE, Scope.LIVE)
 			);
 			final SchemaCapabilityUsage filterInArchive = theRegistry.resolve(
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.ARCHIVED)
+				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.ARCHIVED)
 			);
 			final SchemaCapabilityUsage filterOnReference = theRegistry.resolve(
 				SchemaCapabilityKey.referenceAttribute(
-					REFERENCE_STOCKS, ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+					REFERENCE_STOCKS, ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 				)
 			);
 			final SchemaCapabilityUsage sortOfCompound = theRegistry.resolve(
@@ -310,7 +323,7 @@ class SchemaCapabilityUsageRegistryTest {
 			final int threads = 8;
 			final int recordingsPerThread = 2_000;
 			final SchemaCapabilityKey key = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final CountDownLatch start = new CountDownLatch(1);
@@ -371,7 +384,7 @@ class SchemaCapabilityUsageRegistryTest {
 		@DisplayName("Every resolved capability is listed with its live holder")
 		void shouldListEachCapabilityWithTheHolderThatCountsIt() {
 			final SchemaCapabilityKey filterKey = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityKey sortKey = SchemaCapabilityKey.sortableCompound(
 				null, COMPOUND_CODE_WITH_EAN, Scope.LIVE
@@ -400,7 +413,7 @@ class SchemaCapabilityUsageRegistryTest {
 		@DisplayName("The listed view cannot be written through")
 		void shouldReturnAnUnmodifiableList() {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
-			theRegistry.resolve(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE));
+			theRegistry.resolve(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE));
 
 			final List<UsageEntry> listed = theRegistry.listUsages();
 
@@ -454,7 +467,7 @@ class SchemaCapabilityUsageRegistryTest {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			theRegistry.alignWith(fullSchema());
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityUsage seeded = theRegistry.resolve(eanFilter);
 			seeded.recordRequested(System.currentTimeMillis());
@@ -500,17 +513,17 @@ class SchemaCapabilityUsageRegistryTest {
 		void shouldDropACapabilityOfARemovedAttribute() {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityKey codeFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 			);
 			theRegistry.resolve(eanFilter);
 			theRegistry.resolve(codeFilter);
 
 			theRegistry.alignWith(schemaWithoutEan());
 
-			assertTrue(!holds(eanFilter), "The schema stopped declaring `ean`, yet its holder survived");
+			assertFalse(holds(eanFilter), "The schema stopped declaring `ean`, yet its holder survived");
 			assertTrue(holds(codeFilter), "Aligning took the surviving attribute's holder with it");
 			// `code` is unique and sortable in the live scope and the reduced schema declares nothing else, so those
 			// three capabilities - uniqueness implying filterability - are the whole of what may be left standing
@@ -524,7 +537,7 @@ class SchemaCapabilityUsageRegistryTest {
 			// reporting maintenance cost for an index the schema stopped asking for
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			theRegistry.resolve(eanFilter);
 
@@ -544,10 +557,10 @@ class SchemaCapabilityUsageRegistryTest {
 		void shouldDropACapabilityOutsideTheScopesThatDeclareIt() {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey liveFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityKey archivedFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.ARCHIVED
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.ARCHIVED
 			);
 			theRegistry.resolve(liveFilter);
 			theRegistry.resolve(archivedFilter);
@@ -556,8 +569,8 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.alignWith(fullSchema());
 
 			assertTrue(holds(liveFilter));
-			assertTrue(
-				!holds(archivedFilter),
+			assertFalse(
+				holds(archivedFilter),
 				"The archive's holder survived a schema that never declared it there"
 			);
 			assertEquals(
@@ -575,14 +588,14 @@ class SchemaCapabilityUsageRegistryTest {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			theRegistry.resolve(
 				SchemaCapabilityKey.referenceAttribute(
-					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE
+					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTERABLE, Scope.LIVE
 				)
 			);
 			theRegistry.resolve(
 				SchemaCapabilityKey.sortableCompound(REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE)
 			);
 			final SchemaCapabilityKey survivor = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			theRegistry.resolve(survivor);
 
@@ -635,7 +648,7 @@ class SchemaCapabilityUsageRegistryTest {
 			// schema mutation that brought the capability back, not at the next query that happens to name it
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityUsage before = theRegistry.resolve(eanFilter);
 			before.recordRequested(System.currentTimeMillis());
@@ -663,10 +676,10 @@ class SchemaCapabilityUsageRegistryTest {
 		@DisplayName("A compound key claiming a capability no compound can have is reported, not swallowed")
 		void shouldRefuseToAlignACompoundKeyThatCannotExist() {
 			// only the canonical record constructor can mint this - SchemaCapabilityKey#sortableCompound fixes the
-			// capability at SORT precisely because a compound has nothing to filter or be unique by. Dropping such a
-			// key quietly would look exactly like an ordinary alignment and hide whoever built it
+			// capability at SORTABLE precisely because a compound has nothing to filter or be unique by. Dropping
+			// such a key quietly would look exactly like an ordinary alignment and hide whoever built it
 			final SchemaCapabilityKey impossible = new SchemaCapabilityKey(
-				ElementKind.SORTABLE_COMPOUND, null, COMPOUND_CODE_WITH_EAN, Capability.FILTER, Scope.LIVE
+				ElementKind.SORTABLE_COMPOUND, null, COMPOUND_CODE_WITH_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 			SchemaCapabilityUsageRegistryTest.this.registry.resolve(impossible);
 
@@ -685,7 +698,7 @@ class SchemaCapabilityUsageRegistryTest {
 			// failure would surface as a rolled-back transaction with nothing in it pointing back here
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey eanFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 			);
 
 			theRegistry.alignWith(
@@ -742,6 +755,212 @@ class SchemaCapabilityUsageRegistryTest {
 	}
 
 	@Nested
+	@DisplayName("The flags a reference and the entity declare on themselves")
+	class ReferenceAndEntityCapabilityTest {
+
+		@Test
+		@DisplayName("A faceted reference is seeded for both `indexed()` and `faceted()`")
+		void shouldSeedFacetedAlongsideIndexed() {
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE)
+					)
+				)
+			);
+
+			// both, not one: `faceted()` costs the facet index *on top of* the reduced index family `indexed()`
+			// costs, and an operator can drop either flag independently
+			assertTrue(holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE)));
+			assertTrue(holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.FACETED, Scope.LIVE)));
+			assertFalse(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.BUCKETED, Scope.LIVE)),
+				"A flag the schema never declared was seeded anyway"
+			);
+		}
+
+		@Test
+		@DisplayName("A histogram with a value expression is seeded for `BUCKETED`, independently of `faceted()`")
+		void shouldSeedBucketed() {
+			// worth its own test rather than riding along with `faceted()`: `bucketed()` is the one flag of the five
+			// that no query path consults by name - the histogram is reached through its declared definition - so it
+			// is the easiest of them to wire up in one direction only and never notice
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedInScope(Scope.LIVE)
+							.bucketedInScope(Scope.LIVE, HISTOGRAM_QUANTITY, VALUE_EXPRESSION, null)
+					)
+				)
+			);
+
+			assertTrue(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.BUCKETED, Scope.LIVE)),
+				"A maintained histogram got no `BUCKETED` row: " + theRegistry.listUsages()
+			);
+			assertTrue(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE)),
+				"The histogram hangs off the reduced index family, so `indexed()` is reported alongside it"
+			);
+			assertFalse(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.FACETED, Scope.LIVE)),
+				"`bucketed()` seeded a facet row - the two are independent flags"
+			);
+		}
+
+		@Test
+		@DisplayName("A count-only histogram is seeded for nothing - nothing maintains it")
+		void shouldNotSeedACountOnlyHistogram() {
+			// `isBucketedInScope` says only that a histogram is *declared*. One without a value expression - a count
+			// histogram, which the public builder allows - yields no HistogramExpressionTrigger, and every histogram
+			// maintenance site is gated on the trigger collection being non-empty. Its update count could therefore
+			// never leave zero, and a permanently-zero row is read as `nothing maintains this, drop it` about a
+			// perfectly valid schema. This is the sharpest instance of that trap in the whole surface.
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs
+							.indexedInScope(Scope.LIVE)
+							.bucketedInScope(Scope.LIVE, HISTOGRAM_QUANTITY, null, null)
+					)
+				)
+			);
+
+			assertFalse(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.BUCKETED, Scope.LIVE)),
+				"A count-only histogram was seeded a row nothing can ever increment: " + theRegistry.listUsages()
+			);
+			assertTrue(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE)),
+				"Suppressing the histogram row must not suppress the reference's own `indexed()` row"
+			);
+		}
+
+		@Test
+		@DisplayName("A reference that is not indexed is seeded for nothing at all")
+		void shouldSeedNothingForAnUnindexedReference() {
+			// the seed-narrower-than-survive rule at its sharpest: without `indexed()` there is no reduced index
+			// family, so nothing maintains the reference and no write can ever raise its update count. A row here
+			// would sit at `0 / 0` for ever and read as *"nothing uses this, drop it"* - about a flag that is off
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			// no attributes on it: the schema refuses a filterable attribute on a non-indexed reference outright, so
+			// the only way such a reference exists at all is bare
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE, thatIs -> {
+						}
+					)
+				)
+			);
+
+			assertEquals(
+				0, theRegistry.size(),
+				"An unindexed reference seeded rows nothing could ever increment: " + theRegistry.listUsages()
+			);
+		}
+
+		@Test
+		@DisplayName("An entity with an indexed hierarchy is seeded for `HIERARCHY_INDEXED`")
+		void shouldSeedIndexedHierarchy() {
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(builder -> builder.withHierarchy().withHierarchyIndexedInScope(Scope.LIVE))
+			);
+
+			assertTrue(
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.LIVE)),
+				"The entity's own flag was not seeded: " + theRegistry.listUsages()
+			);
+		}
+
+		@Test
+		@DisplayName("A hierarchy is seeded only in the scope that actually indexes it")
+		void shouldSeedHierarchyOnlyWhereItIsIndexed() {
+			// the entity-level twin of the unindexed-reference case: an index that exists in one scope costs nothing
+			// in the other, so only the scope paying for it gets a row
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(builder -> builder.withHierarchy().withHierarchyIndexedInScope(Scope.ARCHIVED))
+			);
+
+			assertTrue(
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.ARCHIVED)),
+				"The scope that indexes the hierarchy got no row: " + theRegistry.listUsages()
+			);
+			assertFalse(
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.LIVE)),
+				"A scope that indexes no hierarchy was seeded anyway: " + theRegistry.listUsages()
+			);
+		}
+
+		@Test
+		@DisplayName("An entity with indexed prices is seeded for `PRICE_INDEXED`")
+		void shouldSeedIndexedPrices() {
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+
+			theRegistry.alignWith(
+				schemaWith(builder -> builder.withPrice().withPriceIndexedInScope(Scope.LIVE))
+			);
+
+			assertTrue(
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.PRICE_INDEXED, Scope.LIVE)),
+				"The entity's own flag was not seeded: " + theRegistry.listUsages()
+			);
+		}
+
+		@Test
+		@DisplayName("Dropping `faceted()` drops its row and leaves `indexed()` alone")
+		void shouldDropOnlyTheFlagThatWentAway() {
+			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE)
+					)
+				)
+			);
+			final SchemaCapabilityKey indexed = SchemaCapabilityKey.reference(
+				REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE
+			);
+			final SchemaCapabilityUsage indexedHolder = theRegistry.resolve(indexed);
+
+			theRegistry.alignWith(
+				schemaWith(
+					builder -> builder.withReferenceTo(
+						REFERENCE_STOCKS, EXTERNAL_STOCK_TYPE, Cardinality.ZERO_OR_MORE,
+						thatIs -> thatIs.indexedInScope(Scope.LIVE)
+					)
+				)
+			);
+
+			assertFalse(
+				holds(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.FACETED, Scope.LIVE)),
+				"The row of a flag the schema stopped declaring survived"
+			);
+			assertSame(
+				indexedHolder, theRegistry.resolve(indexed),
+				"Dropping one flag of a reference replaced the holder of another, resetting its counters"
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Aligning with a catalog schema")
 	class CatalogAlignmentTest {
 
@@ -756,8 +975,8 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.alignWith(catalogSchemaWithGlobalCode());
 
 			assertTrue(
-				holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE)),
-				"A globally-unique attribute was not seeded with the FILTER entry its uniqueness implies"
+				holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE)),
+				"A globally-unique attribute was not seeded with the FILTERABLE entry its uniqueness implies"
 			);
 			assertTrue(
 				holds(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE)),
@@ -797,7 +1016,7 @@ class SchemaCapabilityUsageRegistryTest {
 			// both - so these two entries are exactly the ones a survival rule written against the wrong flag drops
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			final SchemaCapabilityKey codeFilter = SchemaCapabilityKey.entityAttribute(
-				ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+				ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 			);
 			final SchemaCapabilityKey codeUnique = SchemaCapabilityKey.entityAttribute(
 				ATTRIBUTE_CODE, Capability.UNIQUE, Scope.LIVE
@@ -807,7 +1026,9 @@ class SchemaCapabilityUsageRegistryTest {
 
 			theRegistry.alignWith(catalogSchemaWithGlobalCode());
 
-			assertTrue(holds(codeFilter), "A globally-unique attribute lost the FILTER entry its uniqueness implies");
+			assertTrue(
+				holds(codeFilter), "A globally-unique attribute lost the FILTERABLE entry its uniqueness implies"
+			);
 			assertTrue(holds(codeUnique), "A globally-unique attribute lost its UNIQUE entry");
 			assertEquals(1L, theRegistry.resolve(codeFilter).getRequestedCount(), "The surviving entry was replaced");
 		}
@@ -823,8 +1044,8 @@ class SchemaCapabilityUsageRegistryTest {
 
 			theRegistry.alignWith(catalogSchemaWithGlobalCode());
 
-			assertTrue(
-				!holds(eanUnique),
+			assertFalse(
+				holds(eanUnique),
 				"The catalog adopted a schema declaring no `ean`, yet the registry still counts it"
 			);
 		}
@@ -837,7 +1058,7 @@ class SchemaCapabilityUsageRegistryTest {
 			final SchemaCapabilityUsageRegistry theRegistry = SchemaCapabilityUsageRegistryTest.this.registry;
 			theRegistry.resolve(
 				SchemaCapabilityKey.referenceAttribute(
-					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTER, Scope.LIVE
+					REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTERABLE, Scope.LIVE
 				)
 			);
 

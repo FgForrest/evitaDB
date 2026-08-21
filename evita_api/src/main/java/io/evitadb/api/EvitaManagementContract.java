@@ -41,7 +41,7 @@ import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -553,7 +553,7 @@ public interface EvitaManagementContract {
 	 * of them costs, this reports the *schema flags* those indexes exist to serve. That is the granularity an operator
 	 * can act on, since dropping a flag is one schema mutation that removes every index maintaining it at once - and it
 	 * is why the two are separate surfaces rather than extra columns on a browse row. Read
-	 * {@link SchemaCapabilityUsageSnapshot} before acting on either count; in particular the request count is **not**
+	 * {@link SchemaCapabilityUsageStatistics} before acting on either count; in particular the request count is **not**
 	 * physical index usage and must never be presented as such.
 	 *
 	 * **`entityType` chooses the owner, exactly as it does for an index browse.** Naming a collection reports what its
@@ -575,7 +575,7 @@ public interface EvitaManagementContract {
 	 *                                     empty list would be indistinguishable from a collection nothing has queried
 	 */
 	@Nonnull
-	List<SchemaCapabilityUsageSnapshot> listCapabilityUsage(
+	List<SchemaCapabilityUsageStatistics> listCapabilityUsage(
 		@Nonnull String catalogName,
 		@Nullable String entityType
 	) throws CatalogNotFoundException, CollectionNotFoundException;

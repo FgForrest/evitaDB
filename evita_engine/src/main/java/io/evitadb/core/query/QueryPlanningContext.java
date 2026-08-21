@@ -54,8 +54,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -585,6 +585,60 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Records that this query asked for one flag the **entity itself** declares - its `withHierarchy()` or its
+	 * `withPrice()` - across every scope the lookup covered.
+	 *
+	 * A convenience over {@link #recordRequestedCapability}, and the reason it exists is that the sites calling it are
+	 * scattered: hierarchy and price are verified in a dozen translators rather than behind one accessor the way
+	 * attributes are. Keeping the element plumbing here rather than at each of them is what stops the twelfth site
+	 * from spelling the key slightly differently to the first.
+	 *
+	 * Like every request-side path this only *accumulates*: the count is raised once per logical query when the
+	 * winning plan is built, never once per candidate plan the planner weighed. See
+	 * {@link #registerRequestedCapability}.
+	 *
+	 * @param owner      the entity schema the flag was verified against - a lookup that resolved against another
+	 *                   collection records nothing, exactly as a filter evaluated against another collection does
+	 * @param capability the flag the query needed - `HIERARCHY_INDEXED` or `PRICE_INDEXED`
+	 * @param scopes     the scopes the query asked for
+	 */
+	public void recordRequestedEntityCapability(
+		@Nonnull EntitySchemaContract owner,
+		@Nonnull Capability capability,
+		@Nonnull Set<Scope> scopes
+	) {
+		final String entityType = owner.getName();
+		for (final Scope scope : scopes) {
+			recordRequestedCapability(owner, null, ElementKind.ENTITY, entityType, capability, scope);
+		}
+	}
+
+	/**
+	 * Records that this query asked for one flag a **reference itself** declares - its `indexed()`, `faceted()` or
+	 * `bucketed()` - across every scope the lookup covered.
+	 *
+	 * The reference is the element here, so it is named by `elementName` and the container stays null. That is the
+	 * opposite arrangement from a request about an attribute *of* the reference, which names it as the container;
+	 * see {@link io.evitadb.index.usage.SchemaCapabilityKey#reference}.
+	 *
+	 * @param owner         the entity schema declaring the reference - see {@link #recordRequestedEntityCapability}
+	 *                      for why a foreign owner records nothing
+	 * @param referenceName name of the reference the query named
+	 * @param capability    the flag the query needed - `INDEXED`, `FACETED` or `BUCKETED`
+	 * @param scopes        the scopes the query asked for
+	 */
+	public void recordRequestedReferenceCapability(
+		@Nonnull EntitySchemaContract owner,
+		@Nonnull String referenceName,
+		@Nonnull Capability capability,
+		@Nonnull Set<Scope> scopes
+	) {
+		for (final Scope scope : scopes) {
+			recordRequestedCapability(owner, null, ElementKind.REFERENCE, referenceName, capability, scope);
+		}
+	}
+
+	/**
 	 * Records that this query asked for one capability of an attribute the **catalog schema** declares - the
 	 * counterpart of {@link #recordRequestedCapability} for the lookups that never reach an entity schema at all.
 	 *
@@ -597,15 +651,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * # Callers must pass only a capability the catalog itself maintains
 	 *
-	 * In practice `FILTER` and `UNIQUE`, both of which the catalog's global unique index costs. Passing `SORT` would
-	 * mint a row whose update count can never leave zero - no write files `SORT` into this registry, because a global
-	 * attribute's sort index belongs to each collection declaring it - and a permanently-zero maintenance count reads
-	 * as *"drop this flag"* about a flag that is actively maintained. The filter that enforces this lives at the sole
-	 * caller, {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits}, which is where the
+	 * In practice `FILTERABLE` and `UNIQUE`, both of which the catalog's global unique index costs. Passing
+	 * `SORTABLE` would mint a row whose update count can never leave zero - no write files `SORTABLE` into this
+	 * registry, because a global attribute's sort index belongs to each collection declaring it - and a
+	 * permanently-zero maintenance count reads as *"drop this flag"* about a flag that is actively maintained. The
+	 * filter that enforces this lives at the sole caller,
+	 * {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits}, which is where the
 	 * `(trait, owner)` pair being translated makes the reason legible; a second caller has to honour the same rule.
 	 *
 	 * @param attributeName name of the global attribute, canonical as the catalog schema spells it
-	 * @param capability    the flag the query needed - `FILTER` or `UNIQUE`, never `SORT`
+	 * @param capability    the flag the query needed - `FILTERABLE` or `UNIQUE`, never `SORTABLE`
 	 * @param scope         the scope whose indexes maintain it
 	 */
 	public void recordRequestedGlobalCapability(

@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
@@ -90,6 +91,7 @@ public interface HierarchyPlacementMutator {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
 			entityIndex.addNode(primaryKeyToIndex, parentPrimaryKey);
+			executor.reportEntityCapabilityTouched(Capability.HIERARCHY_INDEXED, scope);
 		}
 	}
 
@@ -125,6 +127,7 @@ public interface HierarchyPlacementMutator {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
 			entityIndex.removeNode(primaryKeyToIndex);
+			executor.reportEntityCapabilityTouched(Capability.HIERARCHY_INDEXED, scope);
 		}
 	}
 

@@ -26,9 +26,9 @@ package io.evitadb.core;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -50,6 +50,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * that turns one request into an enormous rate.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
- * @see SchemaCapabilityUsageSnapshot
+ * @see SchemaCapabilityUsageStatistics
  */
 @DisplayName("Schema capability usage surface")
 @Tag(ENGINE)
@@ -120,11 +121,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			writeNameOnly(1);
 			filterByEan();
 
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
-			final SchemaCapabilityUsageSnapshot queried = rowOf(rows, ATTRIBUTE_EAN, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics queried = rowOf(rows, ATTRIBUTE_EAN, Capability.FILTERABLE);
 			assertEquals(
 				1L, queried.requestedCount(),
 				"One query filtering by `" + ATTRIBUTE_EAN + "` must be reported as exactly one request - a larger " +
@@ -136,7 +137,7 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 					"capability's number reported against this row"
 			);
 
-			final SchemaCapabilityUsageSnapshot written = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics written = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTERABLE);
 			assertEquals(
 				0L, written.requestedCount(),
 				"No query ever named `" + ATTRIBUTE_NAME + "`, so a non-zero request count is the queried " +
@@ -154,12 +155,12 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			writeNameOnly(1);
 			filterByEan();
 
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
-			assertTrue(!rows.isEmpty(), "A collection that has been queried and written reports no capability at all");
-			for (final SchemaCapabilityUsageSnapshot row : rows) {
+			assertFalse(rows.isEmpty(), "A collection that has been queried and written reports no capability at all");
+			for (final SchemaCapabilityUsageStatistics row : rows) {
 				assertEquals(
 					ENTITY_PRODUCT, row.entityType(),
 					"A row of a collection's own schema must name that collection, so that a client concatenating " +
@@ -181,14 +182,14 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			writeNameOnly(1);
 			filterByEan();
 
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
 			// the two stamps are asserted where their own count is non-zero and nowhere else. A stamp is written after
 			// the count it accompanies and is skipped while the resident value already falls in the current second, so
 			// a present stamp is only ever claimed for a side that certainly recorded something
-			final SchemaCapabilityUsageSnapshot queried = rowOf(rows, ATTRIBUTE_EAN, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics queried = rowOf(rows, ATTRIBUTE_EAN, Capability.FILTERABLE);
 			assertNotNull(queried.lastRequestedAt(), "A requested capability arrived without its stamp: " + queried);
 			assertNull(
 				queried.lastUpdatedAt(),
@@ -197,7 +198,7 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			);
 			assertEquals(queried.lastRequestedAt(), queried.lastRequestedAtIfKnown().orElse(null));
 
-			final SchemaCapabilityUsageSnapshot written = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics written = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTERABLE);
 			assertNotNull(written.lastUpdatedAt(), "A maintained capability arrived without its stamp: " + written);
 			assertNull(
 				written.lastRequestedAt(),
@@ -212,11 +213,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			// the headline case. `name` is declared filterable by the fixture and this test neither queries nor writes
 			// it, so before the fix it had no holder and no row at all - and an operator reading the listing could not
 			// tell "nobody uses this flag" from "this flag is not declared" without diffing the schema by hand
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
-			final SchemaCapabilityUsageSnapshot untouched = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics untouched = rowOf(rows, ATTRIBUTE_NAME, Capability.FILTERABLE);
 			assertEquals(0L, untouched.requestedCount(), "Nothing queried `" + ATTRIBUTE_NAME + "`: " + untouched);
 			assertEquals(0L, untouched.updatedCount(), "Nothing wrote `" + ATTRIBUTE_NAME + "`: " + untouched);
 			assertNull(untouched.lastRequestedAt(), "An untouched capability carries a request stamp: " + untouched);
@@ -233,16 +234,16 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			final long beforeTheFirstQuery = System.currentTimeMillis();
 			filterByEan();
 
-			final SchemaCapabilityUsageSnapshot queried = rowOf(
+			final SchemaCapabilityUsageStatistics queried = rowOf(
 				SchemaCapabilityUsageSurfaceTest.this.evita
 					.management()
 					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
-				ATTRIBUTE_EAN, Capability.FILTER
+				ATTRIBUTE_EAN, Capability.FILTERABLE
 			);
 
 			assertEquals(1L, queried.requestedCount(), "The query did not land, so this proves nothing: " + queried);
-			assertTrue(
-				!queried.observedSince().toInstant().isAfter(Instant.ofEpochMilli(beforeTheFirstQuery)),
+			assertFalse(
+				queried.observedSince().toInstant().isAfter(Instant.ofEpochMilli(beforeTheFirstQuery)),
 				"The observation window opened at the first query rather than when the schema declared the flag - " +
 					"every rate computed from it is then divided by an interval far shorter than the real one: " +
 					queried
@@ -254,17 +255,17 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 		void shouldReportEveryDeclaredCapabilityBeforeAnythingHappens() {
 			// stated as an exact set rather than as "not empty": a row nothing can ever increment stays at zero
 			// forever and reads as a flag nobody uses, so over-seeding is the failure worth guarding against here
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
 			// `code` is globally unique, which implies both collection-level uniqueness and filterability
 			assertEquals(
 				List.of(
-					ATTRIBUTE_CODE + "/" + Capability.FILTER,
+					ATTRIBUTE_CODE + "/" + Capability.FILTERABLE,
 					ATTRIBUTE_CODE + "/" + Capability.UNIQUE,
-					ATTRIBUTE_EAN + "/" + Capability.FILTER,
-					ATTRIBUTE_NAME + "/" + Capability.FILTER
+					ATTRIBUTE_EAN + "/" + Capability.FILTERABLE,
+					ATTRIBUTE_NAME + "/" + Capability.FILTERABLE
 				),
 				rows.stream().map(row -> row.elementName() + "/" + row.capability()).toList(),
 				"The listing does not match what the fixture's schema declares"
@@ -296,11 +297,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			writeCode(2);
 			filterByCodeWithoutNamingACollection();
 
-			final List<SchemaCapabilityUsageSnapshot> rows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> rows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, null);
 
-			final SchemaCapabilityUsageSnapshot row = rowOf(rows, ATTRIBUTE_CODE, Capability.FILTER);
+			final SchemaCapabilityUsageStatistics row = rowOf(rows, ATTRIBUTE_CODE, Capability.FILTERABLE);
 			assertNull(
 				row.entityType(),
 				"A capability the catalog schema declares belongs to no collection, and naming one would send an " +
@@ -321,14 +322,14 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			writeCode(2);
 			filterByCodeWithoutNamingACollection();
 
-			final List<SchemaCapabilityUsageSnapshot> collectionRows = SchemaCapabilityUsageSurfaceTest.this.evita
+			final List<SchemaCapabilityUsageStatistics> collectionRows = SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT);
 
 			// the request went to the catalog, so the collection must not claim it too - a client concatenating both
 			// listings would otherwise count one query twice, and an operator would read a flag as busier than it is
-			for (final SchemaCapabilityUsageSnapshot row : collectionRows) {
-				if (ATTRIBUTE_CODE.equals(row.elementName()) && row.capability() == Capability.FILTER) {
+			for (final SchemaCapabilityUsageStatistics row : collectionRows) {
+				if (ATTRIBUTE_CODE.equals(row.elementName()) && row.capability() == Capability.FILTERABLE) {
 					assertEquals(
 						0L, row.requestedCount(),
 						"A query that named no collection was reported against one anyway: " + row
@@ -350,11 +351,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			// planning path produced - the registry-level twin of this test seeds its counters by hand and can
 			// therefore not notice a resolve site that survives pruning by re-minting the entry it just lost
 			filterByEan();
-			final SchemaCapabilityUsageSnapshot before = rowOf(
+			final SchemaCapabilityUsageStatistics before = rowOf(
 				SchemaCapabilityUsageSurfaceTest.this.evita
 					.management()
 					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
-				ATTRIBUTE_EAN, Capability.FILTER
+				ATTRIBUTE_EAN, Capability.FILTERABLE
 			);
 			assertEquals(
 				1L, before.requestedCount(),
@@ -363,11 +364,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 
 			dropEanAttribute();
 
-			for (final SchemaCapabilityUsageSnapshot row : SchemaCapabilityUsageSurfaceTest.this.evita
+			for (final SchemaCapabilityUsageStatistics row : SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT)) {
-				assertTrue(
-					!ATTRIBUTE_EAN.equals(row.elementName()),
+				assertFalse(
+					ATTRIBUTE_EAN.equals(row.elementName()),
 					"The schema no longer declares `" + ATTRIBUTE_EAN + "`, yet the surface still reports it - a row " +
 						"no schema backs sends an operator to a mutation that cannot exist: " + row
 				);
@@ -376,11 +377,11 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			addEanAttribute();
 			filterByEan();
 
-			final SchemaCapabilityUsageSnapshot after = rowOf(
+			final SchemaCapabilityUsageStatistics after = rowOf(
 				SchemaCapabilityUsageSurfaceTest.this.evita
 					.management()
 					.listCapabilityUsage(CATALOG, ENTITY_PRODUCT),
-				ATTRIBUTE_EAN, Capability.FILTER
+				ATTRIBUTE_EAN, Capability.FILTERABLE
 			);
 			assertEquals(
 				1L, after.requestedCount(),
@@ -388,8 +389,8 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 					"entry survived the schema adoption and was found again instead of being minted fresh"
 			);
 			assertEquals(0L, after.updatedCount(), "Nothing ever wrote `" + ATTRIBUTE_EAN + "`: " + after);
-			assertTrue(
-				!after.observedSince().isBefore(before.observedSince()),
+			assertFalse(
+				after.observedSince().isBefore(before.observedSince()),
 				"The observation window of the re-added attribute must open no earlier than the one it replaced - " +
 					"an older window would stretch the denominator over an interval the capability was not " +
 					"maintained in, and understate every rate computed from it"
@@ -408,12 +409,12 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 	 * @return the matching row
 	 */
 	@Nonnull
-	private static SchemaCapabilityUsageSnapshot rowOf(
-		@Nonnull List<SchemaCapabilityUsageSnapshot> rows,
+	private static SchemaCapabilityUsageStatistics rowOf(
+		@Nonnull List<SchemaCapabilityUsageStatistics> rows,
 		@Nonnull String elementName,
 		@Nonnull Capability capability
 	) {
-		for (final SchemaCapabilityUsageSnapshot row : rows) {
+		for (final SchemaCapabilityUsageStatistics row : rows) {
 			if (row.containerName() == null && elementName.equals(row.elementName())
 				&& row.capability() == capability) {
 				return row;

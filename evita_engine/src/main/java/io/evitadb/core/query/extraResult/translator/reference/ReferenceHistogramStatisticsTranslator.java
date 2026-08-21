@@ -26,8 +26,11 @@ package io.evitadb.core.query.extraResult.translator.reference;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ReferenceHistogramStatistics;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptorFactory;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
@@ -43,6 +46,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -131,6 +135,29 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 		// translations don't contribute duplicate entries.
 		final List<ResolvedHistogramHaving> resolvedHistogramHavings =
 			extraResultPlanner.getFilterByVisitor().getResolvedHistogramHavings();
+		// the one place a query depends on `bucketed()`. The flag is never consulted by name on this path - the
+		// histogram is reached through its declared definition instead - so without this the capability would report
+		// maintenance nobody ever asked for, and read as droppable while these queries still depend on it.
+		//
+		// Two things about the shape are load-bearing:
+		//
+		// - the schema comes from the planner rather than from the processing scope. Both dispatchers push a
+		//   reference-scoped context whose entity-schema supplier is null, so asking the scope for it answers with
+		//   nothing and the recording silently does not happen at all;
+		// - the scope is tested through the predicate the seeding enumeration and the update side already share,
+		//   rather than through the bare `bucketed()` flag - and that test, rather than the order of this block and
+		//   the validation below it, is what keeps the row honest. A histogram declared without a value expression is
+		//   maintained by nothing, so a row minted for it could never leave zero on the update side and would read as
+		//   a capability gone unmaintained, which is the one misreading this whole surface exists to prevent
+		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
+		for (final Scope scope : scopes) {
+			if (SchemaCapabilityUsageRegistry.maintainsHistogramIn(referenceSchema, scope)) {
+				extraResultPlanner.getQueryContext().recordRequestedCapability(
+					entitySchema, null, ElementKind.REFERENCE, referenceName, Capability.BUCKETED, scope
+				);
+			}
+		}
+
 		for (final String histogramName : constraint.getIndexNames()) {
 			final HistogramValueDescriptor descriptor = resolveDescriptor(
 				referenceSchema, referenceName, histogramName, scopes, extraResultPlanner

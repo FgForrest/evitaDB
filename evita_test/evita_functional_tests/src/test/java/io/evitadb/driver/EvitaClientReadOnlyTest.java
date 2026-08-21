@@ -53,8 +53,8 @@ import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.FragmentationStatistics;
 import io.evitadb.api.statistics.HistoryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.api.statistics.VolatileStateStatistics;
 import io.evitadb.api.query.Query;
@@ -2749,7 +2749,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		final List<SchemaCapabilityUsageSnapshot> collectionRows = evitaClient.management().listCapabilityUsage(
+		final List<SchemaCapabilityUsageStatistics> collectionRows = evitaClient.management().listCapabilityUsage(
 			TEST_CATALOG, Entities.PRODUCT
 		);
 
@@ -2761,9 +2761,9 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		boolean someRowStampedARequest = false;
 		boolean someRowCountedAnUpdate = false;
 		boolean someRowStampedAnUpdate = false;
-		SchemaCapabilityUsageSnapshot aliasFilter = null;
-		for (final SchemaCapabilityUsageSnapshot row : collectionRows) {
-			if (DataGenerator.ATTRIBUTE_ALIAS.equals(row.elementName()) && row.capability() == Capability.FILTER
+		SchemaCapabilityUsageStatistics aliasFilter = null;
+		for (final SchemaCapabilityUsageStatistics row : collectionRows) {
+			if (DataGenerator.ATTRIBUTE_ALIAS.equals(row.elementName()) && row.capability() == Capability.FILTERABLE
 				&& row.containerName() == null) {
 				aliasFilter = row;
 			}
@@ -2825,7 +2825,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			}
 		);
 
-		final List<SchemaCapabilityUsageSnapshot> catalogRows = evitaClient.management().listCapabilityUsage(
+		final List<SchemaCapabilityUsageStatistics> catalogRows = evitaClient.management().listCapabilityUsage(
 			TEST_CATALOG, null
 		);
 
@@ -2834,15 +2834,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			"The query above filtered by a globally-unique attribute without naming a collection, so the catalog has " +
 				"to report it - an empty listing here means the unset entity type did not select the catalog"
 		);
-		SchemaCapabilityUsageSnapshot codeFilter = null;
-		for (final SchemaCapabilityUsageSnapshot row : catalogRows) {
+		SchemaCapabilityUsageStatistics codeFilter = null;
+		for (final SchemaCapabilityUsageStatistics row : catalogRows) {
 			assertNull(
 				row.entityType(),
 				"A capability the catalog schema declares belongs to no collection, and an empty string is what an " +
 					"unset wrapper decodes to when its presence is not checked: " + row
 			);
 			assertNull(row.containerName(), "A catalog schema declares no references: " + row);
-			if (ATTRIBUTE_CODE.equals(row.elementName()) && row.capability() == Capability.FILTER) {
+			if (ATTRIBUTE_CODE.equals(row.elementName()) && row.capability() == Capability.FILTERABLE) {
 				codeFilter = row;
 			}
 		}

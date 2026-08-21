@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -71,6 +71,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -79,7 +80,9 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -135,11 +138,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 
 	/** Filtering by `code` - the capability most cases assert on. */
 	private static final SchemaCapabilityKey CODE_FILTER = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+		ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 	);
 	/** Ordering by `priority`. */
 	private static final SchemaCapabilityKey PRIORITY_SORT = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_PRIORITY, Capability.SORT, Scope.LIVE
+		ATTRIBUTE_PRIORITY, Capability.SORTABLE, Scope.LIVE
 	);
 	/** Ordering by the compound - the key an attribute of the same name would be indistinguishable from. */
 	private static final SchemaCapabilityKey COMPOUND_SORT = SchemaCapabilityKey.sortableCompound(
@@ -147,15 +150,27 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	);
 	/** Filtering by an attribute the `categories` reference declares. */
 	private static final SchemaCapabilityKey ORDER_IN_CATEGORY_FILTER = SchemaCapabilityKey.referenceAttribute(
-		REFERENCE_CATEGORIES, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTER, Scope.LIVE
+		REFERENCE_CATEGORIES, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTERABLE, Scope.LIVE
 	);
 	/** Ordering by an attribute the `categories` reference declares. */
 	private static final SchemaCapabilityKey ORDER_IN_CATEGORY_SORT = SchemaCapabilityKey.referenceAttribute(
-		REFERENCE_CATEGORIES, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.SORT, Scope.LIVE
+		REFERENCE_CATEGORIES, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.SORTABLE, Scope.LIVE
 	);
 	/** The control: a filterable attribute of the same shape as `code` that no query below ever names. */
 	private static final SchemaCapabilityKey EAN_FILTER = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+		ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
+	);
+	/** The `categories` reference's own `indexed()` flag - the reference is the element, not the container. */
+	private static final SchemaCapabilityKey CATEGORIES_INDEXED = SchemaCapabilityKey.reference(
+		REFERENCE_CATEGORIES, Capability.INDEXED, Scope.LIVE
+	);
+	/** The same reference's own `faceted()` flag, which the fixture declares for the live scope only. */
+	private static final SchemaCapabilityKey CATEGORIES_FACETED_LIVE = SchemaCapabilityKey.reference(
+		REFERENCE_CATEGORIES, Capability.FACETED, Scope.LIVE
+	);
+	/** The archive counterpart of the flag above - a scope the fixture deliberately leaves undeclared. */
+	private static final SchemaCapabilityKey CATEGORIES_FACETED_ARCHIVED = SchemaCapabilityKey.reference(
+		REFERENCE_CATEGORIES, Capability.FACETED, Scope.ARCHIVED
 	);
 
 	private TestPaths paths;
@@ -258,7 +273,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 			assertRequested(requested, COMPOUND_SORT);
 			assertNotRequested(
 				requested,
-				SchemaCapabilityKey.entityAttribute(COMPOUND_CODE_WITH_PRIORITY, Capability.SORT, Scope.LIVE),
+				SchemaCapabilityKey.entityAttribute(COMPOUND_CODE_WITH_PRIORITY, Capability.SORTABLE, Scope.LIVE),
 				"The compound was recorded as if it were an attribute, which pools it with an attribute that may " +
 					"legitimately carry the same name"
 			);
@@ -275,9 +290,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				)
 			);
 			assertRequested(filtering, ORDER_IN_CATEGORY_FILTER);
+			// reaching an attribute *of* a reference is itself a dependency on the reference's `indexed()`: the
+			// reduced index the attribute's filter index lives in exists only because the reference is indexed, so a
+			// query that filters on the attribute would break if the flag were dropped
+			assertRequested(filtering, CATEGORIES_INDEXED);
 			assertNotRequested(
 				filtering,
-				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTER, Scope.LIVE),
+				SchemaCapabilityKey.entityAttribute(ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTERABLE, Scope.LIVE),
 				"The reference's attribute was recorded as an attribute of the entity, which pools two elements the " +
 					"schema keeps apart"
 			);
@@ -293,6 +312,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				)
 			);
 			assertRequested(ordering, ORDER_IN_CATEGORY_SORT);
+			// the ordering reaches the reference's `indexed()` twice - once through the sort translator and once
+			// through the attribute lookup - and is still one request
+			assertRequested(ordering, CATEGORIES_INDEXED);
 		}
 
 		@Test
@@ -316,6 +338,39 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 			// accumulator that recorded nothing whatsoever
 			assertRequested(requested, CODE_FILTER);
 			assertRequested(requested, PRIORITY_SORT);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("The flags a reference declares on itself")
+	@Tag(REFERENCE)
+	@Tag(FACET)
+	class ReferenceOwnFlags {
+
+		@Test
+		@DisplayName("A facet filter naming two scopes records only the scope that declares the faceting")
+		void shouldRecordFacetedWhenAFacetFilterNamesSeveralScopes() {
+			// `facetHaving` is legal as long as *one* of the named scopes declares `faceted()`, and the fixture
+			// declares it for the live scope only - which makes this the one query shape able to tell a per-scope
+			// recording apart from one that files the whole requested set
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedBy(
+				query(
+					filterBy(
+						and(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							facetHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(QUERIED_CATEGORY))
+						)
+					)
+				)
+			);
+
+			assertRequested(requested, CATEGORIES_FACETED_LIVE);
+			assertNotRequested(
+				requested, CATEGORIES_FACETED_ARCHIVED,
+				"A scope that declares no faceting was counted as depended upon - such a row can never be matched by " +
+					"a write, so it reads as a capability nothing maintains for a flag that is simply not there"
+			);
 		}
 
 	}
@@ -757,7 +812,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
-							.indexedForFilteringAndPartitioning()
+							// indexed in both scopes so that a query may legally name the archive, but faceted in the
+							// live scope only - which is what lets a case naming both scopes tell the scope that
+							// declares the flag apart from the one that does not
+							.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
+							.facetedInScope(Scope.LIVE)
 							.withAttribute(
 								ATTRIBUTE_ORDER_IN_CATEGORY, Long.class,
 								thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE)

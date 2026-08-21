@@ -43,7 +43,7 @@ import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.IndexSummaryStatistics;
 import io.evitadb.api.statistics.RecordCounts;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.statistics.SessionStatistics;
 import io.evitadb.api.statistics.StorageCompositionStatistics;
 import io.evitadb.api.statistics.VolatileStateStatistics;
@@ -388,12 +388,12 @@ public final class Catalog
 	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} inside {@link CatalogIndex}, so neither its request nor the
 	 * maintenance an upsert pays for that index can be attributed to any single collection.
 	 *
-	 * **It holds exactly what this catalog physically maintains, and nothing else** - the `FILTER` and `UNIQUE` of a
-	 * `uniqueGlobally()` attribute, which is what its global unique index costs. Both recording sides are held to that:
-	 * {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files only those
-	 * two here, and {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits} drops a collection-less
-	 * `SORT` request rather than minting a row whose maintenance count could never leave zero. A sortable global
-	 * attribute's sort index belongs to each collection declaring it, and is counted there.
+	 * **It holds exactly what this catalog physically maintains, and nothing else** - the `FILTERABLE` and `UNIQUE`
+	 * of a `uniqueGlobally()` attribute, which is what its global unique index costs. Both recording sides are held
+	 * to that: {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files
+	 * only those two here, and {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits} drops a
+	 * collection-less `SORTABLE` request rather than minting a row whose maintenance count could never leave zero. A
+	 * sortable global attribute's sort index belongs to each collection declaring it, and is counted there.
 	 *
 	 * Its three properties are those of the collection-level registry, for the same reasons stated there:
 	 * non-transactional shared telemetry, **carried by reference across catalog versions** (only a brand-new catalog
@@ -1706,7 +1706,7 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public List<SchemaCapabilityUsageSnapshot> listCapabilityUsage() {
+	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage() {
 		// null owner rather than this catalog's name: the field names the entity collection a row belongs to, and these
 		// rows belong to none - they describe attributes the catalog schema declares itself
 		return SchemaCapabilityUsageProjection.project(null, this.usageRegistry);

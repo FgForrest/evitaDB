@@ -46,7 +46,7 @@ import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -536,8 +536,8 @@ public interface EntityCollectionContract {
 	 * Where {@link #browseIndexes(IndexBrowseCriteria)} describes the *physical* indexes and what each of them costs,
 	 * this describes the *schema flags* those indexes exist to serve - the reading an operator acts on, because
 	 * dropping a flag is one schema mutation that removes every index maintaining it at once. The two are deliberately
-	 * separate surfaces rather than extra columns on a browse row; {@link SchemaCapabilityUsageSnapshot} explains why,
-	 * and what its counts do and do not mean.
+	 * separate surfaces rather than extra columns on a browse row; {@link SchemaCapabilityUsageStatistics} explains
+	 * why, and what its counts do and do not mean.
 	 *
 	 * **A plain list, and no criteria**: the response is bounded by the schema - dozens of rows - rather than by the
 	 * data, so there is nothing for paging or ordering to protect. It reports only what this collection's schema
@@ -547,7 +547,7 @@ public interface EntityCollectionContract {
 	 * @return one row per observed capability, empty when nothing has been observed since the catalog was loaded
 	 */
 	@Nonnull
-	List<SchemaCapabilityUsageSnapshot> listCapabilityUsage();
+	List<SchemaCapabilityUsageStatistics> listCapabilityUsage();
 
 	/**
 	 * Method terminates this instance of the {@link EntityCollectionContract} and marks this instance as unusable to

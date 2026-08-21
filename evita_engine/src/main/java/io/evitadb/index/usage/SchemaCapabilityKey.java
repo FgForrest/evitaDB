@@ -23,10 +23,11 @@
 
 package io.evitadb.index.usage;
 
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,9 +66,9 @@ import java.util.Objects;
  *
  * # Where the vocabulary lives
  *
- * {@link ElementKind} and {@link Capability} are declared on {@link SchemaCapabilityUsageSnapshot}, the row this key is
- * eventually reported as, rather than here. One enum is spoken by the key, by the public surface and by the wire, so no
- * two of them can drift apart - the same reason the engine names indexes with
+ * {@link ElementKind} and {@link Capability} are declared on {@link SchemaCapabilityUsageStatistics}, the row this key
+ * is eventually reported as, rather than here. One enum is spoken by the key, by the public surface and by the wire,
+ * so no two of them can drift apart - the same reason the engine names indexes with
  * {@link io.evitadb.api.index.EntityIndexType} instead of mirroring it.
  *
  * @param elementKind   what kind of schema element this is - the only thing telling an attribute apart from a sortable
@@ -153,8 +154,71 @@ public record SchemaCapabilityKey(
 		@Nonnull Scope scope
 	) {
 		return new SchemaCapabilityKey(
-			ElementKind.SORTABLE_COMPOUND, referenceName, compoundName, Capability.SORT, scope
+			ElementKind.SORTABLE_COMPOUND, referenceName, compoundName, Capability.SORTABLE, scope
 		);
+	}
+
+	/**
+	 * Names a capability of a reference **itself** - its `indexed()`, `faceted()` or `bucketed()` flag - rather than
+	 * one of an attribute or compound the reference declares.
+	 *
+	 * The reference is the element here, so it is named by {@link #elementName()} and {@link #containerName()} stays
+	 * null. That is the opposite arrangement from {@link #referenceAttribute}, where the reference is the *container*
+	 * of the element being counted, and the two must not be confused: a `FACETED` row and a `FILTERABLE` row about the
+	 * same reference name describe different elements.
+	 *
+	 * @param referenceName name of the reference
+	 * @param capability    which of its flags to count - one a reference can actually declare
+	 * @param scope         the scope whose indexes maintain it
+	 * @return the key
+	 */
+	@Nonnull
+	public static SchemaCapabilityKey reference(
+		@Nonnull String referenceName,
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		// no `default` branch on purpose: an exhaustive switch makes a future capability a compile error here, and
+		// rejecting at the mint site beats rejecting at alignment - a key naming a flag no reference declares would
+		// otherwise be dropped silently at the next schema adoption and its author would never learn of it
+		switch (capability) {
+			case INDEXED, FACETED, BUCKETED -> {
+			}
+			case FILTERABLE, SORTABLE, UNIQUE, HIERARCHY_INDEXED, PRICE_INDEXED -> throw new GenericEvitaInternalError(
+				"Reference `" + referenceName + "` cannot carry capability " + capability + "."
+			);
+		}
+		return new SchemaCapabilityKey(ElementKind.REFERENCE, null, referenceName, capability, scope);
+	}
+
+	/**
+	 * Names a capability of the **entity itself** - its `withHierarchy()` or `withPrice()` flag - rather than one of
+	 * anything the entity declares inside it.
+	 *
+	 * The entity type is carried in {@link #elementName()} even though the reported row also states it separately.
+	 * That is deliberate: the key has to name a schema element on its own, without depending on which registry
+	 * happens to hold it, and the entity *is* the element these two flags belong to.
+	 *
+	 * @param entityType  name of the entity collection, as its schema spells it
+	 * @param capability  which of its flags to count - one an entity can actually declare
+	 * @param scope       the scope whose indexes maintain it
+	 * @return the key
+	 */
+	@Nonnull
+	public static SchemaCapabilityKey entity(
+		@Nonnull String entityType,
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		// see `reference` above for why this is rejected at the mint site rather than at alignment
+		switch (capability) {
+			case HIERARCHY_INDEXED, PRICE_INDEXED -> {
+			}
+			case FILTERABLE, SORTABLE, UNIQUE, INDEXED, FACETED, BUCKETED -> throw new GenericEvitaInternalError(
+				"Entity `" + entityType + "` cannot carry capability " + capability + " directly."
+			);
+		}
+		return new SchemaCapabilityKey(ElementKind.ENTITY, null, entityType, capability, scope);
 	}
 
 }

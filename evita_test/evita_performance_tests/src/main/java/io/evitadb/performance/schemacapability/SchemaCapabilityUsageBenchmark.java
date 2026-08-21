@@ -89,8 +89,8 @@ public class SchemaCapabilityUsageBenchmark {
 
 	/**
 	 * Representative filter-and-sort query: a ten-wide window over the filterable quantity attribute, ordered by the
-	 * sortable name attribute, first page of twenty. Each invocation records a `FILTER` request on one attribute and
-	 * a `SORT` request on another.
+	 * sortable name attribute, first page of twenty. Each invocation records a `FILTERABLE` request on one attribute
+	 * and a `SORTABLE` request on another.
 	 *
 	 * @param state     the shared fixture
 	 * @param thread    the invoking thread's session and cursor

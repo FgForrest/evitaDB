@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
@@ -53,6 +53,7 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,9 +79,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Every one of them first asserts that the collection instance really was replaced, because a test that silently
  * stopped rebuilding the collection would keep passing while proving nothing.
  *
- * The counters are written here **directly on the holder**, not through a query or a mutation: the accumulation sites
- * that will feed them are separate work, and pinning this invariant through them would make the test fail for reasons
- * that have nothing to do with the lifetime it is about.
+ * The counters are written here **directly on the holder**, not through a query or a mutation: what the accumulation
+ * sites feeding them do is pinned by `RequestedCapabilityAccumulationTest` and
+ * `EntityIndexLocalMutationExecutorUsageTest`, and routing this invariant through them would make the test fail for
+ * reasons that have nothing to do with the lifetime it is about.
  *
  * `IndexActivityTest` applies the same discipline one level down, to the per-index holder.
  *
@@ -102,11 +104,11 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_EAN = "ean";
 	/** The capability every carry-over test records against - filtering by `code`, in the live scope. */
 	private static final SchemaCapabilityKey CODE_FILTER = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_CODE, Capability.FILTER, Scope.LIVE
+		ATTRIBUTE_CODE, Capability.FILTERABLE, Scope.LIVE
 	);
 	/** The capability the adoption tests take away - filtering by `ean`, in the live scope. */
 	private static final SchemaCapabilityKey EAN_FILTER = SchemaCapabilityKey.entityAttribute(
-		ATTRIBUTE_EAN, Capability.FILTER, Scope.LIVE
+		ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE
 	);
 	/** An arbitrary but recognisable instant, and a later one, so a swapped stamp would be visible. */
 	private static final long FIRST_MILLIS = 1_800_000_000_000L;
@@ -290,8 +292,8 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 
 			dropEanAttribute();
 
-			assertTrue(
-				!holdsEntryFor(registry, EAN_FILTER),
+			assertFalse(
+				holdsEntryFor(registry, EAN_FILTER),
 				"The collection adopted a schema that no longer declares `ean`, yet the registry still counts it - " +
 					"an entry no schema backs can never be reported against anything an operator could act on"
 			);
@@ -410,8 +412,9 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Looks the live entity collection object up behind the public API - the registry is engine-internal state, and
-	 * the diagnostic surface that will report it is later work.
+	 * Looks the live entity collection object up behind the public API, and reads the registry it holds directly
+	 * rather than through the diagnostic surface that reports it: this class is about the registry's **lifetime**, and
+	 * going through the reporting path would make it fail for reasons that have nothing to do with that.
 	 *
 	 * @param catalogName name of the catalog holding it
 	 * @param entityType  name of the collection

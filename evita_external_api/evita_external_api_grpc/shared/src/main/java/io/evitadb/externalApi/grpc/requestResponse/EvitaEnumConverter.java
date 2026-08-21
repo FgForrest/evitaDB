@@ -61,8 +61,8 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.AttributeIndexType;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.Capability;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot.ElementKind;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.dataType.ClassifierType;
@@ -1851,6 +1851,8 @@ public class EvitaEnumConverter {
 		return switch (grpcElementKind) {
 			case SCHEMA_ELEMENT_KIND_ATTRIBUTE -> ElementKind.ATTRIBUTE;
 			case SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND -> ElementKind.SORTABLE_COMPOUND;
+			case SCHEMA_ELEMENT_KIND_REFERENCE -> ElementKind.REFERENCE;
+			case SCHEMA_ELEMENT_KIND_ENTITY -> ElementKind.ENTITY;
 			case SCHEMA_ELEMENT_KIND_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized schema element kind: " + grpcElementKind);
 		};
@@ -1867,6 +1869,8 @@ public class EvitaEnumConverter {
 		return switch (elementKind) {
 			case ATTRIBUTE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ATTRIBUTE;
 			case SORTABLE_COMPOUND -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_SORTABLE_COMPOUND;
+			case REFERENCE -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_REFERENCE;
+			case ENTITY -> GrpcSchemaElementKind.SCHEMA_ELEMENT_KIND_ENTITY;
 		};
 	}
 
@@ -1883,9 +1887,14 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static Capability toSchemaCapability(@Nonnull GrpcSchemaCapability grpcCapability) {
 		return switch (grpcCapability) {
-			case SCHEMA_CAPABILITY_FILTER -> Capability.FILTER;
-			case SCHEMA_CAPABILITY_SORT -> Capability.SORT;
+			case SCHEMA_CAPABILITY_FILTERABLE -> Capability.FILTERABLE;
+			case SCHEMA_CAPABILITY_SORTABLE -> Capability.SORTABLE;
 			case SCHEMA_CAPABILITY_UNIQUE -> Capability.UNIQUE;
+			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
+			case SCHEMA_CAPABILITY_INDEXED -> Capability.INDEXED;
+			case SCHEMA_CAPABILITY_BUCKETED -> Capability.BUCKETED;
+			case SCHEMA_CAPABILITY_HIERARCHY_INDEXED -> Capability.HIERARCHY_INDEXED;
+			case SCHEMA_CAPABILITY_PRICE_INDEXED -> Capability.PRICE_INDEXED;
 			case SCHEMA_CAPABILITY_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized schema capability: " + grpcCapability);
 		};
@@ -1900,9 +1909,14 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcSchemaCapability toGrpcSchemaCapability(@Nonnull Capability capability) {
 		return switch (capability) {
-			case FILTER -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTER;
-			case SORT -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORT;
+			case FILTERABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FILTERABLE;
+			case SORTABLE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_SORTABLE;
 			case UNIQUE -> GrpcSchemaCapability.SCHEMA_CAPABILITY_UNIQUE;
+			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;
+			case INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_INDEXED;
+			case BUCKETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_BUCKETED;
+			case HIERARCHY_INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
+			case PRICE_INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
 		};
 	}
 }

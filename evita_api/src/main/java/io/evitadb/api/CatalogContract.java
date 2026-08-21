@@ -55,7 +55,7 @@ import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
-import io.evitadb.api.statistics.SchemaCapabilityUsageSnapshot;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -457,13 +457,14 @@ public interface CatalogContract {
 	 * here because a query filtering by such an attribute may name no collection at all, being served from the
 	 * catalog's own global unique index, and because dropping one of their flags is a catalog schema mutation.
 	 *
-	 * Every row therefore carries a null {@link SchemaCapabilityUsageSnapshot#entityType()} and a null
-	 * {@link SchemaCapabilityUsageSnapshot#containerName()}: a catalog schema declares no references and no compounds.
+	 * Every row therefore carries a null {@link SchemaCapabilityUsageStatistics#entityType()} and a null
+	 * {@link SchemaCapabilityUsageStatistics#containerName()}: a catalog schema declares no references and no
+	 * compounds.
 	 *
 	 * @return one row per observed capability, empty when nothing has been observed since the catalog was loaded
 	 */
 	@Nonnull
-	List<SchemaCapabilityUsageSnapshot> listCapabilityUsage();
+	List<SchemaCapabilityUsageStatistics> listCapabilityUsage();
 
 	/**
 	 * Terminates catalog instance and frees all claimed resources. Prepares catalog instance to be garbage collected.
