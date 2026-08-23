@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
@@ -214,7 +215,7 @@ class EntityIndexLocalMutationExecutorUsageTest extends AbstractMutatorTestBase 
 		// and one that is not indexed at all — it builds no index, so it may cost no maintenance either
 		schema.withReferenceTo(
 			Entities.PARAMETER_GROUP, Entities.PARAMETER_GROUP, Cardinality.ZERO_OR_MORE,
-			thatIs -> thatIs.nonIndexed()
+			ReferenceSchemaEditor::nonIndexed
 		);
 	}
 
@@ -451,8 +452,8 @@ class EntityIndexLocalMutationExecutorUsageTest extends AbstractMutatorTestBase 
 
 			applyChanges();
 
-			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.HIERARCHY_INDEXED, Scope.LIVE));
-			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.PRICE_INDEXED, Scope.LIVE));
+			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.HIERARCHICAL, Scope.LIVE));
+			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.PRICED, Scope.LIVE));
 		}
 
 		@Test
@@ -465,7 +466,7 @@ class EntityIndexLocalMutationExecutorUsageTest extends AbstractMutatorTestBase 
 
 			applyChanges();
 
-			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.HIERARCHY_INDEXED, Scope.LIVE));
+			assertUpdatedCount(1, SchemaCapabilityKey.entity(entityType(), Capability.HIERARCHICAL, Scope.LIVE));
 		}
 
 		@Test

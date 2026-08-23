@@ -49,12 +49,7 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the **diagnostic surface** the schema-capability counters are reported through - end to end, from a real
@@ -367,8 +362,8 @@ class SchemaCapabilityUsageSurfaceTest implements EvitaTestSupport {
 			for (final SchemaCapabilityUsageStatistics row : SchemaCapabilityUsageSurfaceTest.this.evita
 				.management()
 				.listCapabilityUsage(CATALOG, ENTITY_PRODUCT)) {
-				assertFalse(
-					ATTRIBUTE_EAN.equals(row.elementName()),
+				assertNotEquals(
+					ATTRIBUTE_EAN, row.elementName(),
 					"The schema no longer declares `" + ATTRIBUTE_EAN + "`, yet the surface still reports it - a row " +
 						"no schema backs sends an operator to a mutation that cannot exist: " + row
 				);

@@ -23,6 +23,12 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.statistics.ActivityStatistics;
+import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.core.transaction.TransactionManager;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.Instant;
@@ -34,11 +40,10 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * How often one logical index is **queried** against how often it is **updated** - the reading that says whether an
  * index earns the maintenance it costs.
  *
- * An index browse already reports what an index *costs* ({@link io.evitadb.api.statistics.IndexDetail#heapSizeInBytes},
+ * An index browse already reports what an index *costs* ({@link IndexDetail#heapSizeInBytes},
  * entity count, cardinality). These five readings say what it *earns*: an index with heavy write traffic and no query
  * hits is a direct candidate for dropping a `filterable()` / `sortable()` / faceted flag, or for rethinking a reference
- * setup. They surface on {@link io.evitadb.api.statistics.BrowsedIndex} and
- * {@link io.evitadb.api.statistics.IndexDetail}.
+ * setup. They surface on {@link BrowsedIndex} and {@link IndexDetail}.
  *
  * # What each reading counts
  *
@@ -51,7 +56,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  *   mutation rather than per attribute write. It counts work *performed*, including work a later rollback undoes: a
  *   rolled-back transaction still paid the index-maintenance cost, and this measures maintenance cost rather than
  *   surviving state. By the same reading, a transactional write counts twice - once as the writing session applies it
- *   to its isolated layer, once as {@link io.evitadb.core.transaction.TransactionManager} replays it from the
+ *   to its isolated layer, once as {@link TransactionManager} replays it from the
  *   write-ahead log onto the trunk - because the index does the work both times. Compare indexes against each other,
  *   never against an expected mutation count.
  * - **Observed since** is the window the two counts were accumulated over - the moment observation of **this** index
@@ -63,9 +68,9 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
  * # Lifetime, and why this is a separate object
  *
  * **The counters are since catalog load and are never persisted** - the same "since this instance was created" contract
- * {@link io.evitadb.api.statistics.ActivityStatistics} carries. Their operational use is a rate over an observation
+ * {@link ActivityStatistics} carries. Their operational use is a rate over an observation
  * window, which persisting would not improve, while putting a hot mutable value into an
- * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart} would cost a manifest
+ * {@link EntityIndexStoragePart} would cost a manifest
  * rewrite per commit plus its share of the WAL.
  *
  * **The holder exists because hot indexes are replaced rather than mutated.** Every commit that dirties an index

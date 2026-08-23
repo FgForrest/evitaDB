@@ -224,12 +224,16 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 			// one instant for both readings, so a single query cannot stamp them with two different moments
 			final long now = System.currentTimeMillis();
 			for (final Index<?> index : winningIndexes) {
-				index.getActivity().recordQuery(now);
+				// absent on a server that does not track usage statistics - no holder was ever allocated for the index
+				final IndexActivity activity = index.getActivity();
+				if (activity != null) {
+					activity.recordQuery(now);
+				}
 			}
 			// the holders were resolved while the schema was being looked up anyway, so this is an increment per
 			// distinct capability the query named - no lookup, no hashing, no allocation
-			for (int i = 0; i < requestedCapabilities.size(); i++) {
-				requestedCapabilities.get(i).recordRequested(now);
+			for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
+				requestedCapability.recordRequested(now);
 			}
 		}
 		// propagate all collected requirements to the prefetch formula visitor

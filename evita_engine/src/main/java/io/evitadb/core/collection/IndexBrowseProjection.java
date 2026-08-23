@@ -177,7 +177,9 @@ final class IndexBrowseProjection {
 				page.add(
 					describe(
 						entityType, key, index.getPrimaryKey(), index.getAllPrimaryKeys().size(),
-						activity.getQueryCount(), activity.getUpdateCount(), activity
+						activity == null ? 0L : activity.getQueryCount(),
+						activity == null ? 0L : activity.getUpdateCount(),
+						activity
 					)
 				);
 			}
@@ -232,10 +234,13 @@ final class IndexBrowseProjection {
 			final EntityIndex index = indexOf(indexes, key);
 			final IndexActivity activity = index.getActivity();
 			final int entityCount = index.getAllPrimaryKeys().size();
+			// a server that does not track usage statistics ranks every index at zero on the two activity keys, which
+			// leaves the key tiebreaker to order the page - a stable, meaningless-but-not-wrong order for a reading
+			// every row of the page declares itself not to have
 			final long rankedValue = switch (rankedCounter) {
 				case ENTITY_COUNT -> entityCount;
-				case QUERY_COUNT -> activity.getQueryCount();
-				case UPDATE_COUNT -> activity.getUpdateCount();
+				case QUERY_COUNT -> activity == null ? 0L : activity.getQueryCount();
+				case UPDATE_COUNT -> activity == null ? 0L : activity.getUpdateCount();
 			};
 			final BrowseCandidate candidate = new BrowseCandidate(
 				key, index.getPrimaryKey(), entityCount, rankedValue, activity
@@ -286,9 +291,9 @@ final class IndexBrowseProjection {
 			// simply better
 			final BrowseCandidate candidate = ordered.get(i);
 			final IndexActivity activity = candidate.activity();
-			final long queryCount = rankedCounter == RankedCounter.QUERY_COUNT ?
+			final long queryCount = rankedCounter == RankedCounter.QUERY_COUNT || activity == null ?
 				candidate.rankedValue() : activity.getQueryCount();
-			final long updateCount = rankedCounter == RankedCounter.UPDATE_COUNT ?
+			final long updateCount = rankedCounter == RankedCounter.UPDATE_COUNT || activity == null ?
 				candidate.rankedValue() : activity.getUpdateCount();
 			page.add(
 				describe(
@@ -370,22 +375,53 @@ final class IndexBrowseProjection {
 	 * @return true when the index belongs in the answer
 	 */
 	private static boolean matches(@Nonnull EntityIndexKey key, @Nonnull IndexBrowseCriteria criteria) {
-		final Set<EntityIndexType> types = criteria.indexTypes();
-		if (!types.isEmpty() && !types.contains(key.type())) {
+		if (!matchesType(key, criteria.indexTypes())) {
 			return false;
 		}
-		final Set<Scope> scopes = criteria.scopes();
-		if (!scopes.isEmpty() && !scopes.contains(key.scope())) {
+		if (!matchesScope(key, criteria.scopes())) {
 			return false;
 		}
-		final Set<String> referenceNames = criteria.referenceNames();
+		return matchesReferenceName(key, criteria.referenceNames());
+	}
+
+	/**
+	 * Tells whether an index's type passes the type filter.
+	 *
+	 * @param key   key of the index to test
+	 * @param types the requested types, an empty set standing for "every type"
+	 * @return true when the index belongs in the answer
+	 */
+	private static boolean matchesType(@Nonnull EntityIndexKey key, @Nonnull Set<EntityIndexType> types) {
+		return types.isEmpty() || types.contains(key.type());
+	}
+
+	/**
+	 * Tells whether an index's scope passes the scope filter.
+	 *
+	 * @param key    key of the index to test
+	 * @param scopes the requested scopes, an empty set standing for "every scope"
+	 * @return true when the index belongs in the answer
+	 */
+	private static boolean matchesScope(@Nonnull EntityIndexKey key, @Nonnull Set<Scope> scopes) {
+		return scopes.isEmpty() || scopes.contains(key.scope());
+	}
+
+	/**
+	 * Tells whether an index's reference name passes the reference-name filter.
+	 *
+	 * A `GLOBAL` index is bound to no reference, so it can never satisfy a reference-name filter - that is the
+	 * accurate reading of "show me the indexes of reference X", not an omission. The null is ruled out before the
+	 * lookup rather than by it: an immutable `Set.of(...)`, which an embedded caller may well pass, throws from
+	 * `contains(null)` instead of answering false.
+	 *
+	 * @param key            key of the index to test
+	 * @param referenceNames the requested reference names, an empty set standing for "every reference"
+	 * @return true when the index belongs in the answer
+	 */
+	private static boolean matchesReferenceName(@Nonnull EntityIndexKey key, @Nonnull Set<String> referenceNames) {
 		if (referenceNames.isEmpty()) {
 			return true;
 		}
-		// a `GLOBAL` index is bound to no reference, so it can never satisfy a reference-name filter - that is the
-		// accurate reading of "show me the indexes of reference X", not an omission. The null is ruled out before the
-		// lookup rather than by it: an immutable `Set.of(...)`, which an embedded caller may well pass, throws from
-		// `contains(null)` instead of answering false
 		final String referenceName = key.referenceName();
 		return referenceName != null && referenceNames.contains(referenceName);
 	}
@@ -403,7 +439,8 @@ final class IndexBrowseProjection {
 	 * @param queryCount      how many executed query plans have chosen the index
 	 * @param updateCount     how many entity mutations have acquired the index for modification
 	 * @param activity        the index's activity holder, read here rather than during the walk - three `O(1)` field
-	 *                        reads that only the rows actually on the page pay for
+	 *                        reads that only the rows actually on the page pay for. Null when the server does not
+	 *                        track usage statistics, which is what makes the row report itself unmeasured
 	 * @return the descriptor
 	 */
 	@Nonnull
@@ -414,7 +451,7 @@ final class IndexBrowseProjection {
 		int entityCount,
 		long queryCount,
 		long updateCount,
-		@Nonnull IndexActivity activity
+		@Nullable IndexActivity activity
 	) {
 		return new BrowsedIndex(
 			entityType,
@@ -427,9 +464,10 @@ final class IndexBrowseProjection {
 			entityCount,
 			queryCount,
 			updateCount,
-			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt(),
-			activity.getObservedSince()
+			activity == null ? null : activity.getLastQueriedAt(),
+			activity == null ? null : activity.getLastUpdatedAt(),
+			activity == null ? null : activity.getObservedSince(),
+			activity != null
 		);
 	}
 
@@ -556,14 +594,15 @@ final class IndexBrowseProjection {
 	 *                        entity count above for {@link IndexBrowseOrdering#ENTITY_COUNT}, an activity counter for
 	 *                        the two keys that rank by one. It is duplicated rather than derived on demand precisely
 	 *                        so that no comparison can ever reach a value that moves
-	 * @param activity        the index's activity holder, read only if this candidate makes it onto the page
+	 * @param activity        the index's activity holder, read only if this candidate makes it onto the page, and
+	 *                        null when the server does not track usage statistics
 	 */
 	private record BrowseCandidate(
 		@Nonnull EntityIndexKey key,
 		int indexPrimaryKey,
 		int entityCount,
 		long rankedValue,
-		@Nonnull IndexActivity activity
+		@Nullable IndexActivity activity
 	) {
 	}
 

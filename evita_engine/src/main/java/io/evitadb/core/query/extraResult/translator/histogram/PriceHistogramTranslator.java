@@ -85,7 +85,7 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 		// a price histogram depends on the flag just as a price filter does - counted here too, so a catalog whose
 		// only price usage is the histogram does not report the flag as unused
 		extraResultPlanner.getQueryContext().recordRequestedEntityCapability(
-			schema, Capability.PRICE_INDEXED, scopes
+			schema, Capability.PRICED, scopes
 		);
 
 		// find FilteredPricesSorter among the sorters (if any)

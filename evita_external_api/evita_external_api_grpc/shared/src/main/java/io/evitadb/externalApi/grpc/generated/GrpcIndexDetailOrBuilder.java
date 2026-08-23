@@ -232,32 +232,35 @@ public interface GrpcIndexDetailOrBuilder extends
    * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
    * A server that knows this field always sets it; absent only from a server predating it, and the window is then
    * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
    * </pre>
    *
+   * <code>bool measured = 10;</code>
+   * @return The measured.
+   */
+  boolean getMeasured();
+
+  /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return Whether the observedSince field is set.
    */
   boolean hasObservedSince();
   /**
-   * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return The observedSince.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince();
   /**
-   * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder();

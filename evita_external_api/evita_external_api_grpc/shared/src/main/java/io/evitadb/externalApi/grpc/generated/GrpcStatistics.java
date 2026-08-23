@@ -441,7 +441,7 @@ public final class GrpcStatistics {
       ".generated.GrpcCollectionIndexCardinalit" +
       "y\022S\n\017componentStatus\030\n \003(\0132:.io.evitadb." +
       "externalApi.grpc.generated.GrpcComponent" +
-      "Status\"\377\005\n\020GrpcBrowsedIndex\022R\n\tindexType" +
+      "Status\"\221\006\n\020GrpcBrowsedIndex\022R\n\tindexType" +
       "\030\001 \001(\0162:.io.evitadb.externalApi.grpc.gen" +
       "erated.GrpcEntityIndexTypeH\000\210\001\001\022E\n\005scope" +
       "\030\002 \001(\01626.io.evitadb.externalApi.grpc.gen" +
@@ -458,39 +458,40 @@ public final class GrpcStatistics {
       "lApi.grpc.generated.GrpcOffsetDateTime\022P" +
       "\n\rlastUpdatedAt\030\014 \001(\01329.io.evitadb.exter" +
       "nalApi.grpc.generated.GrpcOffsetDateTime" +
-      "\022P\n\robservedSince\030\r \001(\01329.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcOffsetDateTi" +
-      "meB\014\n\n_indexType\"\346\003\n\017GrpcIndexDetail\022\027\n\017" +
-      "indexPrimaryKey\030\001 \001(\005\022\027\n\017heapSizeInBytes" +
-      "\030\002 \001(\003\022P\n\013cardinality\030\003 \001(\0132;.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcIndexCar" +
-      "dinality\0220\n\nentityType\030\004 \001(\0132\034.google.pr" +
-      "otobuf.StringValue\022\022\n\nqueryCount\030\005 \001(\003\022\023" +
-      "\n\013updateCount\030\006 \001(\003\022P\n\rlastQueriedAt\030\007 \001" +
+      "\022\020\n\010measured\030\016 \001(\010\022P\n\robservedSince\030\r \001(" +
+      "\01329.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcOffsetDateTimeB\014\n\n_indexType\"\370\003\n\017G" +
+      "rpcIndexDetail\022\027\n\017indexPrimaryKey\030\001 \001(\005\022" +
+      "\027\n\017heapSizeInBytes\030\002 \001(\003\022P\n\013cardinality\030" +
+      "\003 \001(\0132;.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcIndexCardinality\0220\n\nentityType" +
+      "\030\004 \001(\0132\034.google.protobuf.StringValue\022\022\n\n" +
+      "queryCount\030\005 \001(\003\022\023\n\013updateCount\030\006 \001(\003\022P\n" +
+      "\rlastQueriedAt\030\007 \001(\01329.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcOffsetDateTime\022" +
+      "P\n\rlastUpdatedAt\030\010 \001(\01329.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcOffsetDateTim" +
+      "e\022\020\n\010measured\030\n \001(\010\022P\n\robservedSince\030\t \001" +
       "(\01329.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcOffsetDateTime\022P\n\rlastUpdatedAt\030\010" +
-      " \001(\01329.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcOffsetDateTime\022P\n\robservedSince" +
-      "\030\t \001(\01329.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcOffsetDateTime\"\250\005\n\031GrpcSchema" +
-      "CapabilityUsage\0220\n\nentityType\030\001 \001(\0132\034.go" +
-      "ogle.protobuf.StringValue\022Q\n\013elementKind" +
-      "\030\002 \001(\0162<.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcSchemaElementKind\0223\n\rcontaine" +
-      "rName\030\003 \001(\0132\034.google.protobuf.StringValu" +
-      "e\022\023\n\013elementName\030\004 \001(\t\022O\n\ncapability\030\005 \001" +
-      "(\0162;.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcSchemaCapability\022E\n\005scope\030\006 \001(\01626" +
+      "ed.GrpcOffsetDateTime\"\272\005\n\031GrpcSchemaCapa" +
+      "bilityUsage\0220\n\nentityType\030\001 \001(\0132\034.google" +
+      ".protobuf.StringValue\022Q\n\013elementKind\030\002 \001" +
+      "(\0162<.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcSchemaElementKind\0223\n\rcontainerNam" +
+      "e\030\003 \001(\0132\034.google.protobuf.StringValue\022\023\n" +
+      "\013elementName\030\004 \001(\t\022O\n\ncapability\030\005 \001(\0162;" +
       ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcEntityScope\022\026\n\016requestedCount\030\007 \001(\003\022\024" +
-      "\n\014updatedCount\030\010 \001(\003\022R\n\017lastRequestedAt\030" +
-      "\t \001(\01329.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcOffsetDateTime\022P\n\rlastUpdatedA" +
-      "t\030\n \001(\01329.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcOffsetDateTime\022P\n\robservedSi" +
-      "nce\030\013 \001(\01329.io.evitadb.externalApi.grpc." +
-      "generated.GrpcOffsetDateTimeB\014P\001\252\002\007Evita" +
-      "DBb\006proto3"
+      "rpcSchemaCapability\022E\n\005scope\030\006 \001(\01626.io." +
+      "evitadb.externalApi.grpc.generated.GrpcE" +
+      "ntityScope\022\026\n\016requestedCount\030\007 \001(\003\022\024\n\014up" +
+      "datedCount\030\010 \001(\003\022R\n\017lastRequestedAt\030\t \001(" +
+      "\01329.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcOffsetDateTime\022P\n\rlastUpdatedAt\030\n " +
+      "\001(\01329.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcOffsetDateTime\022\020\n\010measured\030\014 \001(\010" +
+      "\022P\n\robservedSince\030\013 \001(\01329.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcOffsetDateTi" +
+      "meB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -690,19 +691,19 @@ public final class GrpcStatistics {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcBrowsedIndex_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcBrowsedIndex_descriptor,
-        new java.lang.String[] { "IndexType", "Scope", "ReferenceName", "DiscriminatorPrimaryKey", "EntityCount", "Discriminator", "IndexPrimaryKey", "EntityType", "QueryCount", "UpdateCount", "LastQueriedAt", "LastUpdatedAt", "ObservedSince", });
+        new java.lang.String[] { "IndexType", "Scope", "ReferenceName", "DiscriminatorPrimaryKey", "EntityCount", "Discriminator", "IndexPrimaryKey", "EntityType", "QueryCount", "UpdateCount", "LastQueriedAt", "LastUpdatedAt", "Measured", "ObservedSince", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexDetail_descriptor =
       getDescriptor().getMessageTypes().get(32);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexDetail_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcIndexDetail_descriptor,
-        new java.lang.String[] { "IndexPrimaryKey", "HeapSizeInBytes", "Cardinality", "EntityType", "QueryCount", "UpdateCount", "LastQueriedAt", "LastUpdatedAt", "ObservedSince", });
+        new java.lang.String[] { "IndexPrimaryKey", "HeapSizeInBytes", "Cardinality", "EntityType", "QueryCount", "UpdateCount", "LastQueriedAt", "LastUpdatedAt", "Measured", "ObservedSince", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_descriptor =
       getDescriptor().getMessageTypes().get(33);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSchemaCapabilityUsage_descriptor,
-        new java.lang.String[] { "EntityType", "ElementKind", "ContainerName", "ElementName", "Capability", "Scope", "RequestedCount", "UpdatedCount", "LastRequestedAt", "LastUpdatedAt", "ObservedSince", });
+        new java.lang.String[] { "EntityType", "ElementKind", "ContainerName", "ElementName", "Capability", "Scope", "RequestedCount", "UpdatedCount", "LastRequestedAt", "LastUpdatedAt", "Measured", "ObservedSince", });
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();

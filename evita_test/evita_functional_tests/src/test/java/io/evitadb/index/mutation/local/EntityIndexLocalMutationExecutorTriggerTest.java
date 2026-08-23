@@ -313,7 +313,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			null,
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry()
+			new SchemaCapabilityUsageRegistry(),
+			true
 		);
 	}
 
@@ -1246,7 +1247,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			null,
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
-			new SchemaCapabilityUsageRegistry()
+			new SchemaCapabilityUsageRegistry(),
+			true
 		);
 	}
 

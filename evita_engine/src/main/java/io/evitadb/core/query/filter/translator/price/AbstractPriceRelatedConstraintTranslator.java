@@ -156,7 +156,7 @@ abstract class AbstractPriceRelatedConstraintTranslator<T extends FilterConstrai
 			// recorded only past the assertion, so the count means "a query depended on this flag being on" rather
 			// than "a query mentioned prices" - the former is what makes dropping the flag a breaking change
 			filterByVisitor.getQueryContext().recordRequestedEntityCapability(
-				schema, Capability.PRICE_INDEXED, processingScope.getScopes()
+				schema, Capability.PRICED, processingScope.getScopes()
 			);
 		}
 	}

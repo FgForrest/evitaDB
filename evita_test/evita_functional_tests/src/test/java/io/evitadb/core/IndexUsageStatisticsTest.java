@@ -31,12 +31,12 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
-import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
@@ -688,7 +688,7 @@ class IndexUsageStatisticsTest implements EvitaTestSupport {
 					.withAttribute("code", String.class, AttributeSchemaEditor::filterable)
 					.withReferenceToEntity(
 						"categories", ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {

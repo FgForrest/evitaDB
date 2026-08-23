@@ -199,7 +199,7 @@ public interface PriceIndexMutator {
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
-			executor.reportEntityCapabilityTouched(Capability.PRICE_INDEXED, scope);
+			executor.reportEntityCapabilityTouched(Capability.PRICED, scope);
 			// resolved once per upsert: both branches below write through the same scope's GLOBAL price index, which owns
 			// the shared price records the reduced indexes only reference
 			final PriceSuperIndex globalPriceIndex = executor.getGlobalPriceIndex(scope);
@@ -311,7 +311,7 @@ public interface PriceIndexMutator {
 
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
-			executor.reportEntityCapabilityTouched(Capability.PRICE_INDEXED, scope);
+			executor.reportEntityCapabilityTouched(Capability.PRICED, scope);
 			if (formerPrice != null) {
 				if (formerPrice.exists() && formerPrice.indexed()) {
 					final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.EXISTING);

@@ -1893,8 +1893,8 @@ public class EvitaEnumConverter {
 			case SCHEMA_CAPABILITY_FACETED -> Capability.FACETED;
 			case SCHEMA_CAPABILITY_INDEXED -> Capability.INDEXED;
 			case SCHEMA_CAPABILITY_BUCKETED -> Capability.BUCKETED;
-			case SCHEMA_CAPABILITY_HIERARCHY_INDEXED -> Capability.HIERARCHY_INDEXED;
-			case SCHEMA_CAPABILITY_PRICE_INDEXED -> Capability.PRICE_INDEXED;
+			case SCHEMA_CAPABILITY_HIERARCHY_INDEXED -> Capability.HIERARCHICAL;
+			case SCHEMA_CAPABILITY_PRICE_INDEXED -> Capability.PRICED;
 			case SCHEMA_CAPABILITY_UNSPECIFIED, UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized schema capability: " + grpcCapability);
 		};
@@ -1915,8 +1915,8 @@ public class EvitaEnumConverter {
 			case FACETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_FACETED;
 			case INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_INDEXED;
 			case BUCKETED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_BUCKETED;
-			case HIERARCHY_INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
-			case PRICE_INDEXED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
+			case HIERARCHICAL -> GrpcSchemaCapability.SCHEMA_CAPABILITY_HIERARCHY_INDEXED;
+			case PRICED -> GrpcSchemaCapability.SCHEMA_CAPABILITY_PRICE_INDEXED;
 		};
 	}
 }

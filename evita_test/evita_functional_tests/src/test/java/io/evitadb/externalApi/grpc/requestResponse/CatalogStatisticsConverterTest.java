@@ -446,31 +446,33 @@ class CatalogStatisticsConverterTest {
 		final BrowsedIndex[] indexes = {
 			new BrowsedIndex(
 				"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
-				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			new BrowsedIndex(
 				"product", 2, EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE,
 				"categories", "categories", null, 400,
-				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE
+				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			// the case the two projections cannot express: same reference, same target, told apart only by the
 			// representative values the discriminator carries
 			new BrowsedIndex(
 				"product", 3, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
 				"categories/42/[red]", "categories", 42, 7,
-				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			new BrowsedIndex(
 				"product", 4, EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED,
 				"categories/42/[blue]", "categories", 42, 7,
-				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+				3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			// a catalog index that has never been touched: no owning collection, and with it no kind and no entity
 			// count, plus two never-recorded stamps. Every one of those five travels as an unset wrapper or message,
 			// and every one decodes to a non-null default when read without a presence check - `""`,
 			// `INDEX_TYPE_UNSPECIFIED`, `0` and the epoch respectively - so this row is the one that catches a
 			// converter reading any of them straight
-			new BrowsedIndex(null, 0, null, Scope.LIVE, null, null, null, null, 0L, 0L, null, null, OBSERVED_SINCE)
+			new BrowsedIndex(
+				null, 0, null, Scope.LIVE, null, null, null, null, 0L, 0L, null, null, OBSERVED_SINCE, true
+			)
 		};
 		final GrpcIndexBrowseResponse.Builder builder =
 			GrpcIndexBrowseResponse.newBuilder()
@@ -558,7 +560,7 @@ class CatalogStatisticsConverterTest {
 			4_000_000_000L,
 			LAST_QUERIED_AT,
 			LAST_UPDATED_AT,
-			OBSERVED_SINCE
+			OBSERVED_SINCE, true
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
@@ -613,7 +615,7 @@ class CatalogStatisticsConverterTest {
 			0L,
 			null,
 			null,
-			OBSERVED_SINCE
+			OBSERVED_SINCE, true
 		);
 
 		final IndexDetail roundTripped = CatalogStatisticsConverter.toIndexDetail(
@@ -646,12 +648,12 @@ class CatalogStatisticsConverterTest {
 		// infinite. The absence is the truth, and it is what travels
 		final BrowsedIndex row = new BrowsedIndex(
 			"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
-			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 		);
 		final IndexDetail detail = new IndexDetail(
 			"product", 1, 4_096L,
 			new IndexCardinality(EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, new AttributeCardinality[0]),
-			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 		);
 
 		final BrowsedIndex rowFromOldServer = CatalogStatisticsConverter.toBrowsedIndex(
@@ -780,25 +782,25 @@ class CatalogStatisticsConverterTest {
 			// from
 			new SchemaCapabilityUsageStatistics(
 				"product", ElementKind.ATTRIBUTE, null, "ean", Capability.FILTERABLE, Scope.LIVE,
-				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE
+				9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			// a reference attribute - the container is the only thing telling it apart from an entity attribute of the
 			// same name, so losing it would silently pool two different elements' traffic into one row
 			new SchemaCapabilityUsageStatistics(
 				"product", ElementKind.ATTRIBUTE, "categories", "priority", Capability.SORTABLE, Scope.ARCHIVED,
-				3L, 0L, LAST_QUERIED_AT, null, OBSERVED_SINCE
+				3L, 0L, LAST_QUERIED_AT, null, OBSERVED_SINCE, true
 			),
 			// a sortable compound carrying the *same* container and name as the row above: only the kind separates
 			// them, which is the one collision no other field can resolve
 			new SchemaCapabilityUsageStatistics(
 				"product", ElementKind.SORTABLE_COMPOUND, "categories", "priority", Capability.SORTABLE, Scope.ARCHIVED,
-				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE
+				0L, 12L, null, LAST_UPDATED_AT, OBSERVED_SINCE, true
 			),
 			// a capability the catalog owns, never requested and never maintained: no owning collection, no container
 			// and neither stamp, so this row is the one that catches a converter reading any of the four straight
 			new SchemaCapabilityUsageStatistics(
 				null, ElementKind.ATTRIBUTE, null, "code", Capability.UNIQUE, Scope.LIVE,
-				0L, 0L, null, null, OBSERVED_SINCE
+				0L, 0L, null, null, OBSERVED_SINCE, true
 			)
 		);
 		final GrpcSchemaCapabilityUsageResponse.Builder builder = GrpcSchemaCapabilityUsageResponse.newBuilder();

@@ -900,6 +900,18 @@ message GrpcBrowsedIndex {
   // load, while one created hours later reads its own creation, because it was not observable before it existed. That
   // is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
   // zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+  // nor the write path reach for one.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
+  bool measured = 14;
   GrpcOffsetDateTime observedSince = 13;
 
 }
@@ -957,6 +969,18 @@ message GrpcIndexDetail {
   // against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
   // A server that knows this field always sets it; absent only from a server predating it, and the window is then
   // unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+  // nor the write path reach for one.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
+  bool measured = 10;
   GrpcOffsetDateTime observedSince = 9;
 
 }
@@ -1041,6 +1065,19 @@ message GrpcSchemaCapabilityUsage {
   // twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
   // element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
   // was not maintained in between.
+  // Whether the readings above were taken at all. False on a server started with
+  // `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+  // The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+  // stamps carry no information.
+  //
+  // A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+  // only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+  // the truth is the first. Render the absence of measurement instead, and say so.
+  //
+  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
+  bool measured = 12;
   GrpcOffsetDateTime observedSince = 11;
 
 }

@@ -577,6 +577,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (collection == null || !owner.getName().equals(this.entityType)) {
 			return;
 		}
+		// bail before the key is minted: the planner translates the filter once per candidate index set, so this runs
+		// N times per logical query and each run would otherwise allocate a `SchemaCapabilityKey` and hash it into the
+		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove
+		if (!this.catalog.isUsageStatisticsTracked()) {
+			return;
+		}
 		registerRequestedCapability(
 			collection.getUsageRegistry().resolve(
 				new SchemaCapabilityKey(elementKind, containerName, elementName, capability, scope)
@@ -668,6 +674,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Capability capability,
 		@Nonnull Scope scope
 	) {
+		// same bail as the collection-level path, and for the same per-candidate-plan reason
+		if (!this.catalog.isUsageStatisticsTracked()) {
+			return;
+		}
 		registerRequestedCapability(
 			this.catalog.getUsageRegistry().resolve(
 				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, capability, scope)
@@ -702,8 +712,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		} else {
 			// identity, not equality: two holders are the same capability exactly when the registry handed back the
 			// same instance, and SchemaCapabilityUsage has no value semantics to compare by
-			for (int i = 0; i < accumulator.size(); i++) {
-				if (accumulator.get(i) == holder) {
+			for (SchemaCapabilityUsage schemaCapabilityUsage : accumulator) {
+				if (schemaCapabilityUsage == holder) {
 					return;
 				}
 			}

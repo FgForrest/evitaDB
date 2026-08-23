@@ -106,7 +106,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("deprecation")
 public class ReferenceSummaryOfReferenceTranslator
 	implements RequireConstraintTranslator<ReferenceSummaryOfReference>, SelfTraversingTranslator {
 

@@ -24,6 +24,7 @@
 package io.evitadb.api.statistics;
 
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -91,6 +92,11 @@ import java.util.Optional;
  *                         decoded from a remote server that predates the field - a current server always reports it;
  *                         see {@link BrowsedIndex#observedSince()} for why the window is per index rather than per
  *                         catalog load and {@link #observedSinceIfKnown()} for what a client does with an unknown one
+ * @param measured        whether the readings on this row were taken at all. False on a server running with
+ *                        `server.usageStatisticsTracking: false`, where the index's identity, heap size and
+ *                        cardinality are all real while the four activity fields carry no information and
+ *                        `observedSince` is absent. Branch on this before rendering a zero - *not measured* and
+ *                        *never queried* are opposite findings
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see BrowsedIndex
  * @see CollectionIndexCardinality
@@ -104,8 +110,20 @@ public record IndexDetail(
 	long updateCount,
 	@Nullable OffsetDateTime lastQueriedAt,
 	@Nullable OffsetDateTime lastUpdatedAt,
-	@Nullable OffsetDateTime observedSince
+	@Nullable OffsetDateTime observedSince,
+	boolean measured
 ) {
+
+	public IndexDetail {
+		// an unmeasured detail carries no readings at all - see the `measured` component documentation for why a
+		// zero beside a live window is the one reading this surface must never invent
+		Assert.isPremiseValid(
+			measured ||
+				(queryCount == 0L && updateCount == 0L && lastQueriedAt == null && lastUpdatedAt == null &&
+					observedSince == null),
+			() -> "Index `" + indexPrimaryKey + "` reports activity while claiming to be unmeasured!"
+		);
+	}
 
 	/**
 	 * When the last query that chose this index was planned.

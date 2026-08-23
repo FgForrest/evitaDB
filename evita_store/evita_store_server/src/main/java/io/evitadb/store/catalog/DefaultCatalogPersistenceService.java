@@ -2297,8 +2297,9 @@ public class DefaultCatalogPersistenceService
 					catalogIndexStoragePart.getVersion(),
 					catalogIndexStoragePart.getCatalogIndexKey(),
 					sharedUniqueIndexes,
-					// loaded from disk — the activity counters start over, which is what "since catalog load" means
-					new IndexActivity()
+					// loaded from disk — the activity counters start over, which is what "since catalog load" means,
+					// and are not opened at all when the server does not track usage statistics
+					catalog.isUsageStatisticsTracked() ? new IndexActivity() : null
 				)
 			);
 		}

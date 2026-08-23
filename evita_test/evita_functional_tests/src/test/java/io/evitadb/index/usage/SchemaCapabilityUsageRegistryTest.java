@@ -25,12 +25,15 @@ package io.evitadb.index.usage;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaEditor;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -544,7 +547,7 @@ class SchemaCapabilityUsageRegistryTest {
 			theRegistry.alignWith(
 				schemaWith(
 					builder -> builder.withAttribute(
-						ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nonFilterable()
+						ATTRIBUTE_EAN, String.class, AttributeSchemaEditor::nonFilterable
 					)
 				)
 			);
@@ -631,7 +634,7 @@ class SchemaCapabilityUsageRegistryTest {
 								AttributeElement.attributeElement(ATTRIBUTE_CODE),
 								AttributeElement.attributeElement(ATTRIBUTE_EAN)
 							},
-							thatIs -> thatIs.nonIndexed()
+							SortableAttributeCompoundSchemaEditor::nonIndexed
 						)
 				)
 			);
@@ -709,7 +712,7 @@ class SchemaCapabilityUsageRegistryTest {
 						// at all, so this reflection has nothing to attach to
 						.withReflectedReferenceToEntity(
 							REFERENCE_STOCKS, Entities.PRODUCT, REFERENCE_STOCKS,
-							thatIs -> thatIs.withAttributesInherited()
+							ReflectedReferenceSchemaEditor::withAttributesInherited
 						)
 				)
 			);
@@ -881,7 +884,7 @@ class SchemaCapabilityUsageRegistryTest {
 			);
 
 			assertTrue(
-				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.LIVE)),
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHICAL, Scope.LIVE)),
 				"The entity's own flag was not seeded: " + theRegistry.listUsages()
 			);
 		}
@@ -898,11 +901,11 @@ class SchemaCapabilityUsageRegistryTest {
 			);
 
 			assertTrue(
-				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.ARCHIVED)),
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHICAL, Scope.ARCHIVED)),
 				"The scope that indexes the hierarchy got no row: " + theRegistry.listUsages()
 			);
 			assertFalse(
-				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHY_INDEXED, Scope.LIVE)),
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.HIERARCHICAL, Scope.LIVE)),
 				"A scope that indexes no hierarchy was seeded anyway: " + theRegistry.listUsages()
 			);
 		}
@@ -917,7 +920,7 @@ class SchemaCapabilityUsageRegistryTest {
 			);
 
 			assertTrue(
-				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.PRICE_INDEXED, Scope.LIVE)),
+				holds(SchemaCapabilityKey.entity(Entities.PRODUCT, Capability.PRICED, Scope.LIVE)),
 				"The entity's own flag was not seeded: " + theRegistry.listUsages()
 			);
 		}

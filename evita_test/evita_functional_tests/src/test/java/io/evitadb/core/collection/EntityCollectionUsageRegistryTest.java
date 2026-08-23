@@ -345,7 +345,7 @@ class EntityCollectionUsageRegistryTest implements EvitaTestSupport {
 	 * @return the registry the counts landed in
 	 */
 	@Nonnull
-	private SchemaCapabilityUsageRegistry recordUsageOn(@Nonnull EntityCollection collection) {
+	private static SchemaCapabilityUsageRegistry recordUsageOn(@Nonnull EntityCollection collection) {
 		final SchemaCapabilityUsageRegistry registry = collection.getUsageRegistry();
 		final SchemaCapabilityUsage usage = registry.resolve(CODE_FILTER);
 		usage.recordRequested(FIRST_MILLIS);

@@ -53,32 +53,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetHaving;
-import static io.evitadb.api.query.QueryConstraints.facetSummary;
-import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
-import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
-import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
-import static io.evitadb.api.query.QueryConstraints.priceBetween;
-import static io.evitadb.api.query.QueryConstraints.priceHistogram;
-import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
-import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.FACET;
-import static io.evitadb.test.TestTags.HIERARCHY;
-import static io.evitadb.test.TestTags.HISTOGRAM;
-import static io.evitadb.test.TestTags.PRICE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -139,13 +117,13 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 		REFERENCE_TAGS, Capability.BUCKETED, Scope.LIVE
 	);
 	private static final SchemaCapabilityKey PRODUCT_PRICE_INDEXED = SchemaCapabilityKey.entity(
-		ENTITY_PRODUCT, Capability.PRICE_INDEXED, Scope.LIVE
+		ENTITY_PRODUCT, Capability.PRICED, Scope.LIVE
 	);
 	private static final SchemaCapabilityKey PRODUCT_HIERARCHY_INDEXED = SchemaCapabilityKey.entity(
-		ENTITY_PRODUCT, Capability.HIERARCHY_INDEXED, Scope.LIVE
+		ENTITY_PRODUCT, Capability.HIERARCHICAL, Scope.LIVE
 	);
 	private static final SchemaCapabilityKey CATEGORY_HIERARCHY_INDEXED = SchemaCapabilityKey.entity(
-		ENTITY_CATEGORY, Capability.HIERARCHY_INDEXED, Scope.LIVE
+		ENTITY_CATEGORY, Capability.HIERARCHICAL, Scope.LIVE
 	);
 
 	private TestPaths paths;
@@ -384,7 +362,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 		 * @return the query
 		 */
 		@Nonnull
-		private Query priceFilteringQuery() {
+		private static Query priceFilteringQuery() {
 			return Query.query(
 				collection(ENTITY_PRODUCT),
 				filterBy(
@@ -484,7 +462,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	 * @param requested what the query moved
 	 * @param key       the capability that must have moved
 	 */
-	private void assertRequested(
+	private static void assertRequested(
 		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key
 	) {
@@ -507,7 +485,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	 */
 	private void assertNoRowHeld(@Nonnull SchemaCapabilityKey key, @Nonnull String message) {
 		for (final UsageEntry entry : collectionOf(ENTITY_PRODUCT).getUsageRegistry().listUsages()) {
-			assertFalse(key.equals(entry.key()), message);
+			assertNotEquals(key, entry.key(), message);
 		}
 	}
 
@@ -518,7 +496,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	 * @param key       the capability that must not have moved
 	 * @param message   what it means if it did
 	 */
-	private void assertNotRequested(
+	private static void assertNotRequested(
 		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key,
 		@Nonnull String message

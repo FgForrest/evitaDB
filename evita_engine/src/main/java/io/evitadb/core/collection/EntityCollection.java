@@ -1205,7 +1205,9 @@ public final class EntityCollection implements
 		// no snapshot and no seal, unlike the index browse above: the registry is a map bounded by the schema rather
 		// than by the data, and it is read while the counters it holds keep moving - a reading that is current is what
 		// the operator asked for, and there is no second reading here for it to be inconsistent with
-		return SchemaCapabilityUsageProjection.project(getEntityType(), this.usageRegistry);
+		return SchemaCapabilityUsageProjection.project(
+			getEntityType(), this.usageRegistry, this.catalog.isUsageStatisticsTracked()
+		);
 	}
 
 	/**
@@ -3038,7 +3040,8 @@ public final class EntityCollection implements
 			this.usageRegistry,
 			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
 			// their counters belong to the catalog rather than to whichever collection happened to write one
-			this.catalog.getUsageRegistry()
+			this.catalog.getUsageRegistry(),
+			this.catalog.isUsageStatisticsTracked()
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -3587,12 +3590,15 @@ public final class EntityCollection implements
 						eik,
 						eikAgain -> {
 							final EntityIndex entityIndex;
+							// an index born now observes only if the whole server does - see `Catalog#isUsageStatisticsTracked`
+							final boolean tracked = EntityCollection.this.catalog.isUsageStatisticsTracked();
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else if (
 								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
@@ -3602,7 +3608,10 @@ public final class EntityCollection implements
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.getEntityType(), eikAgain
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getEntityType(),
+									eikAgain,
+									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
 								assertReferenceIndexPrerequisites(
@@ -3612,7 +3621,8 @@ public final class EntityCollection implements
 								entityIndex = new ReducedEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
 								assertReferenceIndexPrerequisites(
@@ -3622,7 +3632,8 @@ public final class EntityCollection implements
 								entityIndex = new ReducedGroupEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
 									EntityCollection.this.getEntityType(),
-									eikAgain
+									eikAgain,
+									tracked
 								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());

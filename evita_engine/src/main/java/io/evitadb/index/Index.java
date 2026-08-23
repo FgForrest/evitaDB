@@ -27,6 +27,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Index provides access to the read optimized data structures related to the client data. This base contract defines
@@ -56,9 +57,15 @@ public interface Index<T extends IndexKey> {
 	 * Both {@link EntityIndex} and {@link CatalogIndex} expose it, because either can be the winning index of an
 	 * executed query plan.
 	 *
-	 * @return the activity holder of this index, never null
+	 * **Null means the readings were never taken, not that they came back zero.** A server started with
+	 * `server.usageStatisticsTracking: false` allocates no holder at all - that is the whole point of the switch, since
+	 * a holder per index is five longs and a large catalog runs to hundreds of thousands of them. A caller rendering
+	 * these readings must report the absence as *not measured*; reporting it as zero counts would state that nothing
+	 * has queried the index, which is precisely what nobody knows.
+	 *
+	 * @return the activity holder of this index, or null when usage statistics are not tracked
 	 */
-	@Nonnull
+	@Nullable
 	IndexActivity getActivity();
 
 	/**

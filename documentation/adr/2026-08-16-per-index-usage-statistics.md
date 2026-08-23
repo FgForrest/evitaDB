@@ -1,7 +1,7 @@
 ---
 title: An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself
 date: 2026-08-16
-updated: 2026-08-19 17:45
+updated: 2026-08-23 08:45
 status: accepted
 kind: feature
 issues: []
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_api/api/statistics, evita_engine/index, evita_engine/core/query, evita_engine/core/catalog, evita_engine/core/collection, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-catalog-and-collection-statistics, 2026-08-19-per-schema-capability-usage-statistics]
+relates: [2026-08-10-catalog-and-collection-statistics, 2026-08-19-per-schema-capability-usage-statistics, 2026-08-23-usage-statistics-tracking-switch]
 ---
 
 # An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself

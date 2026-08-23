@@ -512,10 +512,10 @@ public final class SchemaCapabilityUsageRegistry {
 		@Nonnull Scope scope
 	) {
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
-			resolve(SchemaCapabilityKey.entity(entityType, Capability.HIERARCHY_INDEXED, scope));
+			resolve(SchemaCapabilityKey.entity(entityType, Capability.HIERARCHICAL, scope));
 		}
 		if (entitySchema.isPriceIndexedInScope(scope)) {
-			resolve(SchemaCapabilityKey.entity(entityType, Capability.PRICE_INDEXED, scope));
+			resolve(SchemaCapabilityKey.entity(entityType, Capability.PRICED, scope));
 		}
 	}
 
@@ -625,7 +625,7 @@ public final class SchemaCapabilityUsageRegistry {
 			case UNIQUE -> attributeSchema.isUniqueInScope(scope);
 			// an attribute declares none of these - they belong to a reference or to the entity itself - so such a
 			// key could never match any schema and silently dropping it would hide whoever minted it
-			case FACETED, INDEXED, BUCKETED, HIERARCHY_INDEXED, PRICE_INDEXED -> throw new GenericEvitaInternalError(
+			case FACETED, INDEXED, BUCKETED, HIERARCHICAL, PRICED -> throw new GenericEvitaInternalError(
 				"Attribute `" + attributeSchema.getName() + "` cannot carry capability " + capability + "."
 			);
 		};
@@ -670,7 +670,7 @@ public final class SchemaCapabilityUsageRegistry {
 			case BUCKETED -> maintainsHistogramIn(referenceSchema, scope);
 			// a reference declares none of these - the first three belong to its attributes, the last two to the
 			// entity - so such a key could never match any schema and dropping it silently would hide its author
-			case FILTERABLE, SORTABLE, UNIQUE, HIERARCHY_INDEXED, PRICE_INDEXED -> throw new GenericEvitaInternalError(
+			case FILTERABLE, SORTABLE, UNIQUE, HIERARCHICAL, PRICED -> throw new GenericEvitaInternalError(
 				"Reference `" + referenceSchema.getName() + "` cannot carry capability " + capability + "."
 			);
 		};
@@ -694,8 +694,8 @@ public final class SchemaCapabilityUsageRegistry {
 		// no `default` branch on purpose: an exhaustive switch over Capability makes a future value a compile error
 		// here, which catches the omission earlier and more loudly than any runtime throw could
 		return switch (capability) {
-			case HIERARCHY_INDEXED -> entitySchema.isHierarchyIndexedInScope(scope);
-			case PRICE_INDEXED -> entitySchema.isPriceIndexedInScope(scope);
+			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
+			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
 			// the entity declares none of these directly - they belong to its attributes, its compounds or its
 			// references - so such a key could never match any schema and dropping it silently would hide its author
 			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(

@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -119,7 +120,25 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a new empty reduced entity index, stating whether it counts its own usage - see
+	 * {@link #AbstractReducedEntityIndex(int, String, EntityIndexKey)} for everything else this constructor does.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	protected AbstractReducedEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		this.priceIndex = new PriceRefIndex(this.getIndexKey().scope());
 		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
@@ -154,7 +173,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
-		@Nonnull IndexActivity activity
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,

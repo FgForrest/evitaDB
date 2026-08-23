@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -145,7 +146,24 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReducedGroupEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY,
 			() -> "ReducedGroupEntityIndex only supports REFERENCED_GROUP_ENTITY type, got: " +
@@ -202,7 +220,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
 		@Nonnull Map<String, HistogramIndex> histogramIndexes,
-		@Nonnull IndexActivity activity
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
@@ -286,8 +304,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				groupCardinality.referencedPrimaryKeysIndex(),
 				cardinalities.cardinalityIndexes(),
 				histograms.histogramIndexes(),
-				// loaded from disk — the counters start over, which is what "since catalog load" means
-				new IndexActivity()
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 

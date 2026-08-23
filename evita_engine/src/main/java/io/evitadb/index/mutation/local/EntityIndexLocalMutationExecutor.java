@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -95,6 +94,7 @@ import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
@@ -241,6 +241,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
 	/**
+	 * Whether this mutation counts the index-maintenance effort it costs - the server-wide
+	 * `server.usageStatisticsTracking` switch, resolved once when the executor is built.
+	 *
+	 * With it off nothing here resolves a capability holder and nothing stamps an index, which removes a map
+	 * lookup per touched element and a CAS per touched index from every entity mutation.
+	 */
+	private final boolean usageStatisticsTracking;
+	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
 	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
@@ -383,7 +391,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
-		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry
+		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		boolean usageStatisticsTracking
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -399,6 +408,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
+		this.usageStatisticsTracking = usageStatisticsTracking;
 	}
 
 	/**
@@ -774,7 +784,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 			// counted once per index per entity mutation, never per attribute write, and counted for work performed
 			// rather than work that survives - a rolled-back transaction still paid this maintenance
-			entityIndex.getActivity().recordUpdate(now);
+			final IndexActivity entityIndexActivity = entityIndex.getActivity();
+			if (entityIndexActivity != null) {
+				entityIndexActivity.recordUpdate(now);
+			}
 			// global live index is never removed and is always present (even if empty)
 			if (!(accessedIndexKey.type() == EntityIndexType.GLOBAL && accessedIndexKey.scope() == Scope.LIVE)
 				&& entityIndex.isEmpty()) {
@@ -786,7 +799,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.accessedCatalogIndexes != null) {
 			for (final CatalogIndex catalogIndex : this.accessedCatalogIndexes) {
 				if (catalogIndex != null) {
-					catalogIndex.getActivity().recordUpdate(now);
+					final IndexActivity catalogIndexActivity = catalogIndex.getActivity();
+					if (catalogIndexActivity != null) {
+						catalogIndexActivity.recordUpdate(now);
+					}
 				}
 			}
 		}
@@ -1023,8 +1039,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// no `default` branch on purpose: a future entity-level flag must fail to compile here rather than go
 		// uncounted, and a flag that belongs to some other element must not be silently accepted
 		final boolean maintained = switch (capability) {
-			case HIERARCHY_INDEXED -> entitySchema.isHierarchyIndexedInScope(scope);
-			case PRICE_INDEXED -> entitySchema.isPriceIndexedInScope(scope);
+			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
+			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
 			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
 				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
 			);
@@ -1083,6 +1099,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param key the capability that was maintained
 	 */
 	private void rememberCapability(@Nonnull SchemaCapabilityKey key) {
+		if (!this.usageStatisticsTracking) {
+			return;
+		}
 		if (this.touchedCapabilities == null) {
 			this.touchedCapabilities = new ArrayList<>(16);
 		}
@@ -1097,6 +1116,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param key the capability that was maintained, always an attribute the catalog schema declares itself
 	 */
 	private void rememberCatalogCapability(@Nonnull SchemaCapabilityKey key) {
+		if (!this.usageStatisticsTracking) {
+			return;
+		}
 		if (this.touchedCapabilities == null) {
 			this.touchedCapabilities = new ArrayList<>(16);
 		}

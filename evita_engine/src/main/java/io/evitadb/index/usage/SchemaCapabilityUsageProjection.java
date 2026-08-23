@@ -124,17 +124,27 @@ public final class SchemaCapabilityUsageProjection {
 	 * @param entityType name of the entity collection the registry belongs to, or null when the catalog owns it - the
 	 *                   value every produced row carries as its owner
 	 * @param registry   the registry to read
+	 * @param measured   whether anything has been counting into that registry - the server-wide
+	 *                   `server.usageStatisticsTracking` switch, stamped onto every row so that a client can tell a
+	 *                   capability nothing asked for from one nobody was counting.
+	 *
+	 *                   **The registry is seeded either way**, which is why the rows exist at all with the switch off:
+	 *                   {@link SchemaCapabilityUsageRegistry#alignWith(EntitySchemaContract)} runs on collection
+	 *                   creation and on schema adoption, never on a query or a write, so leaving it on costs nothing
+	 *                   measurable and keeps the one thing that stays true without counters - *which capabilities this
+	 *                   schema declares*. What the switch removes is the hot-path work: the key allocation and map
+	 *                   lookup a query does per candidate plan, and the resolve a write does per touched element
 	 * @return the rows, ordered as {@link #ROW_ORDER} describes, empty when nothing has been observed yet
 	 */
 	@Nonnull
 	public static List<SchemaCapabilityUsageStatistics> project(
 		@Nullable String entityType,
-		@Nonnull SchemaCapabilityUsageRegistry registry
+		@Nonnull SchemaCapabilityUsageRegistry registry,
+		boolean measured
 	) {
 		final List<UsageEntry> entries = registry.listUsages();
 		final List<SchemaCapabilityUsageStatistics> rows = new ArrayList<>(entries.size());
-		for (int i = 0; i < entries.size(); i++) {
-			final UsageEntry entry = entries.get(i);
+		for (final UsageEntry entry : entries) {
 			final SchemaCapabilityKey key = entry.key();
 			final SchemaCapabilityUsage usage = entry.usage();
 			rows.add(
@@ -149,7 +159,8 @@ public final class SchemaCapabilityUsageProjection {
 					usage.getUpdatedCount(),
 					toTimestamp(usage.getLastRequestedAtMillis()),
 					toTimestamp(usage.getLastUpdatedAtMillis()),
-					atSystemZone(usage.getObservedSinceMillis())
+					atSystemZone(usage.getObservedSinceMillis()),
+					measured
 				)
 			);
 		}

@@ -24,6 +24,7 @@
 package io.evitadb.api.statistics;
 
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -161,6 +162,15 @@ import java.util.Optional;
  *                        instant states a lifetime average rate, and it is what qualifies a zero into something
  *                        actionable: *"not requested in the twenty minutes since this flag was added"* is a statement
  *                        an operator can act on, where a bare zero is not
+ * @param measured        whether the counts on this row were taken at all. False on a server running with
+ *                        `server.usageStatisticsTracking: false`, where the row still states that the capability
+ *                        **is declared** - which is worth reporting on its own - while its two counts and two stamps
+ *                        carry no information.
+ *
+ *                        **A caller must branch on this before rendering a zero.** Zero requests against a live
+ *                        observation window reads as *"nothing uses this flag, drop it"*, which is the single most
+ *                        damaging thing this surface could say when the truth is that nobody was counting. Render
+ *                        *not measured* instead, and say so rather than showing a number
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see BrowsedIndex
  * @see IndexDetail
@@ -176,7 +186,8 @@ public record SchemaCapabilityUsageStatistics(
 	long updatedCount,
 	@Nullable OffsetDateTime lastRequestedAt,
 	@Nullable OffsetDateTime lastUpdatedAt,
-	@Nonnull OffsetDateTime observedSince
+	@Nonnull OffsetDateTime observedSince,
+	boolean measured
 ) {
 
 	/**
@@ -189,6 +200,14 @@ public record SchemaCapabilityUsageStatistics(
 		Objects.requireNonNull(capability, "Capability must not be null!");
 		Objects.requireNonNull(scope, "Scope must not be null!");
 		Objects.requireNonNull(observedSince, "Observation window must not be null!");
+		// an unmeasured row has nothing to report, so anything but zeros and absences in it is a projection bug that
+		// would otherwise reach an operator as a number they cannot interpret
+		Assert.isPremiseValid(
+			measured ||
+				(requestedCount == 0L && updatedCount == 0L && lastRequestedAt == null && lastUpdatedAt == null),
+			() -> "Capability `" + elementName + "`/`" + capability + "` reports counts while claiming to be " +
+				"unmeasured - a row is either counted or it is not!"
+		);
 	}
 
 	/**
@@ -320,13 +339,13 @@ public record SchemaCapabilityUsageStatistics(
 		 * The entity's hierarchy placement is indexed - `withHierarchy()` in an indexed scope, and the hierarchy index
 		 * it costs. Carried by an {@link ElementKind#ENTITY} row.
 		 */
-		HIERARCHY_INDEXED,
+		HIERARCHICAL,
 
 		/**
 		 * The entity's prices are indexed - `withPrice()` in an indexed scope, and the price indexes it costs. Carried
 		 * by an {@link ElementKind#ENTITY} row.
 		 */
-		PRICE_INDEXED
+		PRICED
 
 	}
 

@@ -286,11 +286,12 @@ final class CatalogIndexProjection {
 				null, scope, null, null, null,
 				attributes.toArray(AttributeCardinality[]::new)
 			),
-			activity.getQueryCount(),
-			activity.getUpdateCount(),
-			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt(),
-			activity.getObservedSince()
+			activity == null ? 0L : activity.getQueryCount(),
+			activity == null ? 0L : activity.getUpdateCount(),
+			activity == null ? null : activity.getLastQueriedAt(),
+			activity == null ? null : activity.getLastUpdatedAt(),
+			activity == null ? null : activity.getObservedSince(),
+			activity != null
 		);
 	}
 
@@ -330,7 +331,7 @@ final class CatalogIndexProjection {
 	 * @return the descriptor
 	 */
 	@Nonnull
-	private static BrowsedIndex describeRow(@Nonnull Scope scope, @Nonnull IndexActivity activity) {
+	private static BrowsedIndex describeRow(@Nonnull Scope scope, @Nullable IndexActivity activity) {
 		return new BrowsedIndex(
 			// no entity type - the catalog holds this index itself - and with it no kind, no discriminator in any of
 			// its three renderings, and no entity count; see `BrowsedIndex`
@@ -342,11 +343,12 @@ final class CatalogIndexProjection {
 			null,
 			null,
 			null,
-			activity.getQueryCount(),
-			activity.getUpdateCount(),
-			activity.getLastQueriedAt(),
-			activity.getLastUpdatedAt(),
-			activity.getObservedSince()
+			activity == null ? 0L : activity.getQueryCount(),
+			activity == null ? 0L : activity.getUpdateCount(),
+			activity == null ? null : activity.getLastQueriedAt(),
+			activity == null ? null : activity.getLastUpdatedAt(),
+			activity == null ? null : activity.getObservedSince(),
+			activity != null
 		);
 	}
 

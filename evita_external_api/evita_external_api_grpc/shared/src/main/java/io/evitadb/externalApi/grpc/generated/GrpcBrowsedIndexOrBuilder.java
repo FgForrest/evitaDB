@@ -403,44 +403,35 @@ public interface GrpcBrowsedIndexOrBuilder extends
    * load, while one created hours later reads its own creation, because it was not observable before it existed. That
    * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
    * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
    * </pre>
    *
+   * <code>bool measured = 14;</code>
+   * @return The measured.
+   */
+  boolean getMeasured();
+
+  /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    * @return Whether the observedSince field is set.
    */
   boolean hasObservedSince();
   /**
-   * <pre>
-   * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-   * window, "now" a zero-length one.
-   *
-   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    * @return The observedSince.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince();
   /**
-   * <pre>
-   * When observation of this index began - the start of the window the two counters and the two stamps above are read
-   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-   * window, "now" a zero-length one.
-   *
-   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
-   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder();

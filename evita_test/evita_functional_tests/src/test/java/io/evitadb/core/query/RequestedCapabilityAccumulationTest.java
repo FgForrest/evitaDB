@@ -667,7 +667,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * @param requested what the query moved
 	 * @param key       the capability that must have moved
 	 */
-	private void assertRequested(
+	private static void assertRequested(
 		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key
 	) {
@@ -689,7 +689,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * @param key       the capability that must not have moved
 	 * @param message   what it means if it did
 	 */
-	private void assertNotRequested(
+	private static void assertNotRequested(
 		@Nonnull Map<SchemaCapabilityKey, Long> requested,
 		@Nonnull SchemaCapabilityKey key,
 		@Nonnull String message

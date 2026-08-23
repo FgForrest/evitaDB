@@ -454,8 +454,8 @@ private static final long serialVersionUID = 0L;
     return lastUpdatedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : lastUpdatedAt_;
   }
 
-  public static final int OBSERVEDSINCE_FIELD_NUMBER = 11;
-  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
+  public static final int MEASURED_FIELD_NUMBER = 12;
+  private boolean measured_ = false;
   /**
    * <pre>
    * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
@@ -467,8 +467,31 @@ private static final long serialVersionUID = 0L;
    * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
    * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
    * was not maintained in between.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+   * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+   * stamps carry no information.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
    * </pre>
    *
+   * <code>bool measured = 12;</code>
+   * @return The measured.
+   */
+  @java.lang.Override
+  public boolean getMeasured() {
+    return measured_;
+  }
+
+  public static final int OBSERVEDSINCE_FIELD_NUMBER = 11;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
+  /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    * @return Whether the observedSince field is set.
    */
@@ -477,18 +500,6 @@ private static final long serialVersionUID = 0L;
     return ((bitField0_ & 0x00000010) != 0);
   }
   /**
-   * <pre>
-   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-   * unlike the two stamps above there is no "not yet" case.
-   *
-   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-   * was not maintained in between.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    * @return The observedSince.
    */
@@ -497,18 +508,6 @@ private static final long serialVersionUID = 0L;
     return observedSince_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : observedSince_;
   }
   /**
-   * <pre>
-   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-   * unlike the two stamps above there is no "not yet" case.
-   *
-   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-   * was not maintained in between.
-   * </pre>
-   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    */
   @java.lang.Override
@@ -563,6 +562,9 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000010) != 0)) {
       output.writeMessage(11, getObservedSince());
     }
+    if (measured_ != false) {
+      output.writeBool(12, measured_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -615,6 +617,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(11, getObservedSince());
     }
+    if (measured_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(12, measured_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -659,6 +665,8 @@ private static final long serialVersionUID = 0L;
       if (!getLastUpdatedAt()
           .equals(other.getLastUpdatedAt())) return false;
     }
+    if (getMeasured()
+        != other.getMeasured()) return false;
     if (hasObservedSince() != other.hasObservedSince()) return false;
     if (hasObservedSince()) {
       if (!getObservedSince()
@@ -705,6 +713,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LASTUPDATEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getLastUpdatedAt().hashCode();
     }
+    hash = (37 * hash) + MEASURED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getMeasured());
     if (hasObservedSince()) {
       hash = (37 * hash) + OBSERVEDSINCE_FIELD_NUMBER;
       hash = (53 * hash) + getObservedSince().hashCode();
@@ -906,6 +917,7 @@ private static final long serialVersionUID = 0L;
         lastUpdatedAtBuilder_.dispose();
         lastUpdatedAtBuilder_ = null;
       }
+      measured_ = false;
       observedSince_ = null;
       if (observedSinceBuilder_ != null) {
         observedSinceBuilder_.dispose();
@@ -988,6 +1000,9 @@ private static final long serialVersionUID = 0L;
         to_bitField0_ |= 0x00000008;
       }
       if (((from_bitField0_ & 0x00000400) != 0)) {
+        result.measured_ = measured_;
+      }
+      if (((from_bitField0_ & 0x00000800) != 0)) {
         result.observedSince_ = observedSinceBuilder_ == null
             ? observedSince_
             : observedSinceBuilder_.build();
@@ -1071,6 +1086,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasLastUpdatedAt()) {
         mergeLastUpdatedAt(other.getLastUpdatedAt());
+      }
+      if (other.getMeasured() != false) {
+        setMeasured(other.getMeasured());
       }
       if (other.hasObservedSince()) {
         mergeObservedSince(other.getObservedSince());
@@ -1163,9 +1181,14 @@ private static final long serialVersionUID = 0L;
               input.readMessage(
                   getObservedSinceFieldBuilder().getBuilder(),
                   extensionRegistry);
-              bitField0_ |= 0x00000400;
+              bitField0_ |= 0x00000800;
               break;
             } // case 90
+            case 96: {
+              measured_ = input.readBool();
+              bitField0_ |= 0x00000400;
+              break;
+            } // case 96
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2358,9 +2381,7 @@ private static final long serialVersionUID = 0L;
       return lastUpdatedAtBuilder_;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
-    private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> observedSinceBuilder_;
+    private boolean measured_ ;
     /**
      * <pre>
      * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
@@ -2372,13 +2393,26 @@ private static final long serialVersionUID = 0L;
      * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
      * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
      * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
-     * @return Whether the observedSince field is set.
+     * <code>bool measured = 12;</code>
+     * @return The measured.
      */
-    public boolean hasObservedSince() {
-      return ((bitField0_ & 0x00000400) != 0);
+    @java.lang.Override
+    public boolean getMeasured() {
+      return measured_;
     }
     /**
      * <pre>
@@ -2391,8 +2425,77 @@ private static final long serialVersionUID = 0L;
      * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
      * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
      * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
      * </pre>
      *
+     * <code>bool measured = 12;</code>
+     * @param value The measured to set.
+     * @return This builder for chaining.
+     */
+    public Builder setMeasured(boolean value) {
+
+      measured_ = value;
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
+     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
+     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * </pre>
+     *
+     * <code>bool measured = 12;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearMeasured() {
+      bitField0_ = (bitField0_ & ~0x00000400);
+      measured_ = false;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> observedSinceBuilder_;
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
+     * @return Whether the observedSince field is set.
+     */
+    public boolean hasObservedSince() {
+      return ((bitField0_ & 0x00000800) != 0);
+    }
+    /**
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      * @return The observedSince.
      */
@@ -2404,18 +2507,6 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public Builder setObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
@@ -2427,23 +2518,11 @@ private static final long serialVersionUID = 0L;
       } else {
         observedSinceBuilder_.setMessage(value);
       }
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return this;
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public Builder setObservedSince(
@@ -2453,28 +2532,16 @@ private static final long serialVersionUID = 0L;
       } else {
         observedSinceBuilder_.setMessage(builderForValue.build());
       }
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return this;
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public Builder mergeObservedSince(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
       if (observedSinceBuilder_ == null) {
-        if (((bitField0_ & 0x00000400) != 0) &&
+        if (((bitField0_ & 0x00000800) != 0) &&
           observedSince_ != null &&
           observedSince_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
           getObservedSinceBuilder().mergeFrom(value);
@@ -2485,28 +2552,16 @@ private static final long serialVersionUID = 0L;
         observedSinceBuilder_.mergeFrom(value);
       }
       if (observedSince_ != null) {
-        bitField0_ |= 0x00000400;
+        bitField0_ |= 0x00000800;
         onChanged();
       }
       return this;
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public Builder clearObservedSince() {
-      bitField0_ = (bitField0_ & ~0x00000400);
+      bitField0_ = (bitField0_ & ~0x00000800);
       observedSince_ = null;
       if (observedSinceBuilder_ != null) {
         observedSinceBuilder_.dispose();
@@ -2516,38 +2571,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getObservedSinceBuilder() {
-      bitField0_ |= 0x00000400;
+      bitField0_ |= 0x00000800;
       onChanged();
       return getObservedSinceFieldBuilder().getBuilder();
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder() {
@@ -2559,18 +2590,6 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <pre>
-     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-     * unlike the two stamps above there is no "not yet" case.
-     *
-     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-     * was not maintained in between.
-     * </pre>
-     *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<

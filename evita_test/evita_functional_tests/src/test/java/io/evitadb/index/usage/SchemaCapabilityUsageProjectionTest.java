@@ -90,7 +90,7 @@ class SchemaCapabilityUsageProjectionTest {
 			resolve(SchemaCapabilityKey.referenceAttribute(
 				REFERENCE_STOCKS, ATTRIBUTE_QUANTITY, Capability.FILTERABLE, Scope.LIVE
 			));
-			resolve(SchemaCapabilityKey.entity(ENTITY_TYPE, Capability.PRICE_INDEXED, Scope.LIVE));
+			resolve(SchemaCapabilityKey.entity(ENTITY_TYPE, Capability.PRICED, Scope.LIVE));
 			resolve(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE));
 			resolve(SchemaCapabilityKey.sortableCompound(
 				REFERENCE_STOCKS, COMPOUND_QUANTITY_WITH_WAREHOUSE, Scope.LIVE
@@ -105,7 +105,7 @@ class SchemaCapabilityUsageProjectionTest {
 			// and the compound it declares
 			assertEquals(
 				List.of(
-					describe(ElementKind.ENTITY, null, ENTITY_TYPE, Capability.PRICE_INDEXED, Scope.LIVE),
+					describe(ElementKind.ENTITY, null, ENTITY_TYPE, Capability.PRICED, Scope.LIVE),
 					describe(ElementKind.ATTRIBUTE, null, ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE),
 					describe(ElementKind.REFERENCE, null, REFERENCE_STOCKS, Capability.FACETED, Scope.LIVE),
 					describe(ElementKind.REFERENCE, null, REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE),
@@ -151,7 +151,7 @@ class SchemaCapabilityUsageProjectionTest {
 			// of a registry nothing has touched, and a hash order would satisfy every case above by luck
 			resolve(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_EAN, Capability.FILTERABLE, Scope.LIVE));
 			resolve(SchemaCapabilityKey.reference(REFERENCE_STOCKS, Capability.INDEXED, Scope.LIVE));
-			resolve(SchemaCapabilityKey.entity(ENTITY_TYPE, Capability.HIERARCHY_INDEXED, Scope.LIVE));
+			resolve(SchemaCapabilityKey.entity(ENTITY_TYPE, Capability.HIERARCHICAL, Scope.LIVE));
 			resolve(SchemaCapabilityKey.entityAttribute(ATTRIBUTE_QUANTITY, Capability.SORTABLE, Scope.ARCHIVED));
 
 			assertEquals(describe(project()), describe(project()));
@@ -244,7 +244,7 @@ class SchemaCapabilityUsageProjectionTest {
 	 */
 	@Nonnull
 	private List<SchemaCapabilityUsageStatistics> project() {
-		return SchemaCapabilityUsageProjection.project(ENTITY_TYPE, this.registry);
+		return SchemaCapabilityUsageProjection.project(ENTITY_TYPE, this.registry, true);
 	}
 
 	/**
@@ -254,7 +254,7 @@ class SchemaCapabilityUsageProjectionTest {
 	 */
 	@Nonnull
 	private List<SchemaCapabilityUsageStatistics> projectAsCatalog() {
-		return SchemaCapabilityUsageProjection.project(null, this.registry);
+		return SchemaCapabilityUsageProjection.project(null, this.registry, true);
 	}
 
 	/**

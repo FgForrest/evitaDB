@@ -91,7 +91,7 @@ public interface HierarchyPlacementMutator {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
 			entityIndex.addNode(primaryKeyToIndex, parentPrimaryKey);
-			executor.reportEntityCapabilityTouched(Capability.HIERARCHY_INDEXED, scope);
+			executor.reportEntityCapabilityTouched(Capability.HIERARCHICAL, scope);
 		}
 	}
 
@@ -127,7 +127,7 @@ public interface HierarchyPlacementMutator {
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isHierarchyIndexedInScope(scope)) {
 			entityIndex.removeNode(primaryKeyToIndex);
-			executor.reportEntityCapabilityTouched(Capability.HIERARCHY_INDEXED, scope);
+			executor.reportEntityCapabilityTouched(Capability.HIERARCHICAL, scope);
 		}
 	}
 

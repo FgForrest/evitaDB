@@ -113,7 +113,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						// on". A `hierarchyWithin` naming another collection's entity records nothing here, the same
 						// way a filter evaluated against another collection does
 						queryContext.recordRequestedEntityCapability(
-							targetEntitySchema, Capability.HIERARCHY_INDEXED, scopesToLookup
+							targetEntitySchema, Capability.HIERARCHICAL, scopesToLookup
 						);
 
 						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();

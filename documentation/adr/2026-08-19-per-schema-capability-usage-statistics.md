@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-20 21:35
+updated: 2026-08-23 08:45
 status: accepted
 kind: feature
 issues: [1429]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_api/api/statistics, evita_engine/index/usage, evita_engine/index/mutation, evita_engine/core/query, evita_engine/core/collection, evita_engine/core/catalog, evita_external_api/evita_external_api_grpc, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-16-per-index-usage-statistics]
+relates: [2026-08-16-per-index-usage-statistics, 2026-08-23-usage-statistics-tracking-switch]
 ---
 
 # Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
@@ -311,10 +311,10 @@ the `everRequested` fallback stays unimplemented.**
 ## Consequences & open follow-ups
 
 - **Non-attribute flag breadth landed on 2026-08-20**, extending the same architecture to the flags an
-  attribute does not own: `FACETED`, `INDEXED` and `BUCKETED` on a reference, `HIERARCHY_INDEXED` and
-  `PRICE_INDEXED` on the entity, with `ElementKind` gaining `REFERENCE` and `ENTITY` to carry them.
+  attribute does not own: `FACETED`, `INDEXED` and `BUCKETED` on a reference, `HIERARCHICAL` and
+  `PRICED` on the entity, with `ElementKind` gaining `REFERENCE` and `ENTITY` to carry them.
   See *Extending to the non-attribute flags* below for the three things that were not obvious.
-- **Per price list × currency granularity is still not started.** `PRICE_INDEXED` reports the *flag*, which
+- **Per price list × currency granularity is still not started.** `PRICED` reports the *flag*, which
   is what a schema mutation drops; splitting it per price list would report something no single mutation
   can remove, and the counting site does not distinguish them anyway.
 - **Cross-collection trigger maintenance is not counted**, inherited from the per-index gap: index work

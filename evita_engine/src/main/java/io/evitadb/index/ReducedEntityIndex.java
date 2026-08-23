@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -79,7 +80,24 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
-		super(primaryKey, entityType, entityIndexKey);
+		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
+	}
+
+	/**
+	 * Creates a fresh index, stating whether it counts its own usage.
+	 *
+	 * @param primaryKey              the primary key of this index
+	 * @param entityType              the type of entity being indexed
+	 * @param entityIndexKey          the key identifying this index
+	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 */
+	public ReducedEntityIndex(
+		int primaryKey,
+		@Nonnull String entityType,
+		@Nonnull EntityIndexKey entityIndexKey,
+		boolean usageStatisticsTracking
+	) {
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
@@ -114,7 +132,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
-		@Nonnull IndexActivity activity
+		@Nullable IndexActivity activity
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
@@ -175,8 +193,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
 				facet.facetIndex(),
-				// loaded from disk — the counters start over, which is what "since catalog load" means
-				new IndexActivity()
+				// loaded from disk — the counters start over, which is what "since catalog load" means, and are
+				// not opened at all when the server does not track usage statistics
+				context.createActivity()
 			);
 		});
 

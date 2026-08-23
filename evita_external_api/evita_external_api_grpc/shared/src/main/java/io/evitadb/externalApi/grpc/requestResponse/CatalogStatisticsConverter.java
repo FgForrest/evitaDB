@@ -1343,7 +1343,10 @@ public class CatalogStatisticsConverter {
 			.setHeapSizeInBytes(detail.heapSizeInBytes())
 			.setCardinality(toGrpcIndexCardinality(detail.cardinality()))
 			.setQueryCount(detail.queryCount())
-			.setUpdateCount(detail.updateCount());
+			.setUpdateCount(detail.updateCount())
+			// stamped explicitly rather than left to the field default, which is `false` - a tracking server that
+			// forgot to set this would report every index as unmeasured and hide the whole surface
+			.setMeasured(detail.measured());
 		if (detail.entityType() != null) {
 			builder.setEntityType(StringValue.of(detail.entityType()));
 		}
@@ -1389,6 +1392,8 @@ public class CatalogStatisticsConverter {
 			// last week" falsely true, "now" a zero-length one that turns every rate infinite. Absence is the truth
 			grpcDetail.hasObservedSince() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) : null
+		,
+			grpcDetail.getMeasured()
 		);
 	}
 
@@ -1529,7 +1534,9 @@ public class CatalogStatisticsConverter {
 			.setIndexPrimaryKey(index.indexPrimaryKey())
 			.setScope(toGrpcScope(index.scope()))
 			.setQueryCount(index.queryCount())
-			.setUpdateCount(index.updateCount());
+			.setUpdateCount(index.updateCount())
+			// see `toGrpcIndexDetail` for why this is never left to the field default
+			.setMeasured(index.measured());
 		// null only on a row that itself came from a pre-observedSince server - the absence travels onward rather
 		// than being replaced by a fabricated instant
 		if (index.observedSince() != null) {
@@ -1592,6 +1599,8 @@ public class CatalogStatisticsConverter {
 			// see toIndexDetail for why an old server's silence decodes to an absence rather than to any instant
 			grpcIndex.hasObservedSince() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) : null
+,
+			grpcIndex.getMeasured()
 		);
 	}
 
@@ -1714,7 +1723,9 @@ public class CatalogStatisticsConverter {
 			.setUpdatedCount(usage.updatedCount())
 			// never absent - a capability is observed from the moment it exists, which is what makes a zero count
 			// readable as "not once in this long" rather than as an unqualified zero
-			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.observedSince()));
+			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.observedSince()))
+			// see `toGrpcIndexDetail` for why this is never left to the field default
+			.setMeasured(usage.measured());
 		// both absences are statements about the owner, and an unset wrapper is what keeps them apart from an owner
 		// genuinely named by the empty string
 		if (usage.entityType() != null) {
@@ -1768,7 +1779,8 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getLastRequestedAt()) : null,
 			grpcUsage.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getLastUpdatedAt()) : null,
-			EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getObservedSince())
+			EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getObservedSince()),
+			grpcUsage.getMeasured()
 		);
 	}
 

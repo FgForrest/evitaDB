@@ -184,7 +184,7 @@ public record SchemaCapabilityKey(
 		switch (capability) {
 			case INDEXED, FACETED, BUCKETED -> {
 			}
-			case FILTERABLE, SORTABLE, UNIQUE, HIERARCHY_INDEXED, PRICE_INDEXED -> throw new GenericEvitaInternalError(
+			case FILTERABLE, SORTABLE, UNIQUE, HIERARCHICAL, PRICED -> throw new GenericEvitaInternalError(
 				"Reference `" + referenceName + "` cannot carry capability " + capability + "."
 			);
 		}
@@ -212,7 +212,7 @@ public record SchemaCapabilityKey(
 	) {
 		// see `reference` above for why this is rejected at the mint site rather than at alignment
 		switch (capability) {
-			case HIERARCHY_INDEXED, PRICE_INDEXED -> {
+			case HIERARCHICAL, PRICED -> {
 			}
 			case FILTERABLE, SORTABLE, UNIQUE, INDEXED, FACETED, BUCKETED -> throw new GenericEvitaInternalError(
 				"Entity `" + entityType + "` cannot carry capability " + capability + " directly."

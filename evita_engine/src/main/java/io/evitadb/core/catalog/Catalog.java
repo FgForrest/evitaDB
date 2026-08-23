@@ -116,6 +116,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
 import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
 import io.evitadb.core.management.FileManagementService;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -143,9 +144,11 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.usage.SchemaCapabilityUsageProjection;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
@@ -385,13 +388,13 @@ public final class Catalog
 	 * The catalog-level twin of {@link EntityCollection#getUsageRegistry()}: it counts the capabilities of the
 	 * attributes the **catalog schema** declares, which is where a globally-unique attribute's numbers belong. A query
 	 * that names no collection resolves its attributes against the catalog schema and is served by the
-	 * {@link io.evitadb.index.attribute.GlobalUniqueIndex} inside {@link CatalogIndex}, so neither its request nor the
+	 * {@link GlobalUniqueIndex} inside {@link CatalogIndex}, so neither its request nor the
 	 * maintenance an upsert pays for that index can be attributed to any single collection.
 	 *
 	 * **It holds exactly what this catalog physically maintains, and nothing else** - the `FILTERABLE` and `UNIQUE`
 	 * of a `uniqueGlobally()` attribute, which is what its global unique index costs. Both recording sides are held
-	 * to that: {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#reportAttributeTouched} files
-	 * only those two here, and {@link io.evitadb.core.query.AttributeSchemaAccessor#recordRequestedTraits} drops a
+	 * to that: {@link EntityIndexLocalMutationExecutor#reportAttributeTouched} files
+	 * only those two here, and {@link AttributeSchemaAccessor#recordRequestedTraits} drops a
 	 * collection-less `SORTABLE` request rather than minting a row whose maintenance count could never leave zero. A
 	 * sortable global attribute's sort index belongs to each collection declaring it, and is counted there.
 	 *
@@ -475,7 +478,6 @@ public final class Catalog
 				final Map<String, EntityCollection> collections = createHashMap(128);
 				final Map<Integer, EntityCollection> collectionByPk = createHashMap(128);
 				final Map<String, EntitySchemaContract> entitySchemaIndex = createHashMap(128);
-
 				final Catalog catalog = new Catalog(
 					catalogName,
 					cacheSupervisor,
@@ -549,7 +551,8 @@ public final class Catalog
 									final Integer globalIndexPk = entityHeader.globalEntityIndexPrimaryKey();
 									if (globalIndexPk != null) {
 										final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
-											catalogVersion, globalIndexPk, entityCollection.getInternalSchema()
+											catalogVersion, globalIndexPk, entityCollection.getInternalSchema(),
+											initBulk.catalog().isUsageStatisticsTracked()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
 									}
@@ -562,7 +565,8 @@ public final class Catalog
 												theFuture -> {
 													final EntityIndex loadedIndex = entityCollectionPersistenceService
 														.readEntityIndex(
-															catalogVersion, eid, entityCollection.getInternalSchema()
+															catalogVersion, eid, entityCollection.getInternalSchema(),
+														initBulk.catalog().isUsageStatisticsTracked()
 														);
 													if (
 														loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL
@@ -690,7 +694,7 @@ public final class Catalog
 		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
-		this.catalogIndex = new CatalogIndex(Scope.LIVE);
+		this.catalogIndex = new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking());
 		// a catalog created here has no history to carry - this allocation is what makes the counts "since catalog
 		// load", and the alignment against the schema published above is what opens each capability's observation
 		// window there rather than at first use. A brand-new catalog declares no attribute yet, so the call mints
@@ -781,7 +785,7 @@ public final class Catalog
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
-			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
+			.orElseGet(() -> new CatalogIndex(Scope.LIVE, this.evitaConfiguration.server().usageStatisticsTracking()));
 		// nothing about the usage counters is persisted, so a catalog read back from disk starts its observation
 		// window here - aligned against the schema just deserialized, so that every globally-unique attribute already
 		// has its row before the first query arrives rather than from whenever one first names it
@@ -1547,7 +1551,7 @@ public final class Catalog
 	/**
 	 * Copies this catalog's contents into the folder the engine allocated for the duplicate.
 	 *
-	 * Deliberately not on {@link io.evitadb.api.CatalogContract}: the folder a duplicate lands in is engine
+	 * Deliberately not on {@link CatalogContract}: the folder a duplicate lands in is engine
 	 * state, and the token naming it is a storage-layer type the public contract does not expose.
 	 * Duplicating is only ever driven by `DuplicateCatalogMutationOperator`, which is engine-internal and holds
 	 * the allocation, so the narrower signature costs nothing and removes the only remaining way to ask for a
@@ -1709,7 +1713,7 @@ public final class Catalog
 	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage() {
 		// null owner rather than this catalog's name: the field names the entity collection a row belongs to, and these
 		// rows belong to none - they describe attributes the catalog schema declares itself
-		return SchemaCapabilityUsageProjection.project(null, this.usageRegistry);
+		return SchemaCapabilityUsageProjection.project(null, this.usageRegistry, isUsageStatisticsTracked());
 	}
 
 	/**
@@ -2034,7 +2038,9 @@ public final class Catalog
 			// catalog index no longer holds a catalog back-reference, so no attach step is needed here.
 			CatalogIndex existing = this.archiveCatalogIndex.get();
 			if (existing == null) {
-				final CatalogIndex candidate = new CatalogIndex(Scope.ARCHIVED);
+				final CatalogIndex candidate = new CatalogIndex(
+					Scope.ARCHIVED, this.evitaConfiguration.server().usageStatisticsTracking()
+				);
 				existing = this.archiveCatalogIndex.compareAndSet(null, candidate) ?
 					candidate : this.archiveCatalogIndex.get();
 			}
@@ -2055,6 +2061,20 @@ public final class Catalog
 	@Nonnull
 	public SchemaCapabilityUsageRegistry getUsageRegistry() {
 		return this.usageRegistry;
+	}
+
+	/**
+	 * Whether this catalog counts how often its indexes and schema capabilities are queried against how often they are
+	 * maintained - the server-wide `server.usageStatisticsTracking` switch, answered here so that the index-creation
+	 * sites and the query and write paths all read the one value rather than each reaching for the configuration.
+	 *
+	 * It is deliberately **not** re-read per index: a catalog holding some indexes that observe and some that do not
+	 * would report two different meanings for the same zero, and the switch cannot change under a running catalog.
+	 *
+	 * @return true when the usage counters are maintained
+	 */
+	public boolean isUsageStatisticsTracked() {
+		return this.evitaConfiguration.server().usageStatisticsTracking();
 	}
 
 	/**

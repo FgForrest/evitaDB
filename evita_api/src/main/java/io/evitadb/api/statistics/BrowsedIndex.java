@@ -177,6 +177,12 @@ import java.util.OptionalInt;
  *                                **Per index, deliberately not per catalog load.** An index created hours after the
  *                                catalog opened was not observable before it existed, so billing it the catalog's
  *                                window would make its zero count read as a far stronger statement than it is.
+ * @param measured        whether the readings on this row were taken at all. False on a server running with
+ *                        `server.usageStatisticsTracking: false`, where the row still describes the index -
+ *                        its identity, kind, scope and entity count are all real - while the four activity
+ *                        fields carry no information and `observedSince` is absent because no window was ever
+ *                        opened. Branch on this before rendering a zero: *not measured* and *never queried*
+ *                        are opposite findings, and only one of them says an index can go
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see IndexBrowseCriteria
  * @see CollectionIndexSummary
@@ -194,11 +200,20 @@ public record BrowsedIndex(
 	long updateCount,
 	@Nullable OffsetDateTime lastQueriedAt,
 	@Nullable OffsetDateTime lastUpdatedAt,
-	@Nullable OffsetDateTime observedSince
+	@Nullable OffsetDateTime observedSince,
+	boolean measured
 ) {
 
 	public BrowsedIndex {
 		Objects.requireNonNull(scope, "Scope must not be null!");
+		// an unmeasured row carries no readings at all - reporting zeros beside a live window would state that nothing
+		// queried the index, which on a server that never counted is the one thing nobody knows
+		Assert.isPremiseValid(
+			measured ||
+				(queryCount == 0L && updateCount == 0L && lastQueriedAt == null && lastUpdatedAt == null &&
+					observedSince == null),
+			() -> "Index `" + indexPrimaryKey + "` reports activity while claiming to be unmeasured!"
+		);
 		// the two nulls travel together by construction - only a catalog index lacks an owning collection, and only a
 		// catalog index lacks an entity-index kind. Checked rather than assumed because a converter that dropped one
 		// field would otherwise produce a row describing an index that cannot exist

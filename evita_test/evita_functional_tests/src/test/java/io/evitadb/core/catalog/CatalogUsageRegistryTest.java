@@ -421,7 +421,7 @@ class CatalogUsageRegistryTest implements EvitaTestSupport {
 	 * @return the registry the counts landed in
 	 */
 	@Nonnull
-	private SchemaCapabilityUsageRegistry recordUsageOn(@Nonnull Catalog catalog) {
+	private static SchemaCapabilityUsageRegistry recordUsageOn(@Nonnull Catalog catalog) {
 		final SchemaCapabilityUsageRegistry registry = catalog.getUsageRegistry();
 		final SchemaCapabilityUsage usage = registry.resolve(CODE_FILTER);
 		usage.recordRequested(FIRST_MILLIS);
