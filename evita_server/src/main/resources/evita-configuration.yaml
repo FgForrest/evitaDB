@@ -22,6 +22,7 @@ server:
   dropCollationKeysAfterSecondsOfInactivity: ${server.dropCollationKeysAfterSecondsOfInactivity:300}
   readOnly: ${server.readOnly:false}
   quiet: ${server.quiet:false}
+  usageStatisticsTracking: ${server.usageStatisticsTracking:true}
   trafficRecording:
     enabled: ${server.trafficRecording.enabled:false}
     sourceQueryTracking: ${server.trafficRecording.sourceQueryTracking:false}

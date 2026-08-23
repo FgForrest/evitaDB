@@ -34,6 +34,7 @@ server:                                           # [see Server configuration](#
   dropCollationKeysAfterSecondsOfInactivity: 300
   readOnly: false
   quiet: false
+  usageStatisticsTracking: true
   trafficRecording:
     enabled: false
     sourceQueryTracking: false
@@ -486,6 +487,22 @@ This section contains general settings for the evitaDB server. It allows configu
             This setting should not be used when running multiple server instances inside single JVM because it is currently
             not thread-safe.            
         </Note>
+    </dd>
+    <dt>usageStatisticsTracking</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Controls whether the engine counts how often each index and each schema capability flag is *queried* against
+           how often it is *maintained*. These are the readings behind the `BrowseIndexes` and `ListSchemaCapabilityUsage`
+           management calls, and they are what tells you that a `filterable()` flag is being paid for on every write and
+           never used by a single query.</p>
+        <p>Switching it off gives up that diagnosis and reclaims its cost, which is mostly a footprint rather than a
+           throughput one: no activity holder is allocated per index (five longs each, and a large catalog runs to
+           hundreds of thousands of indexes), the query path stops resolving a capability holder per candidate plan, and
+           the write path stops resolving one per touched element.</p>
+        <p>Both management calls keep working with it off, and still list every index and every declared capability -
+           what changes is that each row reports itself as **not measured** instead of reporting zeros. Treat that
+           distinction as load-bearing: a zero request count against a live observation window reads as *"nothing uses
+           this flag, drop it"*, which is a destructive conclusion to draw when the truth is that nobody was counting.</p>
     </dd>
 </dl>
 

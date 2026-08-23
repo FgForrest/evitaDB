@@ -36,6 +36,9 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.index.Index;
+import io.evitadb.index.IndexActivity;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -176,11 +179,63 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 
 	/**
 	 * Creates a final query plan instance.
+	 *
+	 * This is also where the winning index set is counted as **queried** ({@link IndexActivity}). The seam is here
+	 * rather than on {@link QueryPlan} because this is the last point that still holds the index *instances*, which
+	 * the plan itself does not - it carries only their description string. A query answered without any index at all
+	 * goes through {@link #empty(QueryPlanningContext)} instead and correctly counts nothing.
+	 *
+	 * **One increment means "the planner handed this plan back", not "this plan produced a response".** The set counted
+	 * is the one that won the cost comparison, and a losing variant is normally never built - but two callers build a
+	 * plan only to take a single piece off it: `ReferencedEntityFetcher` reads `getSorters()` when references are
+	 * ordered by a referenced entity's property, and `HavingTranslatorHelper` reads `getFilter()`. Both count, and that
+	 * is the intended reading - the sorter and the formula do run against those very indexes.
+	 *
+	 * **Under the two verification debug modes one query counts an index repeatedly, and counts losing candidates
+	 * too.** With {@link io.evitadb.api.query.require.DebugMode#VERIFY_ALTERNATIVE_INDEX_RESULTS} or
+	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} enabled,
+	 * {@link QueryPlanner#verifyConsistentResultsInAllPlans} builds and executes the preferred plan, every alternative
+	 * and every cacheable variant, after which the preferred plan is built once more to be returned. Those plans
+	 * genuinely execute against the indexes they name, so the extra increments are work performed rather than a
+	 * miscount, and are left standing; exact arithmetic on these readings simply requires a session with no
+	 * verification debug mode enabled.
+	 *
+	 * This is also where the schema capabilities the query asked for are counted as **requested**
+	 * ({@link SchemaCapabilityUsage}), and the two readings deliberately behave differently under those debug modes.
+	 * The capability side counts **once per logical query regardless**, because
+	 * {@link QueryPlanningContext#drainRequestedCapabilities()} hands the accumulator over and leaves the context
+	 * holding nothing - every further build of that same query finds an empty list. That difference is not an
+	 * inconsistency: an index counts a physical read that genuinely happened again, while a capability counts a
+	 * question the query asked, and asking it a second time to verify the answer does not make it a second question.
+	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts neither, and on the capability side it
+	 * cannot: it is taken when index selection comes back empty, which is *before* the filter is translated even once,
+	 * so nothing has been accumulated yet and there is nothing a flush could find.
+	 *
+	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
+	 * from below by the reads the query is about to perform on those very indexes.
 	 */
 	@Nonnull
 	public QueryPlan build() {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
+		final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
+		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilities();
+		if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
+			// one instant for both readings, so a single query cannot stamp them with two different moments
+			final long now = System.currentTimeMillis();
+			for (final Index<?> index : winningIndexes) {
+				// absent on a server that does not track usage statistics - no holder was ever allocated for the index
+				final IndexActivity activity = index.getActivity();
+				if (activity != null) {
+					activity.recordQuery(now);
+				}
+			}
+			// the holders were resolved while the schema was being looked up anyway, so this is an increment per
+			// distinct capability the query named - no lookup, no hashing, no allocation
+			for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
+				requestedCapability.recordRequested(now);
+			}
+		}
 		// propagate all collected requirements to the prefetch formula visitor
 		this.prefetchFormulaVisitor.addRequirement(
 			this.queryContext.getRequirementsToPrefetch()

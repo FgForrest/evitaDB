@@ -27,6 +27,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -80,6 +81,12 @@ class AbstractAttributeTranslator {
 	 * The global schema is not returned in case the reference schema is present in the processing scope - i.e. it means
 	 * that the search lookup is limited to attributes of particular reference schema.
 	 *
+	 * A global attribute reached this way never passes through {@link AttributeSchemaAccessor}'s instance getters -
+	 * every caller below uses what this returns and falls back to the accessor only when it returns nothing - so this
+	 * is also where such a lookup reports the capability it needed. Which registry counts it follows the rule stated
+	 * on {@link AttributeSchemaAccessor#recordRequestedTraits}: the queried collection when the query names one, the
+	 * catalog when it does not and the attribute is answered from the catalog's own global unique index.
+	 *
 	 * @param filterByVisitor the visitor that provides context information, including the processing scope and catalog schema.
 	 * @param attributeName the name of the attribute for which the schema is to be retrieved.
 	 * @return an Optional containing the GlobalAttributeSchemaContract if the attribute exists in the catalog schema,
@@ -95,14 +102,22 @@ class AbstractAttributeTranslator {
 		final Optional<GlobalAttributeSchemaContract> result = processingScope.getReferenceSchema() == null ?
 			filterByVisitor.getCatalogSchema().getAttribute(attributeName) : Optional.empty();
 		if (result.isPresent() && traits.length > 0) {
+			final EntitySchemaContract entitySchema = filterByVisitor.isEntityTypeKnown() ?
+				filterByVisitor.getSchema() : null;
 			AttributeSchemaAccessor.verifyAndReturn(
 				attributeName,
 				processingScope.getScopes(),
 				result.get(),
 				filterByVisitor.getCatalogSchema(),
-				filterByVisitor.isEntityTypeKnown() ? filterByVisitor.getSchema() : null,
+				entitySchema,
 				filterByVisitor.getReferenceSchema().orElse(null),
 				traits
+			);
+			// only after the verification, which is what makes every (trait, scope) pair a capability the schema
+			// really declares - the global attribute is never looked up on a reference, hence the null container
+			AttributeSchemaAccessor.recordRequestedTraits(
+				filterByVisitor.getQueryContext(), entitySchema, null,
+				result.get().getName(), processingScope.getScopes(), traits
 			);
 		}
 		return result;

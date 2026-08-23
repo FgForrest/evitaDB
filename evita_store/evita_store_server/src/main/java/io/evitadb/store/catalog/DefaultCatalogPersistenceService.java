@@ -75,6 +75,7 @@ import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
@@ -2295,7 +2296,10 @@ public class DefaultCatalogPersistenceService
 				new CatalogIndex(
 					catalogIndexStoragePart.getVersion(),
 					catalogIndexStoragePart.getCatalogIndexKey(),
-					sharedUniqueIndexes
+					sharedUniqueIndexes,
+					// loaded from disk — the activity counters start over, which is what "since catalog load" means,
+					// and are not opened at all when the server does not track usage statistics
+					catalog.isUsageStatisticsTracked() ? new IndexActivity() : null
 				)
 			);
 		}

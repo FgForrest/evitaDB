@@ -134,6 +134,24 @@ class GlobalEntityIndexTest extends AbstractEntityIndexTest<GlobalEntityIndex> {
 		}
 
 		@Test
+		@DisplayName("should answer getActivity with a holder instead of throwing")
+		void shouldReturnActivityHolder() {
+			// `EntityIndex#getActivity()` is final on purpose: ByteBuddy cannot override a final method, so the stub's
+			// catch-all throwing classification never reaches it. That modifier is load-bearing on the query path -
+			// the planner plants a stub for a non-managed facet group and for a missing reference index, a stub can
+			// therefore end up in a winning target index set, and the plan builder records a query on every member of
+			// that set. Drop the `final` and those queries fail from the planner instead of running
+			final GlobalEntityIndex stub = GlobalEntityIndex.createThrowingStub(
+				ENTITY_TYPE,
+				new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
+				List.of()
+			);
+
+			assertNotNull(stub.getActivity(), "A stub must answer with the holder its super instance allocated");
+			assertDoesNotThrow(() -> stub.getActivity().recordQuery(System.currentTimeMillis()));
+		}
+
+		@Test
 		@DisplayName("should return bitmap from provided collection")
 		void shouldReturnAllPrimaryKeys() {
 			final GlobalEntityIndex stub = GlobalEntityIndex.createThrowingStub(

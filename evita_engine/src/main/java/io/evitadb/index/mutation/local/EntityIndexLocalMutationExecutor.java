@@ -23,7 +23,6 @@
 
 package io.evitadb.index.mutation.local;
 
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -57,12 +56,17 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -88,6 +92,10 @@ import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ReferenceSupplier;
 import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.index.usage.SchemaCapabilityKey;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.index.IndexActivity;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
@@ -152,6 +160,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		DependencyType.PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	};
 	/**
+	 * How many {@link Scope} constants there are, read once so {@link #accessedCatalogIndexes} can be slotted by
+	 * ordinal without asking the enum for its (defensively copied) value array on every entity mutation.
+	 */
+	private static final int SCOPE_COUNT = Scope.values().length;
+	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
 	 */
 	private final String entityType;
@@ -215,9 +228,56 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private final Function<String, EntitySchemaContract> crossEntitySchemaResolver;
 	/**
+	 * The usage counters of the collection this executor writes into — the place a *"nobody has filtered by this
+	 * attribute in a month, yet every upsert maintains its index"* reading is accumulated. Held by reference: the
+	 * registry outlives every catalog version, while this executor lives for exactly one entity mutation.
+	 */
+	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
+	/**
+	 * The usage counters of the **catalog** this executor writes into, which is where a globally-unique attribute's
+	 * numbers live: the index a write of one maintains is the catalog's {@link CatalogIndex}, and the query that reads
+	 * it may name no collection at all, so neither side of that attribute's reading belongs to any single collection.
+	 * Held by reference for the same reason the collection's registry is - it outlives every catalog version.
+	 */
+	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
+	/**
+	 * Whether this mutation counts the index-maintenance effort it costs - the server-wide
+	 * `server.usageStatisticsTracking` switch, resolved once when the executor is built.
+	 *
+	 * With it off nothing here resolves a capability holder and nothing stamps an index, which removes a map
+	 * lookup per touched element and a CAS per touched index from every entity mutation.
+	 */
+	private final boolean usageStatisticsTracking;
+	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
 	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
+	/**
+	 * Catalog indexes this entity mutation acquired for modification, slotted by {@link Scope#ordinal()} so the same
+	 * index acquired repeatedly (once per globally-unique attribute written) is counted **once** in
+	 * {@link #applyChanges()} — the same per-entity-mutation dedup discipline {@link #accessedIndexes} gives the
+	 * entity indexes.
+	 *
+	 * Allocated lazily, because most entity mutations touch no globally-unique attribute at all and would otherwise
+	 * pay for an array they never fill.
+	 */
+	@Nullable private CatalogIndex[] accessedCatalogIndexes;
+	/**
+	 * The schema elements this entity mutation has already reported as touched, which is what keeps one mutation from
+	 * counting an attribute once per index that maintains it. An entity attribute write reaches the global index and
+	 * every reduced index carrying the attribute; a reference attribute write reaches the referenced-type index and
+	 * the reduced index — all of them report, and only the first of each (element, scope) gets past this list.
+	 *
+	 * A linear scan rather than a hash set, deliberately: the list holds the elements **one entity mutation** writes,
+	 * so it is a handful of entries, and scanning it compares four fields where probing a set would first have to
+	 * allocate a key on every one of those fan-out events. Allocated lazily and only ever once per element.
+	 */
+	@Nullable private List<TouchedSchemaElement> touchedElements;
+	/**
+	 * The holders {@link #applyChanges()} will increment — resolved once, when their element is first reported, so the
+	 * flush is a walk with no lookups and the fan-out events after the first cost a list scan and nothing else.
+	 */
+	@Nullable private List<SchemaCapabilityUsage> touchedCapabilities;
 	/**
 	 * Contains index of calculated {@link RepresentativeReferenceKey} that include representative attribute values
 	 * for each reference that allows duplicates. This prevents from recalculating these values multiple times
@@ -329,7 +389,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier,
 		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier,
 		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
-		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver
+		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
+		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		boolean usageStatisticsTracking
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
@@ -343,6 +406,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.localFacetTriggerSupplier = localFacetTriggerSupplier;
 		this.crossEntitySchemaResolver = crossEntitySchemaResolver;
 		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
+		this.usageRegistry = usageRegistry;
+		this.catalogUsageRegistry = catalogUsageRegistry;
+		this.usageStatisticsTracking = usageStatisticsTracking;
 	}
 
 	/**
@@ -703,15 +769,55 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			removeEntity(primaryKeyToIndex);
 		}
 
-		// remove all empty indexes after this executor is committed
+		// one instant for the whole entity mutation, so a single upsert cannot stamp the indexes it touched with two
+		// different moments
+		final long now = System.currentTimeMillis();
+
+		// count the index-maintenance effort this entity mutation cost, then remove all empty indexes after this
+		// executor is committed
 		for (EntityIndexKey accessedIndexKey : this.accessedIndexes) {
+			final EntityIndex entityIndex = this.entityIndexCreatingAccessor.getIndexIfExists(accessedIndexKey);
+			// an index acquired earlier in this mutation may already be gone - `removeEntity` above drops the indexes
+			// an entirely removed entity emptied out
+			if (entityIndex == null) {
+				continue;
+			}
+			// counted once per index per entity mutation, never per attribute write, and counted for work performed
+			// rather than work that survives - a rolled-back transaction still paid this maintenance
+			final IndexActivity entityIndexActivity = entityIndex.getActivity();
+			if (entityIndexActivity != null) {
+				entityIndexActivity.recordUpdate(now);
+			}
 			// global live index is never removed and is always present (even if empty)
-			if (!(accessedIndexKey.type() == EntityIndexType.GLOBAL && accessedIndexKey.scope() == Scope.LIVE)) {
-				final EntityIndex entityIndex = this.entityIndexCreatingAccessor.getIndexIfExists(accessedIndexKey);
-				if (entityIndex != null && entityIndex.isEmpty()) {
-					this.entityIndexCreatingAccessor.removeIndex(accessedIndexKey);
+			if (!(accessedIndexKey.type() == EntityIndexType.GLOBAL && accessedIndexKey.scope() == Scope.LIVE)
+				&& entityIndex.isEmpty()) {
+				this.entityIndexCreatingAccessor.removeIndex(accessedIndexKey);
+			}
+		}
+
+		// the catalog indexes this mutation maintained, if it maintained any globally-unique attribute at all
+		if (this.accessedCatalogIndexes != null) {
+			for (final CatalogIndex catalogIndex : this.accessedCatalogIndexes) {
+				if (catalogIndex != null) {
+					final IndexActivity catalogIndexActivity = catalogIndex.getActivity();
+					if (catalogIndexActivity != null) {
+						catalogIndexActivity.recordUpdate(now);
+					}
 				}
 			}
+		}
+
+		// the schema capabilities this mutation maintained the indexes of - one increment each however many indexes
+		// that took, and the same instant the indexes above were stamped with. Emptied on the way out so that a second
+		// call could not count the same work twice
+		if (this.touchedCapabilities != null) {
+			for (int i = 0; i < this.touchedCapabilities.size(); i++) {
+				this.touchedCapabilities.get(i).recordUpdated(now);
+			}
+			this.touchedCapabilities.clear();
+		}
+		if (this.touchedElements != null) {
+			this.touchedElements.clear();
 		}
 	}
 
@@ -745,7 +851,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	@Nonnull
 	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
-		return this.catalogIndexCreatingAccessor.getOrCreateIndex(new CatalogIndexKey(scope));
+		final CatalogIndex catalogIndex = this.catalogIndexCreatingAccessor.getOrCreateIndex(
+			new CatalogIndexKey(scope)
+		);
+		if (this.accessedCatalogIndexes == null) {
+			this.accessedCatalogIndexes = new CatalogIndex[SCOPE_COUNT];
+		}
+		// remember the acquisition rather than counting it here — see the field's javadoc for why it is deduplicated
+		this.accessedCatalogIndexes[scope.ordinal()] = catalogIndex;
+		return catalogIndex;
 	}
 
 	/**
@@ -758,6 +872,257 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	public EntityTypeClassifierResolver getEntityTypeClassifierResolver() {
 		return this.entityTypeClassifierResolver;
+	}
+
+	/**
+	 * Reports that this entity mutation maintained the indexes an attribute's capabilities cost, in the given scope.
+	 *
+	 * Callers report **every** time they touch the attribute — once per index the write fans out over — and this
+	 * method throws away all but the first, because the number being accumulated is *"entity mutations that touched
+	 * the element"* and not *"physical index operations performed"*. The fan-out width is a legitimately different
+	 * metric and the per-index counters are where it is visible; see {@link SchemaCapabilityUsage} for why the two
+	 * must not be conflated.
+	 *
+	 * Which capabilities are counted follows the attribute's flags in **that** scope, and matches
+	 * {@link SchemaCapabilityUsageRegistry#alignWith(EntitySchemaContract)} exactly - notably `unique()` counts as
+	 * `FILTERABLE` too, because a unique attribute is filterable by that fact alone. That agreement is what makes the
+	 * registry's eager seeding honest: every row alignment mints for this collection is one this method can raise.
+	 *
+	 * Nothing is incremented here: the holders are only collected, and {@link #applyChanges()} increments them once,
+	 * with the instant it stamps the touched indexes with.
+	 *
+	 * # The globally-unique attribute is counted twice, on purpose
+	 *
+	 * A globally-unique attribute is maintained in the collection's own indexes **and** in the catalog's
+	 * {@link CatalogIndex}, and it is declared by the catalog schema rather than by this collection's. It therefore
+	 * lands in both registries: the collection's, because writing this entity did maintain that collection's indexes,
+	 * and the catalog's, because that is where a reader asking *"is this global attribute worth its uniqueness
+	 * index?"* looks - and where the request of a query that named no collection at all was counted.
+	 *
+	 * @param containerName   name of the reference declaring the attribute, or null when the entity declares it - take
+	 *                        this from {@link AttributeAndCompoundSchemaProvider#getContainerName()} and never from
+	 *                        the reference schema of the index being written, which for an entity attribute is
+	 *                        whichever reference owns the reduced index
+	 * @param attributeSchema the attribute whose indexes were maintained
+	 * @param scope           the scope of the index that was maintained
+	 */
+	public void reportAttributeTouched(
+		@Nullable String containerName,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Scope scope
+	) {
+		final String attributeName = attributeSchema.getName();
+		if (!markTouched(ElementKind.ATTRIBUTE, containerName, attributeName, null, scope)) {
+			return;
+		}
+		final boolean unique = attributeSchema.isUniqueInScope(scope);
+		if (unique || attributeSchema.isFilterableInScope(scope)) {
+			rememberCapability(
+				new SchemaCapabilityKey(
+					ElementKind.ATTRIBUTE, containerName, attributeName, Capability.FILTERABLE, scope
+				)
+			);
+		}
+		if (attributeSchema.isSortableInScope(scope)) {
+			rememberCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.SORTABLE, scope)
+			);
+		}
+		if (unique) {
+			rememberCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, containerName, attributeName, Capability.UNIQUE, scope)
+			);
+		}
+		if (containerName == null && attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema
+			&& globalAttributeSchema.isUniqueGloballyInScope(scope)
+		) {
+			// the catalog's copy of the same event - resolved from the catalog registry and deduplicated by the very
+			// same `markTouched` call above, since a global attribute is one element however many indexes carry it
+			rememberCatalogCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.FILTERABLE, scope)
+			);
+			rememberCatalogCapability(
+				new SchemaCapabilityKey(ElementKind.ATTRIBUTE, null, attributeName, Capability.UNIQUE, scope)
+			);
+		}
+	}
+
+	/**
+	 * Reports that this entity mutation maintained a sortable attribute compound's sort index, in the given scope.
+	 * Deduplicated per entity mutation exactly like {@link #reportAttributeTouched}, which matters more here than
+	 * there: a compound is rebuilt once per constituent attribute written and once per index it lives in.
+	 *
+	 * @param containerName name of the reference declaring the compound, or null when the entity declares it - see
+	 *                      {@link #reportAttributeTouched} for where to take it from
+	 * @param compoundName  name of the compound whose sort index was maintained
+	 * @param scope         the scope of the index that was maintained
+	 */
+	public void reportSortableCompoundTouched(
+		@Nullable String containerName,
+		@Nonnull String compoundName,
+		@Nonnull Scope scope
+	) {
+		if (markTouched(ElementKind.SORTABLE_COMPOUND, containerName, compoundName, null, scope)) {
+			rememberCapability(SchemaCapabilityKey.sortableCompound(containerName, compoundName, scope));
+		}
+	}
+
+	/**
+	 * Reports that this entity mutation maintained the indexes a **reference's own** flags cost, in the given scope -
+	 * the reduced entity indexes `indexed()` creates, the facet index `faceted()` adds to them, and the bucketed
+	 * histogram `bucketed()` adds on top.
+	 *
+	 * Deduplicated per entity mutation exactly like {@link #reportAttributeTouched}, which matters here for the same
+	 * reason it matters for a compound: a single upsert may write several references of the same name - one per
+	 * referenced entity - and each of them maintains the same schema flags.
+	 *
+	 * Nothing is reported for a reference that is not indexed in this scope, because then none of the three indexes
+	 * exists to be maintained. That is also why `INDEXED` needs no flag test of its own once past the guard.
+	 *
+	 * `BUCKETED` is tested through {@link SchemaCapabilityUsageRegistry#maintainsHistogramIn} rather than through the
+	 * bare `bucketed()` flag, so that this site agrees with the two that seed and prune the same row.
+	 *
+	 * @param referenceSchema the reference whose indexes were maintained
+	 * @param scope           the scope of the index that was maintained
+	 */
+	public void reportReferenceTouched(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope
+	) {
+		// `isIndexedReferenceForFiltering` rather than `isIndexedInScope`: the two decide the same fact, but the
+		// former reads `getReferenceIndexType`, which `ReflectedReferenceSchema` does not override and so cannot
+		// throw for a reflected reference whose target is not attached yet. The bulk indexing paths guard with the
+		// same accessor, so this site cannot fail on a reference they were willing to hand it
+		if (!ReferenceIndexMutator.isIndexedReferenceForFiltering(referenceSchema, scope)) {
+			return;
+		}
+		final String referenceName = referenceSchema.getName();
+		if (!markTouched(ElementKind.REFERENCE, null, referenceName, null, scope)) {
+			return;
+		}
+		rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.INDEXED, scope));
+		// readability checked rather than assumed: `isFacetedInScope` throws for a reflected reference that inherits
+		// the flag from a target not attached yet, and the bulk unindex path reaches here guarded only by an
+		// index-type test that tolerates exactly that state. Reporting nothing is the right answer for a reference
+		// whose faceting cannot even be determined
+		if (SchemaCapabilityUsageRegistry.isReadable(
+				referenceSchema, ReflectedReferenceSchemaContract::isFacetedInherited
+			) && referenceSchema.isFacetedInScope(scope)
+		) {
+			rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.FACETED, scope));
+		}
+		// the same predicate the registry seeds and prunes by, deliberately shared rather than restated: a histogram
+		// declared without a value expression is never maintained, so filing it here would mint a row claiming
+		// maintenance that never happened - and one the next alignment would then drop again
+		if (SchemaCapabilityUsageRegistry.maintainsHistogramIn(referenceSchema, scope)) {
+			rememberCapability(SchemaCapabilityKey.reference(referenceName, Capability.BUCKETED, scope));
+		}
+	}
+
+	/**
+	 * Reports that this entity mutation maintained one of the two indexes the **entity itself** declares - its
+	 * hierarchy placement or its prices.
+	 *
+	 * Unlike every other reporting method here this deduplicates **per capability**, not per element: both flags
+	 * belong to the same element - the entity - but are maintained by different mutators reacting to different
+	 * mutations, so an element-level entry would let whichever ran first swallow the other. See
+	 * {@link TouchedSchemaElement}.
+	 *
+	 * @param capability which of the entity's own flags was maintained - `HIERARCHY_INDEXED` or `PRICE_INDEXED`
+	 * @param scope      the scope of the index that was maintained
+	 */
+	public void reportEntityCapabilityTouched(
+		@Nonnull Capability capability,
+		@Nonnull Scope scope
+	) {
+		final EntitySchema entitySchema = getEntitySchema();
+		// no `default` branch on purpose: a future entity-level flag must fail to compile here rather than go
+		// uncounted, and a flag that belongs to some other element must not be silently accepted
+		final boolean maintained = switch (capability) {
+			case HIERARCHICAL -> entitySchema.isHierarchyIndexedInScope(scope);
+			case PRICED -> entitySchema.isPriceIndexedInScope(scope);
+			case FILTERABLE, SORTABLE, UNIQUE, FACETED, INDEXED, BUCKETED -> throw new GenericEvitaInternalError(
+				"Entity `" + entitySchema.getName() + "` cannot carry capability " + capability + " directly."
+			);
+		};
+		if (!maintained) {
+			return;
+		}
+		final String entityType = entitySchema.getName();
+		if (markTouched(ElementKind.ENTITY, null, entityType, capability, scope)) {
+			rememberCapability(SchemaCapabilityKey.entity(entityType, capability, scope));
+		}
+	}
+
+	/**
+	 * Records that the named element has been reported in this entity mutation, and says whether that was the first
+	 * time - which is the whole of the per-entity-mutation deduplication.
+	 *
+	 * @param kind          what kind of element it is - an attribute and a compound may share a name
+	 * @param containerName name of the declaring reference, or null when the entity declares the element
+	 * @param elementName   name of the element
+	 * @param capability    the single flag to deduplicate, or null to deduplicate the element as a whole - see
+	 *                      {@link TouchedSchemaElement} for which kinds need which
+	 * @param scope         the scope the element was maintained in
+	 * @return true when this is the first report of that element in this entity mutation
+	 */
+	private boolean markTouched(
+		@Nonnull ElementKind kind,
+		@Nullable String containerName,
+		@Nonnull String elementName,
+		@Nullable Capability capability,
+		@Nonnull Scope scope
+	) {
+		if (this.touchedElements == null) {
+			this.touchedElements = new ArrayList<>(16);
+		} else {
+			for (int i = 0; i < this.touchedElements.size(); i++) {
+				final TouchedSchemaElement touched = this.touchedElements.get(i);
+				if (touched.kind() == kind && touched.scope() == scope &&
+					touched.elementName().equals(elementName) &&
+					Objects.equals(touched.containerName(), containerName) &&
+					touched.capability() == capability
+				) {
+					return false;
+				}
+			}
+		}
+		this.touchedElements.add(new TouchedSchemaElement(kind, containerName, elementName, capability, scope));
+		return true;
+	}
+
+	/**
+	 * Resolves the holder counting the given capability and queues it for the flush in {@link #applyChanges()}.
+	 * Called at most once per capability per entity mutation, which is what makes the registry's map lookup
+	 * affordable here.
+	 *
+	 * @param key the capability that was maintained
+	 */
+	private void rememberCapability(@Nonnull SchemaCapabilityKey key) {
+		if (!this.usageStatisticsTracking) {
+			return;
+		}
+		if (this.touchedCapabilities == null) {
+			this.touchedCapabilities = new ArrayList<>(16);
+		}
+		this.touchedCapabilities.add(this.usageRegistry.resolve(key));
+	}
+
+	/**
+	 * The catalog-registry counterpart of {@link #rememberCapability}, for the capabilities of a globally-unique
+	 * attribute. The queue and the flush are shared - a holder is a holder, and which registry handed it over stops
+	 * mattering the moment it has been resolved.
+	 *
+	 * @param key the capability that was maintained, always an attribute the catalog schema declares itself
+	 */
+	private void rememberCatalogCapability(@Nonnull SchemaCapabilityKey key) {
+		if (!this.usageStatisticsTracking) {
+			return;
+		}
+		if (this.touchedCapabilities == null) {
+			this.touchedCapabilities = new ArrayList<>(16);
+		}
+		this.touchedCapabilities.add(this.catalogUsageRegistry.resolve(key));
 	}
 
 	/**
@@ -3414,6 +3779,34 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		public boolean differ() {
 			return !this.stored.equals(this.current);
 		}
+	}
+
+	/**
+	 * One schema element this entity mutation has already reported as touched, in one scope - the deduplication key
+	 * of {@link #markTouched}.
+	 *
+	 * It is not a {@link SchemaCapabilityKey}: an element is reported once and yields up to three capabilities, so
+	 * deduplicating at the element level performs one scan where a capability-level one would perform three.
+	 *
+	 * `capability` is the exception that keeps that true. An attribute, a compound and a reference each have **one**
+	 * reporting site that files all of their capabilities together, so they deduplicate at the element level and leave
+	 * it null. The entity does not: its `withHierarchy()` and `withPrice()` flags are maintained by different mutators
+	 * reacting to different mutations, so a shared element-level entry would let whichever ran first swallow the
+	 * other. Those rows therefore carry the capability and deduplicate per flag.
+	 *
+	 * @param kind          what kind of element it is - an attribute and a sortable compound may carry the same name
+	 * @param containerName name of the reference declaring the element, or null when the entity declares it
+	 * @param elementName   name of the element
+	 * @param capability    the single flag being deduplicated, or null to deduplicate the element as a whole
+	 * @param scope         the scope whose indexes were maintained
+	 */
+	private record TouchedSchemaElement(
+		@Nonnull ElementKind kind,
+		@Nullable String containerName,
+		@Nonnull String elementName,
+		@Nullable Capability capability,
+		@Nonnull Scope scope
+	) {
 	}
 
 }

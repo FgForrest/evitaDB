@@ -776,7 +776,8 @@ class EntityIndexRoundTripTest {
 				(EntityAttributeIndex) attributeIndex,
 				new PriceSuperIndex(priceIndexes),
 				reloadHierarchyIndex(storage),
-				reloadFacetIndex(storage)
+				reloadFacetIndex(storage),
+				new IndexActivity()
 			);
 		}
 
@@ -941,7 +942,8 @@ class EntityIndexRoundTripTest {
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
-				reloadFacetIndex(storage)
+				reloadFacetIndex(storage),
+				new IndexActivity()
 			);
 		}
 
@@ -1101,7 +1103,8 @@ class EntityIndexRoundTripTest {
 				groupPart.getPkCardinalities(),
 				groupPart.getReferencedPrimaryKeysIndex(),
 				reloadCardinalityIndexes(storage),
-				histogramIndexes
+				histogramIndexes,
+				new IndexActivity()
 			);
 		}
 
@@ -1240,7 +1243,8 @@ class EntityIndexRoundTripTest {
 				reloadFacetIndex(storage),
 				freshRefType,
 				reloadCardinalityIndexes(storage),
-				histogramIndexes
+				histogramIndexes,
+				new IndexActivity()
 			);
 		}
 

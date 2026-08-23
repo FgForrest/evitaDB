@@ -57,6 +57,7 @@ import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import org.junit.jupiter.api.DisplayName;
@@ -310,7 +311,10 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			registrySupplier,
 			null,
 			null,
-			NOOP_CLASSIFIER_RESOLVER
+			NOOP_CLASSIFIER_RESOLVER,
+			new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(),
+			true
 		);
 	}
 
@@ -1241,7 +1245,10 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			registrySupplier,
 			localTriggerSupplier,
 			null,
-			NOOP_CLASSIFIER_RESOLVER
+			NOOP_CLASSIFIER_RESOLVER,
+			new SchemaCapabilityUsageRegistry(),
+			new SchemaCapabilityUsageRegistry(),
+			true
 		);
 	}
 

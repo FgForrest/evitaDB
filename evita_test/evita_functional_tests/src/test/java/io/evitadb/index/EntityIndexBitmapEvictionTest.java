@@ -99,7 +99,8 @@ class EntityIndexBitmapEvictionTest {
 			new EntityAttributeIndex(ENTITY_TYPE),
 			new PriceSuperIndex(),
 			new HierarchyIndex(),
-			new FacetIndex()
+			new FacetIndex(),
+			new IndexActivity()
 		);
 	}
 

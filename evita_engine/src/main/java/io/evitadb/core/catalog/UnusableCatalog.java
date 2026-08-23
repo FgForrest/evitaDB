@@ -33,6 +33,7 @@ import io.evitadb.api.statistics.ComponentAvailability;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.api.statistics.IndexDetail;
+import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.statistics.StorageSizeStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -387,6 +388,15 @@ public final class UnusableCatalog implements CatalogContract {
 	@Override
 	public IndexDetail describeIndex(int indexPrimaryKey) {
 		// not `IndexNotFoundException`, which would claim the catalog was read and found to hold no such index
+		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
+	}
+
+	@Nonnull
+	@Override
+	public List<SchemaCapabilityUsageStatistics> listCapabilityUsage() {
+		// an empty list would read as "nothing has ever asked for any of this catalog's capabilities" - the one answer
+		// an operator hunting for flags to drop must never be given about a catalog that would not load. Like the
+		// browse beside it, this response has no slot to carry a reason in, so the failure has to be the answer
 		throw this.cause.create(this.catalogName, this.catalogFolderId, this.storageRoot);
 	}
 

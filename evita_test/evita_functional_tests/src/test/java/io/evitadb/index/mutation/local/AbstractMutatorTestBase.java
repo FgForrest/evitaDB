@@ -44,6 +44,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
@@ -78,6 +79,17 @@ abstract class AbstractMutatorTestBase {
 	@Nonnull protected final GlobalEntityIndex productIndex;
 	@Nonnull protected final EntitySchema productSchema;
 	@Nonnull protected final SealedCatalogSchema sealedCatalogSchema;
+	/**
+	 * The usage registry the executor accumulates touched schema capabilities into - handed to the executor below and
+	 * exposed so a test can read the counts back.
+	 */
+	@Nonnull protected final SchemaCapabilityUsageRegistry usageRegistry = new SchemaCapabilityUsageRegistry();
+	/**
+	 * The catalog's own registry, which is where the executor files the capabilities of a globally-unique attribute -
+	 * kept separate here for the same reason it is separate in the engine: a test asserting on one of them must not be
+	 * able to pass because the other was written to.
+	 */
+	@Nonnull protected final SchemaCapabilityUsageRegistry catalogUsageRegistry = new SchemaCapabilityUsageRegistry();
 
 	{
 		this.catalog = Mockito.mock(Catalog.class);
@@ -144,7 +156,11 @@ abstract class AbstractMutatorTestBase {
 			null,
 			null,
 			null,
-			this.classifierResolver
+			this.classifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+
+			true
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

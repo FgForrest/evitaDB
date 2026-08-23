@@ -29,7 +29,9 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
@@ -103,6 +105,84 @@ import java.util.OptionalInt;
  *                                derived from this number is reported as a memory figure, deliberately - the ratio is a
  *                                property of the catalog's own schema and data, so any coefficient applied to it here
  *                                would be a number wrong in an unknown direction on every other dataset.
+ * @param queryCount              how many executed query plans have chosen this index as part of their winning target
+ *                                index set.
+ *
+ *                                **It counts *chosen*, not *consulted*.** Planning also probes candidate indexes that
+ *                                lose the cost comparison, reaches a collection's super price index from a
+ *                                reduced-index plan, and pulls referenced-entity indexes to enrich what is fetched -
+ *                                none of that is counted here. The reading means *"this index was the filtering
+ *                                backbone of an executed query"*, which is what makes it actionable; counting every
+ *                                consultation would inflate the losers and say nothing about what to drop.
+ *
+ *                                **Counted since the catalog was loaded, and never persisted** - see
+ *                                {@link #updateCount()} for why, and read it as a rate over the observation window
+ *                                rather than as a lifetime total.
+ * @param updateCount             how many entity mutations have acquired this index for modification - one increment
+ *                                per entity mutation per index, never per attribute write.
+ *
+ *                                **It counts work performed, including work a rollback later undoes.** The increment
+ *                                happens when the mutation finishes applying, before the commit-or-rollback decision,
+ *                                deliberately: a rolled-back transaction still *paid* the index-maintenance cost, and
+ *                                this reading measures that cost rather than surviving state.
+ *
+ *                                **A `GLOBAL` index is acquired by essentially every entity mutation**, so its reading
+ *                                is close to the collection's total mutation count. That is accurate rather than
+ *                                misleading - a global index is never a drop candidate. The actionable readings are
+ *                                the ones on reduced indexes, which are acquired only when genuinely touched.
+ *
+ *                                **Maintenance driven by a cross-entity trigger is not counted at all.** A mutation of
+ *                                one collection can maintain another collection's indexes: the dispatch runs through
+ *                                `EntityCollection#applyIndexMutations` into the executors registered in
+ *                                `IndexMutationExecutorRegistry`, which acquire what they write straight from the
+ *                                collection's `EntityIndexMaintainer` - never through the entity mutation's own
+ *                                executor, which is what collects the acquisitions this reading counts. An index
+ *                                maintained mostly by writes to a *different* collection therefore reports less
+ *                                maintenance than it performs; read its number as a floor.
+ *
+ *                                **A live catalog counts one write more than once, and a warming one does not.** A
+ *                                transactional mutation is applied to the index in the writing session's isolated
+ *                                layer and applied again when the trunk is incorporated from the write-ahead log, so
+ *                                both passes count - because both are maintenance genuinely performed. Compare
+ *                                indexes against each other rather than against an expected mutation count.
+ *
+ *                                **Counted since the catalog was loaded, and never persisted.** Both counters and both
+ *                                stamps reset when a catalog is loaded, exactly as {@link ActivityStatistics} counts
+ *                                "since this instance was created": their operational use is a rate over an
+ *                                observation window, which persisting them would not improve, while a hot mutable
+ *                                value in an index's manifest would cost a rewrite on every commit.
+ * @param lastQueriedAt           when the last query that chose this index was planned, or null when no query has
+ *                                chosen it since the catalog was loaded; see {@link #lastQueriedAtIfKnown()}
+ * @param lastUpdatedAt           when the last entity mutation that acquired this index finished applying, or null
+ *                                when none has since the catalog was loaded; see {@link #lastUpdatedAtIfKnown()}
+ * @param observedSince           when observation of **this** index began - the moment its activity holder was
+ *                                constructed, which is catalog load for an index restored from disk and first creation
+ *                                for one born later.
+ *
+ *                                **Null means one thing only: a remote server too old to report it.** A current
+ *                                server always sets it - an index has been observed since the moment it came into
+ *                                existence - so unlike the two stamps above there is no "not yet" case. It is null
+ *                                solely when this row was decoded from a server that predates the field, and then the
+ *                                window is genuinely unknown: no instant could stand in for it without fabricating
+ *                                one - the epoch would invent a decades-long window that turns "never queried in the
+ *                                last week" falsely true, "now" a zero-length one that turns every rate infinite.
+ *                                See {@link #observedSinceIfKnown()}.
+ *
+ *                                **It is the denominator the two counts are read against.** Dividing either by the
+ *                                time elapsed since this instant states a lifetime average rate, and it is what
+ *                                qualifies a zero count into something actionable: *"not queried in the twenty
+ *                                minutes since this index was created"* is a statement an operator can act on, where
+ *                                a bare zero is not.
+ *
+ *                                **Per index, deliberately not per catalog load.** An index created hours after the
+ *                                catalog opened was not observable before it existed, so billing it the catalog's
+ *                                window would make its zero count read as a far stronger statement than it is.
+ * @param measured        whether the readings on this row were taken at all. False on a server running with
+ *                        `server.usageStatisticsTracking: false`, where the row still describes the index -
+ *                        its identity, kind, scope and entity count are all real - while the four activity
+ *                        fields carry no information and `observedSince` is absent because no window was ever
+ *                        opened. Branch on this before rendering a zero: *not measured* and *never queried*
+ *                        are opposite findings, and only one of them says an index can go
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @see IndexBrowseCriteria
  * @see CollectionIndexSummary
@@ -115,11 +195,25 @@ public record BrowsedIndex(
 	@Nullable String discriminator,
 	@Nullable String referenceName,
 	@Nullable Integer discriminatorPrimaryKey,
-	@Nullable Integer entityCount
+	@Nullable Integer entityCount,
+	long queryCount,
+	long updateCount,
+	@Nullable OffsetDateTime lastQueriedAt,
+	@Nullable OffsetDateTime lastUpdatedAt,
+	@Nullable OffsetDateTime observedSince,
+	boolean measured
 ) {
 
 	public BrowsedIndex {
 		Objects.requireNonNull(scope, "Scope must not be null!");
+		// an unmeasured row carries no readings at all - reporting zeros beside a live window would state that nothing
+		// queried the index, which on a server that never counted is the one thing nobody knows
+		Assert.isPremiseValid(
+			measured ||
+				(queryCount == 0L && updateCount == 0L && lastQueriedAt == null && lastUpdatedAt == null &&
+					observedSince == null),
+			() -> "Index `" + indexPrimaryKey + "` reports activity while claiming to be unmeasured!"
+		);
 		// the two nulls travel together by construction - only a catalog index lacks an owning collection, and only a
 		// catalog index lacks an entity-index kind. Checked rather than assumed because a converter that dropped one
 		// field would otherwise produce a row describing an index that cannot exist
@@ -144,6 +238,52 @@ public record BrowsedIndex(
 	@Nonnull
 	public OptionalInt entityCountIfKnown() {
 		return this.entityCount == null ? OptionalInt.empty() : OptionalInt.of(this.entityCount);
+	}
+
+	/**
+	 * When the last query that chose this index was planned.
+	 *
+	 * **Empty means "not since the catalog was loaded"**, never "never" - the counters and their stamps are reset by a
+	 * catalog load, so an index that has served queries for months reports empty here on a freshly started server.
+	 *
+	 * **It does not imply {@link #queryCount()}, in either direction.** A row is a snapshot taken field by field: a
+	 * recording advances the count and *then* writes the stamp, while the projection rendering the row reads the count
+	 * *first*, so a row taken while an index's very first query is being recorded can carry either reading without the
+	 * other. On an index nothing is recording into, the two always agree - that is what makes them readable side by
+	 * side, and it is not a guarantee to assert on.
+	 *
+	 * @return when this index was last chosen by a query, empty when it has not been since the catalog was loaded
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> lastQueriedAtIfKnown() {
+		return Optional.ofNullable(this.lastQueriedAt);
+	}
+
+	/**
+	 * When the last entity mutation that acquired this index for modification finished applying.
+	 *
+	 * **Empty means "not since the catalog was loaded"** - see {@link #lastQueriedAtIfKnown()}.
+	 *
+	 * @return when this index was last updated, empty when it has not been since the catalog was loaded
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> lastUpdatedAtIfKnown() {
+		return Optional.ofNullable(this.lastUpdatedAt);
+	}
+
+	/**
+	 * When observation of this index began - the denominator its two counts are read against.
+	 *
+	 * **Empty means the window is unknown, never that observation has not started.** A current server always reports
+	 * it; only a row decoded from a server that predates the field arrives without it. A client computing a rate or a
+	 * "never in the last N days" sentence must skip a row whose window is empty rather than substitute an instant -
+	 * any stand-in fabricates a window and with it the very statement this reading exists to keep honest.
+	 *
+	 * @return when observation began, empty only when a remote server was too old to report it
+	 */
+	@Nonnull
+	public Optional<OffsetDateTime> observedSinceIfKnown() {
+		return Optional.ofNullable(this.observedSince);
 	}
 
 }
