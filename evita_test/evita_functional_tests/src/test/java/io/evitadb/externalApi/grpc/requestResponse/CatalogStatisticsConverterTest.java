@@ -640,6 +640,69 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@Test
+	@DisplayName("decode a server that predates the measured flag as having measured, not as unmeasured")
+	void shouldDecodeAServerPredatingTheMeasuredFlagAsMeasured() throws InvalidProtocolBufferException {
+		// a server built before `measured` existed sends the field unset, which on the wire is indistinguishable from
+		// `false`. It nevertheless DID measure - the switch that can turn counting off did not exist yet - so decoding
+		// the absence as "unmeasured" would both discard a whole server's real numbers and hand the record a
+		// self-contradictory row (unmeasured, yet carrying counts) that its own premise check rejects
+		final BrowsedIndex row = new BrowsedIndex(
+			"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
+			9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
+		);
+		final IndexDetail detail = new IndexDetail(
+			"product", 1, 4_096L,
+			new IndexCardinality(EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, new AttributeCardinality[0]),
+			9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
+		);
+		final SchemaCapabilityUsageStatistics usage = new SchemaCapabilityUsageStatistics(
+			"product", ElementKind.ATTRIBUTE, null, "ean", Capability.FILTERABLE, Scope.LIVE,
+			9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
+		);
+
+		final BrowsedIndex rowFromOldServer = CatalogStatisticsConverter.toBrowsedIndex(
+			GrpcBrowsedIndex.parseFrom(
+				CatalogStatisticsConverter.toGrpcBrowsedIndex(row).toBuilder().clearMeasured().build().toByteArray()
+			)
+		);
+		final IndexDetail detailFromOldServer = CatalogStatisticsConverter.toIndexDetail(
+			GrpcIndexDetail.parseFrom(
+				CatalogStatisticsConverter.toGrpcIndexDetail(detail).toBuilder().clearMeasured().build().toByteArray()
+			)
+		);
+		final SchemaCapabilityUsageStatistics usageFromOldServer = CatalogStatisticsConverter.toSchemaCapabilityUsage(
+			GrpcSchemaCapabilityUsage.parseFrom(
+				CatalogStatisticsConverter.toGrpcSchemaCapabilityUsage(usage).toBuilder()
+					.clearMeasured().build().toByteArray()
+			)
+		);
+
+		assertTrue(rowFromOldServer.measured(), "An old server always measured - it had no switch to turn off");
+		assertTrue(detailFromOldServer.measured());
+		assertTrue(usageFromOldServer.measured());
+		assertEquals(9_000_000_000L, rowFromOldServer.queryCount(), "Its real numbers must survive the decode");
+		assertEquals(9_000_000_000L, detailFromOldServer.queryCount());
+		assertEquals(9_000_000_000L, usageFromOldServer.requestedCount());
+	}
+
+	@Test
+	@DisplayName("carry an explicitly unmeasured row across the wire as unmeasured")
+	void shouldRoundTripAnExplicitlyUnmeasuredRow() throws InvalidProtocolBufferException {
+		final BrowsedIndex row = new BrowsedIndex(
+			"product", 1, EntityIndexType.GLOBAL, Scope.LIVE, null, null, null, 1_000,
+			0L, 0L, null, null, null, false
+		);
+
+		final BrowsedIndex roundTripped = CatalogStatisticsConverter.toBrowsedIndex(
+			GrpcBrowsedIndex.parseFrom(CatalogStatisticsConverter.toGrpcBrowsedIndex(row).toByteArray())
+		);
+
+		assertFalse(roundTripped.measured(), "An explicit `false` must not decode as an old server's silence");
+		assertEquals(0L, roundTripped.queryCount());
+		assertNull(roundTripped.observedSince());
+	}
+
+	@Test
 	@DisplayName("decode a server that predates the observation window as not knowing it, not as any instant")
 	void shouldDecodeAnAbsentObservedSinceAsUnknown() throws InvalidProtocolBufferException {
 		// a server built before the field existed sends messages without it - a newer client must not crash there,

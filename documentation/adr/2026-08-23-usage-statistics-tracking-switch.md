@@ -1,7 +1,7 @@
 ---
 title: Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero
 date: 2026-08-23
-updated: 2026-08-23 08:45
+updated: 2026-08-23 09:20
 status: accepted
 kind: feature
 issues: [1429]
@@ -105,9 +105,16 @@ switched on before it can answer is one nobody has switched on when the question
 - **The record constructors reject the contradiction.** `SchemaCapabilityUsageStatistics`,
   `BrowsedIndex` and `IndexDetail` all throw when `measured == false` alongside non-zero counts or
   populated stamps, so a projection bug cannot deliver an uninterpretable row to an operator.
-- **On the wire, `measured=false` and "server predates the field" are indistinguishable, deliberately.**
-  Both mean *"these numbers cannot be trusted"*, which is the only thing a client needs in order to
-  decide what to render.
+- **On the wire `measured` is presence-tracked (`google.protobuf.BoolValue`), not a bare `bool`.** A
+  bare `bool` defaults to `false`, so an older server's silence would decode as *"not measured"* — and
+  that is wrong twice over: such a server had no switch and therefore always measured, so the decode
+  would discard a whole server's real counts, and it would hand the record a self-contradictory row
+  (unmeasured, yet carrying counts) that its own premise check rejects with an exception. Absent
+  decodes as `true`; only an explicit `false` means counting was switched off.
+- **The ranked page cut must not substitute the frozen ranked value when there is no holder.** Under
+  `ENTITY_COUNT` that value is the entity count, which stays real with the counters off, so reporting it
+  as `queryCount` would invent traffic out of a cardinality — and trip the same premise check. Both
+  counts are `0` whenever the holder is absent, whatever the ordering.
 - **Existing three-argument index constructors were kept**, delegating with
   `DEFAULT_USAGE_STATISTICS_TRACKING`. ~80 test call sites use them and none of those cares about the
   switch.
@@ -118,6 +125,16 @@ switched on before it can answer is one nobody has switched on when the question
 absent holder on `GlobalEntityIndex` / `ReducedEntityIndex` / `CatalogIndex`, the heap charge dropping
 when the holder is absent, capability rows surviving with `measured=false`, and all three record
 constructors rejecting the contradictory shape.
+
+Two defects found by adversarial review after the first implementation, both of which threw at runtime
+rather than reporting wrongly, and both now covered by **calibrated** tests — each was re-run against the
+reinstated defect and confirmed to fail:
+
+- `IndexBrowseProjectionTest.UsageStatisticsOff` (3 tests) — a ranked browse over an unmeasured catalog.
+  `shouldNotLeakTheRankedValueIntoTheCountsWhenUnmeasured` and `shouldRankByAnAbsentCounterWithoutThrowing`
+  both error against the substituted ranked value.
+- `CatalogStatisticsConverterTest.shouldDecodeAServerPredatingTheMeasuredFlagAsMeasured` — errors when the
+  absence is decoded as `false` instead of `true`.
 
 Regression batch over the two prior records' suites — `IndexBrowseProjectionTest`,
 `SchemaCapabilityUsageProjectionTest`, `SchemaCapabilityUsageRegistryTest`,

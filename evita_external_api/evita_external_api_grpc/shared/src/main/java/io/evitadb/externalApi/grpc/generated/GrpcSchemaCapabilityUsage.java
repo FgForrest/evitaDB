@@ -455,7 +455,7 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int MEASURED_FIELD_NUMBER = 12;
-  private boolean measured_ = false;
+  private com.google.protobuf.BoolValue measured_;
   /**
    * <pre>
    * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
@@ -476,17 +476,80 @@ private static final long serialVersionUID = 0L;
    * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
    * the truth is the first. Render the absence of measurement instead, and say so.
    *
-   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
    * </pre>
    *
-   * <code>bool measured = 12;</code>
+   * <code>.google.protobuf.BoolValue measured = 12;</code>
+   * @return Whether the measured field is set.
+   */
+  @java.lang.Override
+  public boolean hasMeasured() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+   * unlike the two stamps above there is no "not yet" case.
+   *
+   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+   * was not maintained in between.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+   * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+   * stamps carry no information.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 12;</code>
    * @return The measured.
    */
   @java.lang.Override
-  public boolean getMeasured() {
-    return measured_;
+  public com.google.protobuf.BoolValue getMeasured() {
+    return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+  }
+  /**
+   * <pre>
+   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+   * unlike the two stamps above there is no "not yet" case.
+   *
+   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+   * was not maintained in between.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+   * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+   * stamps carry no information.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 12;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder() {
+    return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
   }
 
   public static final int OBSERVEDSINCE_FIELD_NUMBER = 11;
@@ -497,7 +560,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasObservedSince() {
-    return ((bitField0_ & 0x00000010) != 0);
+    return ((bitField0_ & 0x00000020) != 0);
   }
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
@@ -559,11 +622,11 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000008) != 0)) {
       output.writeMessage(10, getLastUpdatedAt());
     }
-    if (((bitField0_ & 0x00000010) != 0)) {
+    if (((bitField0_ & 0x00000020) != 0)) {
       output.writeMessage(11, getObservedSince());
     }
-    if (measured_ != false) {
-      output.writeBool(12, measured_);
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(12, getMeasured());
     }
     getUnknownFields().writeTo(output);
   }
@@ -613,13 +676,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(10, getLastUpdatedAt());
     }
-    if (((bitField0_ & 0x00000010) != 0)) {
+    if (((bitField0_ & 0x00000020) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(11, getObservedSince());
     }
-    if (measured_ != false) {
+    if (((bitField0_ & 0x00000010) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(12, measured_);
+        .computeMessageSize(12, getMeasured());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -665,8 +728,11 @@ private static final long serialVersionUID = 0L;
       if (!getLastUpdatedAt()
           .equals(other.getLastUpdatedAt())) return false;
     }
-    if (getMeasured()
-        != other.getMeasured()) return false;
+    if (hasMeasured() != other.hasMeasured()) return false;
+    if (hasMeasured()) {
+      if (!getMeasured()
+          .equals(other.getMeasured())) return false;
+    }
     if (hasObservedSince() != other.hasObservedSince()) return false;
     if (hasObservedSince()) {
       if (!getObservedSince()
@@ -713,9 +779,10 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LASTUPDATEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getLastUpdatedAt().hashCode();
     }
-    hash = (37 * hash) + MEASURED_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getMeasured());
+    if (hasMeasured()) {
+      hash = (37 * hash) + MEASURED_FIELD_NUMBER;
+      hash = (53 * hash) + getMeasured().hashCode();
+    }
     if (hasObservedSince()) {
       hash = (37 * hash) + OBSERVEDSINCE_FIELD_NUMBER;
       hash = (53 * hash) + getObservedSince().hashCode();
@@ -884,6 +951,7 @@ private static final long serialVersionUID = 0L;
         getContainerNameFieldBuilder();
         getLastRequestedAtFieldBuilder();
         getLastUpdatedAtFieldBuilder();
+        getMeasuredFieldBuilder();
         getObservedSinceFieldBuilder();
       }
     }
@@ -917,7 +985,11 @@ private static final long serialVersionUID = 0L;
         lastUpdatedAtBuilder_.dispose();
         lastUpdatedAtBuilder_ = null;
       }
-      measured_ = false;
+      measured_ = null;
+      if (measuredBuilder_ != null) {
+        measuredBuilder_.dispose();
+        measuredBuilder_ = null;
+      }
       observedSince_ = null;
       if (observedSinceBuilder_ != null) {
         observedSinceBuilder_.dispose();
@@ -1000,13 +1072,16 @@ private static final long serialVersionUID = 0L;
         to_bitField0_ |= 0x00000008;
       }
       if (((from_bitField0_ & 0x00000400) != 0)) {
-        result.measured_ = measured_;
+        result.measured_ = measuredBuilder_ == null
+            ? measured_
+            : measuredBuilder_.build();
+        to_bitField0_ |= 0x00000010;
       }
       if (((from_bitField0_ & 0x00000800) != 0)) {
         result.observedSince_ = observedSinceBuilder_ == null
             ? observedSince_
             : observedSinceBuilder_.build();
-        to_bitField0_ |= 0x00000010;
+        to_bitField0_ |= 0x00000020;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1087,8 +1162,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasLastUpdatedAt()) {
         mergeLastUpdatedAt(other.getLastUpdatedAt());
       }
-      if (other.getMeasured() != false) {
-        setMeasured(other.getMeasured());
+      if (other.hasMeasured()) {
+        mergeMeasured(other.getMeasured());
       }
       if (other.hasObservedSince()) {
         mergeObservedSince(other.getObservedSince());
@@ -1184,11 +1259,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000800;
               break;
             } // case 90
-            case 96: {
-              measured_ = input.readBool();
+            case 98: {
+              input.readMessage(
+                  getMeasuredFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000400;
               break;
-            } // case 96
+            } // case 98
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2381,7 +2458,9 @@ private static final long serialVersionUID = 0L;
       return lastUpdatedAtBuilder_;
     }
 
-    private boolean measured_ ;
+    private com.google.protobuf.BoolValue measured_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> measuredBuilder_;
     /**
      * <pre>
      * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
@@ -2402,17 +2481,16 @@ private static final long serialVersionUID = 0L;
      * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 12;</code>
-     * @return The measured.
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     * @return Whether the measured field is set.
      */
-    @java.lang.Override
-    public boolean getMeasured() {
-      return measured_;
+    public boolean hasMeasured() {
+      return ((bitField0_ & 0x00000400) != 0);
     }
     /**
      * <pre>
@@ -2434,18 +2512,57 @@ private static final long serialVersionUID = 0L;
      * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 12;</code>
-     * @param value The measured to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     * @return The measured.
      */
-    public Builder setMeasured(boolean value) {
-
-      measured_ = value;
+    public com.google.protobuf.BoolValue getMeasured() {
+      if (measuredBuilder_ == null) {
+        return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+      } else {
+        return measuredBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    public Builder setMeasured(com.google.protobuf.BoolValue value) {
+      if (measuredBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        measured_ = value;
+      } else {
+        measuredBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00000400;
       onChanged();
       return this;
@@ -2470,19 +2587,212 @@ private static final long serialVersionUID = 0L;
      * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 12;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    public Builder setMeasured(
+        com.google.protobuf.BoolValue.Builder builderForValue) {
+      if (measuredBuilder_ == null) {
+        measured_ = builderForValue.build();
+      } else {
+        measuredBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    public Builder mergeMeasured(com.google.protobuf.BoolValue value) {
+      if (measuredBuilder_ == null) {
+        if (((bitField0_ & 0x00000400) != 0) &&
+          measured_ != null &&
+          measured_ != com.google.protobuf.BoolValue.getDefaultInstance()) {
+          getMeasuredBuilder().mergeFrom(value);
+        } else {
+          measured_ = value;
+        }
+      } else {
+        measuredBuilder_.mergeFrom(value);
+      }
+      if (measured_ != null) {
+        bitField0_ |= 0x00000400;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
      */
     public Builder clearMeasured() {
       bitField0_ = (bitField0_ & ~0x00000400);
-      measured_ = false;
+      measured_ = null;
+      if (measuredBuilder_ != null) {
+        measuredBuilder_.dispose();
+        measuredBuilder_ = null;
+      }
       onChanged();
       return this;
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    public com.google.protobuf.BoolValue.Builder getMeasuredBuilder() {
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return getMeasuredFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    public com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder() {
+      if (measuredBuilder_ != null) {
+        return measuredBuilder_.getMessageOrBuilder();
+      } else {
+        return measured_ == null ?
+            com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+     * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+     * unlike the two stamps above there is no "not yet" case.
+     *
+     * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+     * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+     * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+     * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+     * was not maintained in between.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
+     * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
+     * stamps carry no information.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 12;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> 
+        getMeasuredFieldBuilder() {
+      if (measuredBuilder_ == null) {
+        measuredBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>(
+                getMeasured(),
+                getParentForChildren(),
+                isClean());
+        measured_ = null;
+      }
+      return measuredBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;

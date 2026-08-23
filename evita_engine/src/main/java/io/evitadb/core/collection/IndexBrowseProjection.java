@@ -291,10 +291,20 @@ final class IndexBrowseProjection {
 			// simply better
 			final BrowseCandidate candidate = ordered.get(i);
 			final IndexActivity activity = candidate.activity();
-			final long queryCount = rankedCounter == RankedCounter.QUERY_COUNT || activity == null ?
-				candidate.rankedValue() : activity.getQueryCount();
-			final long updateCount = rankedCounter == RankedCounter.UPDATE_COUNT || activity == null ?
-				candidate.rankedValue() : activity.getUpdateCount();
+			// with no holder there is nothing to report and nothing to stay consistent with. The frozen ranked value
+			// must NOT be substituted here: under `ENTITY_COUNT` it is the entity count, which is real even with the
+			// counters off, so reporting it would invent traffic out of a cardinality
+			final long queryCount;
+			final long updateCount;
+			if (activity == null) {
+				queryCount = 0L;
+				updateCount = 0L;
+			} else {
+				queryCount = rankedCounter == RankedCounter.QUERY_COUNT ?
+					candidate.rankedValue() : activity.getQueryCount();
+				updateCount = rankedCounter == RankedCounter.UPDATE_COUNT ?
+					candidate.rankedValue() : activity.getUpdateCount();
+			}
 			page.add(
 				describe(
 					entityType, candidate.key(), candidate.indexPrimaryKey(), candidate.entityCount(),

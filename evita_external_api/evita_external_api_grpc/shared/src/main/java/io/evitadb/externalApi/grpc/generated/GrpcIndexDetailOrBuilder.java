@@ -240,15 +240,60 @@ public interface GrpcIndexDetailOrBuilder extends
    * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
    * the truth is the first. Render the absence of measurement instead, and say so.
    *
-   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
    * </pre>
    *
-   * <code>bool measured = 10;</code>
+   * <code>.google.protobuf.BoolValue measured = 10;</code>
+   * @return Whether the measured field is set.
+   */
+  boolean hasMeasured();
+  /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 10;</code>
    * @return The measured.
    */
-  boolean getMeasured();
+  com.google.protobuf.BoolValue getMeasured();
+  /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 10;</code>
+   */
+  com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder();
 
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>

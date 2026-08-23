@@ -559,7 +559,7 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int MEASURED_FIELD_NUMBER = 14;
-  private boolean measured_ = false;
+  private com.google.protobuf.BoolValue measured_;
   /**
    * <pre>
    * When observation of this index began - the start of the window the two counters and the two stamps above are read
@@ -580,17 +580,80 @@ private static final long serialVersionUID = 0L;
    * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
    * the truth is the first. Render the absence of measurement instead, and say so.
    *
-   * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-   * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-   * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
    * </pre>
    *
-   * <code>bool measured = 14;</code>
+   * <code>.google.protobuf.BoolValue measured = 14;</code>
+   * @return Whether the measured field is set.
+   */
+  @java.lang.Override
+  public boolean hasMeasured() {
+    return ((bitField0_ & 0x00000100) != 0);
+  }
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 14;</code>
    * @return The measured.
    */
   @java.lang.Override
-  public boolean getMeasured() {
-    return measured_;
+  public com.google.protobuf.BoolValue getMeasured() {
+    return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+  }
+  /**
+   * <pre>
+   * When observation of this index began - the start of the window the two counters and the two stamps above are read
+   * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+   * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+   * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+   * window, "now" a zero-length one.
+   *
+   * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+   * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+   * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+   * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+   * Whether the readings above were taken at all. False on a server started with
+   * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+   * nor the write path reach for one.
+   *
+   * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+   * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+   * the truth is the first. Render the absence of measurement instead, and say so.
+   *
+   * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+   * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+   * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+   * </pre>
+   *
+   * <code>.google.protobuf.BoolValue measured = 14;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder() {
+    return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
   }
 
   public static final int OBSERVEDSINCE_FIELD_NUMBER = 13;
@@ -601,7 +664,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasObservedSince() {
-    return ((bitField0_ & 0x00000100) != 0);
+    return ((bitField0_ & 0x00000200) != 0);
   }
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 13;</code>
@@ -669,11 +732,11 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000080) != 0)) {
       output.writeMessage(12, getLastUpdatedAt());
     }
-    if (((bitField0_ & 0x00000100) != 0)) {
+    if (((bitField0_ & 0x00000200) != 0)) {
       output.writeMessage(13, getObservedSince());
     }
-    if (measured_ != false) {
-      output.writeBool(14, measured_);
+    if (((bitField0_ & 0x00000100) != 0)) {
+      output.writeMessage(14, getMeasured());
     }
     getUnknownFields().writeTo(output);
   }
@@ -732,13 +795,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(12, getLastUpdatedAt());
     }
-    if (((bitField0_ & 0x00000100) != 0)) {
+    if (((bitField0_ & 0x00000200) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(13, getObservedSince());
     }
-    if (measured_ != false) {
+    if (((bitField0_ & 0x00000100) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(14, measured_);
+        .computeMessageSize(14, getMeasured());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -801,8 +864,11 @@ private static final long serialVersionUID = 0L;
       if (!getLastUpdatedAt()
           .equals(other.getLastUpdatedAt())) return false;
     }
-    if (getMeasured()
-        != other.getMeasured()) return false;
+    if (hasMeasured() != other.hasMeasured()) return false;
+    if (hasMeasured()) {
+      if (!getMeasured()
+          .equals(other.getMeasured())) return false;
+    }
     if (hasObservedSince() != other.hasObservedSince()) return false;
     if (hasObservedSince()) {
       if (!getObservedSince()
@@ -861,9 +927,10 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + LASTUPDATEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getLastUpdatedAt().hashCode();
     }
-    hash = (37 * hash) + MEASURED_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getMeasured());
+    if (hasMeasured()) {
+      hash = (37 * hash) + MEASURED_FIELD_NUMBER;
+      hash = (53 * hash) + getMeasured().hashCode();
+    }
     if (hasObservedSince()) {
       hash = (37 * hash) + OBSERVEDSINCE_FIELD_NUMBER;
       hash = (53 * hash) + getObservedSince().hashCode();
@@ -1030,6 +1097,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeFieldBuilder();
         getLastQueriedAtFieldBuilder();
         getLastUpdatedAtFieldBuilder();
+        getMeasuredFieldBuilder();
         getObservedSinceFieldBuilder();
       }
     }
@@ -1077,7 +1145,11 @@ private static final long serialVersionUID = 0L;
         lastUpdatedAtBuilder_.dispose();
         lastUpdatedAtBuilder_ = null;
       }
-      measured_ = false;
+      measured_ = null;
+      if (measuredBuilder_ != null) {
+        measuredBuilder_.dispose();
+        measuredBuilder_ = null;
+      }
       observedSince_ = null;
       if (observedSinceBuilder_ != null) {
         observedSinceBuilder_.dispose();
@@ -1176,13 +1248,16 @@ private static final long serialVersionUID = 0L;
         to_bitField0_ |= 0x00000080;
       }
       if (((from_bitField0_ & 0x00001000) != 0)) {
-        result.measured_ = measured_;
+        result.measured_ = measuredBuilder_ == null
+            ? measured_
+            : measuredBuilder_.build();
+        to_bitField0_ |= 0x00000100;
       }
       if (((from_bitField0_ & 0x00002000) != 0)) {
         result.observedSince_ = observedSinceBuilder_ == null
             ? observedSince_
             : observedSinceBuilder_.build();
-        to_bitField0_ |= 0x00000100;
+        to_bitField0_ |= 0x00000200;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1267,8 +1342,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasLastUpdatedAt()) {
         mergeLastUpdatedAt(other.getLastUpdatedAt());
       }
-      if (other.getMeasured() != false) {
-        setMeasured(other.getMeasured());
+      if (other.hasMeasured()) {
+        mergeMeasured(other.getMeasured());
       }
       if (other.hasObservedSince()) {
         mergeObservedSince(other.getObservedSince());
@@ -1380,11 +1455,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00002000;
               break;
             } // case 106
-            case 112: {
-              measured_ = input.readBool();
+            case 114: {
+              input.readMessage(
+                  getMeasuredFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00001000;
               break;
-            } // case 112
+            } // case 114
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -3069,7 +3146,9 @@ private static final long serialVersionUID = 0L;
       return lastUpdatedAtBuilder_;
     }
 
-    private boolean measured_ ;
+    private com.google.protobuf.BoolValue measured_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> measuredBuilder_;
     /**
      * <pre>
      * When observation of this index began - the start of the window the two counters and the two stamps above are read
@@ -3090,17 +3169,16 @@ private static final long serialVersionUID = 0L;
      * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 14;</code>
-     * @return The measured.
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     * @return Whether the measured field is set.
      */
-    @java.lang.Override
-    public boolean getMeasured() {
-      return measured_;
+    public boolean hasMeasured() {
+      return ((bitField0_ & 0x00001000) != 0);
     }
     /**
      * <pre>
@@ -3122,18 +3200,57 @@ private static final long serialVersionUID = 0L;
      * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 14;</code>
-     * @param value The measured to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     * @return The measured.
      */
-    public Builder setMeasured(boolean value) {
-
-      measured_ = value;
+    public com.google.protobuf.BoolValue getMeasured() {
+      if (measuredBuilder_ == null) {
+        return measured_ == null ? com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+      } else {
+        return measuredBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    public Builder setMeasured(com.google.protobuf.BoolValue value) {
+      if (measuredBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        measured_ = value;
+      } else {
+        measuredBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00001000;
       onChanged();
       return this;
@@ -3158,19 +3275,212 @@ private static final long serialVersionUID = 0L;
      * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
      * the truth is the first. Render the absence of measurement instead, and say so.
      *
-     * Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-     * off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-     * client needs to decide. Detect the server's age from its version if the distinction ever matters.
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
      * </pre>
      *
-     * <code>bool measured = 14;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    public Builder setMeasured(
+        com.google.protobuf.BoolValue.Builder builderForValue) {
+      if (measuredBuilder_ == null) {
+        measured_ = builderForValue.build();
+      } else {
+        measuredBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    public Builder mergeMeasured(com.google.protobuf.BoolValue value) {
+      if (measuredBuilder_ == null) {
+        if (((bitField0_ & 0x00001000) != 0) &&
+          measured_ != null &&
+          measured_ != com.google.protobuf.BoolValue.getDefaultInstance()) {
+          getMeasuredBuilder().mergeFrom(value);
+        } else {
+          measured_ = value;
+        }
+      } else {
+        measuredBuilder_.mergeFrom(value);
+      }
+      if (measured_ != null) {
+        bitField0_ |= 0x00001000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
      */
     public Builder clearMeasured() {
       bitField0_ = (bitField0_ & ~0x00001000);
-      measured_ = false;
+      measured_ = null;
+      if (measuredBuilder_ != null) {
+        measuredBuilder_.dispose();
+        measuredBuilder_ = null;
+      }
       onChanged();
       return this;
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    public com.google.protobuf.BoolValue.Builder getMeasuredBuilder() {
+      bitField0_ |= 0x00001000;
+      onChanged();
+      return getMeasuredFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    public com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder() {
+      if (measuredBuilder_ != null) {
+        return measuredBuilder_.getMessageOrBuilder();
+      } else {
+        return measured_ == null ?
+            com.google.protobuf.BoolValue.getDefaultInstance() : measured_;
+      }
+    }
+    /**
+     * <pre>
+     * When observation of this index began - the start of the window the two counters and the two stamps above are read
+     * against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+     * is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+     * treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+     * window, "now" a zero-length one.
+     *
+     * It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+     * load, while one created hours later reads its own creation, because it was not observable before it existed. That
+     * is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+     * zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
+     * Whether the readings above were taken at all. False on a server started with
+     * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
+     * nor the write path reach for one.
+     *
+     * A client MUST branch on this before rendering a zero. "Not measured" and "never queried" are opposite findings -
+     * only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
+     * the truth is the first. Render the absence of measurement instead, and say so.
+     *
+     * Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+     * "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+     * Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+     * </pre>
+     *
+     * <code>.google.protobuf.BoolValue measured = 14;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder> 
+        getMeasuredFieldBuilder() {
+      if (measuredBuilder_ == null) {
+        measuredBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.BoolValue, com.google.protobuf.BoolValue.Builder, com.google.protobuf.BoolValueOrBuilder>(
+                getMeasured(),
+                getParentForChildren(),
+                isClean());
+        measured_ = null;
+      }
+      return measuredBuilder_;
     }
 
     private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince_;

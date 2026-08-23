@@ -908,10 +908,10 @@ message GrpcBrowsedIndex {
   // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
   // the truth is the first. Render the absence of measurement instead, and say so.
   //
-  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
-  bool measured = 14;
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 14;
   GrpcOffsetDateTime observedSince = 13;
 
 }
@@ -977,10 +977,10 @@ message GrpcIndexDetail {
   // only the second one says an index can be dropped - and a zero shown beside a live window asserts the second when
   // the truth is the first. Render the absence of measurement instead, and say so.
   //
-  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
-  bool measured = 10;
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 10;
   GrpcOffsetDateTime observedSince = 9;
 
 }
@@ -1074,10 +1074,10 @@ message GrpcSchemaCapabilityUsage {
   // only the second one says a flag can be dropped - and a zero shown beside a live window asserts the second when
   // the truth is the first. Render the absence of measurement instead, and say so.
   //
-  // Absent (false) from a server predating this field too, which is indistinguishable on the wire from tracking being
-  // off. That is deliberate rather than a gap: both mean "these numbers cannot be trusted", which is the only thing a
-  // client needs to decide. Detect the server's age from its version if the distinction ever matters.
-  bool measured = 12;
+  // Presence-tracked on purpose. A server predating this field sends nothing, and that silence must NOT be read as
+  // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
+  // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
+  google.protobuf.BoolValue measured = 12;
   GrpcOffsetDateTime observedSince = 11;
 
 }

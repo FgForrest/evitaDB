@@ -657,6 +657,85 @@ class IndexBrowseProjectionTest {
 		return OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
 	}
 
+	@Nested
+	@DisplayName("Usage statistics switched off")
+	class UsageStatisticsOff {
+
+		@Test
+		@DisplayName("rank by entity count without reporting the ranking value as query traffic")
+		void shouldNotLeakTheRankedValueIntoTheCountsWhenUnmeasured() {
+			// `ENTITY_COUNT` ranks by a reading that is real even with the counters off, so the candidate carries a
+			// non-zero `rankedValue` while holding no activity at all. Reporting that value as `queryCount` would both
+			// invent traffic and trip `BrowsedIndex`'s own premise check
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(
+				untracked(new EntityIndexKey(EntityIndexType.GLOBAL), 40),
+				untracked(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED), 7)
+			);
+
+			final IndexBrowseResult result = browse(indexes, IndexBrowseOrdering.ENTITY_COUNT, OrderDirection.DESC, 1, 10);
+
+			assertEquals(2, result.indexes().length);
+			assertEquals(40, result.indexes()[0].entityCount(), "The ranking itself still works");
+			for (final BrowsedIndex row : result.indexes()) {
+				assertFalse(row.measured(), "Nothing was measured, and the row has to say so");
+				assertEquals(0L, row.queryCount(), "An unmeasured row must not report the value it was ranked by");
+				assertEquals(0L, row.updateCount(), "An unmeasured row must not report the value it was ranked by");
+				assertNull(row.observedSince());
+			}
+		}
+
+		@Test
+		@DisplayName("rank by query count with every index tied at zero, rather than throwing")
+		void shouldRankByAnAbsentCounterWithoutThrowing() {
+			final Map<EntityIndexKey, EntityIndex> indexes = mapOf(
+				untracked(new EntityIndexKey(EntityIndexType.GLOBAL), 40),
+				untracked(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED), 7)
+			);
+
+			for (final IndexBrowseOrdering ordering : IndexBrowseOrdering.values()) {
+				for (final OrderDirection direction : directionsOf(ordering)) {
+					final IndexBrowseResult result = browse(indexes, ordering, direction, 1, 10);
+					assertEquals(
+						2, result.indexes().length,
+						"Ordering `" + ordering + "`/`" + direction + "` must survive an unmeasured catalog"
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("report the same absence through the map-order walk")
+		void shouldReportAbsenceInMapOrderToo() {
+			final IndexBrowseResult result = browseAll(
+				mapOf(untracked(new EntityIndexKey(EntityIndexType.GLOBAL), 3))
+			);
+
+			assertEquals(1, result.indexes().length);
+			assertFalse(result.indexes()[0].measured());
+			assertEquals(0L, result.indexes()[0].queryCount());
+			assertNull(result.indexes()[0].observedSince());
+		}
+
+		/**
+		 * Builds one index that allocates no activity holder, as every index does on a server started with
+		 * `server.usageStatisticsTracking: false`.
+		 *
+		 * @param key         key identifying the index
+		 * @param entityCount how many entities it should cover
+		 * @return the map entry
+		 */
+		@Nonnull
+		private Map.Entry<EntityIndexKey, EntityIndex> untracked(@Nonnull EntityIndexKey key, int entityCount) {
+			final GlobalEntityIndex index = new GlobalEntityIndex(
+				INDEX_PRIMARY_KEYS.incrementAndGet(), ENTITY_TYPE, key, false
+			);
+			for (int entityPrimaryKey = 1; entityPrimaryKey <= entityCount; entityPrimaryKey++) {
+				index.insertPrimaryKeyIfMissing(entityPrimaryKey);
+			}
+			return Map.entry(key, index);
+		}
+	}
+
 	/**
 	 * Browses every index of the map, unfiltered, in map order.
 	 *

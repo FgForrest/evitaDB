@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse;
 
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.CatalogState;
@@ -1344,9 +1345,9 @@ public class CatalogStatisticsConverter {
 			.setCardinality(toGrpcIndexCardinality(detail.cardinality()))
 			.setQueryCount(detail.queryCount())
 			.setUpdateCount(detail.updateCount())
-			// stamped explicitly rather than left to the field default, which is `false` - a tracking server that
-			// forgot to set this would report every index as unmeasured and hide the whole surface
-			.setMeasured(detail.measured());
+			// always stamped, never left absent: absence is reserved for a server that predates the field, and a
+			// tracking server leaving it off would be claiming to be one
+			.setMeasured(BoolValue.of(detail.measured()));
 		if (detail.entityType() != null) {
 			builder.setEntityType(StringValue.of(detail.entityType()));
 		}
@@ -1393,7 +1394,8 @@ public class CatalogStatisticsConverter {
 			grpcDetail.hasObservedSince() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) : null
 		,
-			grpcDetail.getMeasured()
+			// an older server sends nothing here and its counts are real - see the field's proto documentation
+			!grpcDetail.hasMeasured() || grpcDetail.getMeasured().getValue()
 		);
 	}
 
@@ -1535,8 +1537,8 @@ public class CatalogStatisticsConverter {
 			.setScope(toGrpcScope(index.scope()))
 			.setQueryCount(index.queryCount())
 			.setUpdateCount(index.updateCount())
-			// see `toGrpcIndexDetail` for why this is never left to the field default
-			.setMeasured(index.measured());
+			// see `toGrpcIndexDetail` for why this is never left absent
+			.setMeasured(BoolValue.of(index.measured()));
 		// null only on a row that itself came from a pre-observedSince server - the absence travels onward rather
 		// than being replaced by a fabricated instant
 		if (index.observedSince() != null) {
@@ -1600,7 +1602,8 @@ public class CatalogStatisticsConverter {
 			grpcIndex.hasObservedSince() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) : null
 ,
-			grpcIndex.getMeasured()
+			// an older server sends nothing here and its counts are real - see the field's proto documentation
+			!grpcIndex.hasMeasured() || grpcIndex.getMeasured().getValue()
 		);
 	}
 
@@ -1724,8 +1727,8 @@ public class CatalogStatisticsConverter {
 			// never absent - a capability is observed from the moment it exists, which is what makes a zero count
 			// readable as "not once in this long" rather than as an unqualified zero
 			.setObservedSince(EvitaDataTypesConverter.toGrpcOffsetDateTime(usage.observedSince()))
-			// see `toGrpcIndexDetail` for why this is never left to the field default
-			.setMeasured(usage.measured());
+			// see `toGrpcIndexDetail` for why this is never left absent
+			.setMeasured(BoolValue.of(usage.measured()));
 		// both absences are statements about the owner, and an unset wrapper is what keeps them apart from an owner
 		// genuinely named by the empty string
 		if (usage.entityType() != null) {
@@ -1780,7 +1783,8 @@ public class CatalogStatisticsConverter {
 			grpcUsage.hasLastUpdatedAt() ?
 				EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getLastUpdatedAt()) : null,
 			EvitaDataTypesConverter.toOffsetDateTime(grpcUsage.getObservedSince()),
-			grpcUsage.getMeasured()
+			// an older server sends nothing here and its counts are real - see the field's proto documentation
+			!grpcUsage.hasMeasured() || grpcUsage.getMeasured().getValue()
 		);
 	}
 
