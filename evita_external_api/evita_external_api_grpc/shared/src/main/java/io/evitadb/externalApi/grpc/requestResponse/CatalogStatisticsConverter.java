@@ -1392,8 +1392,7 @@ public class CatalogStatisticsConverter {
 			// substituted instant fabricates one - the epoch a decades-long window that turns "never queried in the
 			// last week" falsely true, "now" a zero-length one that turns every rate infinite. Absence is the truth
 			grpcDetail.hasObservedSince() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) : null
-		,
+				EvitaDataTypesConverter.toOffsetDateTime(grpcDetail.getObservedSince()) : null,
 			// an older server sends nothing here and its counts are real - see the field's proto documentation
 			!grpcDetail.hasMeasured() || grpcDetail.getMeasured().getValue()
 		);
@@ -1600,8 +1599,7 @@ public class CatalogStatisticsConverter {
 				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getLastUpdatedAt()) : null,
 			// see toIndexDetail for why an old server's silence decodes to an absence rather than to any instant
 			grpcIndex.hasObservedSince() ?
-				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) : null
-,
+				EvitaDataTypesConverter.toOffsetDateTime(grpcIndex.getObservedSince()) : null,
 			// an older server sends nothing here and its counts are real - see the field's proto documentation
 			!grpcIndex.hasMeasured() || grpcIndex.getMeasured().getValue()
 		);

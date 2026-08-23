@@ -33,9 +33,9 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
-| 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429 |
-| 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429 |
-| 2026-08-16 | [An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself](2026-08-16-per-index-usage-statistics.md) | feature | accepted | — |
+| 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429, PR #1430 |
+| 2026-08-16 | [An index's usage counters live in a holder passed by reference through every merge copy, not in the index itself](2026-08-16-per-index-usage-statistics.md) | feature | accepted | PR #1423 |
 | 2026-08-14 | [Weave the interrupt poll with `visit` and a chained matcher union, and interrupt tasks through the executor's Future](2026-08-14-interruption-weaving-and-task-cancellation.md) | fix | accepted | #1416, PR #1419 |
 | 2026-08-14 | [Make the scheduler's waiting interval an idle timeout renewed by lookup, linearized on the buffer lock](2026-08-14-waiting-task-idle-timeout.md) | fix | accepted | #1415, PR #1420 |
 | 2026-08-10 | [Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time](2026-08-10-catalog-and-collection-statistics/) | feature | accepted | #1339, PR #1418 |

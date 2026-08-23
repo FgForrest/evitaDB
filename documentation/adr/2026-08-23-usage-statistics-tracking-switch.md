@@ -1,11 +1,11 @@
 ---
 title: Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero
 date: 2026-08-23
-updated: 2026-08-23 09:20
+updated: 2026-08-23 09:45
 status: accepted
 kind: feature
 issues: [1429]
-prs: []
+prs: [1430]
 areas: [evita_api/api/configuration, evita_api/api/statistics, evita_engine/index, evita_engine/index/usage, evita_engine/core/query, evita_engine/core/collection, evita_engine/core/catalog, evita_store/evita_store_server, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
