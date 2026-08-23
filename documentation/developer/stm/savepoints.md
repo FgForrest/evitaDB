@@ -43,6 +43,10 @@ A savepoint is only opened on the **atomic, transaction-bound** path. The two co
 
 ## Design rationale -- why snapshot/restore ("Approach D")
 
+The decision record for this fork -- including the forensic analysis of why the predecessor
+`undoActions` mechanism could not restore pre-mutation state -- is
+`documentation/adr/2026-07-10-atomic-entity-mutation-partial-rollback.md`.
+
 Reverting one failed entity mutation mid-transaction was designed against six candidate approaches.
 The chosen one -- **snapshot/restore diff-layer savepoints** -- was picked deliberately over the
 alternatives:

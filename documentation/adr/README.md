@@ -61,6 +61,7 @@ filename date that disagrees with `date:`.
 | 2026-07-18 | [On-demand export of the buffered traffic-recording window via a bounded snapshot walk](2026-07-18-traffic-recording-on-demand-export.md) | feature | accepted | #1282, PR #1292 |
 | 2026-07-16 | [Fix the gRPC session-cancellation cascade, and move the test-only executor switch off public config into a per-dataset real-pool opt-in](2026-07-16-client-session-cancellation-cascade.md) | fix | accepted | PR #1284 |
 | 2026-07-16 | [Carve out granular conflict items from the coarse entity conflict scope](2026-07-16-granular-conflict-carveout.md) | fix | accepted | #503, PR #1287 |
+| 2026-07-10 | [Revert a failed entity mutation by snapshot/restore savepoints over the diff layers, not by replaying inverse actions](2026-07-10-atomic-entity-mutation-partial-rollback.md) | feature | accepted | #569, #1252, PR #1256, PR #1267, PR #1268 |
 | 2026-07-10 | [Decompose index storage into granular paged parts and slim the index data structures](2026-07-10-more-optimized-data-structures/) | optimization | accepted | #760, #1252, PR #1268 |
 | 2026-07-07 | [Vendor RoaringBitmap as a full, renamed copy instead of a thin JPMS subclass](2026-07-07-roaring-bitmap-vendoring.md) | infrastructure | accepted | #1252, PR #1267, PR #1316 |
 | 2026-05-27 | [Range-typed source attributes and an array-shaped bucketed() annotation for reference histograms](2026-05-27-range-and-multi-histogram-schema.md) | feature | accepted | #1161, PR #1192, PR #1247, PR #1248, PR #1249 |
