@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
@@ -86,6 +87,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void setToTrue() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value = true;
 		} else {
 			layer.setToTrue();
@@ -98,9 +100,30 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	public void setToFalse() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value = false;
 		} else {
 			layer.setToFalse();
+		}
+	}
+
+	/**
+	 * Captures {@link #value} for the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a failed mutation rewinds this flag to what it held before the mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * The capture is made on the FIRST write-touch only: this whole object *is* one boolean, so a single captured
+	 * pre-image is an absolute restore of all of it, and re-capturing on a later write would only overwrite it with a
+	 * mid-savepoint value. That matters here more than anywhere else in the index code — a flag of this shape is the
+	 * `dirty` marker of nearly every index, set again on every single modification, so a per-write inverse would push
+	 * one journal entry per modification for no added fidelity.
+	 *
+	 * Must be called BEFORE the assignment. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final boolean preImage = this.value;
+			savepoint.push(() -> this.value = preImage);
 		}
 	}
 

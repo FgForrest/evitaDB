@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -243,6 +244,7 @@ public class TransactionalComplexObjArray<
 	 * Applies the add directly to the delegate array without transactional layer.
 	 */
 	private void addWithoutTransaction(@Nonnull T recordId, @Nonnull InsertionPosition position) {
+		recordWarmUpSavepointTouch();
 		if (position.alreadyPresent()) {
 			if (this.producer != null) {
 				final T original = this.delegate[position.position()];
@@ -281,6 +283,7 @@ public class TransactionalComplexObjArray<
 		);
 		if (layer == null) {
 			if (position.alreadyPresent()) {
+				recordWarmUpSavepointTouch();
 				final T original = this.delegate[position.position()];
 				if (this.reducer != null) {
 					this.reducer.accept(original, recordId);
@@ -389,6 +392,37 @@ public class TransactionalComplexObjArray<
 	@Override
 	public String toString() {
 		return Arrays.toString(getArray());
+	}
+
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array's MEMBERSHIP to what it was before the
+	 * mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * Insertion and removal replace the delegate with a freshly allocated array
+	 * ({@link ArrayUtils#insertRecordIntoArrayOnIndex} / {@link ArrayUtils#removeRecordFromArrayOnIndex} never write
+	 * into the array handed to them) and this class never overwrites an element slot of a retained array, so the
+	 * outgoing reference is an immutable snapshot of which records were present and in what order. That is the whole of
+	 * this class's own state, hence the first-write-touch capture.
+	 *
+	 * **What this deliberately does NOT cover.** Unlike the sibling array wrappers, this one also mutates its elements
+	 * IN PLACE: adding a record that is already present hands it to the `producer` to be combined into the held
+	 * instance, and removing one hands it to the `reducer` to be subtracted from it — in both cases the array is
+	 * untouched and only the element's own contents change. Reverting that is the ELEMENT's responsibility: the
+	 * elements are {@link TransactionalObject}s that journal their own delegate-branch writes, exactly as the
+	 * nested-layer boundary of {@link io.evitadb.core.transaction.memory.Snapshotable} splits a layer's own diff from
+	 * the diffs of the producers it holds. The touch is recorded on those paths too — not because the reference would
+	 * change, but so that a later structural write in the same savepoint cannot capture an already-mutated array as if
+	 * it were the pre-image.
+	 *
+	 * Must be called BEFORE the mutation. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
+		}
 	}
 
 	/*

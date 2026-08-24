@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -370,6 +371,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public V put(K key, @Nullable V value) {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			WarmUpMapJournal.journalSlotIfOpen(this.mapDelegate, key);
 			return this.mapDelegate.put(key, value);
 		} else {
 			return layer.put(key, value);
@@ -382,6 +384,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		Assert.notNull(key, "Null keys are not supported in transactional maps!");
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			//noinspection unchecked
+			WarmUpMapJournal.journalSlotIfOpen(this.mapDelegate, (K) key);
 			return this.mapDelegate.remove(key);
 		} else {
 			return layer.remove(key);
@@ -392,6 +396,14 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public void putAll(@Nonnull Map<? extends K, ? extends V> t) {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				// one inverse per key rather than a copy of the whole map: the argument bounds the work, and the base
+				// map this writes into is the large accumulated structure a whole-map capture would clone per entity
+				for (final Entry<? extends K, ? extends V> entry : t.entrySet()) {
+					WarmUpMapJournal.journalSlot(savepoint, this.mapDelegate, entry.getKey());
+				}
+			}
 			this.mapDelegate.putAll(t);
 		} else {
 			for (Entry<? extends K, ? extends V> entry : t.entrySet()) {
@@ -404,6 +416,9 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public void clear() {
 		final MapChanges<K, V> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			// the one place a whole-map pre-image is right: the operation itself is O(N), so a copy of the same order
+			// changes no complexity, and a per-key inverse would push one journal entry per surviving entry instead
+			WarmUpMapJournal.journalWholeMapIfOpen(this.mapDelegate);
 			this.mapDelegate.clear();
 		} else {
 			layer.cleanAll(
@@ -418,7 +433,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public Set<K> keySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.mapDelegate.keySet();
+			return WarmUpSavepoint.getIfOpen() == null ?
+				this.mapDelegate.keySet() : WarmUpMapJournal.keySet(this.mapDelegate);
 		} else {
 			return new TransactionalMemoryKeySet<>(layer, this, getTransactionalLayerMaintainer());
 		}
@@ -429,7 +445,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public Collection<V> values() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.mapDelegate.values();
+			return WarmUpSavepoint.getIfOpen() == null ?
+				this.mapDelegate.values() : WarmUpMapJournal.values(this.mapDelegate);
 		} else {
 			return new TransactionalMemoryValues<>(layer, this, getTransactionalLayerMaintainer());
 		}
@@ -440,7 +457,8 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	public Set<Entry<K, V>> entrySet() {
 		final MapChanges<K, V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return this.mapDelegate.entrySet();
+			return WarmUpSavepoint.getIfOpen() == null ?
+				this.mapDelegate.entrySet() : WarmUpMapJournal.entrySet(this.mapDelegate);
 		} else {
 			return new TransactionalMemoryEntrySet<>(layer, this);
 		}

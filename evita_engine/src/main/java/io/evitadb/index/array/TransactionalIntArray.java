@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.iterator.ConstantIntIterator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -135,6 +136,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public void add(int recordId) {
 		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.insertIntIntoOrderedArray(recordId, this.delegate);
 		} else {
 			layer.addRecordId(recordId);
@@ -150,6 +152,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 			final InsertionPosition insertionPosition =
 				ArrayUtils.computeInsertPositionOfIntInOrderedArray(recordId, this.delegate);
 			if (!insertionPosition.alreadyPresent()) {
+				recordWarmUpSavepointTouch();
 				this.delegate = ArrayUtils.insertIntIntoArrayOnIndex(
 					recordId, this.delegate, insertionPosition.position()
 				);
@@ -176,9 +179,32 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public void remove(int recordId) {
 		final IntArrayChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.removeIntFromOrderedArray(recordId, this.delegate);
 		} else {
 			layer.removeRecordId(recordId);
+		}
+	}
+
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array to exactly the contents it held before the
+	 * mutation began (see {@link WarmUpSavepoint}).
+	 *
+	 * The pre-image is free: every write on this branch REPLACES the delegate with a freshly allocated array
+	 * ({@link ArrayUtils#insertIntIntoOrderedArray} and friends never write into the array handed to them), so the
+	 * outgoing reference already is an immutable snapshot of the pre-mutation contents and restoring it is a single
+	 * field assignment. That is also why the capture is made on the FIRST write-touch only — the reference covers the
+	 * array's entire state, so re-capturing on a later write would merely overwrite it with a mid-savepoint version.
+	 *
+	 * Must be called BEFORE the reassignment. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final int[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
 		}
 	}
 

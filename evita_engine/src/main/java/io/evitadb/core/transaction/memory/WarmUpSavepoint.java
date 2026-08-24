@@ -48,12 +48,29 @@ import java.util.Map.Entry;
  *   write-touched inside the savepoint, and pushes a single journal entry that restores it absolutely. Every later
  *   touch of the same instance is an `O(1)`, allocation-free no-op — the identical lazy-capture-on-first-write-touch
  *   contract the maintainer implements in `recordSavepointSnapshotIfNeeded`.
+ * - {@link #claimFirstTouch(Object)} is the same dedup for a participant that is NOT a {@link Snapshotable} — an
+ *   index data structure whose delegate branch writes raw state in place. It only reports whether this is the first
+ *   touch; the participant then captures its own pre-image and {@link #push(Runnable)}es the inverse itself.
+ * - {@link #push(Runnable)} records one inverse without any dedup, for a participant whose pre-image must be captured
+ *   per operation rather than once.
  * - {@link #rollback()} replays the journal in strict reverse, then releases every captured memento.
  * - {@link #commit()} discards the journal entries without running them, then releases every captured memento.
  *
- * Because each recorded inverse is an ABSOLUTE restore of one participant's own state, participants are mutually
- * independent and the reverse-replay order between them carries no meaning — which is what lets first-touch mementos
- * and (from the later per-structure phases) per-operation inverses share a single journal.
+ * Because each recorded inverse is an ABSOLUTE restore of the state its own operation touched, participants are
+ * mutually independent and the reverse-replay order between them carries no meaning — which is what lets first-touch
+ * mementos and per-operation inverses share a single journal. Within one participant the ordering DOES carry meaning
+ * and is what makes per-operation inverses correct: replayed newest-first, the earliest-pushed inverse for a given
+ * slot runs last and wins, so it is the pre-savepoint value that survives however many times the slot was rewritten.
+ *
+ * **Which of the two granularities a participant picks** follows from the cost of its pre-image, not from its shape:
+ *
+ * - **First touch**, when the participant's ENTIRE mutable state has an `O(1)` pre-image — a scalar, or a wrapper
+ *   whose writes replace an array reference rather than mutating the array in place. One capture then covers every
+ *   write in the savepoint, and the journal stays bounded by participants rather than by the number of writes.
+ * - **Per operation**, when it does not. The collection wrappers mutate a large delegate `HashMap` / `HashSet` /
+ *   `ArrayList` in place, so their whole-state pre-image is a deep copy of the accumulated base structure — the
+ *   `O(N²)`-per-transaction rollback cliff that the journal strategy exists to avoid (see {@link UndoJournal}). They
+ *   capture the one slot each operation overwrites instead.
  *
  * **Thread confinement.** The savepoint is held in a {@link ThreadLocal} rather than passed down the call chain: the
  * warm-up write path fans out through the whole index-mutation machinery, and plumbing a context parameter through it
@@ -95,20 +112,31 @@ public final class WarmUpSavepoint {
 	 * the work of the mutation it gates.
 	 */
 	private static volatile boolean enabled = Boolean.getBoolean(ENABLED_PROPERTY);
+	/**
+	 * Placeholder stored in {@link #firstTouches} for a participant that captured its own pre-image (see
+	 * {@link #claimFirstTouch(Object)}) and therefore has no memento for this savepoint to hand back. It keeps both
+	 * kinds of first touch in a single map — one allocation per savepoint instead of two — while still letting
+	 * {@link #releaseMementos()} tell the entries apart.
+	 */
+	private static final Object SELF_CAPTURED = new Object();
 
 	/**
 	 * The inverse operations recorded while this savepoint is open, replayed in strict reverse on {@link #rollback()}.
-	 * A single journal is shared by all participants because every recorded inverse is an absolute restore of one
-	 * participant's own state, so the interleaving between participants is irrelevant.
+	 * A single journal is shared by all participants because every recorded inverse is an absolute restore of the state
+	 * its own operation touched, so the interleaving between participants is irrelevant.
 	 */
 	private final UndoJournal undoJournal = new UndoJournal();
 	/**
-	 * The mementos captured on first write-touch, keyed by the participating layer INSTANCE. Identity is the right key
-	 * here (and cheaper than {@link TransactionalLayerCreator#getId()}): a warm-up participant is a long-lived delegate
-	 * structure reached by reference, never re-created per savepoint, and two distinct instances must never share an
-	 * entry even if they happen to compare equal. Doubles as the first-touch dedup set.
+	 * The participants write-touched inside this savepoint, keyed by INSTANCE. Identity is the right key here (and
+	 * cheaper than {@link TransactionalLayerCreator#getId()}): a warm-up participant is a long-lived delegate structure
+	 * reached by reference, never re-created per savepoint, and two distinct instances must never share an entry even
+	 * if they happen to compare equal.
+	 *
+	 * The value is the memento a {@link Snapshotable} participant produced, or {@link #SELF_CAPTURED} for a participant
+	 * that captured its own pre-image. Either way the entry is what makes the first-touch check `O(1)` and
+	 * allocation-free from the second touch onwards.
 	 */
-	private final IdentityHashMap<Snapshotable<?>, Object> mementos = new IdentityHashMap<>(16);
+	private final IdentityHashMap<Object, Object> firstTouches = new IdentityHashMap<>(16);
 
 	/**
 	 * Private — a savepoint is always obtained through {@link #open()}, which is what registers it as the thread's
@@ -192,15 +220,63 @@ public final class WarmUpSavepoint {
 	 * @param layer the participant about to be mutated
 	 */
 	public void recordFirstTouch(@Nonnull Snapshotable<?> layer) {
-		if (this.mementos.get(layer) != null) {
+		if (this.firstTouches.get(layer) != null) {
 			// already captured within this savepoint - the pre-savepoint pre-image is the one that must survive
 			return;
 		}
 		// the participant declares its own memento type; this savepoint only shuttles the opaque value back to it
 		@SuppressWarnings("unchecked") final Snapshotable<Object> snapshotable = (Snapshotable<Object>) layer;
 		final Object memento = snapshotable.snapshot();
-		this.mementos.put(layer, memento);
+		this.firstTouches.put(layer, memento);
 		this.undoJournal.push(() -> snapshotable.restore(memento));
+	}
+
+	/**
+	 * Reports whether a participant that captures its OWN pre-image is being write-touched for the first time inside
+	 * this savepoint, and records the touch so every later one answers `false`. It is the {@link Snapshotable}-free
+	 * half of {@link #recordFirstTouch(Snapshotable)}, for the index data structures whose delegate branch writes raw
+	 * state in place and that therefore have no diff layer to snapshot.
+	 *
+	 * Use it only where the participant's ENTIRE mutable state has an `O(1)` pre-image (see the type JavaDoc); the
+	 * caller must, on a `true` answer, capture that pre-image and {@link #push(Runnable)} the inverse restoring it
+	 * BEFORE applying its mutation:
+	 *
+	 * ```
+	 * final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+	 * if (savepoint != null && savepoint.claimFirstTouch(this)) {
+	 *     final int[] preImage = this.delegate;
+	 *     savepoint.push(() -> this.delegate = preImage);
+	 * }
+	 * ```
+	 *
+	 * Splitting the answer from the capture is what keeps a repeat touch allocation-free: a variant taking the inverse
+	 * as an argument would have to build the capturing lambda on every call just to discard it.
+	 *
+	 * @param participant the structure about to be mutated
+	 * @return `true` when this is its first write-touch inside this savepoint and its pre-image still has to be
+	 *         captured, `false` when a pre-savepoint pre-image was already recorded for it
+	 */
+	public boolean claimFirstTouch(@Nonnull Object participant) {
+		return this.firstTouches.putIfAbsent(participant, SELF_CAPTURED) == null;
+	}
+
+	/**
+	 * Records one inverse operation to be replayed on {@link #rollback()}, with no first-touch dedup — the granularity
+	 * a participant uses when its whole-state pre-image is too expensive to capture and it captures the individual slot
+	 * each operation overwrites instead (see the type JavaDoc).
+	 *
+	 * Must be called BEFORE the forward mutation is applied, with the pre-mutation value already captured, and the
+	 * inverse must be an ABSOLUTE restore of that slot rather than a semantic counter-operation: under the journal's
+	 * reverse replay the earliest-pushed inverse for a slot runs last and wins, which is what makes a slot rewritten
+	 * several times inside one savepoint end up at its pre-savepoint value.
+	 *
+	 * The inverse must also be TOTAL — it may never throw for a benign reason. A failing rollback leaves state that
+	 * cannot be trusted and costs the whole bulk load (see the poison backstop in `LocalMutationExecutorCollector`).
+	 *
+	 * @param inverse the operation restoring the state the forward mutation is about to overwrite
+	 */
+	public void push(@Nonnull Runnable inverse) {
+		this.undoJournal.push(inverse);
 	}
 
 	/**
@@ -253,18 +329,23 @@ public final class WarmUpSavepoint {
 	}
 
 	/**
-	 * Hands every participant its closed savepoint's memento back (see {@link Snapshotable#releaseMemento(Object)}) so
-	 * it can drop the per-savepoint scratch state - typically its own undo journal - it kept to support a restore, and
-	 * empties the bookkeeping. Called on both outcomes, exactly as the maintainer does for a transactional savepoint.
+	 * Hands every {@link Snapshotable} participant its closed savepoint's memento back (see
+	 * {@link Snapshotable#releaseMemento(Object)}) so it can drop the per-savepoint scratch state - typically its own
+	 * undo journal - it kept to support a restore, and empties the bookkeeping. Participants that captured their own
+	 * pre-image hold no such scratch state and are skipped. Called on both outcomes, exactly as the maintainer does for
+	 * a transactional savepoint.
 	 */
 	private void releaseMementos() {
-		for (final Entry<Snapshotable<?>, Object> entry : this.mementos.entrySet()) {
-			// the value was produced by this very participant's snapshot(), so it is its own memento type
-			@SuppressWarnings("unchecked")
-			final Snapshotable<Object> snapshotable = (Snapshotable<Object>) entry.getKey();
-			snapshotable.releaseMemento(entry.getValue());
+		for (final Entry<Object, Object> entry : this.firstTouches.entrySet()) {
+			final Object memento = entry.getValue();
+			if (memento != SELF_CAPTURED) {
+				// the value was produced by this very participant's snapshot(), so it is its own memento type
+				@SuppressWarnings("unchecked")
+				final Snapshotable<Object> snapshotable = (Snapshotable<Object>) entry.getKey();
+				snapshotable.releaseMemento(memento);
+			}
 		}
-		this.mementos.clear();
+		this.firstTouches.clear();
 	}
 
 }

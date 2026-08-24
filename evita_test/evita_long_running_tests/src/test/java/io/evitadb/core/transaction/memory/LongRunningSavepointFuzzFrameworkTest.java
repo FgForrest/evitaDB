@@ -25,7 +25,9 @@ package io.evitadb.core.transaction.memory;
 
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -50,6 +52,8 @@ import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
+import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointCommitKeeps;
+import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackRestores;
 
 /**
  * Validates the per-entity savepoint fuzz / oracle framework itself. Drives randomized
@@ -59,6 +63,15 @@ import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
  * already {@code Snapshotable} ({@link TransactionalMap} via {@code MapChanges} and {@link TransactionalBitmap} via
  * {@code BitmapChanges}). Proving the harness on known-good structures both retro-validates the snapshot
  * implementations and establishes the harness as a trustworthy oracle for the remaining (delicate) layer types.
+ *
+ * The same oracle also drives the **WARM_UP** counterpart, where there is no transaction and no diff layer at all:
+ * writes go straight to the delegate and a {@code WarmUpSavepoint} has to rewind them from the inverses the
+ * structures record themselves. {@link io.evitadb.utils.AssertionUtils#assertWarmUpSavepointRollbackRestores} is that
+ * mode's entry point, and {@link TransactionalMap}, {@link TransactionalSet} and {@link TransactionalList} are covered
+ * in it. What the randomization is really testing there is composition: those three record one inverse PER OPERATION,
+ * so a batch mixing puts, bulk operations, view-iterator removals and (for the list) position-shifting inserts is the
+ * only thing that can disprove the claim that replaying them newest-first lands back on the pre-savepoint state.
+ * {@link TransactionalBitmap} is deliberately absent - it does not journal its warm-up writes yet.
  *
  * Each case asserts the in-savepoint batch actually changed the structure (non-vacuous), so a no-op rollback could
  * not pass by accident. The run is time-bounded; the random seed is echoed on failure for deterministic reproduction.
@@ -148,6 +161,120 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		});
 	}
 
+	@ParameterizedTest(name = "TransactionalMap: warm-up savepoint rollback restores the exact pre-savepoint contents")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalMap: warm-up savepoint rollback restores the exact pre-savepoint contents")
+	void shouldRollBackTransactionalMapToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalMap<Integer, Integer> map = newSeededMap(random);
+			assertWarmUpSavepointRollbackRestores(
+				map,
+				tested -> applyRandomMapOps(tested, random, 1 + random.nextInt(8)),
+				HashMap::new,
+				tested -> {
+					// a marker key outside the random range guarantees the in-savepoint batch changes the map
+					tested.put(KEY_SPACE + 1, Integer.MIN_VALUE);
+					applyRandomMapOps(tested, random, 1 + random.nextInt(8));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalMap: warm-up savepoint commit keeps the in-savepoint contents")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalMap: warm-up savepoint commit keeps the in-savepoint contents")
+	void shouldCommitTransactionalMapWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalMap<Integer, Integer> map = newSeededMap(random);
+			assertWarmUpSavepointCommitKeeps(
+				map,
+				tested -> applyRandomMapOps(tested, random, 1 + random.nextInt(8)),
+				HashMap::new,
+				tested -> applyRandomMapOps(tested, random, 1 + random.nextInt(8))
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalSet: warm-up savepoint rollback restores the exact pre-savepoint elements")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalSet: warm-up savepoint rollback restores the exact pre-savepoint elements")
+	void shouldRollBackTransactionalSetToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalSet<Integer> set = newSeededSet(random);
+			assertWarmUpSavepointRollbackRestores(
+				set,
+				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(8)),
+				HashSet::new,
+				tested -> {
+					// an element outside the random range guarantees the in-savepoint batch changes the set
+					tested.add(KEY_SPACE + 1);
+					applyRandomSetOps(tested, random, 1 + random.nextInt(8));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalSet: warm-up savepoint commit keeps the in-savepoint elements")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalSet: warm-up savepoint commit keeps the in-savepoint elements")
+	void shouldCommitTransactionalSetWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalSet<Integer> set = newSeededSet(random);
+			assertWarmUpSavepointCommitKeeps(
+				set,
+				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(8)),
+				HashSet::new,
+				tested -> applyRandomSetOps(tested, random, 1 + random.nextInt(8))
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalList: warm-up savepoint rollback restores the exact pre-savepoint order")
+	void shouldRollBackTransactionalListToWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalList<Integer> list = newSeededList(random);
+			assertWarmUpSavepointRollbackRestores(
+				list,
+				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8)),
+				ArrayList::new,
+				tested -> {
+					// an element outside the random range guarantees the in-savepoint batch changes the list
+					tested.add(KEY_SPACE + 1);
+					applyRandomListOps(tested, random, 1 + random.nextInt(8));
+				}
+			);
+			return iteration + 1;
+		});
+	}
+
+	@ParameterizedTest(name = "TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("TransactionalList: warm-up savepoint commit keeps the in-savepoint order")
+	void shouldCommitTransactionalListWarmUpSavepoint(@Nonnull GenerationalTestInput input) {
+		runFor(input, 1000, 0L, (random, iteration) -> {
+			final TransactionalList<Integer> list = newSeededList(random);
+			assertWarmUpSavepointCommitKeeps(
+				list,
+				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8)),
+				ArrayList::new,
+				tested -> applyRandomListOps(tested, random, 1 + random.nextInt(8))
+			);
+			return iteration + 1;
+		});
+	}
+
 	/**
 	 * Builds a fresh non-transactional map seeded with a random subset of the key space.
 	 */
@@ -181,9 +308,12 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < count; i++) {
 			// view-iterator / bulk-view ops (choices >= 2) mutate the diff layer through the entry-set / key-set views,
 			// so they require the layer to already exist; when it does not yet, fall back to the direct put/remove that
-			// creates it (this is the write path the maintainer's first-touch snapshotting relies on)
-			final boolean hasLayer = Transaction.getTransactionalMemoryLayerIfExists(map) != null;
-			switch (random.nextInt(hasLayer ? 5 : 2)) {
+			// creates it (this is the write path the maintainer's first-touch snapshotting relies on). Outside a
+			// transaction there is no layer to wait for - the views write straight to the delegate and are always
+			// usable
+			final boolean viewOpsUsable = !Transaction.isTransactionAvailable()
+				|| Transaction.getTransactionalMemoryLayerIfExists(map) != null;
+			switch (random.nextInt(viewOpsUsable ? 5 : 2)) {
 				case 0 -> map.remove(random.nextInt(KEY_SPACE));
 				case 1 -> map.put(random.nextInt(KEY_SPACE), random.nextInt());
 				case 2 -> removeOneViaEntryIterator(map, random);        // entrySet().iterator().remove()
@@ -256,6 +386,113 @@ class LongRunningSavepointFuzzFrameworkTest implements TimeBoundedTestSupport {
 				bitmap.remove(recordId);
 			} else {
 				bitmap.add(recordId);
+			}
+		}
+	}
+
+	/**
+	 * Builds a fresh non-transactional set seeded with a random subset of the key space.
+	 */
+	@Nonnull
+	private static TransactionalSet<Integer> newSeededSet(@Nonnull Random random) {
+		final Set<Integer> seed = new HashSet<>();
+		final int size = random.nextInt(KEY_SPACE);
+		for (int i = 0; i < size; i++) {
+			seed.add(random.nextInt(KEY_SPACE));
+		}
+		return new TransactionalSet<>(seed);
+	}
+
+	/**
+	 * Applies `count` random operations to the set, spread across every mutating path it exposes — the single-element
+	 * mutators, the three bulk operations (whose delegate-branch implementations differ from one another) and removal
+	 * through the iterator, which reaches the delegate without passing through any mutator at all.
+	 */
+	private static void applyRandomSetOps(@Nonnull TransactionalSet<Integer> set, @Nonnull Random random, int count) {
+		for (int i = 0; i < count; i++) {
+			switch (random.nextInt(6)) {
+				case 0 -> set.add(random.nextInt(KEY_SPACE));
+				case 1 -> set.remove(random.nextInt(KEY_SPACE));
+				case 2 -> set.addAll(randomKeySubset(random));
+				case 3 -> set.removeAll(randomKeySubset(random));
+				case 4 -> set.retainAll(randomKeySubset(random));
+				case 5 -> removeOneViaIterator(set, random);
+				default -> throw new IllegalStateException("unreachable set op choice");
+			}
+		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) element through the set's iterator.
+	 */
+	private static void removeOneViaIterator(@Nonnull TransactionalSet<Integer> set, @Nonnull Random random) {
+		final int size = set.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Integer> it = set.iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Builds a fresh non-transactional list seeded with a random sequence drawn from the key space.
+	 */
+	@Nonnull
+	private static TransactionalList<Integer> newSeededList(@Nonnull Random random) {
+		final List<Integer> seed = new ArrayList<>();
+		final int size = random.nextInt(KEY_SPACE);
+		for (int i = 0; i < size; i++) {
+			seed.add(random.nextInt(KEY_SPACE));
+		}
+		return new TransactionalList<>(seed);
+	}
+
+	/**
+	 * Applies `count` random operations to the list. The positional mutators are the point of this one: an insertion
+	 * or a removal shifts every element after it, so their inverses are only correct if the journal's reverse replay
+	 * un-shifts them in the right order — which a randomized interleaving is far better at disproving than any
+	 * hand-written sequence.
+	 */
+	private static void applyRandomListOps(
+		@Nonnull TransactionalList<Integer> list, @Nonnull Random random, int count
+	) {
+		for (int i = 0; i < count; i++) {
+			final int size = list.size();
+			// every choice but the plain append needs a position to address, so an empty list only appends
+			switch (size == 0 ? 0 : random.nextInt(6)) {
+				case 0 -> list.add(random.nextInt(KEY_SPACE));
+				case 1 -> list.add(random.nextInt(size + 1), random.nextInt(KEY_SPACE));
+				case 2 -> list.set(random.nextInt(size), random.nextInt(KEY_SPACE));
+				case 3 -> list.remove(random.nextInt(size));
+				case 4 -> list.remove(Integer.valueOf(random.nextInt(KEY_SPACE)));
+				case 5 -> removeOneViaIterator(list, random);
+				default -> throw new IllegalStateException("unreachable list op choice");
+			}
+		}
+	}
+
+	/**
+	 * Removes a single (randomly positioned) element through the list's iterator.
+	 */
+	private static void removeOneViaIterator(@Nonnull TransactionalList<Integer> list, @Nonnull Random random) {
+		final int size = list.size();
+		if (size == 0) {
+			return;
+		}
+		int target = random.nextInt(size);
+		final Iterator<Integer> it = list.iterator();
+		while (it.hasNext()) {
+			it.next();
+			if (target-- == 0) {
+				it.remove();
+				return;
 			}
 		}
 	}

@@ -198,10 +198,11 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * effect of those two methods is. The {@link #persistenceService} reference itself is intentionally not part of the
 	 * memento (it changes only on store compaction, never inside a mutation).
 	 *
-	 * The captured maps are independent copies so that subsequent mutations of this layer — or a repeated
-	 * {@link #restore(DataStoreChangesMemento)} from the same memento — cannot corrupt the snapshot. The {@link Index}
-	 * values are shared by reference on purpose: their own transactional layers are snapshotted independently, so the
-	 * memento only needs to remember *which* indexes were dirty, not their contents.
+	 * Nothing is copied: BOTH the dirty-index tracking and the trapped storage-part cache are rewound by replaying the
+	 * journal down to the captured mark, so the memento is an `int` and a snapshot costs nothing that grows with the
+	 * accumulated state. The {@link Index} values are shared by reference on purpose: their own transactional layers
+	 * are snapshotted independently, so the memento only needs to remember *which* indexes were dirty, not their
+	 * contents.
 	 */
 	@Nonnull
 	@Override
@@ -209,19 +210,15 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		if (this.undoJournal == null) {
 			this.undoJournal = new UndoJournal();
 		}
-		// the dirty-index maps are rewound via the journal (O(1) snapshot); only the trapped-changes cache — which per
-		// this method's contract is not written while a savepoint is open, and is null/small in practice — is copied
-		return new DataStoreChangesMemento(
-			this.undoJournal.mark(),
-			copyTrappedChanges(this.trappedChanges)
-		);
+		return new DataStoreChangesMemento(this.undoJournal.mark());
 	}
 
 	/**
 	 * Restores the revertable in-memory state captured by {@link #snapshot()}, discarding any dirty-index tracking and
-	 * trapped storage-part changes made since the snapshot was taken. The dirty-index maps are rewound by replaying the
-	 * journal down to the captured mark; the trapped-changes cache is reinstated from a fresh copy of the memento's
-	 * (independent) copy, so the memento stays reusable for a repeated restore.
+	 * trapped storage-part changes made since the snapshot was taken, by replaying the journal's inverse operations in
+	 * strict reverse down to the captured mark. Because every one of them is an absolute restore of the slot its own
+	 * mutation touched, restoring twice from the same memento yields the same state as restoring once — the second
+	 * replay finds the journal already rewound to the mark and does nothing.
 	 *
 	 * @param memento the state previously captured by {@link #snapshot()}
 	 */
@@ -231,13 +228,12 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		if (this.undoJournal != null) {
 			this.undoJournal.rollbackTo(memento.mark());
 		}
-		this.trappedChanges = copyTrappedChanges(memento.trappedChanges());
 	}
 
 	/**
-	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the dirty-index
-	 * changes are kept, so the journal entries recorded since the mark are discarded (never replayed). When the journal
-	 * drains empty it is nulled out, restoring the allocation-free fast path for the rest of the transaction.
+	 * Releases a closed savepoint's memento (see {@link Snapshotable#releaseMemento(Object)}) - on commit the changes
+	 * are kept, so the journal entries recorded since the mark are discarded (never replayed). When the journal drains
+	 * empty it is nulled out, restoring the allocation-free fast path for the rest of the transaction.
 	 *
 	 * @param memento the committed memento previously produced by {@link #snapshot()}
 	 */
@@ -278,25 +274,44 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	}
 
 	/**
-	 * Creates an independent copy of the trapped-changes map-of-maps (or returns {@code null} when there is nothing to
-	 * copy). Both the outer map and each inner {@link LongObjectMap} are copied so the result shares no mutable
-	 * structure with the source; the {@link StoragePart} values are immutable enough to share by reference.
+	 * Records the inverse of a pending change to ONE `(container type, primary key)` slot of {@link #trappedChanges},
+	 * so a savepoint rollback puts exactly that slot back. No-op unless a savepoint is open. Must be called BEFORE the
+	 * change, and before the lazily-allocated containers the change may create are allocated.
 	 *
-	 * @param source the trapped-changes structure to copy, may be {@code null}
-	 * @return an independent copy, or {@code null} when {@code source} is {@code null}
+	 * **Why per slot rather than a copy of the cache.** A first-touch copy of the map-of-maps is `O(accumulated trapped
+	 * parts)` per entity, and warm-up traps parts continuously between flushes — so a copy taken once per entity
+	 * mutation is the `O(N²)` rollback cliff the journal strategy exists to avoid, on the very path this mechanism was
+	 * built for. The slot capture is `O(1)`.
+	 *
+	 * The inverse restores all three levels of lazy structure absolutely: the outer map's reference (which is `null`
+	 * until the first part is trapped and is nulled again by every flush), the presence of the per-type inner map, and
+	 * the slot's own presence and value. That is what lets several writes to the same type — or to a type first seen
+	 * inside the savepoint — replay correctly newest-first, each undoing exactly what it created.
+	 *
+	 * @param containerType the storage-part type whose per-type cache is about to change
+	 * @param primaryKey    the primary key whose slot is about to change
 	 */
-	@Nullable
-	private static Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> copyTrappedChanges(
-		@Nullable Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> source
-	) {
-		if (source == null) {
-			return null;
+	private void journalTrappedChange(@Nonnull Class<? extends StoragePart> containerType, long primaryKey) {
+		if (this.undoJournal == null) {
+			return;
 		}
-		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> copy = new HashMap<>(source.size());
-		for (final Map.Entry<Class<? extends StoragePart>, LongObjectMap<StoragePart>> entry : source.entrySet()) {
-			copy.put(entry.getKey(), new LongObjectHashMap<>(entry.getValue()));
-		}
-		return copy;
+		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> outer = this.trappedChanges;
+		final LongObjectMap<StoragePart> inner = outer == null ? null : outer.get(containerType);
+		final boolean present = inner != null && inner.containsKey(primaryKey);
+		final StoragePart previous = present ? inner.get(primaryKey) : null;
+		this.undoJournal.push(() -> {
+			this.trappedChanges = outer;
+			if (outer != null) {
+				if (inner == null) {
+					// the per-type cache did not exist before this write - drop the one the write created
+					outer.remove(containerType);
+				} else if (present) {
+					inner.put(primaryKey, previous);
+				} else {
+					inner.remove(primaryKey);
+				}
+			}
+		});
 	}
 
 	/**
@@ -474,13 +489,18 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
 		recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
-			ofNullable(this.trappedChanges.get(entityClass)).ifPresent(it -> it.remove(primaryKey));
+			final LongObjectMap<StoragePart> containerChanges = this.trappedChanges.get(entityClass);
+			if (containerChanges != null) {
+				journalTrappedChange(entityClass, primaryKey);
+				containerChanges.remove(primaryKey);
+			}
 		}
 		return this.persistenceService.removeStoragePart(catalogVersion, primaryKey, entityClass);
 	}
 
 	public <T extends StoragePart> boolean trapRemoveStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
 		recordWarmUpSavepointTouch();
+		journalTrappedChange(entityClass, primaryKey);
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		if (this.persistenceService.containsStoragePart(catalogVersion, primaryKey, entityClass)) {
 			this.trappedChanges.computeIfAbsent(entityClass, aClass -> new LongObjectHashMap<>(256))
@@ -504,8 +524,14 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
 		recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
-			ofNullable(this.trappedChanges.get(value.getClass()))
-				.ifPresent(it -> it.remove(value.getStoragePartPKOrElseThrowException()));
+			final LongObjectMap<StoragePart> containerChanges = this.trappedChanges.get(value.getClass());
+			if (containerChanges != null) {
+				// the primary key is resolved only inside this branch, because a part the cache never held is not
+				// required to have one and asking for it would throw
+				final long primaryKey = value.getStoragePartPKOrElseThrowException();
+				journalTrappedChange(value.getClass(), primaryKey);
+				containerChanges.remove(primaryKey);
+			}
 		}
 		this.persistenceService.putStoragePart(catalogVersion, value);
 	}
@@ -518,9 +544,10 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
 		recordWarmUpSavepointTouch();
-		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();
+		journalTrappedChange(containerType, storagePartPK);
+		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		this.trappedChanges.computeIfAbsent(containerType, aClass -> new LongObjectHashMap<>(256))
 			.put(storagePartPK, value);
 	}
@@ -806,16 +833,14 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	/**
 	 * Immutable, `O(1)` marker of the revertable in-memory state of {@link DataStoreChanges} at a single point in time,
 	 * captured by {@link #snapshot()} and reinstated by {@link #restore(DataStoreChangesMemento)} on a per-entity
-	 * savepoint rollback. The dirty-index maps are rewound via the {@link #undoJournal} (only its {@link #mark} is held
-	 * here, not a copy); the trapped-changes cache is an independent copy owned by the memento. See {@link #snapshot()}
-	 * for what is and is not captured.
+	 * savepoint rollback. Both the dirty-index maps and the trapped storage-part cache are rewound via the
+	 * {@link #undoJournal}, so the memento carries nothing but the position to rewind to. See {@link #snapshot()} for
+	 * what is and is not captured.
 	 *
-	 * @param mark           the {@link UndoJournal#mark()} to rewind the dirty-index maps to on restore
-	 * @param trappedChanges independent copy of the trapped storage-part cache, or {@code null}
+	 * @param mark the {@link UndoJournal#mark()} to rewind this layer to on restore
 	 */
 	public record DataStoreChangesMemento(
-		int mark,
-		@Nullable Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges
+		int mark
 	) {
 	}
 }

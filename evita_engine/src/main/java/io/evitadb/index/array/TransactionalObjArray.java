@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.iterator.ConstantObjIterator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
@@ -108,6 +109,7 @@ public class TransactionalObjArray<T>
 	public void add(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(
 				recordId, this.delegate, this.comparator
 			);
@@ -131,11 +133,37 @@ public class TransactionalObjArray<T>
 	public void remove(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.delegate = ArrayUtils.removeRecordFromOrderedArray(
 				recordId, this.delegate, this.comparator
 			);
 		} else {
 			layer.removeRecordId(recordId, this.comparator);
+		}
+	}
+
+	/**
+	 * Captures the {@link #delegate} array REFERENCE for the warm-up savepoint bracketing the current root entity
+	 * mutation, if one is open, so that a failed mutation rewinds this array to exactly the contents it held before the
+	 * mutation began (see {@link WarmUpSavepoint} and {@link TransactionalIntArray#recordWarmUpSavepointTouch()}, which
+	 * this mirrors).
+	 *
+	 * Both writes on this branch REPLACE the delegate with a freshly allocated array, so the outgoing reference is
+	 * already an immutable snapshot of the pre-mutation contents — the capture is one field read and the restore one
+	 * field assignment, which is why it is made on the first write-touch only.
+	 *
+	 * The ELEMENTS are captured by reference, exactly as a {@link io.evitadb.core.transaction.memory.Snapshotable}
+	 * memento captures nested producers: an element that carries mutable state of its own is rewound by that element's
+	 * own journaling, never from here.
+	 *
+	 * Must be called BEFORE the reassignment. Outside a savepoint it costs one {@link ThreadLocal} read returning
+	 * `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T[] preImage = this.delegate;
+			savepoint.push(() -> this.delegate = preImage);
 		}
 	}
 

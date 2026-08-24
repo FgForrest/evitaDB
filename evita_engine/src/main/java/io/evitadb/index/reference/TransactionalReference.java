@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
 
@@ -98,6 +99,7 @@ public class TransactionalReference<T>
 	public void set(@Nullable T value) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			recordWarmUpSavepointTouch();
 			this.value.set(value);
 		} else {
 			layer.set(value);
@@ -114,9 +116,35 @@ public class TransactionalReference<T>
 	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
+			// recorded unconditionally rather than only on a successful exchange: the capture is the pre-image of the
+			// whole holder, so it is correct either way, and testing the outcome first would cost more than it saves
+			recordWarmUpSavepointTouch();
 			return this.value.compareAndExchange(currentValue, newValue);
 		} else {
 			return layer.compareAndExchange(currentValue, newValue);
+		}
+	}
+
+	/**
+	 * Captures the referenced value for the warm-up savepoint bracketing the current root entity mutation, if one is
+	 * open, so that a failed mutation rewinds this holder to what it pointed at before the mutation began (see
+	 * {@link WarmUpSavepoint}).
+	 *
+	 * The capture is made on the FIRST write-touch only: the holder's entire mutable state is the one reference it
+	 * carries, so a single captured pre-image is an absolute restore of all of it, and re-capturing on a later write
+	 * would only overwrite it with a mid-savepoint value.
+	 *
+	 * The value itself is captured BY REFERENCE, exactly as a {@link io.evitadb.core.transaction.memory.Snapshotable}
+	 * memento captures a nested producer: when the referenced object is itself a transactional structure, its internal
+	 * state is rewound by its own journaling, never from here.
+	 *
+	 * Must be called BEFORE the write. Outside a savepoint it costs one {@link ThreadLocal} read returning `null`.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+		if (savepoint != null && savepoint.claimFirstTouch(this)) {
+			final T preImage = this.value.get();
+			savepoint.push(() -> this.value.set(preImage));
 		}
 	}
 
