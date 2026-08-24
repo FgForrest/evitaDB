@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogGraphQLDataEndpointFunctionalTest;
+import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +63,7 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2026
  */
+@RequiresDefaultWarmUpWritePath
 @Tag(SLOW)
 @Slf4j
 @Disabled("Disabled by default due to long execution time. Enable for performance testing or benchmarking purposes.")

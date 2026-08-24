@@ -110,6 +110,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -162,6 +163,7 @@ import static io.evitadb.test.TestTags.SLOW;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@RequiresDefaultWarmUpWritePath
 @SuppressWarnings("DataFlowIssue")
 @Slf4j
 @ExtendWith(EvitaParameterResolver.class)

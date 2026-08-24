@@ -59,11 +59,75 @@ public interface TimeBoundedTestSupport {
 	 * Method allows running the test logic for specified amount of time.
 	 */
 	default <T> T runFor(@Nonnull GenerationalTestInput input, int echoEachIterations, @Nonnull T initialState, @Nonnull BiFunction<Random, T, T> testLogic, @Nullable BiConsumer<T, Throwable> onException) {
+		return runBounded(
+			input,
+			input.intervalInMinutes() * 60_000L,
+			input.intervalInMinutes() + " minutes",
+			echoEachIterations, initialState, testLogic, onException
+		);
+	}
+
+	/**
+	 * Runs the test logic for a budget expressed in SECONDS rather than whole minutes, which is the smallest budget
+	 * {@link GenerationalTestInput#intervalInMinutes()} can express.
+	 *
+	 * It exists for generative cases that must not occupy a full minute each — the warm-up half of the savepoint fuzz
+	 * matrix being the one that motivated it, because the mechanism's enablement flag is a process-wide static and its
+	 * suites therefore have to run exclusively rather than fanned out across the surefire threads. Everything else is
+	 * identical to {@link #runFor(GenerationalTestInput, int, Object, BiFunction, BiConsumer)}: the same seeded
+	 * {@link Random}, the same progress echo, and the same seed enrichment of a failure so the run can be reproduced
+	 * with `-Dtest.seed=...`.
+	 *
+	 * The seed still comes from `input`, so a failing warm-up generation reproduces exactly like a minute-bounded one.
+	 *
+	 * @param input              the generational input carrying the random seed
+	 * @param durationInSeconds  how long to keep generating; at least one iteration always runs
+	 * @param echoEachIterations print a dot every N iterations, or `0` to stay silent
+	 * @param initialState       the state threaded through the generations
+	 * @param testLogic          one generation, returning the next state
+	 * @return the state left by the last generation
+	 */
+	default <T> T runForSeconds(
+		@Nonnull GenerationalTestInput input,
+		int durationInSeconds,
+		int echoEachIterations,
+		@Nonnull T initialState,
+		@Nonnull BiFunction<Random, T, T> testLogic
+	) {
+		return runBounded(
+			input, durationInSeconds * 1000L, durationInSeconds + " seconds",
+			echoEachIterations, initialState, testLogic, null
+		);
+	}
+
+	/**
+	 * The shared generation loop behind {@link #runFor} and {@link #runForSeconds} — it differs only in how the budget
+	 * was expressed. The loop is a `do/while`, so at least one generation always runs even with a zero budget.
+	 *
+	 * @param input             the generational input carrying the random seed
+	 * @param budgetInMillis    the wall-clock budget for the whole run
+	 * @param budgetDescription how the budget is phrased in the progress echo (e.g. `2 minutes`)
+	 */
+	private static <T> T runBounded(
+		@Nonnull GenerationalTestInput input,
+		long budgetInMillis,
+		@Nonnull String budgetDescription,
+		int echoEachIterations,
+		@Nonnull T initialState,
+		@Nonnull BiFunction<Random, T, T> testLogic,
+		@Nullable BiConsumer<T, Throwable> onException
+	) {
 		final Random random = new Random(input.randomSeed());
 		if (echoEachIterations > 0) {
-			System.out.print("\nTest will run for " + input.intervalInMinutes() + " minutes and prints dot per " + StringUtils.formatCount(echoEachIterations) + " iterations.\nRandom seed used: " + input.randomSeed() + "\n");
+			System.out.print(
+				"\nTest will run for " + budgetDescription + " and prints dot per "
+					+ StringUtils.formatCount(echoEachIterations) + " iterations.\nRandom seed used: "
+					+ input.randomSeed() + "\n"
+			);
 		} else {
-			System.out.print("\nTest will run for " + input.intervalInMinutes() + " minutes.\nRandom seed used: " + input.randomSeed() + "\n");
+			System.out.print(
+				"\nTest will run for " + budgetDescription + ".\nRandom seed used: " + input.randomSeed() + "\n"
+			);
 		}
 		T state = initialState;
 		int iteration = 0;
@@ -81,7 +145,7 @@ public interface TimeBoundedTestSupport {
 					System.out.flush();
 					printed++;
 				}
-			} while ((System.currentTimeMillis() - start) / 60_000 < input.intervalInMinutes());
+			} while (System.currentTimeMillis() - start < budgetInMillis);
 
 			System.out.println(
 				"\nFinished correctly after " + ((System.currentTimeMillis() - start) / 1000) +

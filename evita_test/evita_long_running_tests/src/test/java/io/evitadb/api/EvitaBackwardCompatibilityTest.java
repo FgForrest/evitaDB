@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.utils.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,6 +74,7 @@ import static io.evitadb.test.TestTags.QUERY;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@RequiresDefaultWarmUpWritePath
 @Slf4j
 @Tag(CONTRACT)
 @Tag(QUERY)

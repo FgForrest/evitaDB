@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -37,8 +38,15 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.DateTimeRange;
@@ -65,6 +73,7 @@ import java.util.Optional;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,13 +85,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Its job is to pin down, as executable assertions, exactly how far the warm-up path is from the atomicity the
  * transactional path already provides — so that each phase of the port can be measured against it rather than argued
- * about. Both scenarios are a batch of three entities in which the middle one violates a unique constraint after its
- * index writes have already been applied, and they differ only in HOW FAR the mutation gets first:
+ * about. All three scenarios are a batch of three entities in which the middle one violates a unique constraint after
+ * its index writes have already been applied, and they differ only in WHICH index families the mutation reaches first:
  *
  * - **The early failure** aborts at the very first index the entity reaches, so the only state it leaves behind is the
  *   membership bitmap, the collection's storage diff layer and the indexes' dirty flags.
  * - **The late failure** submits an explicitly ORDERED upsert mutation whose duplicate code sits last, so the entity is
  *   already in the hierarchy, sort, filter, range and price indexes — five B+ tree-backed structures — before it fails.
+ * - **The facet failure** does the same for the reference side: two grouped, faceted references are written first, so
+ *   the entity is already in the reference index, the reference-type cardinality index and the facet index family
+ *   (facet index, per-reference index, per-facet-id bitmaps, group index) when the duplicate code aborts it. Left
+ *   behind, its facet entry is an ORPHAN — a facet counted forever against an entity that cannot be fetched.
  *
  * **The divergence with the switch off**, which the tests below still assert: the failed entity's primary key stays in
  * the collection's membership index (it is returned by a query) while its body storage part was never written
@@ -108,6 +121,10 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 	private static final String ATTRIBUTE_SORTABLE_CODE = "sortableCode";
 	private static final String ATTRIBUTE_VALIDITY = "validity";
 	private static final String PRICE_LIST_BASIC = "basic";
+	private static final String REFERENCE_PARAMETER = "parameter";
+	private static final int PARAMETER_GROUP_PRIMARY_KEY = 900;
+	private static final int PARAMETER_ONE = 901;
+	private static final int PARAMETER_TWO = 902;
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final OffsetDateTime VALIDITY_START =
 		OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -134,6 +151,13 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
+				session.defineEntitySchema(Entities.PARAMETER_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.defineEntitySchema(Entities.PARAMETER)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withHierarchy()
@@ -144,8 +168,22 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 					.withAttribute(
 						ATTRIBUTE_VALIDITY, DateTimeRange.class, whichIs -> whichIs.filterable().nullable()
 					)
+					// the grouped, faceted, indexed reference of the FACET scenario: it is what puts a reference index,
+					// a reference-type cardinality index and the whole facet index family (reference -> facet id ->
+					// group) between the start of an entity mutation and the unique-code check that aborts it
+					.withReferenceToEntity(
+						REFERENCE_PARAMETER, Entities.PARAMETER, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexed().faceted()
+							.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
+					)
 					.withPrice()
 					.updateVia(session);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PARAMETER_GROUP, PARAMETER_GROUP_PRIMARY_KEY)
+				);
+				session.upsertEntity(session.createNewEntity(Entities.PARAMETER, PARAMETER_ONE));
+				session.upsertEntity(session.createNewEntity(Entities.PARAMETER, PARAMETER_TWO));
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1).setAttribute(ATTRIBUTE_CODE, "A")
@@ -227,6 +265,28 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
 				1, 2, 3, 4
 			);
+		}
+
+		@Test
+		@DisplayName("A reference failure additionally strands the entity in the reference and facet indexes")
+		@Tag(TestTags.FACET)
+		@Tag(TestTags.REFERENCE)
+		void shouldStrandReferenceAndFacetWritesWhenAtomicityIsOff() {
+			WarmUpSavepoint.setEnabled(false);
+			runFacetFailingBatch();
+
+			// the reference and facet entries of the bodiless entity #3 were written before the unique-code check
+			// aborted the mutation, and nothing took them back out: it is an orphan facet - a facet whose entity
+			// cannot be fetched - which is exactly the shape the switched-on counterpart below removes
+			assertProductReferencesAre(1, 2, 3, 4);
+			assertFetchedProductsAre(1, 2, 4);
+			assertQueryReturns(
+				"the reference index kept the failed entity's reference",
+				filterBy(referenceHaving(REFERENCE_PARAMETER, entityPrimaryKeyInSet(PARAMETER_ONE))),
+				2, 3, 4
+			);
+			assertFacetResolvesExactlyTo(PARAMETER_ONE, 2, 3, 4);
+			assertFacetCountsAre(3, 3);
 		}
 	}
 
@@ -381,6 +441,74 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				1, 2, 4, 5
 			);
 		}
+
+		/**
+		 * The reference and facet families, which neither failure shape above reaches: the failing entity is inserted
+		 * into the reference index, the reference-type cardinality index and the whole facet index family (the facet
+		 * index, its per-reference index, its per-facet-id bitmaps and its group index) BEFORE the duplicate code
+		 * aborts it.
+		 *
+		 * The failure this pins down is the orphan facet — a facet entry pointing at an entity that does not exist —
+		 * which is worse than a missing one, because facet computation keeps counting it forever. Each assertion is
+		 * answered by a different structure: the reference index by `referenceHaving`, the facet index and its id
+		 * bitmaps by `facetHaving`, and the group index by the facet summary's per-facet counts.
+		 */
+		@Test
+		@DisplayName("An entity failing after its reference and facet writes leaves no orphan facet behind")
+		@Tag(TestTags.FACET)
+		@Tag(TestTags.REFERENCE)
+		void shouldRecoverFromReferenceAndFacetFailureWhenAtomicityIsOn() {
+			WarmUpSavepoint.setEnabled(true);
+			runFacetFailingBatch();
+
+			// membership and bodies agree - no orphan primary key
+			assertProductReferencesAre(1, 2, 4);
+			assertFetchedProductsAre(1, 2, 4);
+			assertProductAbsent(3);
+
+			// reference index and reference-type cardinality index: both parameters resolve to the survivors only
+			assertQueryReturns(
+				"the reference index must hold exactly the surviving entities",
+				filterBy(referenceHaving(REFERENCE_PARAMETER, entityPrimaryKeyInSet(PARAMETER_ONE))),
+				2, 4
+			);
+			assertQueryReturns(
+				"the second reference must hold exactly the surviving entities too",
+				filterBy(referenceHaving(REFERENCE_PARAMETER, entityPrimaryKeyInSet(PARAMETER_TWO))),
+				2, 4
+			);
+
+			// facet index + per-facet-id bitmaps: filtering by either facet returns the survivors, never the reverted
+			// entity whose body was never stored
+			assertFacetResolvesExactlyTo(PARAMETER_ONE, 2, 4);
+			assertFacetResolvesExactlyTo(PARAMETER_TWO, 2, 4);
+
+			// facet group index: the summary counts both facets of the group at exactly the surviving entities, so a
+			// leaked entry would show up as an inflated count even where the filter happened to hide it
+			assertFacetCountsAre(2, 2);
+		}
+
+		@Test
+		@DisplayName("The catalog keeps accepting faceted writes after a reference failure was rolled back")
+		@Tag(TestTags.FACET)
+		@Tag(TestTags.REFERENCE)
+		void shouldKeepWritingFacetedEntitiesAfterAFailureWhenAtomicityIsOn() {
+			WarmUpSavepoint.setEnabled(true);
+			runFacetFailingBatch();
+
+			// the reverted entity's facet slots are free again, and the restored indexes take a new record on top
+			EntityAtomicMutationRollbackWarmUpFunctionalTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.upsertEntity(facetedProduct(5, "D"));
+				}
+			);
+
+			assertCodeResolvesTo("D", 5);
+			assertFacetResolvesExactlyTo(PARAMETER_ONE, 2, 4, 5);
+			assertFacetResolvesExactlyTo(PARAMETER_TWO, 2, 4, 5);
+			assertFacetCountsAre(3, 3);
+		}
 	}
 
 	/**
@@ -437,6 +565,129 @@ class EntityAtomicMutationRollbackWarmUpFunctionalTest implements EvitaTestSuppo
 				BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, null, true
 			),
 			new UpsertAttributeMutation(ATTRIBUTE_CODE, code)
+		);
+	}
+
+	/**
+	 * Runs the FACET-failure scenario in a single warm-up session. Same three-entity shape as
+	 * {@link #runFailingBatch()}, except every product carries two grouped, faceted references written BEFORE its
+	 * unique code — so the failure strikes once the reference index, the reference-type cardinality index and the facet
+	 * index family have all taken the failing entity.
+	 */
+	private void runFacetFailingBatch() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(facetedProduct(2, "B"));
+
+				assertThrows(
+					UniqueValueViolationException.class,
+					// duplicate of entity #1's code -> fails once both references and their facets are already written
+					() -> session.upsertEntity(facetedProduct(3, "A"))
+				);
+
+				session.upsertEntity(facetedProduct(4, "C"));
+			}
+		);
+	}
+
+	/**
+	 * Builds one product of the facet-failure scenario as an explicitly ordered upsert mutation: two references, each
+	 * assigned to the shared parameter group, and only then the unique code that may abort the whole thing.
+	 *
+	 * The ordering has to be explicit for the same reason {@link #lateProduct} spells its mutations out: an entity
+	 * built through the fluent builder emits its mutations in hash order, which would decide by hash whether the facet
+	 * writes this scenario exists to exercise happen before or after the failing code.
+	 *
+	 * @param primaryKey the product's primary key
+	 * @param code       the unique code — "A" makes the mutation fail on entity #1's reservation
+	 * @return the ordered upsert mutation
+	 */
+	@Nonnull
+	private EntityMutation facetedProduct(int primaryKey, @Nonnull String code) {
+		final ReferenceKey firstParameter = new ReferenceKey(REFERENCE_PARAMETER, PARAMETER_ONE);
+		final ReferenceKey secondParameter = new ReferenceKey(REFERENCE_PARAMETER, PARAMETER_TWO);
+		return new EntityUpsertMutation(
+			Entities.PRODUCT,
+			primaryKey,
+			EntityExistence.MUST_NOT_EXIST,
+			new InsertReferenceMutation(firstParameter),
+			new SetReferenceGroupMutation(
+				firstParameter, Entities.PARAMETER_GROUP, PARAMETER_GROUP_PRIMARY_KEY
+			),
+			new InsertReferenceMutation(secondParameter),
+			new SetReferenceGroupMutation(
+				secondParameter, Entities.PARAMETER_GROUP, PARAMETER_GROUP_PRIMARY_KEY
+			),
+			new UpsertAttributeMutation(ATTRIBUTE_CODE, code)
+		);
+	}
+
+	/**
+	 * Asserts that filtering products by one parameter facet returns exactly the supplied primary keys. A reverted
+	 * entity whose facet entry leaked shows up here as an extra primary key that cannot be fetched — the orphan facet.
+	 *
+	 * @param facetPrimaryKey     the parameter whose facet is being filtered on
+	 * @param expectedPrimaryKeys the complete set of products expected to carry that facet
+	 */
+	private void assertFacetResolvesExactlyTo(int facetPrimaryKey, int... expectedPrimaryKeys) {
+		assertQueryReturns(
+			"the facet of parameter #" + facetPrimaryKey + " must resolve to exactly the surviving entities",
+			filterBy(userFilter(facetHaving(REFERENCE_PARAMETER, entityPrimaryKeyInSet(facetPrimaryKey)))),
+			expectedPrimaryKeys
+		);
+	}
+
+	/**
+	 * Asserts the facet summary counts both parameter facets of the shared group at exactly the supplied numbers. This
+	 * is the assertion the facet GROUP index answers: the counts are accumulated per group, so an entry left behind by
+	 * a reverted entity inflates them even in cases where a filter would not reveal it.
+	 *
+	 * @param expectedFirstCount  how many products the first parameter's facet must count
+	 * @param expectedSecondCount how many products the second parameter's facet must count
+	 */
+	private void assertFacetCountsAre(int expectedFirstCount, int expectedSecondCount) {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(collection(Entities.PRODUCT), require(facetSummary())),
+					EntityReference.class
+				);
+				final FacetSummary summary = response.getExtraResult(FacetSummary.class);
+				assertNotNull(summary, "The facet summary must be computed!");
+
+				final ReferenceGroupStatistics groupStatistics =
+					summary.getFacetGroupStatistics(REFERENCE_PARAMETER, PARAMETER_GROUP_PRIMARY_KEY);
+				assertNotNull(
+					groupStatistics,
+					"The parameter group must still be present in the facet summary!"
+				);
+				assertFacetCountIs(groupStatistics, PARAMETER_ONE, expectedFirstCount);
+				assertFacetCountIs(groupStatistics, PARAMETER_TWO, expectedSecondCount);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Asserts one facet of a group is counted at the expected number of products.
+	 *
+	 * @param groupStatistics the group the facet belongs to
+	 * @param facetPrimaryKey the facet being counted
+	 * @param expectedCount   the number of products the facet must be counted at
+	 */
+	private static void assertFacetCountIs(
+		@Nonnull ReferenceGroupStatistics groupStatistics, int facetPrimaryKey, int expectedCount
+	) {
+		final FacetStatistics facetStatistics = groupStatistics.getFacetStatistics(facetPrimaryKey);
+		assertNotNull(
+			facetStatistics,
+			"Parameter #" + facetPrimaryKey + " must still be counted in the facet summary!"
+		);
+		assertEquals(
+			expectedCount, facetStatistics.getCount(),
+			"The facet of parameter #" + facetPrimaryKey + " must be counted at exactly the surviving entities!"
 		);
 	}
 

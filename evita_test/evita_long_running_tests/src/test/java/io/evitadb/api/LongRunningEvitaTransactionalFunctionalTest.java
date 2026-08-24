@@ -80,6 +80,7 @@ import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -150,6 +151,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@RequiresDefaultWarmUpWritePath
 @DisplayName("Long-running Evita transactional functionality")
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j

@@ -27,14 +27,12 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
+import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.index.LongRunningCatalogIndexTest.CatalogSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -46,10 +44,7 @@ import java.util.Random;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
-import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static io.evitadb.utils.AssertionUtils.assertSavepointCommitKeeps;
-import static io.evitadb.utils.AssertionUtils.assertSavepointRollbackRestores;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -71,6 +66,12 @@ import static org.mockito.Mockito.when;
  * then commits so the commit-time layer-sweep verification proves the restore left no dangling layer. The run is
  * time-bounded; the random seed is echoed on failure for deterministic reproduction.
  *
+ * The scenario is declared once and run by {@link AbstractSavepointFuzzTest} in BOTH phases: the transactional
+ * savepoint described above, and the WARM_UP savepoint where the same writes land straight on the delegate
+ * structures and are rewound from the inverses they journal themselves. See that class for the shape of one
+ * generation, for the mid-savepoint read every case is asserted through, and for why the warm-up half runs
+ * exclusively.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @SuppressWarnings("SameParameterValue")
@@ -78,52 +79,17 @@ import static org.mockito.Mockito.when;
 @Tag(INDEXING)
 @Tag(MANAGEMENT)
 @Tag(TRANSACTION)
-class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
+class LongRunningSavepointCatalogIndexTest extends AbstractSavepointFuzzTest<CatalogSnapshot> {
 	private static final int MAX_OPS = 10;
 	// entity type and attribute-name set shared with the oracle reader so both agree on which attributes exist
 	private static final String ENTITY_TYPE = LongRunningCatalogIndexTest.ENTITY_TYPE;
 	private static final String[] ATTR_NAMES = LongRunningCatalogIndexTest.ATTR_NAMES;
 	private static final int ENTITY_TYPE_PK = 1;
 
-	@ParameterizedTest(name = "Savepoint rollback restores the exact pre-savepoint unique-attribute contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint rollback restores the exact pre-savepoint unique-attribute contents")
-	void shouldRollBackCatalogIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final CatalogState state = new CatalogState(random);
-			assertSavepointRollbackRestores(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningCatalogIndexTest::snapshot,
-				tested -> {
-					// a guaranteed-visible mutation makes the in-savepoint batch non-vacuous
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
-	}
-
-	@ParameterizedTest(name = "Savepoint commit keeps the in-savepoint unique-attribute contents")
-	@Tag(SLOW)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Savepoint commit keeps the in-savepoint unique-attribute contents")
-	void shouldCommitCatalogIndex(@Nonnull GenerationalTestInput input) {
-		runFor(input, 1000, 0L, (random, iteration) -> {
-			final CatalogState state = new CatalogState(random);
-			assertSavepointCommitKeeps(
-				state.index,
-				tested -> state.applyRandomMutations(random, 1 + random.nextInt(MAX_OPS)),
-				LongRunningCatalogIndexTest::snapshot,
-				tested -> {
-					state.forceMutation();
-					state.applyRandomMutations(random, random.nextInt(MAX_OPS));
-				}
-			);
-			return iteration + 1;
-		});
+	@Nonnull
+	@Override
+	protected FuzzGeneration<CatalogSnapshot> newGeneration(@Nonnull Random random) {
+		return new CatalogState(random);
 	}
 
 	/**
@@ -179,7 +145,7 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 	 * model) within the framework's transaction. Unique values are minted as `name-recordId` from a monotonic record
 	 * sequence, so every value within an attribute is distinct.
 	 */
-	private static final class CatalogState {
+	private static final class CatalogState implements FuzzGeneration<CatalogSnapshot> {
 		private final CatalogIndex index;
 		private final EntityTypeClassifierResolver classifierResolver;
 		private final EntitySchemaContract entitySchema = createEntitySchema();
@@ -207,6 +173,30 @@ class LongRunningSavepointCatalogIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < seedOperations; i++) {
 				insertRandomAttribute(random);
 			}
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalStateProducer<?> subject() {
+			return this.index;
+		}
+
+		@Nonnull
+		@Override
+		public CatalogSnapshot contents() {
+			return LongRunningCatalogIndexTest.snapshot(this.index);
+		}
+
+		@Override
+		public void applyBaselineOperations(@Nonnull Random random) {
+			applyRandomMutations(random, 1 + random.nextInt(MAX_OPS));
+		}
+
+		@Override
+		public void applySavepointOperations(@Nonnull Random random) {
+			applyRandomMutations(random, random.nextInt(MAX_OPS));
+			// applied LAST: a marker applied first enters the model and a later random operation can undo it
+			forceMutation();
 		}
 
 		/**

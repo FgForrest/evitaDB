@@ -34,6 +34,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.annotation.RequiresDefaultWarmUpWritePath;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -68,6 +69,7 @@ import static io.evitadb.test.TestTags.SLOW;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@RequiresDefaultWarmUpWritePath
 @Slf4j
 @DisplayName("Warm-up bulk insertion and churn load generation")
 @Tag(CONTRACT)
