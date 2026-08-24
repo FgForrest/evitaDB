@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-08-24 | [Refresh a reference's representative key whenever its built state is replaced](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, PR #1442, PR #1443 |
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-23 | [Usage statistics are switchable off, and the absence is reported as "not measured" rather than as zero](2026-08-23-usage-statistics-tracking-switch.md) | feature | accepted | #1429, PR #1430 |
 | 2026-08-19 | [Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index](2026-08-19-per-schema-capability-usage-statistics.md) | feature | accepted | #1429, PR #1430 |
