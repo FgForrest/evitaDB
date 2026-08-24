@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-24 09:30
+updated: 2026-08-24 09:45
 status: accepted
 kind: optimization
 issues: [1390]
@@ -86,10 +86,17 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
   module shared with the client, so they cannot reject an unknown name in the same step. *At first
   schema contact* server-side, `references.keySet()` **is** in hand and validation comes free, but
   the raw string survives longer and the blast radius is larger.
-- **`String.intern()` is not a third placement — it was tried, measured, and lost.** It is a
-  JVM-wide native table with its own contention and GC behaviour, carrying that cost for a domain of
-  a few dozen reference names per catalog. Whoever revisits this should reach for a bounded
-  application-owned table, not the JVM's.
+- **`String.intern()` is not a third placement.** It is a JVM-wide native table with its own
+  contention and GC behaviour, carrying that cost for a domain of a few dozen reference names per
+  catalog. That structural argument is the recorded reason and it stands on its own. An intern-based
+  attempt was *reported* as tried and declined before this work, but **no branch, benchmark or
+  number survives** — `git log --all -S'.intern()'` finds nothing — so treat it as corroboration,
+  not as a result this record can show. Whoever revisits this should reach for a bounded,
+  application-owned table rather than the JVM's.
+- **The exploration #1390 defers to was never written.** That issue points at
+  `specifications/write-path-optimizations/exploration-name-canonicalization.md`; no such file has
+  ever existed in git — the folder held only its `README.md`, retired once the shipped items landed.
+  There is no prior analysis to pick up, which is exactly why the ceiling below is still unmeasured.
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
