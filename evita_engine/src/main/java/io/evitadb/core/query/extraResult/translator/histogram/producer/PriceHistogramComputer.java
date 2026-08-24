@@ -526,6 +526,14 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			return narrowedCount == narrowedPrices.length ?
 				narrowedPrices : Arrays.copyOf(narrowedPrices, narrowedCount);
 		}
+		// pass 2 deliberately queries **every** accessor, including the ones pass 1 already merged. Subtracting
+		// `histogramAccessors` here looks like a free optimization — a remainder entity is by construction one
+		// their histogram side-output did not cover — but it is wrong: this collector reads
+		// `getFilteredPriceRecords()`, not `getFilteredPriceRecordsForHistogram()`, and for `SelectionFormula`
+		// those two deliberately differ. The wrapper reports the per-inner-record side-output of its *exposing*
+		// inners only, while its regular records cover the whole price container. On a prefetched plan that
+		// wrapper is the single accessor, so excluding it leaves nothing to answer for the NONE/SUM remainder
+		// and those entities drop out of the histogram entirely (verified: 8 data points become 4).
 		final PriceRecordContract[] perEntityPrices = FilteredPriceRecords
 			.collectFilteredPriceRecordsFromPriceRecordAccessors(
 				this.filteredPriceRecordAccessors, remainder, this.context
