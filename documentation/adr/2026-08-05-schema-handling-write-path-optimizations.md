@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-24 09:15
+updated: 2026-08-24 09:30
 status: accepted
 kind: optimization
 issues: [1390]
@@ -79,9 +79,17 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
 
 - **Pros:** strictly higher leverage than anything in Option A — it fixes `getReference`, the `hppc`
   maps in the cardinality verifier and the reference indexes together.
-- **Cons:** the obvious placement (canonicalize against `references.keySet()`) does not fit the
-  site — the gRPC converters have no schema or catalog context and live in the module shared with
-  the client; the alternative placement trades that for a later, larger blast radius.
+- **Cons:** there are two viable placements, they pull in opposite directions, and neither has been
+  measured. *At the converter* — a module-private `ConcurrentHashMap<String, String>` filled with
+  `computeIfAbsent(raw, Function.identity())` — catches the name where it is created and works on
+  both sides of the wire, but the gRPC converters have no schema or catalog context and live in the
+  module shared with the client, so they cannot reject an unknown name in the same step. *At first
+  schema contact* server-side, `references.keySet()` **is** in hand and validation comes free, but
+  the raw string survives longer and the blast radius is larger.
+- **`String.intern()` is not a third placement — it was tried, measured, and lost.** It is a
+  JVM-wide native table with its own contention and GC behaviour, carrying that cost for a domain of
+  a few dozen reference names per catalog. Whoever revisits this should reach for a bounded
+  application-owned table, not the JVM's.
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
