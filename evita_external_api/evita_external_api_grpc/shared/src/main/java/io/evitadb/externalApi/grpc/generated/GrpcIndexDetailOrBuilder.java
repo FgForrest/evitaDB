@@ -228,10 +228,6 @@ public interface GrpcIndexDetailOrBuilder extends
 
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -251,10 +247,6 @@ public interface GrpcIndexDetailOrBuilder extends
   boolean hasMeasured();
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -274,10 +266,6 @@ public interface GrpcIndexDetailOrBuilder extends
   com.google.protobuf.BoolValue getMeasured();
   /**
    * <pre>
-   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
-   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
-   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
    * nor the write path reach for one.
@@ -296,16 +284,37 @@ public interface GrpcIndexDetailOrBuilder extends
   com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder();
 
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return Whether the observedSince field is set.
    */
   boolean hasObservedSince();
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    * @return The observedSince.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince();
   /**
+   * <pre>
+   * When observation of this index began, and therefore the window the two counters and the two stamps above are read
+   * against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+   * A server that knows this field always sets it; absent only from a server predating it, and the window is then
+   * unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder();
