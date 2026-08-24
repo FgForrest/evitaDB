@@ -288,15 +288,6 @@ public interface GrpcSchemaCapabilityUsageOrBuilder extends
 
   /**
    * <pre>
-   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-   * unlike the two stamps above there is no "not yet" case.
-   *
-   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-   * was not maintained in between.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
    * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
@@ -317,15 +308,6 @@ public interface GrpcSchemaCapabilityUsageOrBuilder extends
   boolean hasMeasured();
   /**
    * <pre>
-   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-   * unlike the two stamps above there is no "not yet" case.
-   *
-   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-   * was not maintained in between.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
    * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
@@ -346,15 +328,6 @@ public interface GrpcSchemaCapabilityUsageOrBuilder extends
   com.google.protobuf.BoolValue getMeasured();
   /**
    * <pre>
-   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-   * unlike the two stamps above there is no "not yet" case.
-   *
-   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-   * was not maintained in between.
    * Whether the readings above were taken at all. False on a server started with
    * `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
    * The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
@@ -374,16 +347,52 @@ public interface GrpcSchemaCapabilityUsageOrBuilder extends
   com.google.protobuf.BoolValueOrBuilder getMeasuredOrBuilder();
 
   /**
+   * <pre>
+   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+   * unlike the two stamps above there is no "not yet" case.
+   *
+   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+   * was not maintained in between.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    * @return Whether the observedSince field is set.
    */
   boolean hasObservedSince();
   /**
+   * <pre>
+   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+   * unlike the two stamps above there is no "not yet" case.
+   *
+   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+   * was not maintained in between.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    * @return The observedSince.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getObservedSince();
   /**
+   * <pre>
+   * When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+   * itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+   * unlike the two stamps above there is no "not yet" case.
+   *
+   * It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+   * states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+   * twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+   * element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+   * was not maintained in between.
+   * </pre>
+   *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime observedSince = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getObservedSinceOrBuilder();
