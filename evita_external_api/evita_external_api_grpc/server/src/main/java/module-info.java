@@ -57,6 +57,8 @@ module evita.external.api.grpc {
 	requires evita.external.api.grpc.shared;
 
 	requires io.netty.handler;
+	// io.netty.channel.EventLoop - GrpcOutboundGate has to recognise the transport's own thread
+	requires io.netty.transport;
 	requires io.grpc.services;
 	requires io.grpc;
 	requires io.grpc.protobuf;

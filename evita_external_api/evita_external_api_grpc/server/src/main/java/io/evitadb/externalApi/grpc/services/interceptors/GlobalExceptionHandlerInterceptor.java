@@ -29,6 +29,7 @@ import com.linecorp.armeria.common.stream.ClosedStreamException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
+import io.evitadb.externalApi.grpc.exception.StalledGrpcStreamException;
 import io.evitadb.utils.ExceptionUtils;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -89,6 +90,16 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 
 			rpcStatus = com.google.rpc.Status.newBuilder()
 				.setCode(Code.CANCELLED.value())
+				.build();
+		} else if (exception instanceof StalledGrpcStreamException stalledStream) {
+			// the client kept the stream open but stopped reading it - a network/consumer condition
+			// rather than a server fault, so it is logged at WARN and given a status the client can
+			// actually distinguish from a server error
+			log.warn("Abandoning stalled gRPC response stream: {}", stalledStream.getMessage());
+
+			rpcStatus = com.google.rpc.Status.newBuilder()
+				.setCode(Code.DEADLINE_EXCEEDED.value())
+				.setMessage(stalledStream.getErrorCode() + ": " + stalledStream.getPublicMessage())
 				.build();
 		} else if (exception instanceof EvitaInvalidUsageException invalidUsageException) {
 			if (log.isDebugEnabled()) {
@@ -183,8 +194,23 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 			}
 		}
 
+		/**
+		 * Closes the call with a status derived from the escaping exception.
+		 *
+		 * The guard is deliberately {@link ServerCall#isCancelled()} and not {@link ServerCall#isReady()}:
+		 * readiness answers "can the transport accept another message right now", which is false whenever
+		 * a message is still in flight — a state that has nothing to do with whether the call can still be
+		 * closed. It only ever read as an open/closed test because the decorator underneath returned an
+		 * unconditional `true` (see `ObservabilityInterceptor`); once readiness became real, using it here
+		 * would silently swallow the error status for any RPC that had already sent data, leaving the
+		 * client hanging on a stream that is never closed. A cancelled call, on the other hand, is genuinely
+		 * past closing — the client is gone and gRPC has already terminated the stream.
+		 *
+		 * @param exception  the exception that escaped the service method
+		 * @param serverCall the call to close
+		 */
 		private void handleException(@Nonnull RuntimeException exception, @Nonnull ServerCall<T, R> serverCall) {
-			if (serverCall.isReady()) {
+			if (!serverCall.isCancelled()) {
 				final com.google.rpc.Status rpcStatus = createErrorStatus(exception);
 
 				final StatusRuntimeException statusRuntimeException = StatusProto.toStatusRuntimeException(rpcStatus);
