@@ -890,16 +890,6 @@ message GrpcBrowsedIndex {
   // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
   // was loaded - see `lastQueriedAt`.
   GrpcOffsetDateTime lastUpdatedAt = 12;
-  // When observation of this index began - the start of the window the two counters and the two stamps above are read
-  // against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
-  // is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
-  // treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
-  // window, "now" a zero-length one.
-  //
-  // It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
-  // load, while one created hours later reads its own creation, because it was not observable before it existed. That
-  // is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
-  // zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
   // Whether the readings above were taken at all. False on a server started with
   // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
   // nor the write path reach for one.
@@ -912,6 +902,16 @@ message GrpcBrowsedIndex {
   // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
   // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
   google.protobuf.BoolValue measured = 14;
+  // When observation of this index began - the start of the window the two counters and the two stamps above are read
+  // against. A server that knows this field always sets it: an index is observed from the moment it exists, so there
+  // is no "not yet" case. The only absence a client can encounter is a server predating the field, and it must then
+  // treat the window as unknown rather than substitute any instant for it - the epoch would fabricate a decades-long
+  // window, "now" a zero-length one.
+  //
+  // It is a property of this index rather than of the catalog: an index the server loaded the catalog with reads the
+  // load, while one created hours later reads its own creation, because it was not observable before it existed. That
+  // is what makes the two readings honest - `queryCount / (now - observedSince)` is a lifetime average rate, and a
+  // zero count qualifies as "not once in this long" instead of as a bare zero a client cannot weigh.
   GrpcOffsetDateTime observedSince = 13;
 
 }
@@ -965,10 +965,6 @@ message GrpcIndexDetail {
   // When the last entity mutation that acquired this index finished applying. Unset when none has since the catalog
   // was loaded.
   GrpcOffsetDateTime lastUpdatedAt = 8;
-  // When observation of this index began, and therefore the window the two counters and the two stamps above are read
-  // against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
-  // A server that knows this field always sets it; absent only from a server predating it, and the window is then
-  // unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
   // Whether the readings above were taken at all. False on a server started with
   // `server.usageStatisticsTracking: false`, which allocates no activity holder per index and lets neither the query
   // nor the write path reach for one.
@@ -981,6 +977,10 @@ message GrpcIndexDetail {
   // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
   // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
   google.protobuf.BoolValue measured = 10;
+  // When observation of this index began, and therefore the window the two counters and the two stamps above are read
+  // against - see `GrpcBrowsedIndex.observedSince` for why it is a property of the index rather than of the catalog.
+  // A server that knows this field always sets it; absent only from a server predating it, and the window is then
+  // unknown - see `GrpcBrowsedIndex.observedSince` for why no instant may stand in for it.
   GrpcOffsetDateTime observedSince = 9;
 
 }
@@ -1056,15 +1056,6 @@ message GrpcSchemaCapabilityUsage {
   // When the last entity mutation touching the element finished applying. Unset when none has since the catalog was
   // loaded, and coarsened to the second exactly like `lastRequestedAt`.
   GrpcOffsetDateTime lastUpdatedAt = 10;
-  // When observation of this capability began - catalog load for one the schema already declared, the schema mutation
-  // itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
-  // unlike the two stamps above there is no "not yet" case.
-  //
-  // It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
-  // states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
-  // twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
-  // element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
-  // was not maintained in between.
   // Whether the readings above were taken at all. False on a server started with
   // `server.usageStatisticsTracking: false`, which resolves no capability holder on the query or the write path.
   // The row still states that the capability IS DECLARED, which is worth reporting on its own; only its counts and
@@ -1078,6 +1069,15 @@ message GrpcSchemaCapabilityUsage {
   // "not measured": such a server had no switch to turn counting off, so it always measured and its counts are real.
   // Absent therefore decodes as `true`. Only an explicit `false` means the operator switched counting off.
   google.protobuf.BoolValue measured = 12;
+  // When observation of this capability began - catalog load for one the schema already declared, the schema mutation
+  // itself for one declared later. Always set: a capability is observed from the moment it comes into existence, so
+  // unlike the two stamps above there is no "not yet" case.
+  //
+  // It is the denominator the two counts are read against. Dividing either by the time elapsed since this instant
+  // states a lifetime average rate, and it is what qualifies a zero into something actionable: "not requested in the
+  // twenty minutes since this flag was added" is a statement an operator can act on, where a bare zero is not. An
+  // element dropped from the schema and added back starts over with a fresh window, because the capability genuinely
+  // was not maintained in between.
   GrpcOffsetDateTime observedSince = 11;
 
 }
