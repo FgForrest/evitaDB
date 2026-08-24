@@ -81,7 +81,7 @@ jobs:
 
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
         with:
           run_id: ${{ steps.inputs.outputs.run_id }}
           name: evita-server.jar
@@ -89,7 +89,7 @@ jobs:
 
       - name: Download a version information # download `version.txt` artifact from the dispatching run
         if: steps.inputs.outputs.source == 'workflow_artifact'
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
         with:
           run_id: ${{ steps.inputs.outputs.run_id }}
           name: version.txt
