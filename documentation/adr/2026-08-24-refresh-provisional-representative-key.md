@@ -1,10 +1,10 @@
 ---
-title: Refresh a reference's representative key whenever its built state is replaced
+title: Keep the reference bundle in step with the reference collection
 date: 2026-08-24
-updated: 2026-08-24 13:20
+updated: 2026-08-24 14:05
 status: accepted
 kind: fix
-issues: [1438]
+issues: [1438, 1444]
 prs: [1442, 1443]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure]
 supersedes: []
@@ -12,15 +12,19 @@ superseded-by: []
 relates: []
 ---
 
-# Refresh a reference's representative key whenever its built state is replaced
+# Keep the reference bundle in step with the reference collection
 
 `InitialReferencesBuilder.createReference` registers a brand new — and therefore still empty —
 reference in its `BuilderReferenceBundle` and only afterwards hands the key back so the caller can
 populate the attributes. The key it registers is derived from the *default* representative values,
 normally `[null]`, and nothing refreshed it once the caller filled the attributes in. Every
 replacement of a reference's built state now re-keys it in the bundle, so a provisional key never
-outlives the state it was derived from. The same work fixes the reference counter the bundle keeps
-alongside those keys, which double-counted in two places.
+outlives the state it was derived from.
+
+Two further gaps in the same invariant — *the bundle must know about every reference the collection
+holds, under the key that reference currently has* — were found and closed alongside it: references
+inserted through `InsertReferenceMutation` were never registered in the bundle at all (#1444), and the
+reference counter the bundle keeps alongside those keys double-counted in two places.
 
 ## Why
 
@@ -160,6 +164,19 @@ that is cheap to refresh, and D is the right *shape* but wrong preconditions.
   Its unreachable `cardinality == null ? 2` fallback went with it: the method asserts the generic slot
   is present, and that slot is only ever written by `upsertNonDuplicateReference`, which sets the count
   to 1.
+- **`mutateReference(InsertReferenceMutation)` registered nothing in the bundle** (#1444, latent since
+  v2025.8.0 — *not* a 2026.2 regression; `mutateReference` did not exist on the references builder
+  before `8e10a5e9f`). Removal of such a reference failed outright with "is not present in the
+  structure", and duplicate detection never ran for it. It now registers through
+  `upsertWithDuplicateReferenceConversion` like `createReference` does; the internal id is resolved
+  *before* the `Reference` is constructed, so the bundle files it under the very key the collection
+  stores.
+- **That registration makes mutation emission order load-bearing.** Registering eagerly means two
+  still-empty references collide on their identical default representative values, so a stream ordered
+  `[Insert A, Insert B, Attr A, Attr B]` would break replay. Real streams interleave per reference —
+  `buildChangeSet()` emits each insert followed by its own attribute mutations, which `toMutation()`'s
+  contract states — and `shouldReplayItsOwnMutationStream` exists to keep that guaranteed rather than
+  incidental. Anyone reordering `buildChangeSet` must read that test first.
 - The exception message in `upsertDuplicateReference` reported `internalPk` — the *incoming*
   reference — where it meant `previousValue`, the existing one. The production trace's "internal id
   -7" was the reference being added, not the one it collided with, which sent the investigation after
@@ -190,16 +207,33 @@ on `containsReferenceKey` still answering `true` after every reference under the
 `count()` was correct throughout — it reads `internalPkToRepRefKeys`, not the counter — which is what
 localised the bug to `usedReferenceKeys`.
 
-Regression: full `unitAndFunctional` suite, 20 919 tests.
+`InsertReferenceMutationBookkeepingTest` — 5 tests, all green; **3 fail without the fix**, two on
+`GenericEvitaInternalError: ... is not present in the structure!` and one on "expected
+`InvalidMutationException`, nothing was thrown". The other two are guards: distinguishable duplicates
+still accepted, and the mutation-stream round-trip described above. The v2025.8.0 dating was confirmed
+by reproducing the removal crash in a worktree at that tag, not by reading the diff.
+
+Rejecting identical representative attributes on the mutation path is not a new restriction:
+`createReference`, `setOrUpdateReference` and `ExistingReferencesBuilder.createReference` were each
+probed and all three already throw the identical `InvalidMutationException` in that situation. The
+mutation path was the one hole that bypassed the rule.
+
+Regression: full `unitAndFunctional` suite, 20 927 tests.
 
 ## Consequences & open follow-ups
 
 - The choke point runs on every reference replacement. It is two map lookups and an early return in
   the overwhelmingly common non-duplicate case, but it is on the write path.
-- `mutateReference(InsertReferenceMutation)` adds a reference to the collection without registering it
-  in the bundle at all. `refreshRepresentativeKey` cannot help — it only re-keys what is already registered.
-  Not investigated; flagged so the next reader does not mistake this record for a claim that every
-  path is now consistent.
+- The four reference-creation entry points are now consistent, but that is a statement about the paths
+  *examined here*, not a proof that the bundle and the collection can no longer drift. The invariant is
+  maintained by convention at each call site rather than enforced structurally — nothing stops the next
+  new path from adding to the collection and forgetting the bundle, which is exactly how #1444 arose.
+  Deriving the bundle at build time would remove the class of bug entirely; see Option C for why that
+  was out of scope here.
+- A reference whose schema declares duplicating cardinality but **no** representative attributes cannot
+  have duplicates at all — every path rejects the second one, because both derive the same empty key.
+  That predates this work and was left alone; it is a schema-validation question (such a schema is
+  arguably invalid at declaration time) rather than a bookkeeping one.
 - `convertToDuplicateReference` still does `internalPkToRepRefKeys.remove(genericInternalPk)` followed
   by `put(previousRefInternalPk, ...)` on what is provably the same key. Harmless, left alone
   deliberately: it is on a path this change already touches and shrinking it further would have
@@ -209,3 +243,4 @@ Regression: full `unitAndFunctional` suite, 20 919 tests.
 
 - **2026-08-24** — reported from production, diagnosed live over JDWP, issue #1438 filed
 - **2026-08-24** — fixed, counter defect found and fixed alongside, verified, recorded
+- **2026-08-24** — follow-up chased: #1444 filed and closed in the same PRs

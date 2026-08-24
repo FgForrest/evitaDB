@@ -969,17 +969,28 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
     @Override
     public ReferencesBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
         if (referenceMutation instanceof InsertReferenceMutation lm) {
-            final String referenceName = referenceMutation.getReferenceKey().referenceName();
+            final ReferenceKey mutationKey = referenceMutation.getReferenceKey();
+            final String referenceName = mutationKey.referenceName();
             final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrCreateImplicit(
                 referenceName, lm.getReferencedEntityType(), lm.getReferenceCardinality()
             );
-            this.addOrReplaceReferenceInternal(
-                new Reference(
-                    this.entitySchema,
-                    referenceSchema,
-                    referenceMutation.getReferenceKey(),
-                    null
-                )
+            // the internal id is resolved up front rather than inside addOrReplaceReferenceInternal, because the
+            // reference has to be registered in the bundle under the very key the collection stores it with
+            final ReferenceKey referenceKey = mutationKey.isUnknownReference() ?
+                new ReferenceKey(referenceName, mutationKey.primaryKey(), getNextReferenceInternalId()) :
+                mutationKey;
+            final Reference newReference = new Reference(
+                this.entitySchema,
+                referenceSchema,
+                referenceKey,
+                null
+            );
+            this.addOrReplaceReferenceInternal(newReference);
+            // a reference the bundle never learned about cannot be removed (removeNonDuplicateReference fails on
+            // "not present in the structure") and cannot take part in duplicate detection at all
+            getReferenceBundleForUpdate(referenceName, 8).upsertWithDuplicateReferenceConversion(
+                newReference,
+                rk -> this.getReference(rk).orElseThrow()
             );
         } else if (referenceMutation instanceof SetReferenceGroupMutation lm) {
             final ReferenceContract existingReference = this.getReference(lm.getReferenceKey())
