@@ -1,7 +1,7 @@
 ---
 title: Share schema-derived attribute keys and resolve reference schemas once per run instead of per mutation
 date: 2026-08-05
-updated: 2026-08-10 08:45
+updated: 2026-08-24 09:15
 status: accepted
 kind: optimization
 issues: [1390]
@@ -85,8 +85,8 @@ built would make every name-keyed lookup in the write path cheap at once, not ju
 - **Rejected because:** it needs a design exploration and a measured ceiling before anyone writes
   code — where the table lives decides whether it is a converter-local detail or a change to the
   mutation contract, and neither placement has been measured. Explicitly out of scope in #1390.
-  **Revisit** once the exploration in `specifications/write-path-optimizations/` (on `dev`) has a
-  measured ceiling to compare against.
+  **Revisit** once a profile puts a ceiling on it — the two candidate placements are named above,
+  and the starting point is a fresh measurement rather than a document.
 
 ### Option C — memoize the resolved reference schema on the executor across mutations (declined)
 
@@ -190,13 +190,12 @@ B remains the larger prize and should be sequenced after its exploration produce
   without one: `ReflectedReferenceSchema` overrides `getAttribute` with an availability assert, so a
   null-returning sibling would need a matching override to avoid bypassing it — more surface than
   the single DTO-typed call site justified.
-- **The plan folder must still be retired.** `specifications/write-path-optimizations/` now has only
-  one item left unclaimed: its §1 *Problem B*, which is Option B above. §1 *Problem A* is implemented
-  by this record, and §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
-  `ObjectIntHashMap` size hint by deleting the map) ship as the sibling commit in this same branch,
-  issue #1391. Once the name-canonicalization exploration has a measured ceiling, the folder should
-  leave `specifications/` entirely — either folded into a record or deleted, per
-  `.claude/rules/adr.md`.
+- **The exploration folder that motivated this record has been retired.** Its §1 *Problem A* is
+  implemented here; §2/§3 (the `verifyReferenceCardinalities` rewrite, which subsumes the
+  `ObjectIntHashMap` size hint by deleting the map) shipped as the sibling commit in this same
+  branch, issue #1391, whose commit message carries the run-length scan's reasoning. Only §1
+  *Problem B* was never written — it is Option B above, and that is now the only surviving record of
+  it. The `ComparableReferenceKey` half of its §4 is Option D, still gated on #1392.
 
 ## Related work
 
