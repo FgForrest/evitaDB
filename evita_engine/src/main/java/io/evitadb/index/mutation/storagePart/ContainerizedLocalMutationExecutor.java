@@ -1111,6 +1111,21 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * Reports that the state this executor wrote through its data store buffer could not be reverted and must
+	 * therefore never be flushed (see {@link DataStoreMemoryBuffer#poison(Throwable)}). It is a last-resort backstop
+	 * for a per-entity rollback that itself failed on the warm-up write path: a partially applied entity mutation that
+	 * cannot be rewound leaves the in-memory indexes inconsistent with what a flush would persist, and refusing the
+	 * flush is the only remaining way to keep that inconsistency out of the storage.
+	 *
+	 * A no-op on the transactional path — that buffer is discarded wholesale with its failed transaction.
+	 *
+	 * @param cause the rollback failure that made the state untrustworthy
+	 */
+	public void poisonDataStoreBuffer(@Nonnull Throwable cause) {
+		this.dataStoreUpdater.poison(cause);
+	}
+
+	/**
 	 * Retrieves the body storage part of the entity by its type and primary key. This method either
 	 * returns a cached entity storage part or fetches it from the data store if it's not cached.
 	 * Additionally, it validates the existence of the entity based on the expectation provided.

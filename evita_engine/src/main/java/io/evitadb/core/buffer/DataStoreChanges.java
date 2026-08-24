@@ -33,6 +33,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.UndoJournal;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
@@ -183,16 +184,19 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	}
 
 	/**
-	 * Captures the revertable in-memory state of this layer for a per-entity savepoint (see
-	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#openSavepoint()}).
+	 * Captures the revertable in-memory state of this layer for a per-entity savepoint — the transactional one (see
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#openSavepoint()}) and, when this instance
+	 * is the warm-up buffer's plain (non-diff) changeset, the non-transactional
+	 * {@link io.evitadb.core.transaction.memory.WarmUpSavepoint} that brackets a bulk-indexing entity mutation.
 	 *
 	 * Only the dirty-index tracking and the trapped storage-part cache are captured — these are the only fields a
 	 * single entity mutation can touch while the savepoint is open: the index executor marks indexes dirty through
-	 * {@link #getOrCreateIndexForModification} / {@link #getIndexForModification} on every modification. Actual
-	 * storage parts are written ({@link #putStoragePart} / {@link #removeStoragePart}) by the storage executor only
-	 * during its `commit()`, which runs after the savepoint has already been committed — so a rolled-back entity never
-	 * persists a storage part and none needs reverting here. The {@link #persistenceService} reference is intentionally
-	 * not part of the memento (it changes only on store compaction, never inside a mutation).
+	 * {@link #getOrCreateIndexForModification} / {@link #getIndexForModification} on every modification. Writes that
+	 * reach the {@link #persistenceService} directly ({@link #putStoragePart} / {@link #removeStoragePart}) are issued
+	 * by the storage executor only from its `commit()`, which the collector runs solely on the success path — so a
+	 * rolled-back entity never persists a storage part and none needs reverting here; only the trapped-cache side
+	 * effect of those two methods is. The {@link #persistenceService} reference itself is intentionally not part of the
+	 * memento (it changes only on store compaction, never inside a mutation).
 	 *
 	 * The captured maps are independent copies so that subsequent mutations of this layer — or a repeated
 	 * {@link #restore(DataStoreChangesMemento)} from the same memento — cannot corrupt the snapshot. The {@link Index}
@@ -244,6 +248,32 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 			if (this.undoJournal.isEmpty()) {
 				this.undoJournal = null;
 			}
+		}
+	}
+
+	/**
+	 * Registers this layer with the warm-up savepoint bracketing the current root entity mutation, if one is open, so
+	 * that a failed mutation can be reverted on the non-transactional bulk-indexing path (see {@link WarmUpSavepoint}).
+	 * The registration is idempotent — only the first touch inside a savepoint captures a memento, every later one is
+	 * an `O(1)` no-op.
+	 *
+	 * Must be called at the ENTRY of a mutating method, before it changes anything: the {@link #snapshot()} the first
+	 * touch triggers is also what allocates {@link #undoJournal}, and the mutators' own journal pushes are silent until
+	 * it exists.
+	 *
+	 * Called from every method that mutates the state {@link #snapshot()} captures — the dirty-index tracking and the
+	 * trapped storage-part cache. Deliberately NOT called from {@link #setPersistenceService} (not part of the memento;
+	 * it changes only on store compaction, never inside an entity mutation) nor from {@link #popTrappedUpdates()} (the
+	 * flush, which runs between entity mutations and drains this layer wholesale rather than mutating it as part of
+	 * one).
+	 *
+	 * On the transactional path this costs a single {@link ThreadLocal} read returning `null`: a warm-up savepoint is
+	 * only ever opened when no transaction is active.
+	 */
+	private void recordWarmUpSavepointTouch() {
+		final WarmUpSavepoint warmUpSavepoint = WarmUpSavepoint.getIfOpen();
+		if (warmUpSavepoint != null) {
+			warmUpSavepoint.recordFirstTouch(this);
 		}
 	}
 
@@ -442,6 +472,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @return true if the storage part was successfully removed, false otherwise
 	 */
 	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
+		recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
 			ofNullable(this.trappedChanges.get(entityClass)).ifPresent(it -> it.remove(primaryKey));
 		}
@@ -449,6 +480,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	}
 
 	public <T extends StoragePart> boolean trapRemoveStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> entityClass) {
+		recordWarmUpSavepointTouch();
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		if (this.persistenceService.containsStoragePart(catalogVersion, primaryKey, entityClass)) {
 			this.trappedChanges.computeIfAbsent(entityClass, aClass -> new LongObjectHashMap<>(256))
@@ -470,6 +502,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @param <T> the type of the storage part
 	 */
 	public <T extends StoragePart> void putStoragePart(long catalogVersion, @Nonnull T value) {
+		recordWarmUpSavepointTouch();
 		if (this.trappedChanges != null) {
 			ofNullable(this.trappedChanges.get(value.getClass()))
 				.ifPresent(it -> it.remove(value.getStoragePartPKOrElseThrowException()));
@@ -484,6 +517,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 	 * @param value the storage part to be added, must not be null
 	 */
 	public <T extends StoragePart> void trapPutStoragePart(@Nonnull T value) {
+		recordWarmUpSavepointTouch();
 		this.trappedChanges = this.trappedChanges == null ? new HashMap<>(64) : this.trappedChanges;
 		final long storagePartPK = value.getStoragePartPKOrElseThrowException();
 		final Class<? extends StoragePart> containerType = value.getClass();
@@ -531,8 +565,10 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		//noinspection unchecked
 		final I existingIndex = (I) this.dirtyEntityIndexes.get(indexKey);
 		if (existingIndex != null) {
+			// the index is already registered dirty - this call mutates nothing, so nothing has to be captured
 			return existingIndex;
 		}
+		recordWarmUpSavepointTouch();
 		final I createdIndex = accessorWhenMissing.apply(indexKey);
 		Assert.isPremiseValid(
 			createdIndex != null,
@@ -579,8 +615,10 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		//noinspection unchecked
 		final I existing = (I) this.dirtyEntityIndexesByPk.get(indexPrimaryKey);
 		if (existing != null) {
+			// the index is already registered dirty - this call mutates nothing, so nothing has to be captured
 			return existing;
 		}
+		recordWarmUpSavepointTouch();
 		final I index = accessorWhenMissing.apply(indexPrimaryKey);
 		Assert.isPremiseValid(
 			index != null,
@@ -652,6 +690,7 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 		@Nonnull IK entityIndexKey,
 		@Nonnull Function<IK, I> removalPropagation
 	) {
+		recordWarmUpSavepointTouch();
 		//noinspection unchecked
 		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
 		if (dirtyIndexesRemoval != null && this.undoJournal != null) {

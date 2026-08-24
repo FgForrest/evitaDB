@@ -2451,6 +2451,21 @@ public final class Catalog
 	}
 
 	/**
+	 * Reports that the catalog-level state trapped in this catalog's data store buffer could not be reverted and must
+	 * therefore never be flushed (see {@link DataStoreMemoryBuffer#poison(Throwable)}). It is a last-resort backstop
+	 * for a per-entity rollback that itself failed on the warm-up write path: an entity upsert touches the catalog
+	 * buffer too (a globally unique attribute registers its {@link io.evitadb.index.CatalogIndex} dirty there), so
+	 * poisoning only the entity collections' buffers would still let an unrewindable catalog index reach the storage.
+	 *
+	 * A no-op on the transactional path — that buffer is discarded wholesale with its failed transaction.
+	 *
+	 * @param cause the rollback failure that made the state untrustworthy
+	 */
+	public void poisonDataStoreBuffer(@Nonnull Throwable cause) {
+		this.dataStoreBuffer.poison(cause);
+	}
+
+	/**
 	 * Returns the newest catalog version that has actually been checkpointed to disk. Tells apart a failure that
 	 * struck before its version was durable from one that struck after.
 	 *
